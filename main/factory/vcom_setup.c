@@ -2,16 +2,18 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 出厂 VCOM 标定。PMU 未标定时拦住开机；数字区跟随 DU，三位凑齐进确认页再写。
+ * VCOM 标定页。Metalio S31 没有 Pico PMU：值改为写 ESP NVS，写入后断电重上电让
+ * TPS65185 按新值上电；开机时按住音量键进入本页。
  *
- * Factory VCOM calibration. Gates boot when the PMU is unset; the number band
- * uses FOLLOW DU; three digits go to the confirm page, then write.
+ * VCOM calibration page. The Metalio S31 board has no Pico PMU, so the value is
+ * stored in ESP NVS and applied on the next rail power-up; hold a volume key
+ * while powering on to enter the page.
  *
- * 冻结：副标题不写范围；数字只刷上方一块 FOLLOW DU；三位合法自动进确认；
- * 确认页 168px 大号 + mV；写入失败留在确认页；不写 ESP NVS。
- * Frozen: subtitle has no range; the number band uses FOLLOW DU only;
- * three valid digits go to confirm automatically; confirm page is 168px plus mV;
- * write failure stays on confirm; do not write ESP NVS.
+ * 面板黑度不足（整屏偏淡、全刷也回不来）时先用这里扫 VCOM：900..4000mV、10mV 一档，
+ * 反复调直到黑最黑、残影最少。只改运行时寄存器与 NVS，不写 TPS65185 的永久 OTP。
+ * Sweep VCOM here when the whole panel looks washed out: 900..4000 mV in 10 mV
+ * steps until the black is deepest and ghosting least. Only the runtime register
+ * and NVS change; the TPS65185 OTP is never programmed.
  */
 
 #include "vcom_setup.h"
@@ -25,13 +27,22 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "read_pico_pmu.h"
+#include "nvs.h"
 #include "ui_kit.h"
 
 #define TAG "vcom_setup"
 
-#define VCOM_MIN_MV 500
-#define VCOM_MAX_MV 2500
+#define VCOM_MIN_MV 900
+// 标定上限放宽到 4000mV（400），方便扫到面板最优点；判据是黑最深且白底/残影开始变差。
+// Calibration ceiling raised to 4000 mV (digits 400) so the sweep can find the
+// panel optimum; stop where black stops improving but white/ghosting worsens.
+#define VCOM_MAX_MV 4000
+// 实测最优 -3000mV：与对比机黑度完全一致（1200mV 时整屏偏淡）。NVS 无标定时用这个。
+// Measured optimum -3000 mV matches the comparison unit's black level (the old
+// 1200 mV default left the whole panel pale). Used when NVS has no calibration.
+#define VCOM_DEFAULT_MV 3000
+#define VCOM_NVS_NAMESPACE "metalio_hw"
+#define VCOM_NVS_KEY "vcom_mv"
 #define VCOM_PAD_ROWS 4
 #define VCOM_PAD_COLS 3
 #define VCOM_CONFIRM_PX 168
@@ -176,7 +187,13 @@ static void sync_ok(
 
 static void draw_setup(uint8_t* fb, const vcom_geom_t* g, const vcom_state_t* s) {
     ui_clear_page(fb);
-    ui_draw_header(fb, "设定 VCOM Set", "三位 129 即 -1.29 V。");
+    const int current = vcom_setup_load_mv();
+    char hint[72];
+    snprintf(
+        hint, sizeof(hint), "当前 -%d.%02d V；输入三位，129 即 -1.29 V",
+        current / 1000, (current % 1000) / 10
+    );
+    ui_draw_header(fb, "设定 VCOM Set", hint);
     draw_number(fb, g, s->digits);
     for (int i = 0; i < 12; i++) {
         ui_draw_button(fb, vcom_key_rect(g, i), k_keys[i], i == VCOM_KEY_OK && s->ok_on);
@@ -240,11 +257,36 @@ static void eat_touch(cst836u_handle_t tp, bool* was_touched) {
     *was_touched = false;
 }
 
+int vcom_setup_load_mv(void) {
+    nvs_handle_t h;
+    uint16_t mv = 0;
+    if (nvs_open(VCOM_NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) return VCOM_DEFAULT_MV;
+    esp_err_t err = nvs_get_u16(h, VCOM_NVS_KEY, &mv);
+    nvs_close(h);
+    if (err != ESP_OK || mv < VCOM_MIN_MV || mv > VCOM_MAX_MV || mv % 10) return VCOM_DEFAULT_MV;
+    return (int)mv;
+}
+
 static bool persist(int mv) {
-    if (read_pico_pmu_vcom_set(mv) != ESP_OK) return false;
-    int got = 0;
-    if (read_pico_pmu_vcom_get(&got) != ESP_OK || got != mv) return false;
+    if (mv < VCOM_MIN_MV || mv > VCOM_MAX_MV || mv % 10) return false;
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(VCOM_NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_u16(h, VCOM_NVS_KEY, (uint16_t)mv);
+        if (err == ESP_OK) err = nvs_commit(h);
+        nvs_close(h);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "VCOM NVS save: %s", esp_err_to_name(err));
+        return false;
+    }
+    if (vcom_setup_load_mv() != mv) return false;
     epd_set_vcom((uint16_t)mv);
+    // 新 VCOM 只在下一次上电写入 TPS65185：先撤轨，再让下一帧全刷重新上电。
+    // The new VCOM is written on the next rail power-up: drop the rails now and
+    // let the next full refresh power them on with the new value.
+    epd_poweroff();
+    display_request_full_refresh();
     return true;
 }
 

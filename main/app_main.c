@@ -69,13 +69,26 @@ extern const uint8_t lock_4bpp_bin_end[] asm("_binary_lock_4bpp_bin_end");
 extern const uint8_t loading_4bpp_bin_start[] asm("_binary_loading_4bpp_bin_start");
 extern const uint8_t loading_4bpp_bin_end[] asm("_binary_loading_4bpp_bin_end");
 
-// 已标定则开机读一次喂给 epdiy。未标定先用板级默认出开机图，随后拦住进标定页。
-// Load VCOM once when set. Otherwise keep the board default for the splash,
-// then gate into the setup page.
+// VCOM 从 NVS 读取（默认 3000，实测最优）。V1.5 没有 Pico PMU，标定值只存本机 NVS。
+// Load VCOM from NVS (3000 by default, the measured optimum). V1.5 has no Pico
+// PMU, so the calibrated value lives in local NVS only.
 static bool resolve_vcom_at_boot(void) {
-    epd_set_vcom(1200);
-    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=1200mV from reference configuration");
+    const int mv = vcom_setup_load_mv();
+    epd_set_vcom((uint16_t)mv);
+    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=%dmV (NVS, default 3000)", mv);
     return true;
+}
+
+// 开机按住音量键进 VCOM 校准页；V1.5 音量键在 FCA9555 P1.0/P1.1，低有效。
+// Held volume keys (active low on FCA9555 P1.0/P1.1) open the VCOM calibration page.
+static bool volume_key_held(void) {
+    uint16_t first = 0xffff, again = 0xffff;
+    if (metalio_io_read(&first) != ESP_OK) return false;
+    vTaskDelay(pdMS_TO_TICKS(30));
+    if (metalio_io_read(&again) != ESP_OK) return false;
+    const bool pressed_first = ((first >> 8) & 0x03) != 0x03;
+    const bool pressed_again = ((again >> 8) & 0x03) != 0x03;
+    return pressed_first && pressed_again;
 }
 
 // 开机图和锁屏图是预先转好的 4bpp 全屏位图，尺寸对不上说明资源和面板不匹配。
@@ -159,8 +172,12 @@ void app_main(void) {
         return;
     }
 
-    if (hw.pmu_ready && !vcom_ok) {
+    // V1.5 没有 Pico PMU：改为开机按住音量键进入 VCOM 校准页；写入后立即生效。
+    // No Pico PMU on V1.5: hold a volume key while powering on to open VCOM
+    // calibration; an accepted value is applied on the next rail power-up.
+    if (!vcom_ok || volume_key_held()) {
         vcom_setup_run(&hl, framebuffer, hw.touch);
+        display_request_full_refresh();
     }
 
     // 硬件、显示、触摸与必要的出厂设置均成功后确认新槽。

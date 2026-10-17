@@ -2,9 +2,10 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 出厂 VCOM 标定入口。PMU 未标定时由 app_main 拦住开机。
+ * VCOM 标定入口。Metalio S31 上没有 Pico PMU，值改为存 ESP NVS；开机按住音量键进入。
  *
- * Factory VCOM calibration entry. app_main gates boot when the PMU is unset.
+ * VCOM calibration entry. The Metalio S31 board has no Pico PMU, so the value is
+ * stored in ESP NVS; hold a volume key while powering on to enter the page.
  */
 
 #pragma once
@@ -16,8 +17,12 @@
 extern "C" {
 #endif
 
-/// PMU 未标定 VCOM 时拦住开机，写进 PMU 后才返回。/ Gate boot when VCOM is unset; returns only after it is written to the PMU.
+/// 进入标定页，写入成功后返回。/ Enter the calibration page; returns after a successful write.
 void vcom_setup_run(EpdiyHighlevelState* hl, uint8_t* fb, cst836u_handle_t tp);
+
+/// 读取 NVS 里保存的 VCOM（mV，900..2100、10 的倍数）；未设置时返回 1200。
+/// Load the VCOM saved in NVS (mV, 900..2100, step 10); 1200 when unset.
+int vcom_setup_load_mv(void);
 
 #ifdef __cplusplus
 }

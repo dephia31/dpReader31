@@ -12,7 +12,7 @@
 idf.py -B build-s31-native -D IDF_TARGET=esp32s31 -D SDKCONFIG_DEFAULTS=sdkconfig.defaults -D METALIO_LOCAL_LATENCY=OFF build
 ```
 
-原始 GC48/GL48/DU20 表保持不变，普通输出使用官方 GC36/GL37 运行裁剪；8bit/20MHz、192行预填、12ms最短相位。VCOM1200为参考运行值，没有烧写永久标定。
+原始 GC48/GL48/DU20 表默认完整使用（`E0470_WAVEFORM_TRIM=1` 才回退官方 GC36/GL37 裁剪，对齐厂家 2.0.76）；8bit/20MHz、192行预填、12ms最短相位。VCOM 实测最优 **3000mV（-3.00V）**，开机按住音量键进标定页可调（900–4000mV），值存 NVS，不烧写永久标定。
 
 ## 本地更新
 

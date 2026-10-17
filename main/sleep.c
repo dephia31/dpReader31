@@ -464,6 +464,14 @@ void enter_lock_and_sleep(
     // Clear only target memory; retain the old physical page until the complete collage is ready.
     epd_poweroff();
     uint8_t lock_style = app_settings_lock_style();
+    // 锁屏待机（不关机）也先整屏刷白一次：把上一屏差分刷新留下的浅态拉回饱和白，
+    // 锁屏画面再从干净白底叠上去，退出/唤醒后的黑度才稳定。
+    // 透明 PNG 书封样式以最后显示的一页做底图，刷白会清掉底图，因此该样式保持原流程。
+    // Lock standby (no power-off) also starts with a full white refresh: the previous
+    // differential frame is pushed back to saturated white and the lock art is then
+    // composed from that clean base. The transparent-PNG cover style draws over the
+    // last presented page, so it keeps the original path without the white pass.
+    if (lock_style != 3) guard_draw_result(hl, update_display_white(hl));
     s_lock_frame_cached=false;
     // 透明书封以最后成功推屏的真实参考作为底图，不取未显示的目标。
     // Overlay the last successfully presented reference, never an uncommitted target.
