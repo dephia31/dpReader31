@@ -1,0 +1,4 @@
+[mapping:metalio_crash_note]
+archive: libmain.a
+entries:
+    crash_note:__wrap_esp_panic_handler (noflash)

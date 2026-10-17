@@ -1,0 +1,10 @@
+build*/
+managed_components/
+sdkconfig.old
+.env*
+__pycache__/
+.DS_Store
+*.log
+local-flasher/runs/
+device-*.bin
+*fullflash*.bin

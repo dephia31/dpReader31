@@ -1,0 +1,246 @@
+{
+  "version": "0.3.3-rc90-metalio-test30",
+  "application_sha256": "6eef5ee68c320b1db2ded520f70f46a1dbae652e6798f6b6beac996957673247",
+  "application_size": 4771040,
+  "native_build_passed": true,
+  "local_probe_disabled": true,
+  "host_group_count": 56,
+  "host_groups": [
+    {
+      "name": "hardware",
+      "passed": true
+    },
+    {
+      "name": "ota",
+      "passed": true
+    },
+    {
+      "name": "water",
+      "passed": true
+    },
+    {
+      "name": "display",
+      "passed": true
+    },
+    {
+      "name": "neutral-gpio",
+      "passed": true
+    },
+    {
+      "name": "layout-controls",
+      "passed": true
+    },
+    {
+      "name": "reader-layout",
+      "passed": true
+    },
+    {
+      "name": "indent-hold",
+      "passed": true
+    },
+    {
+      "name": "weight",
+      "passed": true
+    },
+    {
+      "name": "reader-ui",
+      "passed": true
+    },
+    {
+      "name": "main-keys",
+      "passed": true
+    },
+    {
+      "name": "pager",
+      "passed": true
+    },
+    {
+      "name": "png-overlay",
+      "passed": true
+    },
+    {
+      "name": "lock-pin",
+      "passed": true
+    },
+    {
+      "name": "lock-style",
+      "passed": true
+    },
+    {
+      "name": "wake-resources",
+      "passed": true
+    },
+    {
+      "name": "app-loop",
+      "passed": true
+    },
+    {
+      "name": "navigation",
+      "passed": true
+    },
+    {
+      "name": "reader-prefetch",
+      "passed": true
+    },
+    {
+      "name": "reader-cache",
+      "passed": true
+    },
+    {
+      "name": "reader_refresh_release_host_test.py",
+      "passed": true
+    },
+    {
+      "name": "settings_layout_font_host_test.py",
+      "passed": true
+    },
+    {
+      "name": "quick_layer_raster_host_test.py",
+      "passed": true
+    },
+    {
+      "name": "vertical_number_host_test.py",
+      "passed": true
+    },
+    {
+      "name": "vertical-punctuation",
+      "passed": true
+    },
+    {
+      "name": "title_font_host_test.py",
+      "passed": true
+    },
+    {
+      "name": "retained-lock",
+      "passed": true
+    },
+    {
+      "name": "metalio_deep_sleep_host_test.py",
+      "passed": true
+    },
+    {
+      "name": "metalio_sleep_io_host_test.py",
+      "passed": true
+    },
+    {
+      "name": "boot-panel",
+      "passed": true
+    },
+    {
+      "name": "boot-state",
+      "passed": true
+    },
+    {
+      "name": "book-ui",
+      "passed": true
+    },
+    {
+      "name": "settings-backup",
+      "passed": true
+    },
+    {
+      "name": "epub",
+      "passed": true
+    },
+    {
+      "name": "lock-screen",
+      "passed": true
+    },
+    {
+      "name": "zip-prefetch",
+      "passed": true
+    },
+    {
+      "name": "cover-disk",
+      "passed": true
+    },
+    {
+      "name": "home-cover",
+      "passed": true
+    },
+    {
+      "name": "shelf-cache",
+      "passed": true
+    },
+    {
+      "name": "font_cache_budget_host_test.py",
+      "passed": true
+    },
+    {
+      "name": "reader_images_host_test.py",
+      "passed": true
+    },
+    {
+      "name": "run_book_host_tests.sh",
+      "passed": true
+    },
+    {
+      "name": "run_metalio_cover_cache_host_test.sh",
+      "passed": true
+    },
+    {
+      "name": "frontlight",
+      "passed": true
+    },
+    {
+      "name": "light-transaction",
+      "passed": true
+    },
+    {
+      "name": "light-pins",
+      "passed": true
+    },
+    {
+      "name": "usb",
+      "passed": true
+    },
+    {
+      "name": "boot-download",
+      "passed": true
+    },
+    {
+      "name": "cover-jobs",
+      "passed": true
+    },
+    {
+      "name": "transfer",
+      "passed": true
+    },
+    {
+      "name": "wifi-forget",
+      "passed": true
+    },
+    {
+      "name": "netif",
+      "passed": true
+    },
+    {
+      "name": "wifi-policy",
+      "passed": true
+    },
+    {
+      "name": "web-upload",
+      "passed": true
+    },
+    {
+      "name": "font-labels",
+      "passed": true
+    },
+    {
+      "name": "lock-font",
+      "passed": true
+    }
+  ],
+  "flash_guard_suite": {
+    "tests": 24,
+    "passed": true
+  },
+  "device_flash_verified": true,
+  "device_acceptance_complete": false,
+  "limitations": [
+    "Wi-Fi STA1MiB approximately30.2s, no material gain established",
+    "5GHz unsupported byESP32-S31",
+    "Optical, BLE device, USB-MSC and long-idle/sleep-current acceptance pending",
+    "Not all transitions reach300ms"
+  ]
+}
