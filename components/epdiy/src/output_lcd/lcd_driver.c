@@ -712,7 +712,32 @@ static void assign_lcd_parameters_from_config(
     // because the LCD peripheral behaves weirdly.
     // Also see:
     // https://blog.adafruit.com/2022/06/14/esp32uesday-hacking-the-esp32-s3-lcd-peripheral/
+    //
+    // S31 的 LCD 外设已改走 RGB 模式、且不再插 S3 的前导哑拍（见 init_lcd_peripheral
+    // 的 phase cycles(0,0,1)），但这里仍按 bus_width/8 保留了 S3 的哑字节：每行多送
+    // 1 字节（4 像素）进入源极移位寄存器。若寄存器正好 1216 级，前 4 像素会被移出、
+    // 整行仍对齐；若寄存器更宽，则整行相对面板前移 4 像素、行尾 4 像素收不到本行数据。
+    // 对齐不应由一个多余字节决定：S31 上把 dummy_bytes 置 0，一行正好 304 字节
+    // = 1216 像素，对齐是确定的；h_active/end_line/bounce 步长都由 dummy_bytes
+    // 派生，改一处即自洽。原厂 demo 保留了 S3 的哑字节，但它的 UI 四周内缩 8 像素，
+    // 掩盖了这条边界差异。
+    // On S31 the LCD peripheral runs in RGB mode and no longer inserts the S3
+    // leading dummy phase (phase cycles(0,0,1) in init_lcd_peripheral), yet this
+    // code still keeps the S3 dummy byte from bus_width/8: one extra byte (four
+    // pixels) per line enters the source shift register. With an exactly
+    // 1216-stage register the leading four pixels shift out and the row still
+    // aligns; with a wider register the whole row moves four pixels against the
+    // panel and the last four pixels of the line get no new data. Alignment
+    // should not depend on a leftover byte: on S31 set dummy_bytes to zero so a
+    // line is exactly 304 bytes = 1216 pixels and the alignment is
+    // deterministic. h_active/end_line/bounce stride all derive from
+    // dummy_bytes, so this one change stays self-consistent. The vendor demo
+    // keeps the S3 dummy byte, but its eight-pixel UI inset hides the boundary.
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+    lcd.dummy_bytes = 0;
+#else
     lcd.dummy_bytes = lcd.config.bus_width / 8;
+#endif
 
     // each bounce buffer holds a number of lines with data + dummy bytes each
     lcd.bb_size = BOUNCE_BUF_LINES * (lcd.line_bytes + lcd.dummy_bytes);

@@ -139,9 +139,9 @@ void app_main(void) {
     if(!restored_lock) {
         epd_poweron();
         if(!resuming)read_pico_i2c_census_take();
-        epd_lcd_prime_white_border(true);
+        // 清屏把整屏（含最外圈）一起驱动到白；运行时不再屏蔽白边，边角随内容刷新。
+        // The clear drives every pixel including the outermost ring; no runtime white border.
         epd_clear();
-        epd_lcd_prime_white_border(false);
         epd_hl_set_all_white(&hl);
         ui_draw_full_image(framebuffer,loading_4bpp_bin_start);
         update_display_from_white(&hl);

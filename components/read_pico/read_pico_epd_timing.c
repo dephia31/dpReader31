@@ -23,9 +23,23 @@ int read_pico_epd_refresh_ms(int mhz,read_pico_epd_scan_profile_t profile,int ph
 }
 void read_pico_epd_set_pclk(int mhz) { (void)mhz; clock_mhz=20; }
 void read_pico_epd_use_scan(read_pico_epd_scan_profile_t profile) { (void)profile; }
+
+// 运行时白边屏蔽（0 = 不屏蔽）。此前面板最外圈 8 像素在运行时被写成保持（00），
+// 四周因此永远停在开机刷白的状态：内容画不到那里，也不会随后续刷新更新，看起来
+// 就是一圈白框。原厂固件（CloudZao/Metalio-E-INK4-Plus）对整屏像素一视同仁，
+// 边角随内容刷新；这里跟原厂一致，让最外圈正常参与驱动。个别屏幕若边缘确有坏点，
+// 可改回 4 或 8 局部回退；启动清屏仍可用 epd_lcd_prime_white_border() 单独刷白。
+// Runtime white-border suppression (0 = off). The old port forced the outermost
+// eight pixels to hold (00) during runtime, so the ring stayed at its boot-time
+// white state: content could not reach it and it never updated again. The vendor
+// firmware drives every pixel, edges included; match that here. Set 4 or 8 to
+// fall back for a panel with a genuinely bad edge column.
+#define METALIO_RUNTIME_WHITE_BORDER_PIXELS 0
+
 void read_pico_epd_init_lcd(const lcd_bus_config_t *bus,int width_bits,int w,int h,const read_pico_epd_scan_t *scan) {
     (void)scan;
     LcdEpdConfig_t cfg={.pixel_clock=20000000,.ckv_high_time=60,.line_front_porch=4,
-        .le_high_time=9,.bus_width=width_bits,.bus=*bus,.dummy_clocks_after_data=10,.white_border_pixels=8};
+        .le_high_time=9,.bus_width=width_bits,.bus=*bus,.dummy_clocks_after_data=10,
+        .white_border_pixels=METALIO_RUNTIME_WHITE_BORDER_PIXELS};
     epd_lcd_init(&cfg,w,h);
 }
