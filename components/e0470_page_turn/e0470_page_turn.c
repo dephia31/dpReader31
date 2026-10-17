@@ -4,8 +4,10 @@
  *
  * 基于 MindReset Read Pico 官方 E0470 波形与刷新路径实现。
  * Built on the MindReset Read Pico E0470 waveform and refresh path.
- * 中文：S31阅读与主页用8带官方GL37共44拍，保留原始48相表及扫描/节拍下限。
- * English: S31 uses eight bands and vendor GL37 over 44 ticks, retaining scan timing and minimum pacing.
+ * 中文：S31阅读与主页用8带一拍一带：默认完整48相共55拍（裁剪表37相为44拍），
+ *       保留原始48相表及扫描/节拍下限。
+ * English: S31 uses eight bands, one per tick: 55 ticks with the default full 48
+ *          phases (44 for the trimmed 37), retaining scan timing and minimum pacing.
  */
 
 #include "e0470_page_turn.h"

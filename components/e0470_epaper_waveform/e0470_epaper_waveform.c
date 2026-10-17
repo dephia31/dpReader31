@@ -196,8 +196,9 @@ const EpdWaveform E0470_GRAY8_WAVEFORM = {
 };
 
 /* ---- 默认表 / Default tables ---- */
-// 完整灰阶表裁掉余量，开机算进 RAM。
-// / Trim slack from the full gray tables into RAM at boot.
+// 厂家 2.0.76 起默认完整 48 相；只有 E0470_WAVEFORM_TRIM=1 才在开机裁成 GC36/GL37。
+// / Vendor 2.0.76 defaults to the full 48 phases; trimming only runs with
+// E0470_WAVEFORM_TRIM=1.
 static uint8_t e0470_gc16_data[E0470_FULL_GC16_FRAMES][16][4];
 static uint8_t e0470_gl16_data[E0470_FULL_GL16_FRAMES][16][4];
 static const EpdWaveformPhases e0470_gc16_phases = {
@@ -274,6 +275,7 @@ void e0470_waveform_init(void) {
     e0470_follow_lut_build(1, e0470_apply_data);
     e0470_complete_du_build();
 
+#if E0470_WAVEFORM_TRIM
     // 参数和逐迁移算法对齐 Metalio 官方 my_waveform_init，不自行缩短脉宽。
     // Match the vendor's my_waveform_init parameters/transition algorithm without shortening pulses.
     const e0470_trim_t trim = {.erase_max=E0470_TRIM_ERASE_MAX,
@@ -282,12 +284,23 @@ void e0470_waveform_init(void) {
     int gc=e0470_waveform_trim(&my_gc_25_0,&trim,e0470_gc16_data);
     int gl=e0470_waveform_trim(&my_gl_25_0,&trim,e0470_gl16_data);
     assert(gc==E0470_GC16_FRAMES && gl==E0470_GL16_FRAMES);
+#else
+    // 厂家 2.0.76 默认完整表：裁剪会把黑目标饱和期从 18 帧减到 13 帧，强光下
+    // 墨色偏淡、灰阶非单调；三份原始数组相同，问题出在裁剪本身。
+    // Vendor 2.0.76 default: trimming cut the black saturation tail from 18 to
+    // 13 frames, leaving pale ink in strong light and a non-monotonic gray
+    // ladder; the raw arrays are identical across sources.
+    memcpy(e0470_gc16_data, my_gc_25_0_data, sizeof(e0470_gc16_data));
+    memcpy(e0470_gl16_data, my_gl_25_0_data, sizeof(e0470_gl16_data));
+#endif
 
     memcpy(e0470_full_gl16_live, my_gl_25_0_data, sizeof(e0470_full_gl16_live));
     e0470_gl16_white_tick(e0470_full_gl16_live, E0470_FULL_GL16_FRAMES);
+    // 完整表和裁剪表都要补白帧（厂家 2.0.76 相同处理）。
+    // Both full and trimmed GL16 get the unchanged-white pulse (vendor 2.0.76).
     e0470_gl16_white_tick(e0470_gl16_data, E0470_GL16_FRAMES);
-    // 文字使用官方 GL37 的原迁移顺序；只屏蔽等值像素，取消旧 S3 的调序/删擦白。
-    // Use vendor GL37 ordering, masking equal pairs only; remove the legacy reordering/erase omission.
+    // 文字沿用当前默认表的迁移顺序；只屏蔽等值像素，取消旧 S3 的调序/删擦白。
+    // Text keeps the active GL order, masking equal pairs only.
     memcpy(e0470_textturn_gl16_data,e0470_gl16_data,sizeof(e0470_textturn_gl16_data));
     for (int f = 0; f < E0470_GL16_FRAMES; f++) {
         for (int v = 0; v < 16; v++) {

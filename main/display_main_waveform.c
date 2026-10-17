@@ -1,8 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：主页与水波纹复用官方 GL37；快刷用原 DU20，只屏蔽等值迁移。
- * English: Main/ripple reuse vendor GL37; fast pages use original DU20 with equal pairs held.
- * 官方来源：CloudZao/Metalio-E-INK4-Plus b400605 / display/waveforms/my_waveform.c。
- * Vendor source: CloudZao/Metalio-E-INK4-Plus b400605 / display/waveforms/my_waveform.c.
+ * 中文：主页与水波纹复用默认灰阶表（厂家 2.0.76 起为完整 GL48，裁剪开关打开才是 GL37）；
+ *       快刷用原 DU20，只屏蔽等值迁移。
+ * English: Main/ripple reuse the default gray table (full GL48 since vendor 2.0.76,
+ *          GL37 only with trimming on); fast pages use original DU20 with equal pairs held.
+ * 官方来源：CloudZao/Metalio-E-INK4-Plus b400605 与厂家 2.0.76-debug 源码包 /
+ *          display/waveforms/my_waveform.c。
+ * Vendor source: CloudZao/Metalio-E-INK4-Plus b400605 and the 2.0.76-debug source
+ *          snapshot / display/waveforms/my_waveform.c.
  */
 #include "display_main_waveform.h"
 #include "e0470_epaper_waveform.h"

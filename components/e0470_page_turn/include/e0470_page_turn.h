@@ -42,8 +42,8 @@ void e0470_page_turn_release(void);
 
 /// `area` 是逻辑坐标；无可用 GL16 时返回 `EPD_DRAW_NO_PHASES_AVAILABLE`，不刷屏。
 /// `area` uses logical coordinates; unavailable GL16 phases return without scanning.
-/// 阅读8带按一拍一带启动，官方GL37共44拍；调用方选择11090us并负责FAST扫描与HV轨保活。
-/// Reader launches 8 bands one per tick, totaling 44 ticks for vendor GL37; the caller selects 11090us and owns FAST scanning and HV rail keepalive.
+/// 阅读8带按一拍一带启动：默认完整48相共55拍（裁剪表37相为44拍）；调用方选择节拍并负责FAST扫描与HV轨保活。
+/// Reader launches 8 bands one per tick: 55 ticks with the default full 48 phases (44 for the trimmed 37); the caller selects pacing and owns FAST scanning and HV rail keepalive.
 enum EpdDrawError e0470_page_turn(
     EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir
 );
@@ -54,7 +54,7 @@ enum EpdDrawError e0470_page_turn_with_waveform(
     const EpdWaveform* waveform, unsigned bands
 );
 
-/// 显式序列的一拍一带入口；保留波形、指定条带数与当前节拍，8带官方GL37共44拍。/ Compact explicit sequence: retain waveform, requested bands and current pacing; eight bands/37 phases take 44 ticks.
+/// 显式序列的一拍一带入口；保留波形、指定条带数与当前节拍：8带/默认48相共55拍，裁剪37相为44拍。/ Compact explicit sequence: retain waveform, requested bands and current pacing; eight bands take 55 ticks with the default 48 phases (44 trimmed).
 enum EpdDrawError e0470_page_turn_with_waveform_compact(
     EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir,
     const EpdWaveform* waveform, unsigned bands

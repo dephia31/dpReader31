@@ -73,8 +73,8 @@ int main(void) {
     const EpdWaveform *profiles[]={display_main_gray_waveform(),display_main_water_waveform(),display_main_normal_waveform()};
     for(unsigned i=0;i<3;++i){
         const EpdWaveformPhases *table=e0470_waveform_phases(profiles[i],MODE_GL16);
-        assert(table&&table->phases==37&&!table->phase_times);
-        for(int f=0;f<37;++f)for(int from=0;from<16;++from)for(int to=0;to<16;++to)
+        assert(table&&table->phases==E0470_GL16_FRAMES&&!table->phase_times);
+        for(int f=0;f<E0470_GL16_FRAMES;++f)for(int from=0;from<16;++from)for(int to=0;to<16;++to)
             assert(e0470_phase_action(table,f,to,from)==(from==to?0:e0470_phase_action(gray_table,f,to,from)));
     }
     assert(!memcmp(saved_bw,bw->luts,sizeof(saved_bw))&&!memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));

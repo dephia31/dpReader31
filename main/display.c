@@ -17,8 +17,10 @@
  * 用户修订：书架顶部文字、框线与封面/亚克力一起使用水波纹，不再拆分顶部差分刷新；底栏仍固定。
  * User revision: shelf headers, frames, covers and acrylic share one ripple instead of a separate header differential; navigation remains fixed.
 
- * 用户修订：纯文字水波纹复用S31官方GL37相序和等灰保持；保留8带、S31节拍、最终灰阶和故障恢复。
- * User revision: pure-text ripple reuses S31 vendor GL37 order and equal-gray hold; retain eight bands,S31 timing,target grays and recovery.
+ * 用户修订：纯文字水波纹复用S31默认灰阶相序和等灰保持；保留8带、S31节拍、最终灰阶和故障恢复。
+ * User revision: pure-text ripple reuses the S31 default gray order and equal-gray hold; retain eight bands,S31 timing,target grays and recovery.
+ * 用户修订：对齐厂家 2.0.76，默认灰阶表改回完整 GL48（裁剪会削弱黑墨饱和并在强光下偏淡）；保留节拍、条带与恢复路径。
+ * User revision: follow vendor 2.0.76 with the full GL48 default table (trimming weakened black saturation and paled under strong light); keep pacing, bands and recovery.
 
  */
 

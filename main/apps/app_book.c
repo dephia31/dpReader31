@@ -3279,8 +3279,8 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
         if (s_water_turn_pending) e0470_page_turn_set_tick_us(E0470_TURN_FAST_TICK_US);
         // 翻页动画与页脚刷新独立：全屏没有页脚，仍使用用户选择的水波纹。
         // The turn effect is independent of the footer: full-screen turns still use the selected water effect.
-        // 普通文字页把进度条合并到本次 GL37，避免正文后再串行推一次。
-        // Fuse plain-text progress into this GL37 update instead of a serial follow-up scan.
+        // 普通文字页把进度条合并到本次文字波形，避免正文后再串行推一次。
+        // Fuse plain-text progress into this text-waveform update instead of a serial follow-up scan.
         EpdRect turn_area=s_area;
         bool fused_footer=s_reader_turn_pending&&!s_water_turn_pending;
         if(fused_footer) {
