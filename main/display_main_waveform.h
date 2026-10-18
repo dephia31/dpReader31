@@ -12,3 +12,15 @@ const EpdWaveform* display_main_shelf_exit_waveform(void);
 const EpdWaveform* display_main_water_waveform(void);
 const EpdWaveform* display_main_bw_waveform(void);
 const EpdWaveform* display_main_normal_waveform(void);
+
+/// 书架普通切页柔和题头/分页；使用本机DU20端点，中灰GL48保持等值，无额外相位。
+/// Soft shelf chrome uses this panel's DU20 endpoints and equal-held GL48 midgrays, without extra phases.
+const EpdWaveform* display_main_shelf_soft_waveform(void);
+/// 封面/材质保留完整本机GL/GC48，白色留白沿用柔和擦白；手动全刷不使用此派生表。
+/// Art retains complete local GL/GC48; white space uses soft erase. Manual full refresh keeps the original tables.
+const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode mode);
+
+/// 整页输出保留15→15补白；固定底栏及局部控件继续使用原等值保持表。
+/// Page profiles retain white-to-white maintenance; frozen navigation and local controls use equal-held profiles.
+const EpdWaveform* display_main_page_gray_waveform(void);
+const EpdWaveform* display_main_page_bw_waveform(void);

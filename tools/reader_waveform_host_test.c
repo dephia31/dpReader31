@@ -11,6 +11,6 @@ int main(void){
  assert(actual&&vendor&&actual->phases==E0470_GL16_FRAMES&&vendor->phases==E0470_GL16_FRAMES);
  assert(e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_GL16)->phases==48);
  for(int f=0;f<E0470_GL16_FRAMES;++f)for(int from=0;from<16;++from)for(int to=0;to<16;++to)
-  assert(e0470_phase_action(actual,f,to,from)==(from==to?0:e0470_phase_action(vendor,f,to,from)));
- puts("PASS: reader preserves every changed default-GL transition in order, holds equal pairs and retains full48 recovery");
+  assert(e0470_phase_action(actual,f,to,from)==(from==to&&to!=15?0:e0470_phase_action(vendor,f,to,from)));
+ puts("PASS: reader preserves every changed default-GL transition in order, holds non-white equal pairs and retains white maintenance and retains full48 recovery");
 }

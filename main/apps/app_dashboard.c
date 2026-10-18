@@ -45,6 +45,7 @@
 #include "book_epub.h"
 #include "book_progress.h"
 #include "book_store.h"
+#include "book_file_path.h"
 #include "book_title.h"
 #include "book_ticket.h"
 #include "book_excerpt.h"
@@ -157,8 +158,7 @@ static home_book_t *book_at(int index);
 
 static bool is_book(const char *name) {
     if (!name[0] || name[0] == '.' || !strncmp(name, "._", 2)) return false;
-    const char *dot = strrchr(name, '.');
-    return dot && (!strcasecmp(dot, ".epub") || !strcasecmp(dot, ".txt"));
+    return book_file_path_supported(name);
 }
 static void copy_title(char *dst, size_t cap, const char *src) {
     size_t n = strlen(src);
@@ -220,7 +220,9 @@ static bool recent_visit(const char *path,const book_progress_t *progress,void *
 }
 static void scan_books(void) {
     char last[BOOK_STORE_PATH_MAX];
-    if (book_progress_last_path(last, sizeof(last))) {
+    // 不支持的恢复记录只跳过，不删除其他固件的缓存和阅读位置。
+    // Ignore unsupported resume records without deleting another firmware's cache or progress.
+    if (book_progress_last_path(last, sizeof(last)) && book_file_path_supported(last)) {
         struct stat st;
         if (!stat(last, &st) && S_ISREG(st.st_mode) && st.st_size >= 0 && (uint64_t)st.st_size <= UINT32_MAX) {
             snprintf(s_current.path, sizeof(s_current.path), "%s", last);

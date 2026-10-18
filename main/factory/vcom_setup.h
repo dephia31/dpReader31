@@ -20,8 +20,8 @@ extern "C" {
 /// 进入标定页，写入成功后返回。/ Enter the calibration page; returns after a successful write.
 void vcom_setup_run(EpdiyHighlevelState* hl, uint8_t* fb, cst836u_handle_t tp);
 
-/// 读取 NVS 里保存的 VCOM（mV，900..2100、10 的倍数）；未设置时返回 1200。
-/// Load the VCOM saved in NVS (mV, 900..2100, step 10); 1200 when unset.
+/// 读取 NVS 里保存的 VCOM（mV，900..4000、10 的倍数）；未设置时返回 3000。
+/// Load the VCOM saved in NVS (mV, 900..4000, step 10); 3000 when unset.
 int vcom_setup_load_mv(void);
 
 #ifdef __cplusplus

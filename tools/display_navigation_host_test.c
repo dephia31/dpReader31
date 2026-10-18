@@ -19,6 +19,7 @@ const EpdWaveform E0470_WAVEFORM = {0}, E0470_FOLLOW_WAVEFORM = {1},
     E0470_FULL_WAVEFORM = {2}, E0470_GRAY8_WAVEFORM = {3};
 static const EpdWaveform main_gray = {4}, main_exit = {5}, main_water = {6}, main_bw = {7}, main_acrylic = {8}, main_acrylic_clean = {9};
 static const EpdWaveform reader_soft = {10};
+static const EpdWaveform settings_soft={11};
 const EpdWaveform* display_reader_text_waveform(void) {return &reader_soft;}
 static app_main_refresh_mode_t main_mode=APP_MAIN_REFRESH_FAST;
 app_main_refresh_mode_t app_settings_main_refresh_mode(void) {return main_mode;}
@@ -28,6 +29,9 @@ const EpdWaveform* display_main_shelf_exit_waveform(void) {return &main_exit;}
 const EpdWaveform* display_main_gray_waveform(void) {return &main_gray;}
 const EpdWaveform* display_main_water_waveform(void) {return &main_water;}
 const EpdWaveform* display_main_normal_waveform(void) { return display_main_water_waveform(); }
+const EpdWaveform* display_main_page_gray_waveform(void){return display_main_normal_waveform();}
+const EpdWaveform* display_main_shelf_soft_waveform(void){return &settings_soft;}
+const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode mode){assert(mode==MODE_GL16||mode==MODE_GC16);return &main_acrylic;}
 const EpdWaveform* display_main_bw_waveform(void) {return &main_bw;}
 const EpdWaveform* display_main_acrylic_waveform(void) {return &main_acrylic;}
 const EpdWaveform* display_main_acrylic_clean_waveform(void) {return &main_acrylic_clean;}
@@ -50,6 +54,9 @@ static enum EpdRotation rotation = EPD_ROT_INVERTED_PORTRAIT;
 static int nav_draws, water_calls, water_fails;
 static EpdRect last_water_area;
 static int clean_calls;
+static bool protect_shelf_chrome;
+static int region_calls,region_unavailable;
+static EpdRect last_strong_area;
 // 所有真实推屏和欠载恢复都必须持有 OTA 互斥锁，包括递归兜底。
 // Every physical scan and underrun recovery must hold OTA exclusion, including recursive fallback.
 static unsigned ota_display_depth;
@@ -184,9 +191,27 @@ enum EpdDrawError epd_hl_update_screen_from_white(EpdiyHighlevelState* state, en
     memset(state->back_fb, 255, BYTES);
     return epd_hl_update_screen_full(state, mode, temperature);
 }
+enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* state, EpdRect area,
+    EpdRect strong, const EpdWaveform* soft, const EpdWaveform* calibrated,
+    enum EpdDrawMode strong_mode) {
+    assert(ota_display_depth && scan==READ_PICO_EPD_SCAN_FULL);
+    assert(soft==&settings_soft && calibrated==&main_acrylic);
+    assert(area.y==0 && area.height==UI_NAV_MARKER_SCAN_END);
+    assert(strong.y>=0 && strong.y+strong.height<=UI_NAV_REFRESH_END && !(strong.y&31) && !(strong.height&31));
+    if(protect_shelf_chrome)assert(strong.y==192 && strong.height==800);
+    ++region_calls;last_strong_area=strong;
+    if(region_unavailable)return EPD_DRAW_NO_PHASES_AVAILABLE;
+    // 调度层只建模一次整目标；实际逐相区域映射由组件回归验证。
+    // Model one complete target here; component tests verify actual phase-by-phase region mapping.
+    state->waveform=soft;
+    enum EpdDrawError result=draw(state,MODE_GL16,false,&area);
+    if(result==EPD_DRAW_SUCCESS){++full_calls;gc_calls+=strong_mode==MODE_GC16;}
+    return result;
+}
 static void reset(void) {
     display_main_transition_cancel(); main_mode=APP_MAIN_REFRESH_FAST; exit_calls=water_calls=water_fails=0; failures = fail_after = 0;
     allocations = frees = complete_bw_calls = 0; alloc_fail = false; now_us = 1000000;
+    region_calls=region_unavailable=0;
     rotation = EPD_ROT_INVERTED_PORTRAIT;
     memset(front, 255, BYTES); memset(back, 255, BYTES); memset(panel, 255, BYTES);
     assert(update_display_full(&hl) == EPD_DRAW_SUCCESS);
@@ -369,8 +394,8 @@ int main(void) {
                                         (EpdRect){0, UI_NAV_TOP, H, 24}) == EPD_DRAW_SUCCESS);
     assert(calls == before + 1 && !nav_draws); assert_final();
 
-    // 主页面计数独立：不会积累或消耗其他页面的原有清理次数。
-    // Main tabs neither accrue nor consume the original cleanup cadence for other pages.
+    // UI页面共享24次计数；不足60秒不全刷，局部反馈不加入。
+    // UI pages share the 24-update counter; no cleanup before 60s, and local feedback is excluded.
     reset();
     for (int i = 1; i < APP_UI_FAST_GC16_EVERY; ++i) {
         target((unsigned)i); assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
@@ -378,7 +403,7 @@ int main(void) {
     assert(!gc_calls); int old_full = full_calls;
     for (unsigned i = 0; i < 40; ++i) {target(i); begin(&owner_a); assert_final();}
     assert(!gc_calls && full_calls == old_full);
-    target(100); assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
+    now_us+=APP_UI_GC16_MIN_INTERVAL_US;target(100); assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
     assert(gc_calls == 1 && full_calls == old_full + 1); assert_final();
 
     // 其他旋转、取消未用许可保持原来整页出口。
@@ -539,7 +564,7 @@ int main(void) {
     assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);
     calls=gray_calls=gc_calls=full_calls=nav_draws=0;
     for (int step=1;step<=24;++step) {
-        gray_target((unsigned)step);begin(&owner_a);assert_final();
+        now_us+=3000000;gray_target((unsigned)step);begin(&owner_a);assert_final();
         assert(hl.waveform==&E0470_WAVEFORM && !bw_calls && !allocations && !nav_draws);
         assert(last_area.y==0 && last_area.height==UI_NAV_REFRESH_END);
         assert(gray_calls==step && full_calls==step/APP_UI_FAST_GC16_EVERY && !water_calls);
@@ -559,7 +584,7 @@ int main(void) {
     display_main_transition_arm(&owner_a,false,false);
     assert(update_display_area_with(&hl,&E0470_WAVEFORM,MODE_GL16,
         (EpdRect){0,UI_NAV_REFRESH_END-11,H,24})==EPD_DRAW_SUCCESS);
-    assert_final();assert(full_calls==2 && !nav_draws && last_wave==&main_water && last_mode==MODE_GL16);
+    assert_final();assert(full_calls==24/APP_UI_FAST_GC16_EVERY && !nav_draws && last_wave==&main_water && last_mode==MODE_GL16);
     display_main_transition_arm(&owner_a,false,false);
     assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(nav_draws==1);
     // 普通柔和输出在内容或横条扫描失败时从白底重建，绝不提交半帧。
@@ -571,16 +596,72 @@ int main(void) {
         assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
         assert(clears==1&&gc_calls==1&&!allocations&&!water_calls&&hl.waveform==&E0470_WAVEFORM);
     }
-    // 普通亚克力题头和内容同次扫描，不能拆成两轮；32列边界不扫入底栏。
-    // Ordinary acrylic header and content share one scan; aligned bounds never drive navigation.
+    // 普通书架每相包含上下和中部，箭头与横条也并入；校准只限书架区。
+    // Each ordinary shelf phase contains chrome and art, including pagination/marker; calibration remains confined to art.
     for(int stage=-1;stage<1;++stage){
         reset();main_mode=APP_MAIN_REFRESH_NORMAL;gray_target(3);
         if(stage>=0){failures=1;fail_after=stage;fail_error=EPD_DRAW_OTHER_ERROR;}
         display_main_transition_arm(&owner_a,false,true);display_main_transition_gray_bands(acrylic,3);
         assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
-        if(stage<0){assert(!clears&&!gc_calls&&full_calls==1&&calls==1&&!nav_draws&&gray_calls==1);}
+        if(stage<0){assert(region_calls==1&&!clears&&!gc_calls&&full_calls==1&&calls==1&&!nav_draws&&gray_calls==1&&last_strong_area.y==352&&last_strong_area.y+last_strong_area.height==1024);}
         else assert(clears==1&&gc_calls==1);
     }
+    reset();main_mode=APP_MAIN_REFRESH_NORMAL;protect_shelf_chrome=true;
+    const EpdRect shelf_art={0,192,H,800};
+    for(int step=1;step<=24;++step){
+        now_us+=3000000;gray_target((unsigned)step);display_main_transition_arm(&owner_a,false,true);
+        display_main_transition_gray_bands(&shelf_art,1);
+        assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
+        assert(last_strong_area.y==192&&last_strong_area.height==800&&!nav_draws&&!clears&&calls==step&&region_calls==step);
+    }
+    assert(gc_calls==24/APP_UI_FAST_GC16_EVERY);protect_shelf_chrome=false;
+    // 设置页复用书架入口：160以上题头柔和，列表白底与灰阶同轮；普通周期整理仍不驱动外围/底栏。
+    // Settings reuse shelf entry: soft chrome above160, simultaneous white-list/grays, and periodic cleanup stays off chrome/navigation.
+    // 真实hl_update不得把显式设置柔和表替换回普通主页表；该调用不分配、不强刷。
+    // The real hl_update must preserve the explicit settings soft profile, without allocating or forcing a full scan.
+    for(int mode=APP_MAIN_REFRESH_NORMAL;mode<=APP_MAIN_REFRESH_WATER;++mode){
+        reset();main_mode=mode;front[80*(W/2)+500/2]=0;memcpy(final,front,BYTES);
+        display_main_transition_arm(&owner_a,false,false);
+        assert(update_display_area_diff_with(&hl,&settings_soft,MODE_GL16,(EpdRect){0,160,H,512})==EPD_DRAW_SUCCESS);
+        assert(last_wave==&settings_soft&&last_mode==MODE_GL16&&calls==1&&!full_calls&&!clears&&!nav_draws&&!allocations);assert_final();
+    }
+    const EpdRect settings_content={0,160,H,UI_NAV_REFRESH_END-160};
+    for(int origin=0;origin<4;++origin){
+        reset();main_mode=APP_MAIN_REFRESH_NORMAL;
+        for(int step=1;step<=24;++step){
+            now_us+=3000000;gray_target((unsigned)step);
+            display_main_transition_arm(&owner_a,origin==1,true);
+            display_main_transition_gray_bands(&settings_content,1);
+            assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
+            assert(region_calls==step&&calls==step&&!clears&&!nav_draws&&!allocations);
+            assert(last_strong_area.y==160&&last_strong_area.height==928);
+            assert(last_area.y==0&&last_area.height==UI_NAV_MARKER_SCAN_END);
+        }
+        assert(gc_calls==24/APP_UI_FAST_GC16_EVERY);
+    }
+    reset();main_mode=APP_MAIN_REFRESH_NORMAL;gray_target(3);region_unavailable=1;
+    display_main_transition_arm(&owner_a,false,true);display_main_transition_gray_bands(&settings_content,1);
+    assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
+    assert(calls==1&&region_calls==1&&!full_calls&&!clears&&!nav_draws);
+    for(int stage=0;stage<2;++stage){
+        reset();main_mode=APP_MAIN_REFRESH_NORMAL;gray_target(3);
+        display_main_transition_arm(&owner_a,false,true);display_main_transition_gray_bands(&settings_content,1);
+        if(stage==0){failures=1;fail_error=EPD_DRAW_OTHER_ERROR;}
+        if(stage==1){assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);assert(nav_draws==1&&!region_calls);}
+        else{assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert(clears==1&&gc_calls==1);}
+        assert_final();
+    }
+    reset();main_mode=APP_MAIN_REFRESH_NORMAL;gray_target(3);
+    display_main_transition_arm(&owner_a,false,true);display_main_transition_gray_bands(&settings_content,1);
+    display_main_transition_cancel();display_main_transition_arm(&owner_b,false,true);
+    assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(!region_calls);
+    puts("PASS: settings entry from four roots and96 ordinary transitions retain simultaneous soft160px chrome, directional white content, periodic cleanup, navigation, OOM, cancel/full/error boundaries");
+    // OOM回退一次柔和整目标；横条和正文同次提交，不恢复三段串行。
+    // OOM falls back to one soft target, committing the marker/body together instead of restoring three serial updates.
+    reset();main_mode=APP_MAIN_REFRESH_NORMAL;gray_target(3);region_unavailable=1;
+    display_main_transition_arm(&owner_a,false,true);display_main_transition_gray_bands(&shelf_art,1);
+    assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
+    assert(region_calls==1&&calls==1&&!full_calls&&!clears&&!water_calls&&!bw_calls);
     reset(); target(2); display_main_transition_arm(&owner_a,true,false);
     assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS); assert_final();
     assert(exit_calls==1 && calls==1 && !allocations && !nav_draws);

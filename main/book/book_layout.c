@@ -291,7 +291,7 @@ void book_layout_set_spacing(unsigned line_percent, unsigned paragraph_percent) 
     s_paragraph_percent = paragraph_percent <= 100 ? paragraph_percent : 50;
 }
 void book_layout_set_typography(int tracking_px) {
-    s_tracking_px = tracking_px >= -4 && tracking_px <= 16 ? tracking_px : 0;
+    s_tracking_px = tracking_px >= -15 && tracking_px <= 15 ? tracking_px : 0;
 }
 void book_layout_set_first_line_indent(unsigned em) {
     s_first_line_indent_em = em <= 3 ? em : 2;
@@ -300,7 +300,7 @@ void book_layout_set_first_line_indent_adjust(int px) {
     s_first_line_indent_adjust_px = px >= -100 && px <= 100 ? px : 0;
 }
 EpdRect book_layout_balanced_rect(EpdRect outer, int px, int tracking_px) {
-    if (px <= 0 || outer.width < px || tracking_px < -4 || tracking_px > 16) return outer;
+    if (px <= 0 || outer.width < px || tracking_px < -15 || tracking_px > 15) return outer;
     int step = px + tracking_px;
     if (step <= 0) return outer;
     int columns = 1 + (outer.width - px) / step;

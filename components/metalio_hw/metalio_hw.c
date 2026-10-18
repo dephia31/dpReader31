@@ -30,6 +30,7 @@ static SemaphoreHandle_t mutex;
 // Match reference boot rails: P05 display, P12 touch reset, P14 VOUT high.
 static uint8_t outputs[2]={0x20,0x14};
 static bool tps_on;
+static int tps_last_vcom_mv=-1;
 static bool fl_ready;
 static uint8_t saved_brightness=30,saved_warmth=50;
 static uint8_t last_on_brightness=30;
@@ -83,14 +84,20 @@ esp_err_t metalio_write(uint8_t a,uint8_t r,const void *data,size_t n) {
     xSemaphoreGive(mutex); return err;
 }
 esp_err_t metalio_write8(uint8_t a,uint8_t r,uint8_t value) { return metalio_write(a,r,&value,1); }
-esp_err_t metalio_io_set(unsigned pin,bool high) {
-    if (!ioe || pin>15) return ESP_ERR_INVALID_STATE;
-    if (xSemaphoreTake(mutex,pdMS_TO_TICKS(100))!=pdTRUE) return ESP_ERR_TIMEOUT;
-    unsigned port=pin/8; uint8_t bit=1u<<(pin%8);
-    uint8_t next=high ? outputs[port]|bit : outputs[port]&~bit;
+// 同一端口的多位在持锁状态一次写入，避免马达/前光任务覆盖TPS位。
+// Write a masked port atomically under the shared lock; preserve motor/frontlight bits.
+static esp_err_t metalio_io_mask(unsigned port,uint8_t mask,uint8_t value) {
+    if(!ioe||port>1)return ESP_ERR_INVALID_STATE;
+    if(xSemaphoreTake(mutex,pdMS_TO_TICKS(100))!=pdTRUE)return ESP_ERR_TIMEOUT;
+    uint8_t next=(outputs[port]&~mask)|(value&mask);
     esp_err_t err=fca9555_set_output(ioe,port,next);
-    if (err==ESP_OK) outputs[port]=next;
-    xSemaphoreGive(mutex); return err;
+    if(err==ESP_OK)outputs[port]=next;
+    xSemaphoreGive(mutex);return err;
+}
+esp_err_t metalio_io_set(unsigned pin,bool high) {
+    if(pin>15)return ESP_ERR_INVALID_STATE;
+    uint8_t bit=1u<<(pin%8);
+    return metalio_io_mask(pin/8,bit,high?bit:0);
 }
 esp_err_t metalio_io_read(uint16_t *inputs) {
     if (!ioe || !inputs) return ESP_ERR_INVALID_STATE;
@@ -175,10 +182,12 @@ bool metalio_tps_ready(void) { return tps_on; }
 int metalio_tps_vcom_mv(void) {
     // VCOM1(0x03)=低 8 位、VCOM2(0x04) bit0=最高位，单位 10mV；读不回来返回 -1。
     // VCOM1(0x03) holds the low 8 bits, VCOM2(0x04) bit0 the MSB, LSB = 10 mV.
+    if(!tps_on)return tps_last_vcom_mv;
     uint8_t lsb=0, msb=0;
     if (metalio_read(0x68,0x03,&lsb,1)!=ESP_OK) return -1;
     if (metalio_read(0x68,0x04,&msb,1)!=ESP_OK) return -1;
-    return (int)(((unsigned)(msb&1)<<8 | lsb) & 0x1ff) * 10;
+    tps_last_vcom_mv=(int)(((unsigned)(msb&1)<<8 | lsb) & 0x1ff) * 10;
+    return tps_last_vcom_mv;
 }
 // 上电时序对齐厂家 2.0.76 epd_board_poweron：
 //   PWRUP低+WAKEUP高+VCOM低 → 50ms → REVID → UPSEQ0/1 → **PWRUP和VCOM_CTRL一起拉高**
@@ -208,8 +217,7 @@ esp_err_t metalio_tps_on(int mv) {
     if (err==ESP_OK) err=metalio_write8(0x68,0x0a,0x55);
     // PWRUP 和 VCOM_CTRL 同时拉高（厂家同一次 ctrl 写入）。
     // Raise PWRUP and VCOM_CTRL together, as the vendor does in one ctrl write.
-    if (err==ESP_OK) err=metalio_io_set(1,true);
-    if (err==ESP_OK) err=metalio_io_set(0,true);
+    if (err==ESP_OK) err=metalio_io_mask(0,3,3);
     if (err==ESP_OK) {
         bool good=false;
         for (unsigned ms=0;ms<300;ms+=5) {
@@ -236,7 +244,8 @@ esp_err_t metalio_tps_on(int mv) {
     }
     if (err!=ESP_OK) { metalio_tps_off(); ESP_LOGE(TAG,"TPS startup failed; rails off: %s",esp_err_to_name(err)); return err; }
     tps_on=true;
-    ESP_LOGI(TAG,"TPS ready REVID=0x%02x runtime VCOM=%dmV",revision,mv);
+    int readback=metalio_tps_vcom_mv();
+    ESP_LOGI(TAG,"TPS ready REVID=0x%02x saved VCOM=%dmV register readback=%dmV",revision,mv,readback);
     return ESP_OK;
 }
 void metalio_frontlight(unsigned brightness,unsigned warmth) {

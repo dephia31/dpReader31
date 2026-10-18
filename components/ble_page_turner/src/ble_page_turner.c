@@ -177,6 +177,9 @@ static char s_start_failure[160];
 // switching it off is not immediately undone by the retry.
 static char s_reconnect_addr[18];
 static uint32_t s_reconnect_at;
+// 快捷按钮只排队；在既有生命周期/网络内存闸门放行后，由poll发起一次异步连接。
+// Quick input only queues; poll starts one asynchronous connect after existing lifecycle/network memory gates allow it.
+static atomic_bool s_recent_requested;
 // 待连目标：已有链路在建立或已建立时点了另一台，就记在这里，等断开事件落地再由 poll() 发起。
 // Pending target: picking another peer while a link exists or is coming up records it here, and
 // poll() starts it once the disconnect has landed.
@@ -325,13 +328,17 @@ static void bond_add(const char *addr, const char *name, uint8_t type) {
     if (!addr || !addr[0]) return;
     ble_pt_bond_t *existing = bond_find(addr);
     if (existing) {
-        // 名字没变就不写 NVS：这条路径每次链路可用都会被走到，而 NVS 写要几毫秒和可观的栈，
-        // 放在通知回调的上下文里做，按键一密集就会撞上 NimBLE host 任务的栈上限。
-        // Nothing is stored when the name is unchanged: this path runs on every usable link, and an
-        // NVS write costs milliseconds and a lot of stack -- done inside the notification callback
-        // it walks into the NimBLE host task's stack limit as soon as keys come fast.
-        if (!name || !name[0] || strcmp(existing->name, name) == 0) return;
-        snprintf(existing->name, sizeof(existing->name), "%s", name);
+        // 成功使用的设备移到末尾，末尾即最近设备；同一目标/名字/类型不重复写NVS。
+        // Move a successfully used peer to the end (most recent), avoiding repeated NVS writes for an unchanged target/name/type.
+        uint8_t index=(uint8_t)(existing-s_bonds);
+        bool changed=index+1<s_bond_count||existing->addr_type!=type||
+            (name&&name[0]&&strcmp(existing->name,name)!=0);
+        if(!changed)return;
+        ble_pt_bond_t recent=*existing;
+        if(name&&name[0])snprintf(recent.name,sizeof(recent.name),"%s",name);
+        recent.addr_type=type;
+        memmove(existing,existing+1,sizeof(*existing)*(s_bond_count-index-1));
+        s_bonds[s_bond_count-1]=recent;
         bonds_save();
         return;
     }
@@ -1447,6 +1454,18 @@ esp_err_t ble_pt_connect(const char *addr) {
     return ESP_OK;
 }
 
+void ble_pt_reconnect_recent(void) { atomic_store(&s_recent_requested,true); }
+
+static void reconnect_recent_requested(void) {
+    if(!atomic_exchange(&s_recent_requested,false)||s_link_up||s_connecting||!s_bond_count)return;
+    const ble_pt_bond_t *recent=&s_bonds[s_bond_count-1];
+    snprintf(s_reconnect_addr,sizeof(s_reconnect_addr),"%s",recent->addr);
+    s_reconnect_at=(uint32_t)(esp_timer_get_time()/1000);
+    // 复用异步连接/扫描取消和原有4秒重试，不等待配对、不扫描未知外设。
+    // Reuse asynchronous connect/scan cancellation and the existing four-second retry; never wait for pairing or scan unknown peers.
+    (void)ble_pt_connect(s_reconnect_addr);
+}
+
 void ble_pt_disconnect(void) {
     // 记下是谁在断链路：日志里 reason=534 看着像"本地断开"，但调用点不明会误导排查。
     // Record who terminates: reason=534 looks like a local termination, and not knowing the
@@ -1773,6 +1792,7 @@ bool ble_pt_take_start_failure(char *out, size_t cap) {
 }
 
 void ble_pt_reset_failure(void) {
+    atomic_store(&s_recent_requested,false);
     boot_tries_store(0);
     why_store(NULL);
     s_retry_after_ms = 0;
@@ -1787,6 +1807,7 @@ void ble_pt_reset_failure(void) {
 
 static void poll_locked(void) {
     if (!s_running) return;
+    reconnect_recent_requested();
 
     // 自动重连：翻页器会自己省电断开，或走出范围。链路曾经建立过就记下目标，掉线后按
     // 退避重试。必须排除「正在扫描」——扫描页是持续扫描，两者同时抢控制器就会互相打架，

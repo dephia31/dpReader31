@@ -95,15 +95,19 @@ extern const app_desc_t app_book;
 static const app_desc_t* s_presented_main;
 static ui_quick_menu_t s_quick;
 static unsigned s_quick_status;
+static int s_quick_pressed=-1;
 static unsigned s_quick_slider_dirty;
 static unsigned s_quick_slider_drawn[2];
+static void quick_reset(void) {
+    ui_quick_menu_reset(&s_quick);ui_quick_menu_end();s_quick_pressed=-1;s_quick_slider_dirty=0;
+}
 static bool s_nav_contact_down,s_nav_polled;
 // 锁屏占用整屏后旧主页面底栏不再是物理基准；解锁第一帧必须完整绘制。
 // A lock screen replaces the old navigation baseline; the first unlocked frame must render complete navigation.
 static void main_lock_boundary(void) {
     metalio_frontlight_commit();
     ui_click_feedback_reset();
-    ui_quick_menu_reset(&s_quick);
+    quick_reset();
     s_presented_main = NULL;
     display_main_transition_cancel();
 }
@@ -122,62 +126,55 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
     bool motion=ui_click_feedback_nav_finish(ctx->fb,&motion_area);
     ui_click_feedback_begin(ctx->fb);
     display_main_transition_cancel();
-    if (current->render) current->render(ctx, ctx->fb);
-    s_quick_status = quick_status();
-    s_quick_slider_dirty=0;
-    s_quick_slider_drawn[0]=metalio_frontlight_position(false);
-    s_quick_slider_drawn[1]=metalio_frontlight_position(true);
-    if (s_quick.open) ui_quick_menu_draw(ctx->fb, s_quick_status & 1u, s_quick_status & 2u,s_quick_status & 8u,s_quick_slider_drawn[0],s_quick_slider_drawn[1]);
-    enum EpdDrawError error = full ? update_display_full(ctx->hl)
-        : update_display_area_full_with(ctx->hl, &E0470_WAVEFORM, MODE_GL16, ui_quick_menu_rect());
-    guard_draw_result(ctx->hl, error);
-    if(motion&&!full&&error==EPD_DRAW_SUCCESS) {
-        error=update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,motion_area);
-        guard_draw_result(ctx->hl,error);
-    }
-    if (error != EPD_DRAW_SUCCESS) {
-        ui_quick_menu_reset(&s_quick);
-        app_present(ctx, current, APP_REDRAW_FULL);
-    }
-}
-
-// 灯光先响应；屏幕仅差分条带，松手不强刷整块胶囊。
-// Apply light first; refresh only changed bands, with no forced capsule settle on release.
-static void quick_slider_present(app_ctx_t *ctx) {
-    unsigned dirty=s_quick_slider_dirty; s_quick_slider_dirty=0;
-    for(unsigned i=0;i<2;i++) if(dirty&(1u<<i)) {
-        const unsigned value=metalio_frontlight_position(i!=0);
-        EpdRect changed=ui_quick_slider_change_rect(i!=0,s_quick_slider_drawn[i],value);
-        if(!changed.height) { s_quick_slider_drawn[i]=value; continue; }
-        ui_quick_menu_draw_slider(ctx->fb,i!=0,value);
-        // 深灰目标不能走只到黑白的原厂DU；沿用已存在的FOLLOW8灰阶差分，轮廓/图标保持。
-        // Gray targets require existing FOLLOW8 differences, not native binary DU; hold outlines/icons.
-        enum EpdDrawError err=update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,changed);
-        guard_draw_result(ctx->hl,err);
-        if(err!=EPD_DRAW_SUCCESS) { ui_quick_menu_reset(&s_quick); break; }
-        s_quick_slider_drawn[i]=value;
-    }
-}
-// 开关与异步网络状态只更新变化圆钮；不重画下层、不刷新整个菜单。
-// Switches and asynchronous status update only changed controls, without replaying the underlay.
-static void quick_controls_present(app_ctx_t *ctx,const app_desc_t *current) {
-    const unsigned status=quick_status(),changed=(status^s_quick_status)&11u;
-    static const unsigned bits[]={1u,2u,0u,8u};
-    for(unsigned i=0;i<4;i++) if(changed&bits[i]) {
-        ui_quick_menu_draw_button(ctx->fb,i,(status&bits[i])!=0);
-        enum EpdDrawError error=update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,ui_quick_button_rect(i));
-        guard_draw_result(ctx->hl,error);
-        if(error!=EPD_DRAW_SUCCESS) {
-            ui_quick_menu_reset(&s_quick); s_quick_slider_dirty=0;
-            app_present(ctx,current,APP_REDRAW_FULL); return;
+    EpdRect area=ui_quick_menu_rect();
+    if(!full) {
+        if(s_quick.open) {
+            s_quick_status=quick_status();s_quick_slider_dirty=0;s_quick_pressed=-1;
+            s_quick_slider_drawn[0]=metalio_frontlight_position(false);
+            s_quick_slider_drawn[1]=metalio_frontlight_position(true);
+            // Compose over the last presented page without re-rendering books/covers.
+            ui_quick_menu_draw(ctx->fb,s_quick_status&1u,s_quick_status&2u,s_quick_status&8u,s_quick_slider_drawn[0],s_quick_slider_drawn[1]);
+        } else {
+            bool restored=ui_quick_menu_restore(ctx->fb);ui_quick_menu_end();
+            if(!restored&&current->render)current->render(ctx,ctx->fb);
         }
     }
-    s_quick_status=status;
-    // 亮度0开启前光会恢复上次值，滑块只补自身条带。
-    // Enabling at zero restores last brightness; update only its changed slider band.
-    for(unsigned i=0;i<2;i++) if(s_quick_slider_drawn[i]!=metalio_frontlight_position(i!=0))
-        s_quick_slider_dirty|=1u<<i;
-    if(s_quick_slider_dirty) quick_slider_present(ctx);
+    // Join any pending navigation restoration into this same scan, never a second scan.
+    if(motion){int bottom=motion_area.y+motion_area.height;if(bottom>area.height)area.height=bottom;}
+    enum EpdDrawError error=full?update_display_full(ctx->hl)
+        :update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,area);
+    guard_draw_result(ctx->hl,error);
+    if(error!=EPD_DRAW_SUCCESS){quick_reset();app_present(ctx,current,APP_REDRAW_FULL);}
+}
+
+// Compose changed buttons and slider bands, then present one bounded differential.
+static EpdRect quick_join(EpdRect a,EpdRect b) {
+    if(!a.height)return b;
+    if(!b.height)return a;
+    int x=a.x<b.x?a.x:b.x,y=a.y<b.y?a.y:b.y;
+    int right=a.x+a.width>b.x+b.width?a.x+a.width:b.x+b.width;
+    int bottom=a.y+a.height>b.y+b.height?a.y+a.height:b.y+b.height;
+    return (EpdRect){x,y,right-x,bottom-y};
+}
+static void quick_controls_present(app_ctx_t *ctx,const app_desc_t *current) {
+    if(!s_quick.open)return;
+    unsigned status=quick_status(),changed=(status^s_quick_status)&11u;
+    int pressed=ui_quick_menu_pressed(&s_quick);EpdRect dirty={0};
+    static const unsigned bits[]={1u,2u,0u,8u};
+    for(unsigned i=0;i<4;++i)if((changed&bits[i])||((pressed==(int)i)!=(s_quick_pressed==(int)i))) {
+        EpdRect r;if(ui_quick_menu_draw_button(ctx->fb,i,(status&bits[i])!=0,pressed==(int)i,&r))dirty=quick_join(dirty,r);
+    }
+    for(unsigned i=0;i<2;++i){
+        unsigned value=metalio_frontlight_position(i!=0);
+        if(value==s_quick_slider_drawn[i])continue;
+        EpdRect band=ui_quick_slider_change_rect(i!=0,s_quick_slider_drawn[i],value);
+        if(band.height){ui_quick_menu_draw_slider(ctx->fb,i!=0,value);dirty=quick_join(dirty,band);}
+        s_quick_slider_drawn[i]=value;
+    }
+    s_quick_slider_dirty=0;
+    if(dirty.height){enum EpdDrawError error=update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,dirty);
+        guard_draw_result(ctx->hl,error);if(error!=EPD_DRAW_SUCCESS){quick_reset();app_present(ctx,current,APP_REDRAW_FULL);return;}}
+    s_quick_status=status;s_quick_pressed=pressed;
 }
 static void quick_toggle_wifi(void) {
     read_pico_transfer_status_t status;
@@ -544,11 +541,11 @@ void app_loop_run(const app_loop_config_t* config) {
     };
 
     bool was_touched = false;
-    ui_quick_menu_reset(&s_quick);
+    quick_reset();
     bool menu_open = false;
     ui_gesture_t gesture = {0};
     ui_power_dialog_t power_dialog = {0};
-    bool power_dialog_open = false;
+    bool power_dialog_open = false; ui_power_dialog_end();
     int menu_pressed = UI_MENU_HIT_NONE;
     menu_feedback_t feedback = {0};
     int menu_leaf = 0;
@@ -563,7 +560,6 @@ void app_loop_run(const app_loop_config_t* config) {
     int64_t last_media_poll_ms = 0;
     int64_t last_network_poll_ms = 0;
     int64_t last_input_ms = esp_timer_get_time() / 1000;
-    int64_t anti_fade_last_ms = esp_timer_get_time() / 1000;
     uint32_t last_ble_input = ble_pt_input_serial();
     unsigned idle_minutes = app_settings_auto_lock_minutes();
     unsigned cover_policy = (unsigned)app_settings_main_refresh_mode() | ((unsigned)app_settings_system_contrast() << 8);
@@ -636,9 +632,9 @@ void app_loop_run(const app_loop_config_t* config) {
         if (ctx.now_ms - last_media_poll_ms >= MEDIA_POLL_INTERVAL_MS) {
             last_media_poll_ms = ctx.now_ms;
             if (poll_media(&ctx, current, &media_mounted, &media_invalidated)) {
-                power_dialog_open = false;
+                power_dialog_open = false; ui_power_dialog_end();
                 ui_power_dialog_reset(&power_dialog, touch.touched);
-                ui_quick_menu_reset(&s_quick);
+                quick_reset();
                 held_key = -1;
                 cancel_gesture(&ctx, current, &gesture);
                 menu_pressed = UI_MENU_HIT_NONE;
@@ -655,7 +651,7 @@ void app_loop_run(const app_loop_config_t* config) {
         }
 
         if (!power_input_owned && !menu_open) {
-            if (err != ESP_OK) { ui_quick_menu_cancel_input(&s_quick); metalio_frontlight_commit(); }
+            if (err != ESP_OK) { ui_quick_menu_cancel_input(&s_quick); metalio_frontlight_commit(); quick_input_owned=s_quick.open; }
             else {
                 ui_quick_action_t action;
                 quick_input_owned = ui_quick_menu_feed(&s_quick, &ctx,
@@ -668,15 +664,12 @@ void app_loop_run(const app_loop_config_t* config) {
                 if (action == UI_QUICK_OPEN || action == UI_QUICK_CLOSE) { metalio_frontlight_commit(); quick_present(&ctx, current, false); }
                 else if (action == UI_QUICK_WIFI) {
                     quick_toggle_wifi();
-                    quick_controls_present(&ctx, current);
                 } else if (action == UI_QUICK_BLUETOOTH) {
-                    app_settings_set_ble_turner(!app_settings_ble_turner());
-                    if (!app_settings_ble_turner()) ble_pt_reset_failure();
-                    quick_controls_present(&ctx, current);
+                    app_settings_set_ble_turner(true);
+                    ble_pt_reconnect_recent();
                 } else if (action == UI_QUICK_FULL) quick_present(&ctx, current, true);
                 else if(action==UI_QUICK_FRONTLIGHT) {
                     metalio_frontlight_toggle(); (void)metalio_haptic_click();
-                    quick_controls_present(&ctx,current);
                 } else if(action==UI_QUICK_BRIGHTNESS || action==UI_QUICK_WARMTH) {
                     const bool warm=action==UI_QUICK_WARMTH;
                     unsigned old=metalio_frontlight_position(warm);
@@ -687,11 +680,9 @@ void app_loop_run(const app_loop_config_t* config) {
                     }
                 } else if(action==UI_QUICK_LIGHT_COMMIT) {
                     metalio_frontlight_commit();
-                    if(s_quick_slider_dirty) quick_slider_present(&ctx);
                 }
-                if(s_quick.open && s_quick_slider_dirty)
-                    quick_slider_present(&ctx);
             }
+            quick_controls_present(&ctx,current);
         }
 
         if (power_input_owned && err == ESP_OK) {
@@ -699,28 +690,28 @@ void app_loop_run(const app_loop_config_t* config) {
             EpdRect dirty;
             ui_power_action_t action = ui_power_dialog_feed(&power_dialog, &ctx, &dirty);
             if (action == UI_POWER_ACTION_NONE && dirty.height > 0) {
-                ui_power_dialog_draw_controls(ctx.fb, &power_dialog);
+                ui_power_dialog_draw_controls(ctx.fb, &power_dialog, dirty);
                 enum EpdDrawError result = update_display_area_diff_with(
                     ctx.hl, &E0470_FOLLOW_WAVEFORM, MODE_DU, dirty);
                 guard_draw_result(ctx.hl, result);
                 if (result != EPD_DRAW_SUCCESS) {
-                    power_dialog_open = false;
+                    power_dialog_open = false; ui_power_dialog_end();
                     ui_power_dialog_reset(&power_dialog, touch.touched);
                     app_present(&ctx, current, APP_REDRAW_FULL);
                 }
             } else {
                 if (action == UI_POWER_ACTION_CANCEL) {
-                    power_dialog_open = false;
+                    power_dialog_open = false; ui_power_dialog_end();
                     ui_power_dialog_reset(&power_dialog, false);
                     if (menu_open) present_menu(&ctx, current, menu_leaf, &feedback);
                     else app_present(&ctx, current, APP_REDRAW_PAGE);
                 } else if (action == UI_POWER_ACTION_SHUTDOWN) {
                     if (!app_settings_staged_shutdown()) {
-                        power_dialog_open = false;
+                        power_dialog_open = false; ui_power_dialog_end();
                         ui_power_dialog_reset(&power_dialog, false);
                         run_power_action(&ctx, current, false);
                     } else {
-                        power_dialog_open = false;
+                        power_dialog_open = false; ui_power_dialog_end();
                         ui_power_dialog_reset(&power_dialog, false);
                         prepare_lock(&ctx, current, true);
                         extern const app_desc_t app_book;
@@ -737,7 +728,7 @@ void app_loop_run(const app_loop_config_t* config) {
                         app_present(&ctx, current, APP_REDRAW_PAGE);
                     }
                 } else if (action == UI_POWER_ACTION_RESTART) {
-                    power_dialog_open = false;
+                    power_dialog_open = false; ui_power_dialog_end();
                     ui_power_dialog_reset(&power_dialog, false);
                     run_power_action(&ctx, current, true);
                 }
@@ -753,7 +744,7 @@ void app_loop_run(const app_loop_config_t* config) {
             EpdRect dirty;
             ui_power_dialog_cancel_input(&power_dialog, &dirty);
             if (power_dialog_open && dirty.height > 0) {
-                ui_power_dialog_draw_controls(ctx.fb, &power_dialog);
+                ui_power_dialog_draw_controls(ctx.fb, &power_dialog, dirty);
                 guard_draw_result(ctx.hl, update_display_area_diff_with(
                     ctx.hl, &E0470_FOLLOW_WAVEFORM, MODE_DU, dirty));
             }
@@ -899,7 +890,7 @@ void app_loop_run(const app_loop_config_t* config) {
                 last_input_ms = ctx.now_ms;
                 bool quick_was_open = s_quick.open;
                 if (quick_was_open && !quick_lock_requested) {
-                    ui_quick_menu_reset(&s_quick);
+                    quick_reset();
                     quick_present(&ctx, current, false);
                 }
                 if (!quick_lock_requested && ctx.now_ms < s_lock_ignore_until_ms) {
@@ -937,7 +928,7 @@ void app_loop_run(const app_loop_config_t* config) {
                             ctx.hl, &E0470_WAVEFORM, MODE_GL16, ui_power_dialog_rect());
                         guard_draw_result(ctx.hl, result);
                         if (result != EPD_DRAW_SUCCESS) {
-                            power_dialog_open = false;
+                            power_dialog_open = false; ui_power_dialog_end();
                             ui_power_dialog_reset(&power_dialog, touch.touched);
                             app_present(&ctx, current, APP_REDRAW_FULL);
                         }
@@ -1121,7 +1112,7 @@ void app_loop_run(const app_loop_config_t* config) {
         if (!power_dialog_open && (ctx.request_return || ctx.request_app || ctx.request_menu)) {
             if (!ui_click_feedback_nav_pending() && ui_click_feedback_release(ctx.fb, &click_area))
                 click_present(&ctx, current, click_area);
-            ui_quick_menu_reset(&s_quick);
+            quick_reset();
             held_key = -1;
             const app_desc_t* next = ctx.request_app;
             const bool go_back = ctx.request_return;
@@ -1177,22 +1168,14 @@ void app_loop_run(const app_loop_config_t* config) {
             else if(ui_click_feedback_nav_tick(ctx.fb,esp_timer_get_time()/1000,&click_area))
                 click_present(&ctx,current,click_area);
         }
-        // 防褪色：强光会让像素电荷缓慢泄漏，画面逐渐变淡；静置到设定间隔后整屏
-        // GC16 重推当前画面，把墨粒推回正确状态。波形本身改不了泄漏，只能靠重刷。
-        // Anti-fade: strong light slowly leaks pixel charge and the image fades; after
-        // the configured idle interval re-drive the whole frame with GC16. No waveform
-        // can stop the leakage, so periodic re-driving is the only software remedy.
-        const unsigned anti_fade = anti_fade_minutes();
-        if (anti_fade > 0 && !power_dialog_open && !menu_open && !s_quick.open &&
-            !quick_input_owned && !usb_storage_active() && !app_download_active() &&
-            !ctx.request_app && !ctx.request_menu && !ctx.request_return &&
-            !ui_click_feedback_active() && !touch.touched && !ctx.consumed &&
-            ctx.now_ms - last_input_ms >= 2000 &&
-            ctx.now_ms - anti_fade_last_ms >= (int64_t)anti_fade * 60000) {
-            anti_fade_last_ms = ctx.now_ms;
-            ESP_LOGI("anti_fade", "idle %u min: full refresh", anti_fade);
+        // 锁屏/PIN阻塞主循环，唤醒后last_input已重置；不创建定时唤醒。
+        // Sleep/PIN block this loop and reset last_input on wake; no timer wakeup is created.
+        bool fade_blocked=idle_blocked||menu_open||power_dialog_open||s_quick.open||quick_input_owned||
+            ui_click_feedback_active()||ui_click_feedback_nav_pending()||touch.touched||touch.count>1||
+            ctx.consumed||ctx.request_app||ctx.request_menu||ctx.request_return||ctx.now_ms<s_lock_ignore_until_ms;
+        if(anti_fade_due(ctx.now_ms,last_input_ms,fade_blocked)){
             display_request_full_refresh();
-            app_present(&ctx, current, APP_REDRAW_PAGE);
+            app_present(&ctx,current,APP_REDRAW_PAGE);
         }
         // 连续列表相位期间缩短等待；每次仍读触摸，并给其他任务让出一个调度周期。
         // Reduce waits during continuous list phases; poll touch each time and yield one scheduling tick.

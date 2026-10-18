@@ -41,7 +41,8 @@ int main(void) {
     const EpdWaveformPhases *native=e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_DU);
     assert(native->phases==20);
     for(int phase=0;phase<20;phase++)for(int to=0;to<=15;to+=15)for(int from=0;from<16;from++)
-        assert(e0470_phase_action(du,phase,to,from)==e0470_phase_action(native,phase,to,from));
+        if(to!=15||from!=15)assert(e0470_phase_action(du,phase,to,from)==e0470_phase_action(native,phase,to,from));
+        else assert(e0470_phase_action(du,phase,to,from)==0||e0470_phase_action(du,phase,to,from)==2);
     assert(epd_pixel_order_selftest(&E0470_WAVEFORM));
     assert(epd_pixel_order_selftest(&E0470_FULL_WAVEFORM));
     assert(epd_pixel_order_selftest(&E0470_TEXTTURN_WAVEFORM));

@@ -11,6 +11,7 @@
  * persistent v2 sequences; v1 resumes with order zero. Forget only the given path, retrying partial failures.
  */
 #include "book_progress.h"
+#include "book_font_size.h"
 #include "book_store.h"
 
 #include <inttypes.h>
@@ -106,7 +107,7 @@ bool book_progress_load(const char* path, uint32_t size, book_progress_t* out) {
     nvs_close(h);
     if (err != ESP_OK || !record_valid(data, len) ||
         strcmp((const char*)data + HEADER_SIZE, path) != 0 || get32(data + 4) != size ||
-        data[14] < 36 || data[14] > 72 || data[15] > 100) return false;
+        data[14] < BOOK_READER_PX_MIN || data[14] > BOOK_READER_PX_MAX || data[15] > 100) return false;
     *out = (book_progress_t){
         .file_size = get32(data + 4), .chapter = (uint16_t)(data[8] | (data[9] << 8)),
         .byte_off = get32(data + 10), .px = data[14], .pct = data[15],
@@ -137,7 +138,7 @@ esp_err_t book_progress_list(book_progress_visit_fn visit, void* ctx) {
             // 与 load 相同的有效性门槛；坏记录跳过，不打断整轮遍历。
             // Same validity gate as load; a bad record is skipped rather than ending the walk.
             if (nvs_get_blob(h, info.key, data, &len) == ESP_OK && record_valid(data, len) &&
-                data[14] >= 36 && data[14] <= 72 && data[15] <= 100) {
+                data[14] >= BOOK_READER_PX_MIN && data[14] <= BOOK_READER_PX_MAX && data[15] <= 100) {
                 book_progress_t value = {
                     .file_size = get32(data + 4),
                     .chapter = (uint16_t)(data[8] | (data[9] << 8)),
@@ -169,7 +170,7 @@ static esp_err_t check_owner(nvs_handle_t h, const char* key, const char* path) 
 }
 
 esp_err_t book_progress_save(const char* path, const book_progress_t* progress) {
-    if (!path_valid(path) || progress == NULL || progress->px < 36 || progress->px > 72 ||
+    if (!path_valid(path) || progress == NULL || progress->px < BOOK_READER_PX_MIN || progress->px > BOOK_READER_PX_MAX ||
         progress->pct > 100) return ESP_ERR_INVALID_ARG;
     uint8_t data[RECORD_CAP] = {'R', 'P', 'B', 2};
     put32(data + 4, progress->file_size);

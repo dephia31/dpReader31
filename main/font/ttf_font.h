@@ -73,6 +73,10 @@ void ttf_font_close_embedded(void);
 esp_err_t ttf_font_init(void);
 esp_err_t ttf_font_open(const char* path);
 esp_err_t ttf_font_open_builtin(void);
+/// 名称预览复用活动字库或短借空槽；调用方持有绘制锁，无整份字体常驻，不覆盖书内槽。
+/// Draw a centered name using the active face or an empty temporary slot; caller holds the draw lock.
+bool ttf_font_draw_preview(const char *path, uint8_t *fb, int x, int y, int px,
+                           const char *text, int width);
 bool ttf_font_is_builtin(void);
 bool ttf_font_path_is_builtin(const char* path);
 void ttf_font_unload(void);

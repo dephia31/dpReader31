@@ -27,7 +27,7 @@ bool book_layout_build_blocks(const char* utf8, size_t len, const blk_t* blocks,
 void book_layout_set_runs(const html_run_t* runs, size_t count);
 /// 设置行高百分比与段后距离百分比，重排时生效。/ Set line height and paragraph gap percentages for the next layout.
 void book_layout_set_spacing(unsigned line_percent, unsigned paragraph_percent);
-/// 正文额外字间距为 -4..+16 像素。/ Extra body tracking is -4..+16 pixels.
+/// 正文额外字间距为 -15..+15 像素。/ Extra body tracking is -15..+15 pixels.
 void book_layout_set_typography(int tracking_px);
 /// 普通正文首行缩进 0..3 字；不改变标题及居中、右对齐块。/ Indent ordinary body paragraphs by 0..3 em; keep headings and aligned blocks unchanged.
 void book_layout_set_first_line_indent(unsigned em);

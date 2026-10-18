@@ -47,8 +47,8 @@
 #include "usb_storage.h"
 #include "app_font_context.h"
 #include "ui_kit.h"
-#include "debug_panel.h"
 #include "vcom_setup.h"
+#include "debug_panel.h"
 
 static const char* TAG = "read_pico";
 extern const app_desc_t app_boot_recovery;
@@ -136,6 +136,7 @@ void app_main(void) {
     if (hw.pmu_ready) restore_time_from_pmu();
     const bool vcom_ok = resolve_vcom_at_boot();
     rp_boot_mark("vcom");
+    ESP_LOGI(TAG,"TPS65185 last VCOM register readback=%dmV",metalio_tps_vcom_mv());
     pmu_selftest_bind(hw.sensor);
 
     if (!images_match_panel()) return;
@@ -153,10 +154,6 @@ void app_main(void) {
     if(!restored_lock) {
         epd_poweron();
         if(!resuming)read_pico_i2c_census_take();
-        // 上电后回读 TPS65185 实际生效的 VCOM，和 NVS/默认值对不上时一眼可见。
-        // Read back the VCOM actually latched in the TPS65185 after power-up so a
-        // mismatch with the saved/default value is visible in the log.
-        ESP_LOGI(TAG,"TPS65185 VCOM readback=%dmV", metalio_tps_vcom_mv());
         // 清屏把整屏（含最外圈）一起驱动到白；运行时不再屏蔽白边，边角随内容刷新。
         // The clear drives every pixel including the outermost ring; no runtime white border.
         epd_clear();
@@ -177,14 +174,13 @@ void app_main(void) {
         return;
     }
 
-    // V1.5 没有 Pico PMU：开机按住音量键进调试面板（VCOM 校准 / 防褪色间隔 /
-    // 立即整屏重刷 / 继续开机）。强光下画面变淡属于像素电荷光致泄漏，波形解决不了，
-    // 只能靠重刷把画面推回去，所以把重刷入口和间隔都放在这里。
-    // No Pico PMU on V1.5: hold a volume key while powering on to open the debug panel
-    // (VCOM calibration, anti-fade interval, manual full-frame refresh, continue boot).
-    // Light-induced fading is pixel-charge photoleakage that no waveform can fix; only
-    // re-driving the frame restores it, so the refresh entry and interval live here.
-    if (!vcom_ok || volume_key_held()) {
+    // V1.5 没有 Pico PMU：改为开机按住音量键进入 VCOM 校准页；写入后立即生效。
+    // No Pico PMU on V1.5: hold a volume key while powering on to open VCOM
+    // calibration; an accepted value is applied on the next rail power-up.
+    if (!vcom_ok) {
+        vcom_setup_run(&hl, framebuffer, hw.touch);
+        display_request_full_refresh();
+    } else if(volume_key_held()) {
         debug_panel_run(&hl, framebuffer, hw.touch);
         display_request_full_refresh();
     }

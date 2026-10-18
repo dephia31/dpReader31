@@ -18,6 +18,7 @@
 #include "ttf_stroke_filter.h"
 
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <math.h>
 #include <stdint.h>
@@ -226,6 +227,7 @@ typedef struct {
     glyph_entry_t* f_lru_head;
     glyph_entry_t* f_lru_tail;
     size_t f_cache_bytes;
+    bool f_preview;        ///< 临时名称预览不映射整份 glyf/gvar / transient names never map full outline tables
     bool f_used;           ///< 槽位已被占用 / the slot is in use
 } ttf_slot_t;
 
@@ -2246,14 +2248,14 @@ static esp_err_t load_opened_font(void) {
 
     // CFF 没有 glyf 表，长度为零，不必去映射。
     // A CFF face has no glyf table; its length is zero and there is nothing to map.
-    if (file_glyf_len) {
+    if (file_glyf_len && !s_cur->f_preview) {
         try_map_table(
             file_glyf_off, file_glyf_len, &glyf_ram, &glyf_ram_off, &glyf_ram_len, "glyf"
         );
     }
 
     load_variation(header, sizeof(header));
-    if (gvar_ready && file_gvar_len > 0) {
+    if (gvar_ready && file_gvar_len > 0 && !s_cur->f_preview) {
         try_map_table(
             file_gvar_off, file_gvar_len,
             &gvar_ram, &gvar_ram_off, &gvar_ram_len, "gvar"
@@ -2486,6 +2488,9 @@ static esp_err_t open_path_here(const char* path) {
         return ttf_font_open_builtin();
     }
 
+    // 当前字库已就绪时复用缓存；浅睡暂停的句柄必须走恢复/重新加载。
+    // Reuse a ready face and its glyphs; suspended file handles must be resumed/reloaded.
+    if (font_ready && !s_cur->f_io_suspended && !strcmp(path, font_path)) return ESP_OK;
     char prev[TTF_FONT_PATH_MAX];
     strlcpy(prev, font_path, sizeof(prev));
     bool had = font_ready;
@@ -2496,12 +2501,18 @@ static esp_err_t open_path_here(const char* path) {
 
     font_fd = open_font_file(path);
     if (font_fd < 0) {
-        ESP_LOGW(TAG, "TTF missing: %s", path);
+        int cause = errno;
+        esp_err_t failure = cause == ENOENT || cause == ENOTDIR ? ESP_ERR_NOT_FOUND :
+                            cause == ENOMEM ? ESP_ERR_NO_MEM : ESP_FAIL;
+        ESP_LOGW(TAG, "TTF open failed: %s errno=%d", path, cause);
         if (prev_file) {
             font_fd = try_open_path(prev);
-            if (font_fd >= 0) return load_opened_font();
+            if (font_fd >= 0 && load_opened_font() == ESP_OK) return failure;
         }
-        return ttf_font_open_builtin() == ESP_OK ? ESP_ERR_NOT_FOUND : ESP_FAIL;
+        // 恢复旧字库不等于新选择成功；始终向调用者保留失败结果。
+        // Restoring the previous face is not a successful new selection; preserve the original error.
+        (void)ttf_font_open_builtin();
+        return failure;
     }
 
     esp_err_t err = load_opened_font();
@@ -2532,6 +2543,55 @@ esp_err_t ttf_font_open(const char* path) {
     s_cur_index = keep;
     s_cur = &s_slots[keep];
     return err;
+}
+
+// 名称预览只借空闲书内字体槽，不替换活动阅读字体；槽满就由界面回退普通标签。
+// Name previews borrow an empty embedded slot without replacing the reader face; full slots use a UI label.
+bool ttf_font_draw_preview(const char *path, uint8_t *fb, int x, int y, int px,
+                           const char *text, int width) {
+    if (!path || !fb || !text || !*text || width <= 0) return false;
+    ttf_font_slots_init();
+    int slot = TTF_FONT_SLOT_SYSTEM;
+    bool borrowed = !ttf_font_ready() || strcmp(path, ttf_font_path());
+    if (borrowed) {
+        for (slot = TTF_FONT_SLOT_SYSTEM + 1; slot < TTF_FONT_SLOTS; ++slot)
+            if (!s_slots[slot].f_used) break;
+        if (slot == TTF_FONT_SLOTS) return false;
+    }
+    int saved_weight = s_slots[slot].f_weight;
+    int keep = slot_lend(slot);
+    const ttf_run_t *saved_runs = s_draw_runs;
+    size_t saved_run_count = s_draw_run_count;
+    s_draw_runs = NULL; s_draw_run_count = 0;
+    bool ok = true;
+    if (borrowed) {
+        unload_here();
+        s_cur->f_used = true;
+        s_cur->f_preview = true;
+        s_cur->f_weight = s_slots[TTF_FONT_SLOT_SYSTEM].f_weight;
+        font_fd = open_font_file(path);
+        ok = font_fd >= 0 && ensure_work() && load_opened_font() == ESP_OK;
+    }
+    if (ok) {
+        ok = ttf_font_slot_has_text(slot, text);
+        if (ok) {
+            while (px > 12 && ttf_text_width_px(px, text) > width) --px;
+            int above = 0, below = 0;
+            ttf_measure_line_px(px, text, &above, &below);
+            ttf_draw_text_px(fb, x, y + (above - below) / 2, px, text,
+                             EPD_DRAW_ALIGN_CENTER, 0, 15);
+        }
+    }
+    if (borrowed) {
+        unload_here();
+        heap_caps_free(s_cur->f_io_data);
+        heap_caps_free(s_cur->f_io_run_buf);
+        slot_init(s_cur);
+        s_cur->f_weight = saved_weight;
+    }
+    s_draw_runs = saved_runs; s_draw_run_count = saved_run_count;
+    slot_restore(keep);
+    return ok;
 }
 
 esp_err_t ttf_font_init(void) {

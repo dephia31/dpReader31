@@ -169,6 +169,9 @@ const ble_pt_device_t *ble_pt_device(uint8_t index);
 /// Start an async connect; ble_pt_connected() flips once the link is encrypted and the HID
 /// input report is subscribed.
 esp_err_t ble_pt_connect(const char *addr);
+/// 请求连接最近成功使用的翻页器；不阻塞，待栈可用时处理，保留网络占用和失败退避。
+/// Queue the most recently successful turner without blocking; wait for stack availability and preserve network leases/backoff.
+void ble_pt_reconnect_recent(void);
 void ble_pt_disconnect(void);
 bool ble_pt_connected(void);
 bool ble_pt_connecting(void);

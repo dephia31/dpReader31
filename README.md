@@ -1,34 +1,36 @@
-# Metalio S31 kiikoread（私有测试工程）
+# Metalio S31 kiikoread（私有协作测试工程）
 
-独立适配 Metalio E-INK4 Plus V1.5 / E0470A14-AF 34Pin，ESP32-S31、16MB Flash/PSRAM。不是 Pico S3 固件，不可混刷。
+独立适配 Metalio E-INK4 Plus V1.5 / E0470A14-AF 34Pin，ESP32-S31，16MB Flash / 16MB PSRAM。不能与 Pico S3 固件混刷。
 
-版本：`0.3.3-rc90-metalio-test30`，同步已验证的 RC95 与后续阅读排版、导航和透明PNG锁屏修改；保留 S31 前光、振动、FT6336U、GPIO36/USB、TPS65185、电池/RTC、SDMMC 和独立分区。
+当前版本：**`0.3.3-rc90-metalio-test36`**。包含 test31～test36 的字体事务、下拉菜单、书架/设置刷新、Moku 电源与防淡墨修改；设置页参考已发布的 RC96。完整说明见 [更新记录](docs/S31_CHANGELOG.md)。
 
 ## 构建
 
-使用 ESP-IDF6.1 的 S31 支持提交 `fff9895c82d744c7237be8847347bdd1b07c6643`，安装对应工具链后载入其 `export.sh`，在本目录执行：
+使用支持 S31 的 ESP-IDF6.1 提交 `fff9895c82d744c7237be8847347bdd1b07c6643`，初始化相应子模块、安装匹配工具链并载入 `export.sh` 后执行：
 
 ```sh
 idf.py -B build-s31-native -D IDF_TARGET=esp32s31 -D SDKCONFIG_DEFAULTS=sdkconfig.defaults -D METALIO_LOCAL_LATENCY=OFF build
 ```
 
-原始 GC48/GL48/DU20 表默认完整使用（`E0470_WAVEFORM_TRIM=1` 才回退官方 GC36/GL37 裁剪，对齐厂家 2.0.76）；8bit/20MHz、192行预填、12ms最短相位。等白档保留厂家擦白补帧并补尾段擦白，全像素页刷会重新驱动白底。TPS 上电顺序与每帧断电对齐厂家 `epd_board_poweron`/`epd_refresh.cc`：PWRUP+VCOM_CTRL 同时拉高、ENABLE 后写 VCOM，每帧推完立刻断电（强光下带电浮空会让白底灌灰）。VCOM 实测最优 **3000mV（-3.00V，厂家 config 默认 1200）**；开机按住音量键进调试面板：VCOM 校准（900–4000mV，存 NVS，不烧写永久标定）、防褪色重刷间隔（关/1/3/5/10/30 分钟）、立即整屏重刷、继续开机。
+依赖版本由 `dependencies.lock` 固定。不要用 Pico 的 SDK、引脚或分区覆盖本项目。构建输出项目身份为 `Kiikoread_Metalio_S31`，测速命令默认关闭。
 
-## 本地更新
+## 固件下载与更新
 
-当前独立分区有5MiB双槽。仅应用Bin不能写到0x0；应用更新必须核对S31项目、分区和实际启动槽。完整0x0镜像仅用于首次安装，会覆盖内部数据，TF不在镜像中。已有设备优先使用 TF 本地升级或受保护的本机刷机工具，保留设置。
+下载 [test36 私有测试固件](https://github.com/wegooo-cell/Metalio-S31-kiikoread/releases/tag/v0.3.3-rc90-metalio-test36)。应用大小 4,788,464 字节，SHA256：
 
-## 当前测试版的已知问题
+`f188b2c53ac9986167cb8856904d1643bbf786edf53b50f4b09c4788adde75c0`
 
-Wi-Fi 传书速度尚未解决：同一网络实测1MiB约30.2秒，接收等待约29.8秒、写卡约0.13秒；关闭蓝牙后仍没有明显改善，直连热点对比待完成。接收合并写卡与TCP窗口调整已经加入，不能将其描述成已取得明显实机提速。当前版本用于私有协作测试。
+已有本项目的设备优先将 `Metalio-S31-update.bin` 放到 TF 卡，使用设备本地升级。USB 应用更新必须核对芯片、项目、分区及实际启动槽；应用不能写入 0x0。完整 16MB 镜像仅用于同板型首次安装，从 0x0 写入，会覆盖原系统与内部设置。TF 文件不在镜像中。
 
-固件下载请到本仓库的 **Releases → test30**。应用Bin SHA256：`6eef5ee68c320b1db2ded520f70f46a1dbae652e6798f6b6beac996957673247`。
+共享包保留本地已验证 Bin 原字节，仅整理说明和元数据。此仓库不包含设备身份、原机恢复备份、NVS/凭据、个人字体、书籍、串口日志或绑定单台设备的电脑刷机记录。
 
-## 验证范围
+## S31 硬件约束
 
-阅读/排版、PNG合成、锁屏PIN失败保护、S31浅睡/深睡事务、USB路由与显示失败恢复的主机回归和S31编译已通过。真实光学画质、长时间休眠、功耗、BLE翻页器及传输速度应按设备验证结果验收；不承诺全部切换在300ms内。S31只支持2.4GHz Wi-Fi6，不支持5GHz。
+完整原厂 GC48 / GL48 / DU20 数组保留，默认完整48相、裁剪关闭。保留 8bit / 20MHz LCD、192行预填、12ms最短相位、XOE 关闭至少12us、TPS65185、FT6336U、GPIO36 / USB、SDMMC、电池 / RTC、前光与振动。VCOM 默认3000mV来自 Moku 的对比测试，并非本台设备实测标定；已有保存值优先，只写运行寄存器，不烧永久 OTP。详见 [硬件说明](docs/S31_HARDWARE.md)。
 
-四项S31必要主机回归：
+## 验证与限制
+
+test36 的 S31 完整编译、11组宿主回归及33项本地刷机保护模拟测试通过。构建输入哈希见 `docs/SOURCE_SHA256.json`，验证摘要见 `docs/TEST36_VALIDATION.json`。本轮未刷机，未完成强光保持、光学残影、实际响应时间、BLE、USB-MSC、长时间锁屏或功耗验收；不承诺所有切换达到300ms。
 
 ```sh
 export METALIO_IDF_PATH="$IDF_PATH"
@@ -38,6 +40,8 @@ bash tools/run_water_turn_host_test.sh
 bash tools/run_display_host_test.sh
 ```
 
-其余工具保留上游与移植测试，其中部分旧Pico板级测试不适用于S31。验证范围摘要在 `docs/TEST30_VALIDATION.json`。
+其余测试及当前执行清单在 `docs/TEST36_VALIDATION.json`；部分历史夹具需要原厂对照源码或已解析的 managed_components，不等于全部旧 Pico 板级测试均适用 S31。
 
-此私有仓库不包含设备整机备份、NVS/凭据、书籍、个人字体、串口日志或本机操作记录。第三方许可见 `THIRD_PARTY_NOTICES.md` 与 `licenses/`，源码按各文件SPDX保留。
+Wi-Fi 传书速度仍待解决：之前 STA 实测约30.2秒/1MiB，接收等待约29.8秒、写卡约0.13秒，关闭蓝牙没有明显改善。S31 只支持2.4GHz Wi-Fi6，不能连接5GHz。
+
+仅作私有协作测试，非 Metalio 或 Pico 官方发布。第三方许可见 `THIRD_PARTY_NOTICES.md` 与 `licenses/`，保留各文件原有 SPDX。

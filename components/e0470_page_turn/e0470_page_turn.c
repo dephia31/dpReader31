@@ -405,3 +405,58 @@ enum EpdDrawError e0470_page_turn_with_waveform_compact(EpdiyHighlevelState* hl,
     e0470_turn_dir_t dir, const EpdWaveform* waveform, unsigned band_count) {
     return page_turn_run(hl, area, dir, waveform, band_count, true);
 }
+
+enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* hl, EpdRect area,
+    EpdRect strong_area, const EpdWaveform* soft_waveform,
+    const EpdWaveform* strong_waveform, enum EpdDrawMode strong_mode) {
+    const int w = epd_width(), h = epd_height();
+    if (!hl || !hl->front_fb || !hl->back_fb || !hl->difference_fb ||
+        !hl->dirty_lines || !hl->dirty_columns) return EPD_DRAW_NO_PHASES_AVAILABLE;
+    if (epd_get_rotation() != EPD_ROT_INVERTED_PORTRAIT || area.x || area.width != h ||
+        area.y < 0 || area.height <= 0 || area.y > w || area.height > w - area.y ||
+        (area.y & 31) || (area.height & 31) || strong_area.x || strong_area.width != h ||
+        strong_area.y < area.y || strong_area.height <= 0 || strong_area.y > area.y + area.height ||
+        strong_area.height > area.y + area.height - strong_area.y ||
+        (strong_area.y & 31) || (strong_area.height & 31)) return EPD_DRAW_INVALID_CROP;
+    if (strong_mode != MODE_GL16 && strong_mode != MODE_GC16) return EPD_DRAW_NO_PHASES_AVAILABLE;
+    const EpdWaveformPhases* soft = e0470_waveform_phases(soft_waveform, MODE_GL16);
+    const EpdWaveformPhases* strong = e0470_waveform_phases(strong_waveform, strong_mode);
+    if (!soft || !strong || !soft->luts || !strong->luts ||
+        soft->phases <= 0 || strong->phases <= 0 || soft->phases > TURN_PHASE_CAP ||
+        strong->phases > TURN_PHASE_CAP || soft->phase_times || strong->phase_times)
+        return EPD_DRAW_NO_PHASES_AVAILABLE;
+    // 只保留当前相位的两张1K表，下一相开始前上一帧的生产者/扫描均已结束。
+    // Keep only two current 1 KiB LUTs; producers/scanning finish before the next phase overwrites them.
+    uint8_t (*luts)[1024] = heap_caps_aligned_alloc(16, 2048, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!luts) return EPD_DRAW_NO_PHASES_AVAILABLE;
+    const uint8_t* lut_ptrs[] = {luts[0], luts[1]};
+    const int starts[] = {area.y, strong_area.y, strong_area.y + strong_area.height};
+    const int ends[] = {strong_area.y, strong_area.y + strong_area.height, area.y + area.height};
+    const EpdRect phys = rotate_to_fb(area);
+    epd_difference_image_cropped(hl->front_fb, hl->back_fb, phys, hl->difference_fb,
+                                  hl->dirty_lines, hl->dirty_columns);
+    // 校准区包含等灰像素；外侧等灰是否保持由原柔和表决定，不伪造前一帧。
+    // Include equal grays for art calibration; the original soft table holds equal chrome without falsifying the prior frame.
+    memset(hl->dirty_lines, 1, (size_t)h * sizeof(bool));
+    memset(hl->dirty_columns, 0, (size_t)w / 2);
+    memset(hl->dirty_columns + area.y / 2, 0xff, (size_t)area.height / 2);
+    const int phases = soft->phases > strong->phases ? soft->phases : strong->phases;
+    epd_poweron();
+    enum EpdDrawError error = EPD_DRAW_SUCCESS;
+    for (int phase = 0; phase < phases; ++phase) {
+        if (phase < soft->phases) epd_build_1ppB_lut_1k(luts[0], soft, phase);
+        else memset(luts[0], 0, 1024);
+        if (phase < strong->phases) epd_build_1ppB_lut_1k(luts[1], strong, phase);
+        else memset(luts[1], 0, 1024);
+        const int8_t selected[] = {0, 1, 0};
+        epd_set_col_phase_luts(lut_ptrs, starts, ends, selected, 3);
+        error = epd_draw_base(epd_full_screen(), hl->difference_fb, epd_full_screen(),
+            MODE_PACKING_1PPB_DIFFERENCE | MODE_DU, 25,
+            hl->dirty_lines, hl->dirty_columns, &E0470_APPLY_WAVEFORM);
+        epd_clear_phase_luts();
+        if (error != EPD_DRAW_SUCCESS) break;
+    }
+    heap_caps_free(luts);
+    if (error == EPD_DRAW_SUCCESS) copy_front_to_back(hl, phys);
+    return error;
+}

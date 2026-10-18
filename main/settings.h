@@ -95,7 +95,7 @@ void app_settings_set_last_boot(uint8_t reason);
 /// 浅睡拿起唤醒。默认关；有加速度计也不会自动开。/ Light-sleep pickup wake. Defaults off; an accelerometer does not turn it on.
 bool app_settings_pickup_wake(void);
 void app_settings_set_pickup_wake(bool on);
-/// 阅读默认字号，36..72，默认 48。/ Default reading size, 36..72, initially 48.
+/// 阅读默认字号，18..90，默认 48。/ Default reading size, 18..90, initially 48.
 /// Reading stroke weight -2..2: thin, lighter, native, heavier, bold.
 int8_t app_settings_book_weight(void);
 #define APP_BOOK_WEIGHT_SUBSTEPS 16
@@ -175,11 +175,11 @@ void app_settings_set_shelf_recent_sort(bool on);
 /// by default. Turning it off tears the whole stack down and returns NimBLE's memory.
 bool app_settings_ble_turner(void);
 void app_settings_set_ble_turner(bool on);
-/// 字间距档位 0..4，默认 2 居中；对应 -4/-2/0/+2/+4 像素。/ Tracking index 0..4, centered default 2; maps to -4/-2/0/+2/+4 pixels.
-#define APP_BOOK_TRACK_MIN (-4)
-#define APP_BOOK_TRACK_MAX 16
+/// 字间距默认0px，31档以0居中。/ Default 0px, centered among 31 tracking stops.
+#define APP_BOOK_TRACK_MIN (-15)
+#define APP_BOOK_TRACK_MAX 15
 #define APP_BOOK_TRACK_COUNT (APP_BOOK_TRACK_MAX-APP_BOOK_TRACK_MIN+1)
-/// 字间距索引0..20对应-4..+16px，每档1px。/ Tracking indices 0..20 map to -4..+16px, in 1px steps.
+/// 字间距索引0..30对应-15..+15px，每档1px。/ Tracking indices 0..30 map to -15..+15px, in 1px steps.
 uint8_t app_settings_book_tracking(void);
 void app_settings_set_book_tracking(uint8_t index);
 /// 普通正文首行缩进 0..3 字，默认两字。/ First-line indent: 0..3 em, default 2.
@@ -200,7 +200,10 @@ void app_settings_set_book_line_spacing(uint8_t percent);
 /// 阅读页左右边距，0..48 像素。/ Reader horizontal margin: 0..48 pixels.
 uint8_t app_settings_book_margin(void);
 void app_settings_set_book_margin(uint8_t px);
-/// 段后距离百分比，0/25/50/75。/ Paragraph-gap percentage: 0/25/50/75.
+/// 段距11档，25%居中，0..100%。/ Eleven paragraph-gap stops centered on 25%, spanning 0..100%.
+#define APP_BOOK_PARAGRAPH_COUNT 11
+uint8_t app_settings_book_paragraph_value(uint8_t level);
+uint8_t app_settings_book_paragraph_level(uint8_t percent);
 uint8_t app_settings_book_paragraph_spacing(void);
 void app_settings_set_book_paragraph_spacing(uint8_t percent);
 /// 书架样式：1 深色书轨、2 亚克力、5 列表；旧3/4安全回退2。/ Shelf styles: rail (1), acrylic (2), list (5); retired IDs 3/4 fall back to 2.

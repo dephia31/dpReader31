@@ -12,7 +12,7 @@ epdiy waveform tables for the **E0470A01** 4.7" monochrome e-paper panel (684 ×
 | --- | --- | --- |
 | `E0470_WAVEFORM` | 默认表。厂家 2.0.76 起为完整 GC16 / GL16 48 相（`E0470_WAVEFORM_TRIM=1` 才开机裁成 GC36 / GL37）；附阈值 DU（目标 0–7 → 黑，8–15 → 白） / Default. Full GC16 / GL16 48 phases since vendor 2.0.76 (GC36 / GL37 only with `E0470_WAVEFORM_TRIM=1`), plus a threshold DU (dest 0–7 → black, 8–15 → white) | 固件的页面刷新 / Page refresh in the firmware |
 | `E0470_FULL_WAVEFORM` | 完整表：GC16 / GL16 各 48 相，DU 20 相，单一 0–50 °C 温度档 / Full tables: GC16 / GL16 48 phases, DU 20 phases, one 0–50 °C temperature range | 对照与 A/B 比较 / Reference and A/B comparison |
-| `E0470_GRAY8_WAVEFORM` | 旧接口兼容名；S31 本地版沿用完整 48 相表（未提供 30 相 8 灰表），整屏约 430 ms / Legacy compatibility alias: the S31 build keeps the full 48-phase tables (no 30-phase 8-gray calibration), about 430 ms per full refresh | 刷新测试页的灰阶对照 / Gray comparison on the refresh test page |
+| `E0470_GRAY8_WAVEFORM` | 旧接口兼容名；S31 本地版沿用完整 48 相表（未提供 30 相 8 灰表），仅相位耗时至少约 576 ms / Legacy compatibility alias: the S31 build keeps the full 48-phase tables (no 30-phase 8-gray calibration), at least about 576 ms for phases alone | 刷新测试页的灰阶对照 / Gray comparison on the refresh test page |
 | `E0470_FOLLOW_WAVEFORM` | 开机生成的 8 帧短 DU（黑 7 / 白 8），配合 FAST 扫描档使用 / 8-frame short DU (7 black / 8 white) built at boot, meant for the FAST scan profile | 触摸笔迹与实时读数 / Touch ink and live digits |
 
 开机在第一次刷新前调用一次 `e0470_waveform_init()`，它负责生成默认表与跟随表。

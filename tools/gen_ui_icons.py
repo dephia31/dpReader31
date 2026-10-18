@@ -417,7 +417,9 @@ def _ellipse_points(cx: float, cy: float, rx: float, ry: float) -> list[tuple[fl
 
 
 def _attributes(text: str) -> dict[str, str]:
-    return dict(re.findall(r'([a-zA-Z-]+)="([^"]*)"', text))
+    # SVG 线段使用 x1/y1/x2/y2；数字是属性名的一部分。
+    # SVG lines use x1/y1/x2/y2; digits belong to the attribute name.
+    return dict(re.findall(r'([a-zA-Z_:][a-zA-Z0-9_.:-]*)="([^"]*)"', text))
 
 
 def _number(attrs: dict[str, str], key: str, default: float = 0.0) -> float:

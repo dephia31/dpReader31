@@ -10,18 +10,18 @@
 #include "app.h"
 #include "epdiy.h"
 
-#define UI_POWER_TRACK_X 72
-#define UI_POWER_TRACK_Y 318
-#define UI_POWER_TRACK_W 540
-#define UI_POWER_TRACK_H 112
-#define UI_POWER_THUMB_R 50
+#define UI_POWER_TRACK_X 36
+#define UI_POWER_TRACK_Y 330
+#define UI_POWER_TRACK_W 612
+#define UI_POWER_TRACK_H 150
+#define UI_POWER_THUMB_R 60
 #define UI_POWER_THUMB_X (UI_POWER_TRACK_X + UI_POWER_TRACK_H / 2)
 #define UI_POWER_THUMB_Y (UI_POWER_TRACK_Y + UI_POWER_TRACK_H / 2)
 #define UI_POWER_SLIDE_RANGE (UI_POWER_TRACK_W - UI_POWER_TRACK_H)
 #define UI_POWER_SLIDE_COMMIT ((UI_POWER_SLIDE_RANGE * 92 + 99) / 100)
-#define UI_POWER_BUTTON_Y 960
-#define UI_POWER_BUTTON_R 54
-#define UI_POWER_RESTART_X 238
+#define UI_POWER_BUTTON_Y 811
+#define UI_POWER_BUTTON_R 72
+#define UI_POWER_RESTART_X 196
 #define UI_POWER_CANCEL_X (684 - UI_POWER_RESTART_X)
 
 typedef enum {
@@ -46,8 +46,10 @@ void ui_power_dialog_cancel_input(ui_power_dialog_t *dialog, EpdRect *dirty);
 /// 单指跟手；滑到92%之后松手才关机，圆钮按下不执行动作。
 /// Track one finger; only release past 92% shuts down; circle presses perform no actions.
 ui_power_action_t ui_power_dialog_feed(ui_power_dialog_t *dialog, const app_ctx_t *ctx, EpdRect *dirty);
-/// 无缓存纯绘制，局部刷新仅提交dirty区域。/ Pure drawing without caches; locally present only the dirty area.
-void ui_power_dialog_draw_controls(uint8_t *fb, const ui_power_dialog_t *dialog);
+/// 只恢复dirty内的控件底图并绘制反馈；不模糊、排字或分配。/ Restore cached dirty pixels and feedback without blur, text shaping or allocation.
+void ui_power_dialog_draw_controls(uint8_t *fb, const ui_power_dialog_t *dialog,EpdRect dirty);
+/// 关闭或中断时释放PSRAM控件缓存。/ Release PSRAM control caches on close or interruption.
+void ui_power_dialog_end(void);
 void ui_power_dialog_draw(uint8_t *fb, const ui_power_dialog_t *dialog);
 EpdRect ui_power_dialog_rect(void);
 void ui_power_final_draw(uint8_t *fb, bool restarting);

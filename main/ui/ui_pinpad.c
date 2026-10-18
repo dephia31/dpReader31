@@ -1,12 +1,18 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：独立密码键盘；导入系统字形不拉伸，16灰背景和清晰圆圈分开绘制。
- * English: Dedicated PIN pad; unscaled system glyphs, separate 16-gray frost and crisp circles.
+ * 中文：独立密码键盘；导入系统字形不拉伸，原始锁屏背景和液态玻璃圆键分开绘制。
+ * 用户修订：数字圆键改成白层 25% 的液态玻璃，浮在原始画面（背景不做高斯模糊、不加白底）上；按下只加深内圈、抬手用按下前底图恢复。
+ * English: Dedicated PIN pad; unscaled system glyphs, sharp lock backdrop and liquid-glass keys painted separately.
+ * User revision: the number keys are liquid glass with a 25% white layer over the sharp lock frame (no
+ * backdrop blur or white ground); pressing only inks the inner ring and release restores the backdrop
+ * saved on press.
+ * 参考：MokuMMk/MokuReader 1d7951ec 的液态玻璃圆键；4bpp缓存与输入恢复为本机适配。
+ * Reference: MokuMMk/MokuReader 1d7951ec glass keys, adapted with 4bpp snapshots and input restoration.
  * 冻结：不切字体、不写凭据、不调用显示；缓存和输入在退出时释放/清零。
  * Frozen: No face switches, credentials or presentation; release cache and wipe input on exit.
  */
 #include "ui_pinpad.h"
 #include "ui_kit.h"
-#include "ui_image_dither.h"
+#include "ui_glass.h"
 #include "ttf_font.h"
 #include "ui_font.h"
 #include "lock_pin.h"
@@ -16,9 +22,10 @@
 #include <string.h>
 #define PAD_W 684
 #define PAD_H 1216
-#define LOW_W 76
-#define LOW_H 136
 #define RADIUS 72
+// 按下键的底图边长（含出边 3px）。/ Side of the pressed-key backdrop, including the 3 px overhang.
+#define KEY_SNAP_SIDE (2*RADIUS+6)
+#define KEY_SNAP_BYTES (((size_t)KEY_SNAP_SIDE*KEY_SNAP_SIDE+1)/2)
 static const int xs[3]={158,342,526};
 static const int ys[4]={544,703,862,1021};
 EpdRect ui_pinpad_full(void){return (EpdRect){0,0,PAD_W,PAD_H};}
@@ -36,46 +43,29 @@ static uint8_t pixel(const uint8_t *frame,int x,int y){
 }
 void ui_pinpad_end(ui_pinpad_t *pad){
     if(!pad)return;
-    free(pad->background);lock_pin_wipe(pad,sizeof(*pad));pad->pressed=-1;
+    free(pad->background);free(pad->key_snapshot);pad->background=NULL;pad->key_snapshot=NULL;
+    lock_pin_wipe(pad,sizeof(*pad));pad->pressed=-1;pad->snapshot_hit=-1;
 }
 void ui_pinpad_reset(ui_pinpad_t *pad,const char *title,const char *notice){
-    lock_pin_wipe(pad->digits,sizeof(pad->digits));pad->count=0;pad->pressed=-1;pad->dirty_key=-1;pad->blocked=false;
+    lock_pin_wipe(pad->digits,sizeof(pad->digits));pad->count=0;pad->pressed=-1;pad->snapshot_hit=-1;pad->dirty_key=-1;pad->blocked=false;
     if(title)snprintf(pad->title,sizeof(pad->title),"%s",title);
     snprintf(pad->notice,sizeof(pad->notice),"%s",notice?notice:"");
 }
 void ui_pinpad_begin(ui_pinpad_t *pad,const uint8_t *frame,const char *title){
     ui_pinpad_end(pad);ui_pinpad_reset(pad,title,"");
-    // 工作区有固定上限且保留1MiB PSRAM，不在输入循环重新处理原图。
-    // Fixed workspace with a 1MiB PSRAM reserve; never reprocess artwork in the typing loop.
-    size_t need=PAD_W*PAD_H/2u+LOW_W*LOW_H*2u;
+    // 背景保留原始锁屏画面、不做高斯模糊也不加白底；模糊和白层都只发生在圆键自己的液态玻璃里。
+    // The backdrop keeps the original lock frame with neither a Gaussian blur nor a white ground;
+    // both the blur and the white layer live only inside the liquid-glass keys.
+    size_t need=PAD_W*PAD_H/2u+KEY_SNAP_BYTES;
     if(heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<need+1024u*1024u)return;
+    // 按键底图只用于按下/抬手反馈；分配不到时玻璃键照画，只是没有按下内圈。
+    // The key backdrop only drives press/release feedback; without it the glass keys still paint,
+    // just without the pressed inner ring.
+    pad->key_snapshot=heap_caps_malloc(KEY_SNAP_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
     pad->background=heap_caps_malloc(PAD_W*PAD_H/2u,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-    uint8_t *low=heap_caps_malloc(LOW_W*LOW_H*2u,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-    if(!pad->background||!low){free(pad->background);pad->background=NULL;free(low);return;}
-    uint8_t *blur=low+LOW_W*LOW_H;
-    for(int y=0;y<LOW_H;++y)for(int x=0;x<LOW_W;++x){
-        unsigned sum=0,n=0;
-        for(int j=0;j<9;++j)for(int i=0;i<9;++i){int xx=x*9+i,yy=y*9+j;if(xx<PAD_W&&yy<PAD_H){sum+=frame?(pixel(frame,xx,yy)>>4)*17u:224u;++n;}}
-        low[y*LOW_W+x]=sum/n;
-    }
-    for(int y=0;y<LOW_H;++y)for(int x=0;x<LOW_W;++x){
-        unsigned sum=0,n=0;
-        // 较小核保留封面结构，白色混入减至45%，保持圆键与底图的层次。
-        // A smaller kernel retains cover structure; 45% white lift separates the art from the circular keys.
-        for(int j=-2;j<=2;++j)for(int i=-2;i<=2;++i){int xx=x+i,yy=y+j;if(xx>=0&&xx<LOW_W&&yy>=0&&yy<LOW_H){sum+=low[yy*LOW_W+xx];++n;}}
-        blur[y*LOW_W+x]=(sum/n*11+255*9+10)/20;
-    }
-    memset(pad->background,255,PAD_W*PAD_H/2u);
-    for(int y=0;y<PAD_H;++y)for(int x=0;x<PAD_W;++x){
-        // 双线性重建避免9px方块；背景最终只量化一次。
-        // Bilinear reconstruction avoids 9px blocks; quantize the backdrop just once.
-        int ix=x/9,iy=y/9,nx=ix+1<LOW_W?ix+1:ix,ny=iy+1<LOW_H?iy+1:iy;
-        int fx=x%9,fy=y%9;
-        unsigned v=(blur[iy*LOW_W+ix]*(9-fx)*(9-fy)+blur[iy*LOW_W+nx]*fx*(9-fy)+
-            blur[ny*LOW_W+ix]*(9-fx)*fy+blur[ny*LOW_W+nx]*fx*fy+40)/81;
-        epd_draw_pixel(x,y,ui_image_dither_gray(v,x,y),pad->background);
-    }
-    free(low);
+    if(!pad->background){free(pad->key_snapshot);pad->key_snapshot=NULL;pad->background=NULL;return;}
+    if(frame)memcpy(pad->background,frame,PAD_W*PAD_H/2u);
+    else memset(pad->background,0xee,PAD_W*PAD_H/2u);
 }
 static bool intersects(EpdRect a,EpdRect b){return a.x<b.x+b.width&&b.x<a.x+a.width&&a.y<b.y+b.height&&b.y<a.y+a.height;}
 static EpdRect key_rect(int hit){
@@ -83,6 +73,29 @@ static EpdRect key_rect(int hit){
     return(EpdRect){hit==10?74:470,1100,140,68};
 }
 static EpdRect joined(EpdRect a,EpdRect b){int x=a.x<b.x?a.x:b.x,y=a.y<b.y?a.y:b.y,r=a.x+a.width>b.x+b.width?a.x+a.width:b.x+b.width,t=a.y+a.height>b.y+b.height?a.y+a.height:b.y+b.height;return(EpdRect){x,y,r-x,t-y};}
+// 按下前把整枚玻璃键（含数字）存成底图，抬手原样贴回，避免重画字形或留残影。
+// Save the whole glass key including its digit before a press; release pastes it back so no glyph
+// is redrawn and no residue is left.
+static void key_snapshot_save(uint8_t *fb,ui_pinpad_t *pad,int hit){
+    if(!pad->key_snapshot||pad->snapshot_hit==hit)return;
+    EpdRect box=key_rect(hit);
+    for(int y=0;y<box.height;++y)for(int x=0;x<box.width;++x){
+        size_t at=(size_t)y*box.width+x;
+        uint8_t value=(uint8_t)(pixel(fb,box.x+x,box.y+y)>>4);
+        if(at&1)pad->key_snapshot[at/2]|=(uint8_t)(value<<4);
+        else pad->key_snapshot[at/2]=value;
+    }
+    pad->snapshot_hit=hit;
+}
+static void key_snapshot_restore(uint8_t *fb,ui_pinpad_t *pad,int hit){
+    if(!pad->key_snapshot||pad->snapshot_hit!=hit)return;
+    EpdRect box=key_rect(hit);
+    for(int y=0;y<box.height;++y)for(int x=0;x<box.width;++x){
+        size_t at=(size_t)y*box.width+x;
+        epd_draw_pixel(box.x+x,box.y+y,(uint8_t)(((pad->key_snapshot[at/2]>>((at&1)*4))&15)<<4),fb);
+    }
+    pad->snapshot_hit=-1;
+}
 static void fallback_text(uint8_t *fb,int cx,int cy,int em,const char *value,uint8_t color){
     int px=ui_font_title_px(em,value),a=0,b=0;ui_font_measure_line_px(px,value,&a,&b);
     // 内建接口接受灰阶编号0..15；用当前背景保持按下态，不覆盖一块浅色底。
@@ -129,27 +142,41 @@ static void paint(uint8_t *fb,const ui_pinpad_t *pad,EpdRect area){
     }
     for(int hit=0;hit<12;++hit){EpdRect box=key_rect(hit);if(!intersects(area,box))continue;bool pressed=pad->pressed==hit;
         if(hit<10){int cx=box.x+RADIUS+3,cy=box.y+RADIUS+3;
-            // 圆键白底只在进入时铺好；输入只改内环，不对灰阶背景施加DU。
-            // Establish white circular keys on entry; DU input changes only the inner ring, never gray artwork.
-            epd_fill_circle(cx,cy,RADIUS,255,fb);
-            for(int r=RADIUS;r>=RADIUS-2;--r)epd_draw_circle(cx,cy,r,0,fb);
-            for(int r=67;r>=63;--r)epd_draw_circle(cx,cy,r,pressed?0:255,fb);
+            // 数字圆键是无白底背景上的液态玻璃：模糊、折射和亮边都只发生在键内，白层 25%；
+            // 折射强度参考长按电源页的 160%，边缘形变更明显。
+            // Number keys are liquid glass over the un-whitened frame: blur, refraction and rim stay
+            // inside the key, with a 25% white layer; refraction strength matches the power page's
+            // 160% so the rim deforms more.
+            if(!ui_glass_panel(fb,(EpdRect){cx-RADIUS,cy-RADIUS,2*RADIUS,2*RADIUS},RADIUS,25,160)){
+                epd_fill_circle(cx,cy,RADIUS,255,fb);
+                for(int r=RADIUS;r>=RADIUS-2;--r)epd_draw_circle(cx,cy,r,0x60,fb);
+            }
             char numeral[2]={(char)('0'+hit),0};text(fb,cx,cy,74,numeral,0,pad,hit);
+            if(pressed&&pad->key_snapshot){
+                for(int r=67;r>=63;--r)epd_draw_circle(cx,cy,r,0,fb);
+            }
         }else text(fb,box.x+box.width/2,1132,27,hit==10?"取消":"删除",0,pad,hit);
     }
 }
 void ui_pinpad_paint(uint8_t *fb,const ui_pinpad_t *pad,EpdRect area){paint(fb,pad,area);}
 
-void ui_pinpad_paint_input(uint8_t *fb,const ui_pinpad_t *pad){
-    // 不生成TTF蒙版、不分配内存，只改黑白反馈；矩形内其余像素保持原样。
-    // No glyph masks or allocations: change binary feedback only, retaining every surrounding pixel.
+void ui_pinpad_paint_input(uint8_t *fb,ui_pinpad_t *pad){
+    // 不生成TTF蒙版、不分配内存：按下只存底图并加深内圈，抬手把按下前像素贴回。
+    // No glyph masks or allocations: a press saves the backdrop and inks the inner ring, and release
+    // pastes the pre-press pixels back.
     int hit=pad->dirty_key;
     if(hit>=0&&hit<10){
         EpdRect box=key_rect(hit);int cx=box.x+RADIUS+3,cy=box.y+RADIUS+3;
-        for(int r=67;r>=63;--r)epd_draw_circle(cx,cy,r,pad->pressed==hit?0:255,fb);
+        if(pad->pressed==hit){
+            if(pad->key_snapshot){
+                key_snapshot_save(fb,pad,hit);
+                for(int r=67;r>=63;--r)epd_draw_circle(cx,cy,r,0,fb);
+            }
+        }else key_snapshot_restore(fb,pad,hit);
     }else if(hit>=10){
         EpdRect box=key_rect(hit);
-        ui_fill_rect_fast((EpdRect){box.x+32,box.y+54,76,2},pad->pressed==hit?0:255,fb);
+        for(int y=box.y+54;y<box.y+56;++y)for(int x=box.x+32;x<box.x+108;++x)
+            epd_draw_pixel(x,y,pad->pressed==hit?0:pad->background?pixel(pad->background,x,y):0xe0,fb);
     }
     unsigned count=pad->count+(pad->pressed>=0&&pad->pressed<10&&pad->count<4);
     for(int i=0;i<4;++i)epd_fill_circle(241+i*67,401,12,(unsigned)i<count?0:255,fb);

@@ -15,6 +15,7 @@
  */
 
 #include "settings.h"
+#include "book/book_font_size.h"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -160,7 +161,7 @@ static bool valid_media_dir(const char* path) {
 }
 
 static uint8_t valid_book_px(uint8_t px) {
-    return px >= 36 && px <= 72 ? px : 48;
+    return px >= BOOK_READER_PX_MIN && px <= BOOK_READER_PX_MAX ? px : 48;
 }
 
 void app_settings_init(void) {
@@ -285,10 +286,15 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_SHELF_RECENT, &recent_sort) == ESP_OK) s_shelf_recent_sort = recent_sort == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_FONTS, &book_fonts) == ESP_OK) s_book_fonts = book_fonts == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_VERTICAL, &book_vertical) == ESP_OK) s_book_vertical = book_vertical == 1;
+    s_book_tracking = -APP_BOOK_TRACK_MIN;
     uint8_t tracking = 2, reading_line = 0, rule_offset = 4, indent = 2, indent_adjust = 20;
     if (nvs_get_u8(h, NVS_KEY_BOOK_TRACK, &tracking) == ESP_OK) {
         if(tracking<=4)s_book_tracking=(uint8_t)((int)tracking*2-4-APP_BOOK_TRACK_MIN);
-        else if(tracking>=128 && tracking<128+APP_BOOK_TRACK_COUNT)s_book_tracking=tracking-128;
+        else if(tracking>=128 && tracking<=148) {
+            int px=(int)tracking-128-4;
+            if(px>APP_BOOK_TRACK_MAX)px=APP_BOOK_TRACK_MAX;
+            s_book_tracking=(uint8_t)(px-APP_BOOK_TRACK_MIN);
+        } else if(tracking>=192 && tracking<192+APP_BOOK_TRACK_COUNT)s_book_tracking=tracking-192;
     }
     if (nvs_get_u8(h, NVS_KEY_BOOK_RULE, &reading_line) == ESP_OK && reading_line <= 2)
         s_book_reading_line = reading_line;
@@ -303,7 +309,7 @@ void app_settings_init(void) {
         if (line >= 110 && line <= 150) s_book_line = line;
         else if (line == 180) s_book_line = 150;
     }
-    if (nvs_get_u8(h, NVS_KEY_BOOK_PARA, &para) == ESP_OK && para <= 75 && para % 25 == 0) s_book_para = para;
+    if (nvs_get_u8(h, NVS_KEY_BOOK_PARA, &para) == ESP_OK && app_settings_book_paragraph_value(app_settings_book_paragraph_level(para)) == para) s_book_para = para;
     if (nvs_get_u8(h, NVS_KEY_BOOK_MARGIN, &margin) == ESP_OK && margin <= 60)
         s_book_margin = margin > 48 ? 48 : margin;
     uint8_t shelf_style = 2;
@@ -725,7 +731,7 @@ uint8_t app_settings_book_tracking(void) { return s_book_tracking; }
 void app_settings_set_book_tracking(uint8_t index) {
     if (index >= APP_BOOK_TRACK_COUNT || index == s_book_tracking) return;
     s_book_tracking = index;
-    nvs_put_u8(NVS_KEY_BOOK_TRACK, 128+index);
+    nvs_put_u8(NVS_KEY_BOOK_TRACK, 192+index);
 }
 uint8_t app_settings_book_indent(void) { return s_book_indent; }
 void app_settings_set_book_indent(uint8_t em) {
@@ -767,9 +773,24 @@ void app_settings_set_book_margin(uint8_t px) {
     s_book_margin = px;
     nvs_put_u8(NVS_KEY_BOOK_MARGIN, px);
 }
+// 非线性段距保留旧档位，并将25%置于几何中点。/ Nonlinear gaps retain legacy stops with 25% at the geometric midpoint.
+uint8_t app_settings_book_paragraph_value(uint8_t level) {
+    static const uint8_t values[APP_BOOK_PARAGRAPH_COUNT]={0,5,10,15,20,25,30,40,50,75,100};
+    return values[level<APP_BOOK_PARAGRAPH_COUNT?level:APP_BOOK_PARAGRAPH_COUNT-1];
+}
+uint8_t app_settings_book_paragraph_level(uint8_t percent) {
+    uint8_t best=0;
+    unsigned distance=255;
+    for(uint8_t i=0;i<APP_BOOK_PARAGRAPH_COUNT;++i) {
+        int delta=(int)app_settings_book_paragraph_value(i)-(int)percent;
+        unsigned d=(unsigned)(delta<0?-delta:delta);
+        if(d<distance){distance=d;best=i;}
+    }
+    return best;
+}
 uint8_t app_settings_book_paragraph_spacing(void) { return s_book_para; }
 void app_settings_set_book_paragraph_spacing(uint8_t percent) {
-    if (percent > 75 || percent % 25) return;
+    if (app_settings_book_paragraph_value(app_settings_book_paragraph_level(percent)) != percent) return;
     if (s_book_para == percent) return;
     s_book_para = percent;
     nvs_put_u8(NVS_KEY_BOOK_PARA, percent);
@@ -886,7 +907,7 @@ static bool backup_home_valid(const settings_backup_home_t *v) {
 static unsigned backup_version(const settings_backup_v1_t *backup) {
     if (memcmp(backup->magic, "PICOSET", 7)) return 0;
     unsigned char c = backup->magic[7];
-    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : 0;
+    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : 0;
 }
 
 static void backup_erase_secret(void *ptr, size_t size) {
@@ -966,7 +987,7 @@ static bool backup_card_ready(void) {
 esp_err_t app_settings_backup_save(void) {
     if (!backup_card_ready()) return ESP_ERR_INVALID_STATE;
     settings_backup_v1_t backup = {0};
-    memcpy(backup.magic, "PICOSETJ", sizeof(backup.magic));
+    memcpy(backup.magic, "PICOSETK", sizeof(backup.magic));
     uint8_t *f = backup.flags;
     f[BK_SLEEP] = s_sleep;
     f[BK_PICKUP] = s_pickup_wake;
@@ -1097,15 +1118,17 @@ static bool backup_valid(const settings_backup_v1_t *backup) {
     if (f[BK_SLEEP] > APP_SLEEP_OFF || f[BK_PICKUP] > 1 ||
         f[BK_SYS_SIZE] < 100 || f[BK_SYS_SIZE] > 200 || f[BK_SYS_SIZE] % 10 ||
         f[BK_SYS_CONTRAST] < 100 || f[BK_SYS_CONTRAST] > 140 || f[BK_SYS_CONTRAST] % 10 ||
-        f[BK_LOCK] > 3 || f[BK_BOOK_PX] < 36 || f[BK_BOOK_PX] > 72 ||
+        f[BK_LOCK] > 3 || f[BK_BOOK_PX] < BOOK_READER_PX_MIN || f[BK_BOOK_PX] > BOOK_READER_PX_MAX ||
         f[BK_SHAKE] > 1 || (f[BK_FULL_PAGES] != 0 && f[BK_FULL_PAGES] != 5 &&
                             f[BK_FULL_PAGES] != 10 && f[BK_FULL_PAGES] != 15 &&
                             f[BK_FULL_PAGES] != 30) ||
         f[BK_TURN] > 1 || f[BK_POWER_TURN] > 1 || f[BK_IMMERSIVE] > 1 ||
-        f[BK_TRACKING] > (backup_version(backup)>=19 ? APP_BOOK_TRACK_COUNT-1 : 4) || f[BK_READING_LINE] > 2 ||
+        f[BK_TRACKING] > (backup_version(backup)>=20 ? APP_BOOK_TRACK_COUNT-1 : backup_version(backup)==19 ? 20 : 4) || f[BK_READING_LINE] > 2 ||
         f[BK_LINE_SPACING] < 110 || f[BK_LINE_SPACING] > 150 ||
         f[BK_MARGIN] > 60 ||
-        f[BK_PARAGRAPH] > 75 || f[BK_PARAGRAPH] % 25 ||
+        (backup_version(backup)>=20 ?
+         app_settings_book_paragraph_value(app_settings_book_paragraph_level(f[BK_PARAGRAPH])) != f[BK_PARAGRAPH] :
+         f[BK_PARAGRAPH] > 75 || f[BK_PARAGRAPH] % 25) ||
         f[BK_SHELF] < 1 || f[BK_SHELF] > 5) return false;
     if (strnlen(backup->books_dir, sizeof(backup->books_dir)) == sizeof(backup->books_dir) ||
         strnlen(backup->fonts_dir, sizeof(backup->fonts_dir)) == sizeof(backup->fonts_dir)) return false;
@@ -1213,7 +1236,11 @@ esp_err_t app_settings_backup_restore(void) {
         return ESP_ERR_INVALID_RESPONSE;
     }
 
-    if(version<19)backup.flags[BK_TRACKING]=(uint8_t)((int)backup.flags[BK_TRACKING]*2-4-APP_BOOK_TRACK_MIN);
+    if(version<20) {
+        int px=version<19?(int)backup.flags[BK_TRACKING]*2-4:(int)backup.flags[BK_TRACKING]-4;
+        if(px>APP_BOOK_TRACK_MAX)px=APP_BOOK_TRACK_MAX;
+        backup.flags[BK_TRACKING]=(uint8_t)(px-APP_BOOK_TRACK_MIN);
+    }
     backup.flags[BK_MARGIN] = backup.flags[BK_MARGIN] > 48 ? 48 : backup.flags[BK_MARGIN];
     if (version < 15) backup.flags[BK_SHAKE] = 0; // 旧晃动标志不改变AA。/ Old shake flags never affect AA.
     // 已删除组件的备份仍可恢复，其余字段不受影响。/ Restore retired widget backups without rejecting other preferences.
@@ -1269,7 +1296,7 @@ esp_err_t app_settings_backup_restore(void) {
     BACKUP_SET_U8(NVS_KEY_READER_TURN, BK_TURN);
     BACKUP_SET_U8(NVS_KEY_POWER_TURN, BK_POWER_TURN);
     BACKUP_SET_U8(NVS_KEY_IMMERSIVE, BK_IMMERSIVE);
-    if(err==ESP_OK)err=nvs_set_u8(h,NVS_KEY_BOOK_TRACK,128+backup.flags[BK_TRACKING]);
+    if(err==ESP_OK)err=nvs_set_u8(h,NVS_KEY_BOOK_TRACK,192+backup.flags[BK_TRACKING]);
     if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_INDENT, indent);
     if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_INDENT_ADJUST, adjust.encoded);
     int fine_weight=weight.encoded<=4?((int)weight.encoded-2)*APP_BOOK_WEIGHT_SUBSTEPS:(int)weight.encoded-128-APP_BOOK_WEIGHT_FINE_MAX;

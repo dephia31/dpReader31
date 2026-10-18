@@ -54,7 +54,7 @@ int main(void) {
     assert(bw && bw->phases == 20);
     for (int f = 0; f < bw->phases; ++f) {
         assert(e0470_phase_action(bw, f, 0, 0) == 0);
-        assert(e0470_phase_action(bw, f, 15, 15) == 0);
+        assert(e0470_phase_action(bw, f, 15, 15) == 0 || e0470_phase_action(bw,f,15,15)==2);
     }
     int original_diagonal = 0;
     for (int f = 0; f < bands->phases; ++f)
@@ -78,6 +78,37 @@ int main(void) {
             assert(e0470_phase_action(table,f,to,from)==(from==to?0:e0470_phase_action(gray_table,f,to,from)));
     }
     assert(!memcmp(saved_bw,bw->luts,sizeof(saved_bw))&&!memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));
+    const EpdWaveform* soft=display_main_shelf_soft_waveform();
+    const EpdWaveformPhases* chrome=e0470_waveform_phases(soft,MODE_GL16);
+    assert(soft!=&E0470_WAVEFORM&&chrome&&chrome->phases==48);
+    for(int f=0;f<48;++f)for(int to=0;to<16;++to)for(int from=0;from<16;++from){
+        int expected=to==from?0:(to==0||to==15)?(f<20?e0470_phase_action(bw,f,to,from):0):e0470_phase_action(gray_table,f,to,from);
+        assert(e0470_phase_action(chrome,f,to,from)==expected);
+    }
+    for(int mode=MODE_GC16;mode<=MODE_GL16;mode+=MODE_GL16-MODE_GC16){
+        const EpdWaveform* shelf=display_main_shelf_waveform(mode);
+        const EpdWaveformPhases* table=e0470_waveform_phases(shelf,mode);
+        const EpdWaveformPhases* original=e0470_waveform_phases(&E0470_FULL_WAVEFORM,mode);
+        assert(table&&table->phases==48&&shelf==display_main_shelf_waveform(mode));
+        for(int f=0;f<48;++f)for(int to=0;to<16;++to)for(int from=0;from<16;++from){
+            int action=e0470_phase_action(table,f,to,from);
+            assert(action==e0470_phase_action(to==15?(from==15?gray_table:chrome):original,f,to,from));
+            if(to==15)assert(action==0||action==2);
+        }
+    }
+    assert(!memcmp(saved_bw,bw->luts,sizeof(saved_bw))&&!memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));
+    puts("PASS: shelf GL/GC48 art, DU20 endpoints without extra pushes, equal-held chrome, white-only erase and original LUTs");
+    const EpdWaveformPhases* page=e0470_waveform_phases(display_main_page_gray_waveform(),MODE_GL16);
+    const EpdWaveformPhases* binary=e0470_waveform_phases(display_main_page_bw_waveform(),MODE_DU);
+    int white_pushes=0,binary_white=0;
+    for(int f=0;f<48;++f)for(int to=0;to<16;++to)for(int from=0;from<16;++from){
+        int action=e0470_phase_action(page,f,to,from);
+        assert(action==(to==from&&to!=15?0:e0470_phase_action(gray_table,f,to,from)));
+        if(to==15&&from==15){assert(action==0||action==2);white_pushes+=action==2;}
+    }
+    for(int f=0;f<20;++f){int action=e0470_phase_action(binary,f,15,15);assert(action==0||action==2);binary_white+=action==2;}
+    assert(white_pushes>=3&&binary_white>0);
+    puts("PASS: page white maintenance stays separate from fixed-navigation/slider equal holds");
     // 点阵亮度随输入单调增加且稳定，不引入中灰；阅读插图原16灰输出仍保留。
     // Dot brightness increases monotonically and remains stable with no intermediate grays; existing 16-gray reader output is retained.
     int previous_white = 0, previous_cover_white = 0;

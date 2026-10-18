@@ -6,7 +6,7 @@ typedef struct { int phases; const int* phase_times; const uint8_t* luts; } EpdW
 typedef struct { int id; } EpdWaveform;
 enum EpdRotation { EPD_ROT_LANDSCAPE, EPD_ROT_PORTRAIT,
                    EPD_ROT_INVERTED_LANDSCAPE, EPD_ROT_INVERTED_PORTRAIT };
-enum EpdDrawMode { MODE_DU = 1, MODE_GL16 = 5, MODE_PACKING_1PPB_DIFFERENCE = 0x100 };
+enum EpdDrawMode { MODE_DU = 1, MODE_GC16 = 2, MODE_GL16 = 5, MODE_PACKING_1PPB_DIFFERENCE = 0x100 };
 enum EpdDrawError { EPD_DRAW_SUCCESS = 0, EPD_DRAW_NO_PHASES_AVAILABLE = 1,
                     EPD_DRAW_INVALID_CROP = 2, EPD_DRAW_OTHER_ERROR = 4 };
 int epd_width(void);

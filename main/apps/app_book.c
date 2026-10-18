@@ -121,7 +121,9 @@
 #include "book_lock_collage.h"
 #include "book_epub.h"
 #include "book_policy.h"
+#include "book_file_path.h"
 #include "book_progress.h"
+#include "book_font_size.h"
 #include "book_title.h"
 #include "book_ticket.h"
 #include "book_excerpt.h"
@@ -168,9 +170,9 @@
 #define BOOK_ROWS 13
 #define BOOK_GRID_ROWS 9
 #define BOOK_BULK_ROWS 6
-#define BOOK_PX_MIN 36
-#define BOOK_PX_MAX 72
-#define BOOK_PX_STEP 4
+#define BOOK_PX_MIN BOOK_READER_PX_MIN
+#define BOOK_PX_MAX BOOK_READER_PX_MAX
+#define BOOK_PX_STEP 1
 #define BOOK_MARGIN_MIN 0
 #define BOOK_MARGIN_MAX 48
 #define BOOK_MARGIN_CHOICES 9
@@ -436,6 +438,7 @@ static void prepare_covers(app_ctx_t* ctx);
 static app_redraw_t toggle_reader_fullscreen(app_ctx_t* ctx);
 bool app_book_request_open(const char* path) {
     if (!path || !path[0] || strnlen(path, sizeof(s_requested_open)) >= sizeof(s_requested_open)) return false;
+    if (!book_file_path_supported(path)) return false;
     copy_text(s_requested_open, sizeof(s_requested_open), path);
     s_requested_open_home = false;
     s_requested_fullscreen = true;
@@ -1025,10 +1028,6 @@ static void draw_shelf_furniture(uint8_t* fb) {
         } else if (style == 2) {
             EpdRect acrylic = {20, top + 136, 644, 90};
             draw_shelf_guard(fb, acrylic, row);
-            if(s_view==SHELF&&app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL){
-                EpdRect bands[3];for(int i=0;i<3;++i)bands[i]=(EpdRect){0,328+i*282,UI_LOCK_WIDTH,90};
-                display_main_transition_gray_bands(bands,3);
-            }
 
         }
     }
@@ -1932,14 +1931,6 @@ static const char* font_friendly_name(const ttf_font_item_t* item) {
     return item ? ttf_font_localized_name(item->name) : "";
 }
 
-static void draw_font_name_with_current_face(uint8_t* fb, int x, int y, const char* name, int width) {
-    int above = 0, below = 0;
-    int px=ui_text_effective_px(25);
-    while (px>1 && ttf_text_width_px(px,name)>width) --px;
-    ttf_measure_line_px(px, name, &above, &below);
-    ttf_draw_text_px(fb, x, y + (above - below) / 2, px, name,
-                     EPD_DRAW_ALIGN_CENTER, UI_INK_BLACK, UI_INK_WHITE);
-}
 
 // 用户确认双列：字体/字重在第一行，书内字体/排版在第二行；绘制与命中共用矩形。
 // Approved paired rows: face/weight, then embedded faces/layout; paint and touch share rectangles.
@@ -2335,7 +2326,7 @@ static void draw_layout_settings(uint8_t* fb) {
     draw_pill_slider(fb, reader_slider_rect(2), "紧", "松", "行距", line_i, 41, 21, 21);
     reader_panel_text(fb, 42, 715, 21, "段距", EPD_DRAW_ALIGN_LEFT, false);
     char value[16]; snprintf(value, sizeof(value), "%d%%", shown_para);
-    draw_pill_slider(fb, reader_slider_rect(3), "紧", "松", value, shown_para / 25, 4, 21, 21);
+    draw_pill_slider(fb, reader_slider_rect(3), "紧", "松", value, app_settings_book_paragraph_level((uint8_t)shown_para), APP_BOOK_PARAGRAPH_COUNT, 21, 21);
     reader_panel_text(fb, 42, 835, 21, "字间距", EPD_DRAW_ALIGN_LEFT, false);
     char track_name[24];snprintf(track_name,sizeof(track_name),"%+d px",shown_tracking+APP_BOOK_TRACK_MIN);
     draw_pill_slider(fb, reader_slider_rect(4), "紧", "松", track_name, shown_tracking, APP_BOOK_TRACK_COUNT, 21, 21);
@@ -2552,7 +2543,6 @@ static void draw_font_picker(uint8_t* fb) {
     ui_text_box(fb,(EpdRect){90,top+94,504,32},20,current,EPD_DRAW_ALIGN_CENTER,false);
     int start = s_font_page * BOOK_FONT_PAGE;
     char active[TTF_FONT_PATH_MAX]; copy_text(active, sizeof(active), ttf_font_path());
-    bool active_builtin = ttf_font_is_builtin();
     for (int slot = 0; slot < BOOK_FONT_PAGE && start + slot < count; ++slot) {
         const ttf_font_item_t* item = ttf_font_item(start + slot);
         EpdRect card = reader_font_pick_rect(slot);
@@ -2561,17 +2551,13 @@ static void draw_font_picker(uint8_t* fb) {
         ui_draw_control_frame(fb, card, 18, selected ? 0x48 : 0x98);
         char label[TTF_FONT_NAME_MAX];
         copy_text(label, sizeof(label), font_friendly_name(item));
-        if (ttf_font_open(item->path) == ESP_OK) {
-            fit_text(label,25,card.width-32);
-            draw_font_name_with_current_face(fb, card.x + card.width/2, card.y + 63, label,card.width-32);
-        } else {
+        if (!ttf_font_draw_preview(item->path, fb, card.x + card.width/2, card.y + 63,
+                                    ui_text_effective_px(25), label, card.width-32)) {
             fit_fixed_text(label, ui_text_effective_px(25), card.width - 32);
             ui_text_box(fb,ui_inset_rect(card,16),25,label,EPD_DRAW_ALIGN_CENTER,false);
         }
         if (selected) epd_fill_circle(card.x+card.width-22,card.y+22,7,UI_GRAY_BLACK,fb);
     }
-    if (active_builtin) (void)ttf_font_open_builtin();
-    else if (active[0]) (void)ttf_font_open(active);
     if (!count) reader_panel_text_vc(fb, 342, 780, 24, "所选字体目录中没有可用字体", EPD_DRAW_ALIGN_CENTER, false);
 }
 
@@ -3163,6 +3149,12 @@ static void render(app_ctx_t* ctx, uint8_t* fb) {
         if (app_settings_shelf_style() == 5) draw_list_row(fb, row, &s_shelf[i]);
     }
     draw_shelf_furniture(fb);
+    if(app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL){
+        // 同正式版：封面/书架区32列对齐，状态栏、题头和分页保持柔和。
+        // Match upstream: align art to 32 columns and keep status/title/pagination soft.
+        const EpdRect artwork={0,192,UI_LOCK_WIDTH,800};
+        display_main_transition_gray_bands(&artwork,1);
+    }
     draw_shelf_pager(fb, s_visible_count, ctx->leaf, leaves());
     ui_nav_draw(fb, 1);
     if (s_category_menu) draw_category_menu(fb);
@@ -3762,6 +3754,10 @@ static void skip_hidden_image_pages(app_ctx_t *ctx, int direction) {
     }
 }
 static bool open_book_impl(app_ctx_t* ctx, const char* path) {
+    if (!book_file_path_supported(path)) {
+        copy_text(s_message, sizeof(s_message), "此版本仅支持 TXT 和 EPUB 书籍");
+        return false;
+    }
     s_reader_return_home = false;
     if (!strncmp(path, "/sdcard/", 8)) {
         read_pico_sd_info_t sd = {0};
@@ -4187,7 +4183,7 @@ static void scan_shelf_dir(app_ctx_t *ctx, const char *root, bool is_flash, nvs_
         }
         if (!S_ISREG(st.st_mode)) continue;
         const char *ext = strrchr(ent->d_name, '.');
-        if (!ext || (strcasecmp(ext, ".txt") && strcasecmp(ext, ".epub"))) continue;
+        if (!book_file_path_supported(path)) continue;
         // 显式移出书架的书不再列入；文件仍在存储卡上，随时可以重新读回书架。
         // Books the user removed stay off the shelf; the file stays on the card and reading it
         // again puts it back.
@@ -4239,6 +4235,9 @@ typedef struct {
 static bool shelf_backfill_visit(const char* path, const book_progress_t* progress, void* ctx) {
     shelf_backfill_t* scan = ctx;
     if (scan->truncated) return false;
+    // 历史可能来自其他固件；只补入当前阅读器支持的真实文件格式。
+    // History may come from another firmware; admit only file formats this reader supports.
+    if (!book_file_path_supported(path)) return true;
     for (int i = 0; i < s_count; ++i)
         if (!strcmp(s_shelf[i].path, path)) return true;   // 书根目录已经收录
     struct stat st;
@@ -4559,7 +4558,7 @@ static app_redraw_t apply_reader_layout(app_ctx_t* ctx, int next_px, int next_ma
     if (next_px < BOOK_PX_MIN || next_px > BOOK_PX_MAX ||
         next_margin < BOOK_MARGIN_MIN || next_margin > BOOK_MARGIN_MAX ||
         next_line < 110 || next_line > 150 ||
-        next_para > 75 || next_para % 25) return APP_REDRAW_NONE;
+        app_settings_book_paragraph_value(app_settings_book_paragraph_level(next_para)) != next_para) return APP_REDRAW_NONE;
     if (next_px == s_px && next_margin == s_margin && next_line == app_settings_book_line_spacing() &&
         next_para == app_settings_book_paragraph_spacing()) return APP_REDRAW_NONE;
     size_t off = book_layout_page_start_offset(s_page);
@@ -4842,24 +4841,46 @@ static app_redraw_t toggle_reader_fullscreen(app_ctx_t* ctx) {
 }
 
 static app_redraw_t select_reading_font_item(app_ctx_t* ctx, const ttf_font_item_t* item) {
-    if (!item || !strcmp(ttf_font_path(), item->path)) return APP_REDRAW_NONE;
-    char previous[TTF_FONT_PATH_MAX];
-    copy_text(previous, sizeof(previous), ttf_font_path());
-    if (ttf_font_open(item->path) != ESP_OK) return APP_REDRAW_NONE;
-    size_t off = book_layout_page_start_offset(s_page);
+    (void)ctx;
+    if (!item || (ttf_font_ready() && !strcmp(ttf_font_path(), item->path) &&
+                  !strcmp(app_settings_font_path(), item->path))) return APP_REDRAW_NONE;
     lock_draw();
     invalidate_prep();
-    bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
-    if (ok) s_page = book_layout_page_for_offset(off);
-    else if (previous[0]) {
+    char previous[TTF_FONT_PATH_MAX];
+    copy_text(previous, sizeof(previous), ttf_font_path());
+    size_t off = book_layout_page_start_offset(s_page);
+    // 先等预绘制退出再换字库；加载、排版、保存全部成功才提交选择。
+    // Join prepainting before reloading; commit the choice only after load/layout/persistence succeed.
+    esp_err_t err = ttf_font_open(item->path);
+    bool ok = err == ESP_OK && !strcmp(ttf_font_path(), item->path) &&
+        book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+    const char *failure = err == ESP_OK ? "字体排版失败，请重试" : "字体加载失败，请检查文件";
+    if (ok) {
+        app_settings_set_font_path(item->path);
+        ok = !strcmp(app_settings_font_path(), item->path);
+        if (!ok) failure = "字体保存失败，请重试";
+    }
+    if (ok) {
+        s_page = book_layout_page_for_offset(off);
+        copy_text(s_font_path, sizeof(s_font_path), item->path);
+        s_reader_notice[0] = 0;
+        ESP_LOGI(TAG, "reader font selected: %s recovery=%d", item->path, pico_boot_recovery());
+    } else {
         (void)ttf_font_open(previous);
-        (void)book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        bool restored = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        if (restored) {
+            s_page = book_layout_page_for_offset(off);
+            copy_text(s_font_path, sizeof(s_font_path), ttf_font_path());
+            copy_text(s_reader_notice, sizeof(s_reader_notice), failure);
+            s_reader_notice_until = esp_timer_get_time() / 1000 + 2200;
+        } else {
+            free_book(); s_view = SHELF;
+            copy_text(s_message, sizeof(s_message), "字体排版失败，请重新打开图书");
+        }
+        ESP_LOGW(TAG, "reader font rejected: %s err=%d restored=%d", item->path, (int)err, restored);
     }
     unlock_draw();
-    if (!ok) return APP_REDRAW_NONE;
-    app_settings_set_font_path(item->path);
-    copy_text(s_font_path, sizeof(s_font_path), item->path);
-    save_progress();
+    if (ok) save_progress();
     return APP_REDRAW_PAGE;
 }
 
@@ -4898,7 +4919,7 @@ static int reader_slider_at(uint16_t x, uint16_t y) {
 }
 
 static void reader_slider_map(int slider, int x) {
-    if (slider == 0) s_reader_preview_px = BOOK_PX_MIN + slider_index(reader_slider_rect(0), x, 37);
+    if (slider == 0) s_reader_preview_px = BOOK_PX_MIN + slider_index(reader_slider_rect(0), x, BOOK_PX_MAX - BOOK_PX_MIN + 1);
     else if (slider == 1) {
         int widths[BOOK_MARGIN_CHOICES], values[BOOK_MARGIN_CHOICES];
         int count = reader_margin_levels(s_px, (app_settings_book_tracking() + APP_BOOK_TRACK_MIN), widths, values);
@@ -4907,7 +4928,7 @@ static void reader_slider_map(int slider, int x) {
             s_px, (app_settings_book_tracking() + APP_BOOK_TRACK_MIN));
     }
     else if (slider == 2) s_reader_preview_line = 110 + slider_index(reader_slider_rect(2), x, 41);
-    else if (slider == 3) s_reader_preview_para = slider_index(reader_slider_rect(3), x, 4) * 25;
+    else if (slider == 3) s_reader_preview_para = app_settings_book_paragraph_value((uint8_t)slider_index(reader_slider_rect(3), x, APP_BOOK_PARAGRAPH_COUNT));
     else if (slider == 4) s_reader_preview_tracking = slider_index(reader_slider_rect(4), x, APP_BOOK_TRACK_COUNT);
 }
 
@@ -5257,7 +5278,7 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
         }
         if (ui_rect_hit(paragraph, x, y))
             return apply_reader_layout(ctx, s_px, s_margin, app_settings_book_line_spacing(),
-                                       (uint8_t)(slider_index(paragraph, x, 4) * 25));
+                                       app_settings_book_paragraph_value((uint8_t)slider_index(paragraph, x, APP_BOOK_PARAGRAPH_COUNT)));
         if (ui_rect_hit(tracking, x, y))
             return apply_reader_typography(ctx, slider_index(tracking, x, APP_BOOK_TRACK_COUNT));
         for (int i = 0; i < 4; ++i) {
@@ -5322,8 +5343,9 @@ static app_redraw_t adjust_spacing(app_ctx_t* ctx, int control) {
     uint8_t line = old_line, para = old_para;
     if (control == 3 && line > 120) line -= 30;
     if (control == 4 && line < 180) line += 30;
-    if (control == 5 && para > 0) para -= 25;
-    if (control == 6 && para < 75) para += 25;
+    uint8_t para_level=app_settings_book_paragraph_level(para);
+    if (control == 5 && para_level > 0) para=app_settings_book_paragraph_value(para_level-1);
+    if (control == 6 && para_level+1 < APP_BOOK_PARAGRAPH_COUNT) para=app_settings_book_paragraph_value(para_level+1);
     if (control == 17) { line = 150; para = 50; }
     if (line == old_line && para == old_para) return APP_REDRAW_NONE;
     size_t off = book_layout_page_start_offset(s_page);
@@ -5351,33 +5373,14 @@ static app_redraw_t select_reading_font(app_ctx_t* ctx, int style) {
     static const char* names[] = {"宋体", "黑体", "楷体", "文楷", "仿宋", "京华老宋", "仓耳云黑05", "寒蝉正楷"};
     char path[160];
     if (snprintf(path, sizeof(path), "%s/%s", app_settings_fonts_dir(), filenames[style]) >= sizeof(path)) return APP_REDRAW_NONE;
-    if (!strcmp(ttf_font_path(), path)) return APP_REDRAW_NONE;
     struct stat font_stat;
     if (stat(path, &font_stat) != 0) {
         snprintf(s_message, sizeof(s_message), "请将 %s 字体放入所选字体目录", names[style]);
         return APP_REDRAW_PAGE;
     }
-    if (ttf_font_open(path) != ESP_OK) {
-        snprintf(s_message, sizeof(s_message), "请将 %s 字体放入所选字体目录", names[style]);
-        return APP_REDRAW_PAGE;
-    }
-    app_settings_set_font_path(path);
-    s_message[0] = 0;
-    size_t off = book_layout_page_start_offset(s_page);
-    save_progress();
-    lock_draw();
-    invalidate_prep();
-    bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
-    if (ok) s_page = book_layout_page_for_offset(off);
-    copy_text(s_font_path, sizeof(s_font_path), ttf_font_path());
-    unlock_draw();
-    if (!ok) {
-        free_book(); s_view = SHELF;
-        copy_text(s_message, sizeof(s_message), "字体重排失败，请重新打开图书");
-        return APP_REDRAW_PAGE;
-    }
-    save_progress();
-    return paint_reading(ctx, MODE_GL16);
+    ttf_font_item_t item = {0};
+    copy_text(item.path, sizeof(item.path), path);
+    return select_reading_font_item(ctx, &item);
 }
 static app_redraw_t manage_action(app_ctx_t* ctx, uint16_t x, uint16_t y) {
     if (ui_rect_hit(manage_back_rect(), x, y)) {

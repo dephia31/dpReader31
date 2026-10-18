@@ -25,6 +25,7 @@ code=r'''
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "ui/ui_nav_layout.h"
 #include "ui/ui_image_dither.h"
 #include "assets/ui_icons.h"
@@ -45,7 +46,9 @@ static int rotation;
 #define BYTES (W*H/2)
 static uint8_t frame[BYTES],saved[BYTES],again[BYTES];
 static int live,allocs,max_bytes;
+static size_t live_bytes,peak_bytes;
 static bool oom,fast;
+static int fail_after=-1;
 static int epd_width(void){return W;}
 static int epd_height(void){return H;}
 static int epd_get_rotation(void){return rotation;}
@@ -75,15 +78,17 @@ static int texts;
 static __attribute__((unused)) void ui_text_fixed(uint8_t *fb,int x,int y,int size,const char *text,int align,bool bold){++texts;(void)bold;int width=(int)strlen(text)*size/3;if(align==EPD_DRAW_ALIGN_RIGHT)x-=width;epd_fill_rect((EpdRect){x,y-size,width,size},0,fb);}
 static void ui_nav_status(uint8_t *fb){epd_fill_rect((EpdRect){36,29,52,16},0,fb);}
 static bool app_settings_main_fast_refresh(void){return fast;}
-static void *heap_caps_malloc(size_t n,unsigned caps){assert(caps==3&&n<=4096);++allocs;if((int)n>max_bytes)max_bytes=(int)n;if(oom)return NULL;++live;return malloc(n);}
-static void heap_caps_free(void *p){if(p){--live;free(p);}assert(live>=0);}
+static void *heap_caps_malloc(size_t n,unsigned caps){assert(caps==3&&n<=300000);++allocs;if((int)n>max_bytes)max_bytes=(int)n;if(oom||fail_after==0)return NULL;if(fail_after>0)--fail_after;++live;size_t *p=malloc(n+sizeof(size_t));assert(p);*p=n;live_bytes+=n;if(live_bytes>peak_bytes)peak_bytes=live_bytes;return p+1;}
+static void heap_caps_free(void *p){if(p){--live;size_t *base=(size_t*)p-1;live_bytes-=*base;free(base);}assert(live>=0);}
 '''
 code+='static void ui_fill_rect_fast(EpdRect r,uint8_t gray,uint8_t *fb){epd_fill_rect(r,gray,fb);}\n'
 header=(root/'main/ui/ui_quick_menu.h').read_text()
 code+='\n'.join(re.findall(r'^#define UI_QUICK[^\n]*',header,re.M))+'\n'
 for name in ('ui_read_pixel','ui_image_bw_rect','icon_nibble','ui_draw_icon'):
     code+=function('main/ui/ui_kit.c',name)
-code+=body('main/ui/ui_quick_menu.c')+body('main/ui/ui_click_feedback.c')
+for name in ('epd_draw_circle',):code+=function('components/epdiy/src/epdiy.c',name)
+code+=function('main/ui/ui_kit.c','ui_inset_rect')+function('main/ui/ui_kit.c','ui_draw_control_frame')
+code+=body('main/ui/ui_glass.c')+body('main/ui/ui_quick_menu.c')+body('main/ui/ui_click_feedback.c')
 code+='#define UI_NAV_BACK_ICON_PX 48\n#define READER_SHEET_BACK_PX 52\n'
 code+=function('main/ui/ui_nav.c','ui_nav_back')+function('main/apps/app_book.c','draw_sheet_back')
 code+=r'''
@@ -91,16 +96,27 @@ static void patterned(void){for(size_t i=0;i<BYTES;++i)frame[i]=(uint8_t)(i*13u+
 int main(void){
  for(rotation=0;rotation<4;++rotation){
   for(int policy=0;policy<3;++policy){
-   patterned();int before=allocs;texts=0;ui_quick_menu_draw(frame,true,false,true,30,50);
-   assert(allocs==before&&!live&&texts==0);int grays=0;
+   patterned();texts=0;ui_quick_menu_draw(frame,true,false,true,30,50);
+   if(!(rotation&1)){assert(!live&&!memcmp(frame,saved,BYTES));continue;}
+   assert(live==2&&texts==0&&live_bytes==149760);int grays=0;
    for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x){
-    bool mask=y<UI_QUICK_HEIGHT&&layer_pixel(x,y,epd_rotated_display_width());
-    uint8_t p=pixel(frame,x,y);
-    if(!mask)assert(p==pixel(saved,x,y));
-    else grays+=p!=0&&p!=255;
+    uint8_t p=pixel(frame,x,y);if(y>=UI_QUICK_HEIGHT)assert(p==pixel(saved,x,y));else grays+=p!=0&&p!=255;
    }
-   assert(grays>1000);
-   memcpy(again,frame,BYTES);memcpy(frame,saved,BYTES);ui_quick_menu_draw(frame,true,false,true,30,50);assert(!memcmp(frame,again,BYTES));
+   assert(grays>1000);int retained_allocs=allocs;memcpy(again,frame,BYTES);
+   for(unsigned button=0;button<4;button++){EpdRect dirty;
+    assert(ui_quick_menu_draw_button(frame,button,true,true,&dirty));
+    assert(allocs==retained_allocs&&live==2);
+    for(int y=0;y<1216;y++)for(int x=0;x<684;x++)if(x<dirty.x||x>=dirty.x+dirty.width||y<dirty.y||y>=dirty.y+dirty.height)assert(pixel(frame,x,y)==pixel(again,x,y));
+    assert(ui_quick_menu_draw_button(frame,button,button==0||button==3,false,&dirty));
+    assert(!memcmp(frame,again,BYTES));
+   }
+   assert(ui_quick_menu_restore(frame)&&!memcmp(frame,saved,BYTES));ui_quick_menu_end();assert(!live);
+   for(int fail=0;fail<8;++fail){fail_after=fail;ui_quick_menu_draw(frame,true,false,true,120,120);int after_open=allocs;
+    for(int n=0;n<40;n++){EpdRect dirty;assert(ui_quick_menu_draw_button(frame,n%4,n&1,n&2,&dirty));}assert(allocs==after_open);
+    ui_quick_menu_end();assert(!live);fail_after=-1;memcpy(frame,saved,BYTES);
+   }
+   oom=true;ui_quick_menu_draw(frame,true,false,false,30,50);assert(!live&&!ui_quick_menu_restore(frame));
+   for(unsigned button=0;button<4;button++){EpdRect d;assert(ui_quick_menu_draw_button(frame,button,true,true,&d));}ui_quick_menu_end();oom=false;
   }
   for(int warm=0;warm<2;++warm)for(unsigned v=0;v<=240;v+=120){
    patterned();ui_quick_menu_draw_slider(frame,warm,v);EpdRect a=ui_quick_slider_rect(warm);
@@ -132,19 +148,7 @@ int main(void){
    }
    if(pairs[i][0]==pairs[i][1])assert(r.height==0&&!memcmp(frame,saved,BYTES));
   }
-  // 圆钮只在深灰/白间切换，图标无需灰阶定稿；轮廓/邻居/状态栏逐像素保持。
-  // Controls change only between solid gray/white; outlines, neighbors and status pixels stay still.
-  for(unsigned button=0;button<4;button++)for(int enabled=0;enabled<2;enabled++){
-   patterned();ui_quick_menu_draw_button(frame,button,!enabled);memcpy(saved,frame,BYTES);
-   ui_quick_menu_draw_button(frame,button,enabled);EpdRect r=ui_quick_button_rect(button);int changes=0;
-   int cx=UI_QUICK_CENTER_X(button),cy=UI_QUICK_CENTER_Y(button);
-   for(int y=0;y<epd_rotated_display_height();y++)for(int x=0;x<epd_rotated_display_width();x++){
-    unsigned a=pixel(saved,x,y),b=pixel(frame,x,y);int dx=x-cx,dy=y-cy;
-    if(x<r.x||x>=r.x+r.width||y<r.y||y>=r.y+r.height||dx*dx+dy*dy>46*46)assert(a==b);
-    if(a!=b){++changes;assert((a==UI_QUICK_FILL_DARK&&b==255)||(a==255&&b==UI_QUICK_FILL_DARK));}
-   }
-   assert(changes>1000);assert(pixel(frame,cx+24,cy-24)==255);
-  }
+  max_bytes=0;
   for(fast=false;;fast=true){
    patterned();ui_click_feedback_begin(frame);
    ui_click_feedback_register(again,(EpdRect){26,82,64,64},UI_CLICK_BACK,UI_ICON_ANIMATE_CIRCLE_CHEVRON_LEFT);
@@ -169,6 +173,7 @@ int main(void){
    if(fast)break;
   }
  }
+ assert(!live_bytes&&peak_bytes<=320000);printf("S31 quick glass: resident149760B, peak%zuB; all caches freed on close\n",peak_bytes);
  rotation=3;patterned();ui_click_feedback_begin(frame);
  ui_click_feedback_register(frame,(EpdRect){55,1111,60,60},UI_CLICK_NAV,UI_ICON_HOUSE);
  EpdRect r;assert(ui_click_feedback_press(frame,85,1188,&r));
@@ -271,7 +276,7 @@ int main(void){
  assert(intermediate>100);
  memset(han+5,0,sizeof(han)-5);for(int y=0;y<72;++y)for(int x=0;x<72;++x)assert(!ui_hanzi_coverage(han,72,72,x,y));
  memset(han+5,255,sizeof(han)-5);assert(ui_hanzi_coverage(han,39,39,19,19)==255);
- puts("PASS: quick layer has no allocations; changed slider/button pixels use solid gray/white without dithering; slider icons/outlines stay fixed and all changes stay inside bands/circles across four rotations; navigation cache/restoration and Han scaling passed");
+ puts("PASS: S31 quick glass has bounded top/key caches and zero input allocation; exact button restore and solid gray/white sliders; slider icons/outlines stay fixed and all changes stay inside bands/circles across four rotations; navigation cache/restoration and Han scaling passed");
  return 0;
 }
 '''
@@ -279,7 +284,7 @@ with tempfile.TemporaryDirectory() as tmp:
     src=Path(tmp)/'test.c';src.write_text(code)
     exe=Path(tmp)/'test'
     subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-g','-fsanitize=address,undefined',
-                    '-I'+str(root/'main'),str(src),str(root/'main/ui/ui_image_dither.c'),'-o',str(exe)],check=True)
+                    '-I'+str(root/'main'),str(src),str(root/'main/ui/ui_image_dither.c'),'-lm','-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)
 
 loop=(root/'main/app/app_loop.c').read_text()

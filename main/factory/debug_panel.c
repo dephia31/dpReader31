@@ -77,7 +77,7 @@ static void debug_draw(uint8_t* fb) {
     debug_format_vcom(chip, sizeof(chip), metalio_tps_vcom_mv());
     char subtitle[96];
     snprintf(
-        subtitle, sizeof(subtitle), "芯片 VCOM %s；点按下方执行，Continue 退出", chip
+        subtitle, sizeof(subtitle), "最近回读 VCOM %s；点按下方执行，Continue 退出", chip
     );
     ui_draw_header(fb, "调试 Debug", subtitle);
     char labels[DEBUG_ROWS][72];
@@ -112,7 +112,7 @@ static void debug_cycle_anti_fade(void) {
     }
     const unsigned next = k_anti_fade_steps[(index + 1) % ANTI_FADE_STEP_COUNT];
     anti_fade_set_minutes(next);
-    ESP_LOGI(TAG, "anti-fade interval -> %u min", next);
+    ESP_LOGI(TAG, "anti-fade interval -> %u min", anti_fade_minutes());
 }
 
 void debug_panel_run(EpdiyHighlevelState* hl, uint8_t* fb, cst836u_handle_t tp) {

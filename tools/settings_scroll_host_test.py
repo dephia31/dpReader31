@@ -59,8 +59,12 @@ enum EpdDrawMode {MODE_GC16,MODE_GL16,MODE_DU};
 #define UI_NAV_REFRESH_END 1088
 #define UI_LOCK_WIDTH 684
 #define SETTINGS_SCROLL_MAX 833
-static const int E0470_WAVEFORM=0,E0470_FOLLOW_WAVEFORM=1;
+typedef int EpdWaveform;
+enum {APP_MAIN_REFRESH_NORMAL,APP_MAIN_REFRESH_FAST,APP_MAIN_REFRESH_WATER};
+static const int E0470_WAVEFORM=0,E0470_FOLLOW_WAVEFORM=1,settings_soft=2;
 static int s_page,s_main_scroll,s_ble_scroll,selected_mode,paint_mode;
+static int app_settings_main_refresh_mode(void){return selected_mode;}
+static const EpdWaveform *display_main_shelf_soft_waveform(void){return &settings_soft;}
 static bool s_scroll_drag_consumed,s_scroll_present_pending,s_input_layout,s_input_settle;
 static EpdRect s_input_area;
 static int paints,pushes,row_taps;
@@ -68,7 +72,7 @@ static EpdRect pushed;
 static enum EpdDrawMode pushed_mode;
 static void render(app_ctx_t *ctx,uint8_t *fb){(void)ctx;(void)fb;++paints;paint_mode=selected_mode;}
 static int update_display_area_diff_with(void *hl,const int *wave,enum EpdDrawMode mode,EpdRect area){
- (void)hl;assert(wave==&E0470_WAVEFORM||wave==&E0470_FOLLOW_WAVEFORM);++pushes;pushed=area;pushed_mode=mode;return 0;
+ (void)hl;assert(wave==&E0470_WAVEFORM||wave==&E0470_FOLLOW_WAVEFORM||wave==&settings_soft);if(s_scroll_present_pending==false&&s_page!=SETTINGS_UPGRADE&&s_page!=SETTINGS_TEXT_EDIT&&s_page!=SETTINGS_PIN_ENTRY)assert(wave==(selected_mode==0?&settings_soft:&E0470_WAVEFORM));++pushes;pushed=area;pushed_mode=mode;return 0;
 }
 static int update_display_area_full_with(void *hl,const int *wave,enum EpdDrawMode mode,EpdRect area){return update_display_area_diff_with(hl,wave,mode,area);}
 static void guard_draw_result(void *hl,int status){(void)hl;assert(!status);}
@@ -137,7 +141,7 @@ int main(void){
  }
  s_page=SETTINGS_UPGRADE;assert(settings_present(&ctx,APP_REDRAW_AREA)&&pushed.y==468&&pushed.height==64);
  assert(!settings_present(&ctx,APP_REDRAW_NONE));
- puts("PASS: actual generic gestures + restored settings handler/presenter: all three modes use one discrete step and one changed-gray update per swipe; no tracking, momentum, motion ink, extra release/idle frames or periodic full flash; 1088 crop preserves chrome; selectors and OTA remain");
+ puts("PASS: actual generic gestures + restored settings handler/presenter: all three modes use one discrete step and one soft ordinary/original fast-water changed-gray update per swipe; no tracking, momentum, motion ink, extra release/idle frames or periodic full flash; 1088 crop preserves chrome; selectors and OTA remain");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='kiikoread-settings-rollback-') as directory:

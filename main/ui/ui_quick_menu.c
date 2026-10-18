@@ -1,65 +1,56 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：全宽浅顶部层，下圆角与四个无文字圆钮；三个主页模式统一灰阶和清晰边框。
- * English: A shallow full-width top layer with rounded bottom corners and four unlabeled circles; all main modes share grayscale and clear borders.
- * 冻结：不访问硬件、设置或刷新，不申请帧缓存；只在展开/状态变化后由主循环调用绘图。
- * Frozen: No hardware, settings, presentation or frame allocations; the loop draws only on opening or state changes.
+ * S31 quick glass: original2x2/frontlight/two pixel-resolution sliders.
+ * Prepare once on open; packed top underlay + key tiles only; no allocation/blur during input.
  */
 #include "ui_quick_menu.h"
-#include <stdlib.h>
-#include <string.h>
 #include "ui_kit.h"
 #include "ui_nav.h"
-
-
-// 根据当前旋转读取逻辑像素；和图形接口相同，画点保持半字节邻居。
-// Read logical pixels using the current rotation; drawing preserves the neighboring nibble like the graphics API.
-static uint8_t pixel(uint8_t *fb, int x, int y) {
-    int px, py;
-    switch (epd_get_rotation()) {
-        case EPD_ROT_PORTRAIT: px = epd_width() - y - 1; py = x; break;
-        case EPD_ROT_INVERTED_LANDSCAPE: px = epd_width() - x - 1; py = epd_height() - y - 1; break;
-        case EPD_ROT_INVERTED_PORTRAIT: px = y; py = epd_height() - x - 1; break;
-        default: px = x; py = y; break;
-    }
-    return (epd_get_pixel(px, py, epd_width(), epd_height(), fb) >> 4) * 17u;
+#include "ui_glass.h"
+#include "esp_heap_caps.h"
+#include <string.h>
+enum { KEY_SIDE=2*UI_QUICK_RADIUS, KEY_BYTES=KEY_SIDE*KEY_SIDE/2, TOP_BYTES=UI_LOCK_WIDTH*UI_QUICK_HEIGHT/2 };
+static uint8_t *s_underlay,*s_key_pixels,*s_frame;
+static int s_rotation;
+static const ui_icon_t icons[]={UI_ICON_WIFI,UI_ICON_BLUETOOTH,UI_ICON_REFRESH_CW,UI_ICON_LIGHTBULB};
+static uint8_t pixel(const uint8_t *fb,int x,int y) { return (uint8_t)(ui_read_pixel(fb,x,y)*17u); }
+static EpdRect key_rect(unsigned i) { return (EpdRect){UI_QUICK_CENTER_X(i)-UI_QUICK_RADIUS,UI_QUICK_CENTER_Y(i)-UI_QUICK_RADIUS,KEY_SIDE,KEY_SIDE}; }
+EpdRect ui_quick_button_rect(unsigned i) { return key_rect(i); }
+void ui_quick_menu_end(void) { heap_caps_free(s_underlay);heap_caps_free(s_key_pixels);s_underlay=s_key_pixels=s_frame=NULL; }
+static void save_tile(const uint8_t *fb,EpdRect r,uint8_t *dst) {
+    for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x){size_t at=(size_t)y*r.width+x;uint8_t v=ui_read_pixel(fb,r.x+x,r.y+y);if(at&1)dst[at/2]|=v<<4;else dst[at/2]=v;}
 }
-
-static bool layer_pixel(int x, int y, int width) {
-    const int r = 56;
-    if (y < UI_QUICK_HEIGHT - r || (x >= r && x < width - r)) return true;
-    int dx = x < r ? x - r : x - (width - r - 1);
-    int dy = y - (UI_QUICK_HEIGHT - r - 1);
-    return dx * dx + dy * dy < r * r;
+static void restore_tile(uint8_t *fb,EpdRect r,const uint8_t *saved) {
+    for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x){size_t at=(size_t)y*r.width+x;epd_draw_pixel(r.x+x,r.y+y,(uint8_t)(((saved[at/2]>>((at&1)*4))&15)<<4),fb);}
 }
-
-EpdRect ui_quick_button_rect(unsigned index) {
-    const int r=UI_QUICK_RADIUS-2;
-    return (EpdRect){UI_QUICK_CENTER_X(index)-r,UI_QUICK_CENTER_Y(index)-r,r*2+1,r*2+1};
+bool ui_quick_menu_restore(uint8_t *fb) {
+    if(!s_underlay||s_frame!=fb||s_rotation!=epd_get_rotation())return false;
+    restore_tile(fb,(EpdRect){0,0,UI_LOCK_WIDTH,UI_QUICK_HEIGHT},s_underlay);return true;
 }
-void ui_quick_menu_draw_button(uint8_t *fb,unsigned index,bool enabled) {
-    if(!fb || index>=4) return;
-    static const ui_icon_t icons[]={UI_ICON_WIFI,UI_ICON_BLUETOOTH,UI_ICON_REFRESH_CW,UI_ICON_LIGHTBULB};
-    const int cx=UI_QUICK_CENTER_X(index),cy=UI_QUICK_CENTER_Y(index),r=UI_QUICK_RADIUS;
-    for(int y=-r;y<=r;y++) for(int x=-r;x<=r;x++) {
-        const int d=x*x+y*y;
-        if(d<=r*r) epd_draw_pixel(cx+x,cy+y,d<=(r-2)*(r-2)?(enabled?UI_QUICK_FILL_DARK:UI_GRAY_WHITE):0x50,fb);
-    }
-    ui_draw_icon(fb,cx,cy,44,icons[index],enabled?UI_GRAY_WHITE:UI_QUICK_FILL_DARK);
-    // 两种纯色覆盖，不用点阵；图标抗锯齿量化到同一深灰/白色，静态轮廓不变。
-    // Two solid tones, no dithering; quantize icon coverage to dark gray/white and hold the outline.
-    for(int y=cy-22;y<cy+22;y++) for(int x=cx-22;x<cx+22;x++)
-        epd_draw_pixel(x,y,pixel(fb,x,y)>=((UI_QUICK_FILL_DARK+UI_GRAY_WHITE)/2)?UI_GRAY_WHITE:UI_QUICK_FILL_DARK,fb);
-    if(enabled) epd_fill_circle(cx+24,cy-24,5,UI_GRAY_WHITE,fb);
+static void restore_circle(uint8_t *fb,unsigned i) {
+    int cx=UI_QUICK_CENTER_X(i),cy=UI_QUICK_CENTER_Y(i),rad=UI_QUICK_RADIUS;
+    for(int y=cy-rad;y<cy+rad;++y)for(int x=cx-rad;x<cx+rad;++x){int dx=2*(x-cx)+1,dy=2*(y-cy)+1;if(dx*dx+dy*dy>4*rad*rad)continue;
+        size_t at=(size_t)y*UI_LOCK_WIDTH+x;epd_draw_pixel(x,y,(uint8_t)(((s_underlay[at/2]>>((at&1)*4))&15)<<4),fb);}
 }
-
-// 两个胶囊共享尺寸和触点范围，向上增加；仅图标，无标签和百分比。
-// Both vertical capsules share drawing/input geometry; upward increases, with icons only.
+static void solid_key(uint8_t *fb,unsigned i) {
+    epd_fill_circle(UI_QUICK_CENTER_X(i),UI_QUICK_CENTER_Y(i),UI_QUICK_RADIUS-1,UI_GRAY_WHITE,fb);
+    epd_draw_circle(UI_QUICK_CENTER_X(i),UI_QUICK_CENTER_Y(i),UI_QUICK_RADIUS-1,0x60,fb);
+}
+bool ui_quick_menu_draw_button(uint8_t *fb,unsigned i,bool enabled,bool pressed,EpdRect *dirty) {
+    if(!fb||!dirty||i>=4)return false;
+    EpdRect r=key_rect(i);int cx=UI_QUICK_CENTER_X(i),cy=UI_QUICK_CENTER_Y(i),rad=UI_QUICK_RADIUS;
+    if(s_key_pixels&&s_frame==fb&&s_rotation==epd_get_rotation())restore_tile(fb,r,s_key_pixels+i*KEY_BYTES);else solid_key(fb,i);
+    if(enabled)for(int y=-rad+3;y<rad-3;++y)for(int x=-rad+3;x<rad-3;++x)if(x*x+y*y<(rad-3)*(rad-3))
+        epd_draw_pixel(cx+x,cy+y,(uint8_t)((pixel(fb,cx+x,cy+y)+3*UI_QUICK_FILL_DARK)/4),fb);
+    ui_draw_icon(fb,cx,cy,44,icons[i],enabled?UI_GRAY_WHITE:UI_GRAY_BLACK);
+    if(enabled){epd_fill_circle(cx+24,cy-24,5,UI_GRAY_WHITE,fb);epd_draw_circle(cx+24,cy-24,5,0x50,fb);}
+    if(pressed){epd_draw_circle(cx,cy,rad-7,enabled?UI_GRAY_WHITE:UI_GRAY_BLACK,fb);epd_draw_circle(cx,cy,rad-8,enabled?UI_GRAY_WHITE:UI_GRAY_BLACK,fb);}
+    *dirty=r;return true;
+}
+void ui_quick_menu_draw_status(uint8_t *fb) { ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,76},UI_GRAY_WHITE,fb);ui_nav_status(fb); }
 EpdRect ui_quick_slider_rect(bool warmth) {
     return (EpdRect){UI_QUICK_SLIDER_X(warmth)-2,UI_QUICK_SLIDER_Y0-2,
         UI_QUICK_SLIDER_WIDTH+4,UI_QUICK_SLIDER_Y1-UI_QUICK_SLIDER_Y0+4};
 }
-// 只包含两次填充边界之间的条带，不触碰整块胶囊的边框。
-// Restrict refresh to the band between fill boundaries; unchanged outlines stay still.
 EpdRect ui_quick_slider_change_rect(bool warmth,unsigned before,unsigned after) {
     const int height=UI_QUICK_SLIDER_Y1-UI_QUICK_SLIDER_Y0;
     if(before>(unsigned)height) before=height;
@@ -83,7 +74,7 @@ static bool capsule_pixel(int x,int y) {
 void ui_quick_menu_draw_slider(uint8_t *fb,bool warmth,unsigned value) {
     if(value>UI_QUICK_SLIDER_RANGE) value=UI_QUICK_SLIDER_RANGE;
     const EpdRect area=ui_quick_slider_rect(warmth);
-    epd_fill_rect(area,0xee,fb);
+    (void)area; // Keep the glass outside the rounded capsule intact.
     const int x0=UI_QUICK_SLIDER_X(warmth),height=UI_QUICK_SLIDER_Y1-UI_QUICK_SLIDER_Y0;
     const int split=height-(int)value;
     for(int y=0;y<height;y++) for(int x=0;x<UI_QUICK_SLIDER_WIDTH;x++) {
@@ -99,34 +90,19 @@ void ui_quick_menu_draw_slider(uint8_t *fb,bool warmth,unsigned value) {
     ui_draw_icon(fb,x0+UI_QUICK_SLIDER_WIDTH/2,UI_QUICK_SLIDER_Y1-54,44,
         warmth?UI_ICON_CONTRAST:UI_ICON_SUN,UI_GRAY_BLACK);
 }
-void ui_quick_menu_draw(uint8_t *fb, bool wifi, bool bluetooth, bool frontlight, unsigned brightness, unsigned warmth) {
-    if (!fb) return;
-    const int width = epd_rotated_display_width();
-    const int height = epd_rotated_display_height();
-    // 每个像素只采一次原图，直接合成灰阶，不让主页快刷模式把菜单变成点阵。
-    // Sample each underlay pixel once and compose grays directly, independently of fast main-page rendering.
-    for (int y = 0; y < UI_QUICK_HEIGHT && y < height; ++y) for (int x = 0; x < width; ++x) {
-        if (!layer_pixel(x, y, width)) continue;
-        const unsigned tint = 238;
-        uint8_t tone = (uint8_t)((pixel(fb, x, y) * 40u + tint * 216u + 128u) / 256u);
-        epd_draw_pixel(x, y, tone, fb);
-    }
-    // 状态栏留清晰白底，沿用系统时间/签名/电池；四图标与底栏共用Lucide细线44px。
-    // Keep the system time/signature/battery legible on white; share navigation's 44px Lucide line icons.
-    ui_fill_rect_fast((EpdRect){0, 0, width, 76}, UI_GRAY_WHITE, fb);
-    ui_nav_status(fb);
-    for (int i = 0; i < 4; ++i) {
-        ui_quick_menu_draw_button(fb,i,(i==0 && wifi)||(i==1 && bluetooth)||(i==3 && frontlight));
-    }
-    ui_quick_menu_draw_slider(fb,false,brightness);
-    ui_quick_menu_draw_slider(fb,true,warmth);
-    ui_fill_round_rect(fb, (EpdRect){width / 2 - 26, UI_QUICK_HEIGHT-24, 52, 6}, 3, 0x70);
-    // 只画遮罩内的双像素轮廓，顶部直角、底部圆角，不越过下层边界。
-    // Draw a two-pixel outline within the mask: square top, rounded bottom, no underlay leakage.
-    for (int y = 0; y < UI_QUICK_HEIGHT && y < height; ++y) for (int x = 0; x < width; ++x) {
-        if (layer_pixel(x, y, width) && (x < 2 || x >= width - 2 || y < 2 ||
-            y >= UI_QUICK_HEIGHT - 2 || !layer_pixel(x - 2, y, width) ||
-            !layer_pixel(x + 2, y, width) || !layer_pixel(x, y + 2, width)))
-            epd_draw_pixel(x, y, 0x38, fb);
-    }
+void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool frontlight,unsigned brightness,unsigned warmth) {
+    ui_quick_menu_end();
+    if(!fb||epd_rotated_display_width()!=UI_LOCK_WIDTH||epd_rotated_display_height()<UI_QUICK_HEIGHT)return;
+    s_underlay=heap_caps_malloc(TOP_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);s_frame=fb;s_rotation=epd_get_rotation();
+    if(s_underlay)save_tile(fb,(EpdRect){0,0,UI_LOCK_WIDTH,UI_QUICK_HEIGHT},s_underlay);
+    EpdRect panel={18,88,UI_LOCK_WIDTH-36,280};
+    if(!s_underlay||!ui_glass_panel(fb,panel,48,25,160)) { ui_fill_round_rect(fb,panel,48,0xe0);ui_draw_control_frame(fb,panel,48,0x60); }
+    for(unsigned i=0;i<4;++i){if(s_underlay)restore_circle(fb,i);if(!s_underlay||!ui_glass_panel(fb,key_rect(i),UI_QUICK_RADIUS,25,160))solid_key(fb,i);}
+    // Allocate key snapshots after every glass workspace has been released.
+    s_key_pixels=heap_caps_malloc(4*KEY_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(s_key_pixels)for(unsigned i=0;i<4;++i)save_tile(fb,key_rect(i),s_key_pixels+i*KEY_BYTES);
+    for(unsigned i=0;i<4;++i){EpdRect dirty;ui_quick_menu_draw_button(fb,i,(i==0&&wifi)||(i==1&&bluetooth)||(i==3&&frontlight),false,&dirty);}
+    ui_quick_menu_draw_slider(fb,false,brightness);ui_quick_menu_draw_slider(fb,true,warmth);
+    ui_fill_round_rect(fb,(EpdRect){UI_LOCK_WIDTH/2-26,UI_QUICK_HEIGHT-24,52,6},3,0x70);
+    ui_quick_menu_draw_status(fb);
 }

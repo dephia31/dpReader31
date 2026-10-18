@@ -1,1969 +1,623 @@
 {
-  "version": "0.3.3-rc90-metalio-test30",
-  "files": [
-    {
-      "path": "main/lock_screen.h",
-      "sha256": "6162f99ddb2b8d10e1026c38899746ce2eed8a124b7c20d14a474bee6a513ad5"
-    },
-    {
-      "path": "main/display_waveform_smooth.h",
-      "sha256": "2ea7f07b1c49e83a8670c8d8fc4a782e2dff7c0a405dc12722eb9b9dcd4c089a"
-    },
-    {
-      "path": "main/display.c",
-      "sha256": "0daf92f75bf4cf6b663baa5d6131bab530acfd777c2955ab7a75b3ac9598bf90"
-    },
-    {
-      "path": "main/sleep.h",
-      "sha256": "cb88a0a3ee7df1f6da9db9636eaa3b7875915232ae670d4c0d312c0c8a0347c8"
-    },
-    {
-      "path": "main/CMakeLists.txt",
-      "sha256": "c02654c09c74b3c797105bd20a0430a0a3ce7992a12c2e9cc422c1b42e142bbe"
-    },
-    {
-      "path": "main/ota_online.c",
-      "sha256": "779898ac66ee2e386c3d50e9cbdbb9bde9821ded9dd63a5c398cc33e8284c09a"
-    },
-    {
-      "path": "main/boot_state.h",
-      "sha256": "c5d16ba8d2a3419f4a07634fa03cf6ea65553d0a222b726880da86059bf5d7a9"
-    },
-    {
-      "path": "main/settings.h",
-      "sha256": "5c17a39d65faae5c591b3168b3c665404491852f253cd9bce9b36195102c2580"
-    },
-    {
-      "path": "main/time_service.h",
-      "sha256": "09dd860533a114f64397f4995defeb7629f1699b812a31b39975cdecce2503d9"
-    },
-    {
-      "path": "main/lock_pin.c",
-      "sha256": "e0dd2d5a55fdb0a596693a94ada7e31f7e0f05177aea02770ab4d8fda52f4c61"
-    },
-    {
-      "path": "main/lock_pin_flow.h",
-      "sha256": "bbc73231e99d414309a78275763b220957039fb5a28efe52811bb1caf9f767e3"
-    },
-    {
-      "path": "main/display_main_waveform.h",
-      "sha256": "f221bf4f4ac2842b6991be6cc8b28f45f5266bc635e9ca0561346540debbf3eb"
-    },
-    {
-      "path": "main/idf_component.yml",
-      "sha256": "d19582a02b4a028126be204882bcacecd2a3bfc721764130ba2cfbc86c96f547"
-    },
-    {
-      "path": "main/display_reader_waveform.c",
-      "sha256": "d6e181e5092d9fc0ba68c2b995362c0ba3fd4574f152975655ecf027750d4f2b"
-    },
-    {
-      "path": "main/ota_update.h",
-      "sha256": "a00160e17f069949afb376febcd6f595fef94e7611d2c1b8ac9172165c3ef860"
-    },
-    {
-      "path": "main/sleep.c",
-      "sha256": "213acc1b24fe5fa779cd4742e87f23f65758c2169c0ff4a842b77c91c1406fa3"
-    },
-    {
-      "path": "main/display.h",
-      "sha256": "84697924054b716d32b0d6c1595b9fd8bcd0f97ea654ad13d4aac80b335fc76f"
-    },
-    {
-      "path": "main/lock_screen.c",
-      "sha256": "f380a08835c1b5c1b07d05a1c04e296ce2f00228d9018affad0633e5536b53ce"
-    },
-    {
-      "path": "main/time_service.c",
-      "sha256": "72af8cd80adee703ed1d909fc581bcc0e1fdf731f59b775741eb42220b902fca"
-    },
-    {
-      "path": "main/lock_pin.h",
-      "sha256": "eb54f18e283c1e0a2727d389ff6e76685d3b8485d7cb527d256423215694a65e"
-    },
-    {
-      "path": "main/boot_state.c",
-      "sha256": "6a7dbb6a586ba13b843295a42d59f616fb79782bae62f1eec60f74bf97536ace"
-    },
-    {
-      "path": "main/settings.c",
-      "sha256": "5ca333c4249e3e368964967dc05d9a86c5352c9cd89c98cfcb36d4913ded1d9f"
-    },
-    {
-      "path": "main/ota_online.h",
-      "sha256": "fdeeeed6529eb968169852739c8d45d7f87d1aff70bb7b9d9913ca364c71f473"
-    },
-    {
-      "path": "main/auto_lock.h",
-      "sha256": "5530b78113604aa70778ef00a207bd1844495f291a9851e1d5e40329cc4668f4"
-    },
-    {
-      "path": "main/app_main.c",
-      "sha256": "f55101df610d2a9ff0fc85542702067a0e2403dbe0304e8fd7c8678ca9afe7f8"
-    },
-    {
-      "path": "main/lock_pin_flow.c",
-      "sha256": "4acf55626ea68150cdc1f9eefe2284d7a86cfe118495663ae882e750cbd3823a"
-    },
-    {
-      "path": "main/display_main_waveform.c",
-      "sha256": "dcf5b65663a223a7902c8c6e15c3a441b0fe0148c708d6345e2a484c1628682a"
-    },
-    {
-      "path": "main/ota_update.c",
-      "sha256": "7bb9d370d765f4044deff4cc548b97a1e5d40aefb2ca5b4a2bb1293fcc0f56b9"
-    },
-    {
-      "path": "main/display_reader_waveform.h",
-      "sha256": "ab115c3d7a0752b159c2022177c78f6daf94d4942440a1f206a765b1eb416d40"
-    },
-    {
-      "path": "main/ota_release.c",
-      "sha256": "59d06702f2b6bd5cd9d6ba813c448f13d7cb89acd138844b12a7dc3ce543b1ac"
-    },
-    {
-      "path": "main/ui/ui_lock_feedback.h",
-      "sha256": "5676c98eda5ae3d76e5f286f577138b6a1759279daa2aad1f85d8a6f1e6d9196"
-    },
-    {
-      "path": "main/ui/ui_text_input.c",
-      "sha256": "5083784280b3de3ff0c4c980a7834b93fe7cfed342ebf6b232dd918ef534632f"
-    },
-    {
-      "path": "main/ui/ui_menu.h",
-      "sha256": "448ce00aefed77b8d6dac3c62ddec4b179515ddefe2931375eec80e90bef08df"
-    },
-    {
-      "path": "main/ui/ui_home_clock_assets.h",
-      "sha256": "9b53084dbe5783e201984da5d4059bb570d786ad387b871ece26eeed5ad52f6f"
-    },
-    {
-      "path": "main/ui/ui_gesture.h",
-      "sha256": "122d4c6cba3f25d22d21f6be17114d52ca9d55aaa765a79039872a4d67340e6b"
-    },
-    {
-      "path": "main/ui/datamatrix.c",
-      "sha256": "0faa69c09ee987306c5eaa8dcd22d7463032557f1595447f28c571ff98fbce89"
-    },
-    {
-      "path": "main/ui/ui_wifi_qr.h",
-      "sha256": "478439a99ec345f6d7d40c3b552ce461d4b33be5cb3819854f0354858d869cea"
-    },
-    {
-      "path": "main/ui/ui_ime.h",
-      "sha256": "2e278ed75cb758c0f2eeec3cb0b45ba47712746e71d84c5a8e6ba27011dfca82"
-    },
-    {
-      "path": "main/ui/ui_home_clock.c",
-      "sha256": "aa73ac25dfd480d1e077b9d49285c59c3a13d21cd100a92261f571e86383df61"
-    },
-    {
-      "path": "main/ui/ui_image_dither.c",
-      "sha256": "78ffcfb767e5c82d4c10abf486c53e3127f3a94c4cdd31a66cbbfc96eb9cdc6b"
-    },
-    {
-      "path": "main/ui/ui_home_clock_new_assets.h",
-      "sha256": "7c04fb6ed8a62532bb25282f5e50aef27ed1e8ec2c34aa6c18d92eb21ac84da1"
-    },
-    {
-      "path": "main/ui/ui_click_feedback.c",
-      "sha256": "255958f460b56ca54d6989575177bdbe681849b2c1f9b101b912a525b1325dcf"
-    },
-    {
-      "path": "main/ui/ui_text_edit.h",
-      "sha256": "ecccdbea34d7d0de162fc044bd0e52454c611c94ccf48939ed9545616f45d5d5"
-    },
-    {
-      "path": "main/ui/ui_kit.h",
-      "sha256": "8889b4b1f63aac85e24d35f5bb6343ab384f844b3bd355804d69c5be91b0538d"
-    },
-    {
-      "path": "main/ui/ui_avatar.c",
-      "sha256": "89a0422a11a315a138abe6bb27334aa87963df66c16d258ec6ed1be610372c13"
-    },
-    {
-      "path": "main/ui/ui_quick_menu.c",
-      "sha256": "8febaf8a911f9405d45c18789f27b53672b3793356ec242821f099551bb0e480"
-    },
-    {
-      "path": "main/ui/ui_wallpaper.h",
-      "sha256": "843c2974130a9f913efacfe718c4eee2a1477e09aa17eb2b2584c892344d43a1"
-    },
-    {
-      "path": "main/ui/ui_home_widget.h",
-      "sha256": "3e2c7bf14dbda873861f9d191c25af9b37ab02ba6164e6026a727b840024bc1d"
-    },
-    {
-      "path": "main/ui/ui_pinpad.c",
-      "sha256": "6a84eccd1bc3f534362501417a001b4c657304f58ce4efbc3405a0b060c4d334"
-    },
-    {
-      "path": "main/ui/ui_keyboard.h",
-      "sha256": "c349bd02a0ff6fe59b5ab034fbf5554e2ccab656337f14dba049b4bbd93e9ba2"
-    },
-    {
-      "path": "main/ui/ui_nav.h",
-      "sha256": "044abd8555dafc3fa317cff054bfc62b7ca9f5af6a463989769d1db8bb0175fc"
-    },
-    {
-      "path": "main/ui/ui_follow_pixels.h",
-      "sha256": "2656e95444f739f75da84a321f9e34bddf123601339a0c4bc9a6e6d2e31da6d2"
-    },
-    {
-      "path": "main/ui/ui_quick_menu_input.c",
-      "sha256": "96a4c6713e766821ca4066e55708799cdf3babb61321929b9512e6141cf33b13"
-    },
-    {
-      "path": "main/ui/ui_reader_background.c",
-      "sha256": "c2a84be90e84df7599f3065e43ffddf3a8dca22d503d974255bfbba57f0e0387"
-    },
-    {
-      "path": "main/ui/ui_power_dialog.h",
-      "sha256": "7dbb8619bb3ae70139dfcaed58d2226fd891dab340033855fbdaf20690fea3ac"
-    },
-    {
-      "path": "main/ui/ui_gesture.c",
-      "sha256": "04fda32064e3d43734d64354a16533abd20d70efa97ab6961c5c6b04bbbcc176"
-    },
-    {
-      "path": "main/ui/datamatrix.h",
-      "sha256": "4facb032c293882ada99b9dd8d5570095ed2ced6ce23e08d677826e216017ca9"
-    },
-    {
-      "path": "main/ui/ui_wifi_qr.c",
-      "sha256": "bdf4529aaa98fc605b90a34aee79de45f52d32fd9fd6cc17758502431330edbd"
-    },
-    {
-      "path": "main/ui/ui_menu.c",
-      "sha256": "4886916c88598b9b05b7e2c60ea8b9446c5fdafed7bfd51a16492f465f4ae6f5"
-    },
-    {
-      "path": "main/ui/ui_text_input.h",
-      "sha256": "e7502101467bb59bdc61d554e96e88dfc70d95e048fd93fc647c242819220e9c"
-    },
-    {
-      "path": "main/ui/ui_follow_cache.h",
-      "sha256": "7fb65bca4299782be419ea12564eeadef473a4f129edb26d36072c0b916ec480"
-    },
-    {
-      "path": "main/ui/ui_home_clock_blur.h",
-      "sha256": "e0aa2b6a03eb8d2218dae283a8bae1d91fdc63d35978a68e926c607442112ecd"
-    },
-    {
-      "path": "main/ui/ui_home_shapes.h",
-      "sha256": "804d30299ae901e758f25c3fc87d25ad1f169d814d4f2d42c61f604d739347cd"
-    },
-    {
-      "path": "main/ui/ui_nav_layout.h",
-      "sha256": "90b08510b15d8faadefa58b3ffcdcb77ce47077a01510baae2efe1d69c722f59"
-    },
-    {
-      "path": "main/ui/ui_ime_phrases.h",
-      "sha256": "bc3f4a1b9cb65129ffdb481c1a30f5ccc9100b090896cd758f1153260f5a8ea5"
-    },
-    {
-      "path": "main/ui/ui_lock_feedback.c",
-      "sha256": "ac1ed6946c2176a974aa0602cd488808d5833d57a5bee56cc3bd99bbf3d3c615"
-    },
-    {
-      "path": "main/ui/ui_ime.c",
-      "sha256": "f54f815481be5e761069a1c79704107f67ce28201884ae43aa7b150cd9a598c3"
-    },
-    {
-      "path": "main/ui/ui_image_dither.h",
-      "sha256": "01f3c87dcb1cd3bd7374cd31a65991691de51fd1add420cd7b0c10751c882f45"
-    },
-    {
-      "path": "main/ui/ui_home_clock.h",
-      "sha256": "f3b8fa0af2f8ce642b9d2b0edec12ce61a8e3ff564c393e647ded3c3d74cd2a6"
-    },
-    {
-      "path": "main/ui/ui_wallpaper_crop.h",
-      "sha256": "81b6ba4e14fdbef000ccc60372fcf1622946bd44ec0cd4b4760abfe8874e2d76"
-    },
-    {
-      "path": "main/ui/ui_wallpaper.c",
-      "sha256": "0ccb959bafebb89147554513662e86ecea09cbcd0a1d5515f2e5587dff9411fc"
-    },
-    {
-      "path": "main/ui/ui_home_widget.c",
-      "sha256": "aad2a32fae3a1b0b400ec8a28b7fccec125d316af21fea4cc2ec2739df0b5922"
-    },
-    {
-      "path": "main/ui/ui_quick_menu.h",
-      "sha256": "8f6674fda440c203fb84a7f81d72c6d9b25a5d7af8b83f40b47f888248fa40bd"
-    },
-    {
-      "path": "main/ui/ui_avatar.h",
-      "sha256": "f4edf9ea4e0245d4840e98004e92c1dcaaac086d7ea6ddfd2c3a201c7250d591"
-    },
-    {
-      "path": "main/ui/ui_kit.c",
-      "sha256": "769328216b80ee832f4a4cfc8ad5c7a388060eb0fe0d6a57b74ca1fe3076c11f"
-    },
-    {
-      "path": "main/ui/ui_text_edit.c",
-      "sha256": "9a5e986cf7e408254ec78c6ce76ff272e093084d19df31aeb3e86016801798b6"
-    },
-    {
-      "path": "main/ui/ui_click_feedback.h",
-      "sha256": "a9b35600957d9c104d1116034c4a887e9d9ca84a6f0834242548d04d65ec159d"
-    },
-    {
-      "path": "main/ui/ui_power_dialog.c",
-      "sha256": "c484dada5b323f2c82cd3ca71d50b06c9e4416c1eaee0382b5a49a61b19b6c92"
-    },
-    {
-      "path": "main/ui/ui_reader_background.h",
-      "sha256": "37130f4b58c0725c10aac08b2aa0a6b0eb72913d45aa5f7a141230a64dbc600c"
-    },
-    {
-      "path": "main/ui/ui_follow_scroll.h",
-      "sha256": "ae47d40ef2e7c602bcc46e4de3f4b2b7450df40a29d3d4b0c37e8d880eb3fcf5"
-    },
-    {
-      "path": "main/ui/ui_nav.c",
-      "sha256": "e37b42b8fb73197fdd9036ab12dbe6229e3c4e505c86ef5ef7480fc9f68580f1"
-    },
-    {
-      "path": "main/ui/ui_pinpad.h",
-      "sha256": "d85d917e30fa11f64eb4e3c4e7e00e69fe88ae795c0f5afab8e24924bfb2b46a"
-    },
-    {
-      "path": "main/ui/ui_keyboard.c",
-      "sha256": "fc2c1795855c55c37545d54c735ae453647b4909a9add3059e6e130a4ff05baa"
-    },
-    {
-      "path": "main/app/crash_note.h",
-      "sha256": "24657de81267e72619330a6ac0232e691c1a3becabe0693e234c47e1706f1442"
-    },
-    {
-      "path": "main/app/app_registry.h",
-      "sha256": "65b119c9c6bbb09c1ae5044eda22f89cbebc2361d2c3cd2c589196ac1cfcde63"
-    },
-    {
-      "path": "main/app/app_config.h",
-      "sha256": "75815ba6ff7231d96853f70aa4636d15ccef285c00781603669fc524db1c07b6"
-    },
-    {
-      "path": "main/app/local_latency_probe.h",
-      "sha256": "3a66bdfab2c1e97fc5476d98295ce2bd4090e1082e1a328c0c9c90417fee83da"
-    },
-    {
-      "path": "main/app/app_loop.c",
-      "sha256": "d9ddf59ba7a43980229e3372056fade11c9eb2f3329011c31e854893b42ac4ad"
-    },
-    {
-      "path": "main/app/app.h",
-      "sha256": "f31fcde2e3860cd7b2a4a4a6979787a2d5e915b90e5456bf4cda91e2b7c32aa4"
-    },
-    {
-      "path": "main/app/crash_note.c",
-      "sha256": "5a1c5d94f5a2d90d45844ccd3daff0c13d500f0f306bb69b10b9f232cb354179"
-    },
-    {
-      "path": "main/app/app_registry.c",
-      "sha256": "1bcb9a9da2b91aae670d21865dbdd8d354afa2883e458146cf362f0d5dce9eb6"
-    },
-    {
-      "path": "main/app/app_loop.h",
-      "sha256": "562f01d136ffb3644357a457d731bd52a478856b0967a2a8ff4885d35cf423b1"
-    },
-    {
-      "path": "main/book/book_image_header.c",
-      "sha256": "57fcf9250bd83b894cfae84f60d151aab755d43801b4b48acc1c9b2d66678d6e"
-    },
-    {
-      "path": "main/book/book_title.c",
-      "sha256": "e850da1d28700c26dda380efb63f36a15fef14883a6cfa9e761db23f060f2901"
-    },
-    {
-      "path": "main/book/gbk_table.h",
-      "sha256": "4df55b84ae3287c8e802c14a2b6de477ef84e5b47b10e885a7048848404d5518"
-    },
-    {
-      "path": "main/book/book_index_cache.h",
-      "sha256": "d5aee566d7fe85b98d350041b93af7e78404a4672a1a15b7f8f46c064451bef6"
-    },
-    {
-      "path": "main/book/book_excerpt.c",
-      "sha256": "e17d85b56922cf55a2ef8c2a9f887738dae5939a72486c00e9b528fb18ecc6c3"
-    },
-    {
-      "path": "main/book/book_lock_bookmark.c",
-      "sha256": "d1a045f798e09d4111f481b184fb4e51508fae652b1a59cee6b2da48e00eda7e"
-    },
-    {
-      "path": "main/book/reader_page_cache.c",
-      "sha256": "163dacd1351ac9f8160827b28a1d3ee5bc0ba3fd4d42be55d090770e728edc70"
-    },
-    {
-      "path": "main/book/book_lock_collage.c",
-      "sha256": "52c5f005466353f8ea5682bbd10f7a55662e45ad447e74aa888c3b0488c61463"
-    },
-    {
-      "path": "main/book/book_source.h",
-      "sha256": "3d0897401438d65b864e9cf261cd9ed1736176a9eb6598746e4057e155089d80"
-    },
-    {
-      "path": "main/book/metalio_cover_cache.c",
-      "sha256": "5af50c0c1cc65f4133166678e7e83f5e90298fada22755d1f808dda5f0004f11"
-    },
-    {
-      "path": "main/book/book_cover_auto.h",
-      "sha256": "9380a935307fecf0e1eb3532935ac300df72e439e2379d6d80219c3d6b08975c"
-    },
-    {
-      "path": "main/book/book_progress.c",
-      "sha256": "d8ae93deaa55e4b676851671d46dd4aae4586f7001bd0ceb34f1a1d36cc6b390"
-    },
-    {
-      "path": "main/book/book_cover_jobs.c",
-      "sha256": "9c058bad9cc35877df3e2a0216992a9fa26d0b24c2dbd55857167fa0319fb160"
-    },
-    {
-      "path": "main/book/book_policy.h",
-      "sha256": "d540758b02e85fef3a9195ec296ed86045701758d87f68913a5db1ec217afbc5"
-    },
-    {
-      "path": "main/book/zip_reader.h",
-      "sha256": "334f473ab5f88ffb1ec2a8e00999950028434da7fa5ff6759be64a4fddd17fb7"
-    },
-    {
-      "path": "main/book/html_text.h",
-      "sha256": "f5d555d49830d9baa20bf4f78e4d7951f55d5a9cacd71a178c371d8086687944"
-    },
-    {
-      "path": "main/book/book_store.h",
-      "sha256": "7995ce99c599c98905d8594b1b653f483a9da419ff68e4c9bc4e667203c346ad"
-    },
-    {
-      "path": "main/book/gbk.h",
-      "sha256": "f61d98da87514277f6f2645980f493fc6a2424f5aa671cde8e1dc05ad8f3a49e"
-    },
-    {
-      "path": "main/book/metalio_memory.h",
-      "sha256": "d1df4928dcdf32822471da77fab351b322f04ec50e0f4c1294f2de06955019bb"
-    },
-    {
-      "path": "main/book/book_source_internal.h",
-      "sha256": "db3b3f739d3798f55da0979bb8a14a7a7f06f75ad5bd2cc098f937a2ff4d7866"
-    },
-    {
-      "path": "main/book/book_history_backup.h",
-      "sha256": "3fac71be6ee79a5d120b02a590ed63ec29047dae80f440b5414da5445d5f77e2"
-    },
-    {
-      "path": "main/book/book_layout.c",
-      "sha256": "3d0a2b787a11cedcecb6291d81dc4989cdedcdb32c1def9cfcbf2096ae895ed4"
-    },
-    {
-      "path": "main/book/book_epub.h",
-      "sha256": "3dffa6700359ad0c6e5b2076040d300d72f77303c0a1403514e1520444a9d871"
-    },
-    {
-      "path": "main/book/book_cover.h",
-      "sha256": "4fed70dd5eb207f36ba791bb11a4985d473109b065a5f0a2db31b7863d079ba8"
-    },
-    {
-      "path": "main/book/book_ticket.h",
-      "sha256": "dcd0e1c6f19166d70d2f7abae1de1a6ab108b7a6bb8826b8b7409b13d98a8fa1"
-    },
-    {
-      "path": "main/book/book_lock_bookmark.h",
-      "sha256": "e602cee75c75c7da490f18d4521344a6ec88b52dc66581994c11d8ae9784567b"
-    },
-    {
-      "path": "main/book/book_excerpt.h",
-      "sha256": "e68ec3c1edb39f97bf27a7e22c9037e444d206ccd5e7330502c6e109f7507e5c"
-    },
-    {
-      "path": "main/book/book_index_cache.c",
-      "sha256": "3beba38274dc0e96a27e8f4d7aa70318182266720e1cba97a1ec11fdb1f91fe3"
-    },
-    {
-      "path": "main/book/book_lock_collage.h",
-      "sha256": "88296f2acb0125fc913f7578eb99541644e4ecd9fdccc9a73bae304eeacba60e"
-    },
-    {
-      "path": "main/book/reader_page_cache.h",
-      "sha256": "801e1cff310424b197fbc2f101a5974edc32c69469e39ff4f4e05a55222d1dbd"
-    },
-    {
-      "path": "main/book/book_title.h",
-      "sha256": "d715595f614dd197d6fe3601163d7ce60f03e2daf92a9685e5c2d165db6be9bf"
-    },
-    {
-      "path": "main/book/book_cover_auto.c",
-      "sha256": "98b18eeab5bd9eb719dc234ef4dcd89850d3bb9d9a21718a8ba4247ebf27b1ae"
-    },
-    {
-      "path": "main/book/book_progress.h",
-      "sha256": "c4cd76350c36a18e8ec8000030cee8d8e165d3f6de69f5b213119322535d4a43"
-    },
-    {
-      "path": "main/book/metalio_cover_cache.h",
-      "sha256": "55cd8fda76b8e86672e6a5db7c626541254b77c529998410a569c00223fee7a5"
-    },
-    {
-      "path": "main/book/book_source.c",
-      "sha256": "b477669c1478eadc2ae9d4ff83541166eb85e3df23ad29441dd0f4d996c91e7e"
-    },
-    {
-      "path": "main/book/book_store.c",
-      "sha256": "cb130cc3b97ba0a67960c886fa83808f74b08c52499dd99f6eff1df4fcbdc65e"
-    },
-    {
-      "path": "main/book/zip_reader.c",
-      "sha256": "d43c89f380f7c40e8a2dc9f23fadaabfaf2c5a25770e0b2d0b09f8d73c596cf1"
-    },
-    {
-      "path": "main/book/html_text.c",
-      "sha256": "07cc7b0d18488ded72311046ca0f9d155d201d24cd207580f4afc7d3e2e8473e"
-    },
-    {
-      "path": "main/book/book_txt.c",
-      "sha256": "e46e0fa89e37e4a67903d572e55f72ebbc3200221ee35ab2ea1be8d3c7a17c7b"
-    },
-    {
-      "path": "main/book/book_cover_jobs.h",
-      "sha256": "0ec422a038664b069242957142bb7e7dc3322b317a86fd68072fadffbe69a673"
-    },
-    {
-      "path": "main/book/book_reader_input.h",
-      "sha256": "6ee708d8c713f2732f5f0ca53419072fbef974d5159af6c2c2dc346096a44e34"
-    },
-    {
-      "path": "main/book/book_cover.c",
-      "sha256": "96f105869a75acc4faa62d2957451bb1eb059d1b3b7424ab8bb9fc9c866cfb23"
-    },
-    {
-      "path": "main/book/book_ticket.c",
-      "sha256": "4e96a3fb760029a48576d2e48a30401d25c49d5ed13032403937c65bb90e46ee"
-    },
-    {
-      "path": "main/book/book_history_backup.c",
-      "sha256": "80634bd75ab4e5138e6dd02e33a5cdf015d497f42834a8bf66dbf6797146a185"
-    },
-    {
-      "path": "main/book/book_shelf_categories.h",
-      "sha256": "e5e41dcf0de37185b6dca4d99242e8f72e1994e6327fe7c77e05e08e7bbd1614"
-    },
-    {
-      "path": "main/book/book_epub.c",
-      "sha256": "0e82545f3674d8e5d2ef6c3b269bdce396be69fa872e947bcbb5e793e0253ad0"
-    },
-    {
-      "path": "main/book/book_layout.h",
-      "sha256": "45e974e7a73e65a2d69c14d53d30c9b28a4d25d41970377d5a95037345f0c823"
-    },
-    {
-      "path": "main/book/gbk.c",
-      "sha256": "9f51727255148ce5bd64cdf614c8886848d78ae842ca798cf4f2dc53b7bd4c25"
-    },
-    {
-      "path": "main/font/fallback.h",
-      "sha256": "555e4ae7837166f75bacc18033942ffee07c39dd23eb2747e08a6ce1bb853d5f"
-    },
-    {
-      "path": "main/font/ui_hanzi_scale.h",
-      "sha256": "415c627c53a7c6fcf36c5ed0961445777aa8d1642f678b79c21302fb4f68961d"
-    },
-    {
-      "path": "main/font/ttf_font.h",
-      "sha256": "84e424e5b280413c4d33b6c7f701b16affe249624ec28ed00980b39b6b8647f8"
-    },
-    {
-      "path": "main/font/ttf_stroke_filter.h",
-      "sha256": "1128500e25171ad52d2b7ffa874365f3cd5d3027c07e956463655abd772518e0"
-    },
-    {
-      "path": "main/font/ui_hanzi.h",
-      "sha256": "ae69673048de259b230a792738feff736b0c8f5b485abc63fa96f128ff9056eb"
-    },
-    {
-      "path": "main/font/charset.txt",
-      "sha256": "7643f0421edae37bc3a74542ddade5a74f65248aba63d89a85dfdbf764695f4e"
-    },
-    {
-      "path": "main/font/ui_font.h",
-      "sha256": "f2b69af0b5b83d2b9350c482d0b322717fffe28f0716740ab878cd37bdb7f8d6"
-    },
-    {
-      "path": "main/font/app_font_context.c",
-      "sha256": "ac33144bc49c85646e230d4873f58337bb14dee06c4179ddefea1f3ca66d5da8"
-    },
-    {
-      "path": "main/font/stb_truetype.h",
-      "sha256": "ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab"
-    },
-    {
-      "path": "main/font/ttf_font.c",
-      "sha256": "b2d2e2fbc6e0688a423acf093d8a433a672b0c9d0a99cd30c00a6a0caebf8ac9"
-    },
-    {
-      "path": "main/font/ui_font.c",
-      "sha256": "6224fbcca7b5174572f48500ecdc887ef28962b8457c809286038af9c7ea626a"
-    },
-    {
-      "path": "main/font/app_font_context.h",
-      "sha256": "f3cd2797fa037aed2b8ae8e043ea3f6090c19d004515246276553300ec884139"
-    },
-    {
-      "path": "main/font/ui_hanzi.c",
-      "sha256": "ed0d89f952db6fc6281b6223bef59c389800263b0b784aea4ec3a264b8c798bc"
-    },
-    {
-      "path": "main/assets/loading_4bpp.bin",
-      "sha256": "3f39ddd0cb253c18c414e1a740a1e85977c9931f616456b2015013979f142100"
-    },
-    {
-      "path": "main/assets/ui-hanzi.bin",
-      "sha256": "6c1b29d0786b673a6ee8ced773cf48b3b08c837b453219f15ff9e01ee7f0155b"
-    },
-    {
-      "path": "main/assets/OFL-Noto.txt",
-      "sha256": "babcfe66c8a098b2fa279bc724a3a342f8124f77ce18941fbcc1bbb39823cded"
-    },
-    {
-      "path": "main/assets/builtin.ttf",
-      "sha256": "24152bb49ac640eb762456d2abb8b4d40c2496ec94504b95886c49587c3c3644"
-    },
-    {
-      "path": "main/assets/ui_icons.h",
-      "sha256": "03bcc060cfab94cd1bf12288e5afb8f2cfc3500f15df9100e9cf3c4d14453d35"
-    },
-    {
-      "path": "main/assets/lock_4bpp.bin",
-      "sha256": "436d0e91dc2279246e0d5f7f91f668ca4d22e825ab6476f4ac15d70ffb2a12d9"
-    },
-    {
-      "path": "main/apps/app_files.c",
-      "sha256": "65cab9dd0c950e2e2ffcb2a65dfc8ace3c808986d3e4af24637e28b911ccbd8f"
-    },
-    {
-      "path": "main/apps/app_key.c",
-      "sha256": "8cc223449b143ec1969fd11b78a9034ec50ffdd52a7197c77003128f10ed83d6"
-    },
-    {
-      "path": "main/apps/file_tree.c",
-      "sha256": "a327f0c68712b112220c500b11fa89feb75eb2594927fd4e8c536b21950f26e2"
-    },
-    {
-      "path": "main/apps/usb_storage.h",
-      "sha256": "11a25810d971f020c9caec1a95ee571cb75adc2ae5f96014d43e94971de72db5"
-    },
-    {
-      "path": "main/apps/app_transfer.c",
-      "sha256": "cc8d983c08ce36cdbe6e9f0d44612462611fb58fe0a921a13108a9ba0bdb1620"
-    },
-    {
-      "path": "main/apps/app_dashboard.c",
-      "sha256": "b87163d536cccd76e35c8d1c79697a2727417eba5fcb0caa16a7885bde59b979"
-    },
-    {
-      "path": "main/apps/app_boot_recovery.c",
-      "sha256": "3e1dfdd6423e10ea443e56b0abad62dfba6a28e0be29bb55ae7731efe7c0ba1f"
-    },
-    {
-      "path": "main/apps/app_image.c",
-      "sha256": "a04fdbfb3aad821424dae164754ec9f0de39f3496cef0e9b6c817b61d4816d94"
-    },
-    {
-      "path": "main/apps/book_toc.c",
-      "sha256": "61111a6280e97b9e9d9712e8f3923c680b982b18c2ce5d7ffca87b8e46e5e5d3"
-    },
-    {
-      "path": "main/apps/app_refresh.c",
-      "sha256": "0a280272f6085367f3019098bfe563eada8f67ee9bbdea74864df731c3aaee77"
-    },
-    {
-      "path": "main/apps/app_content_open.h",
-      "sha256": "78b20e8d9e205309c72c823239878dde5ad1616df7c447847bddc4693176d85c"
-    },
-    {
-      "path": "main/apps/app_home.c",
-      "sha256": "3f551c3c528bc91043ee6ed44380c7831ef5d849da68797e922ff57ee8231c1c"
-    },
-    {
-      "path": "main/apps/app_ioe.c",
-      "sha256": "22efbefcd613736b05ca0880cc3bd89c6d89d6c62f542b5044b6fb311de460bd"
-    },
-    {
-      "path": "main/apps/app_device_settings.c",
-      "sha256": "3cc0081852dffd5ae702741a8bf597f4b6049db25b767d825e43b42b3e8a911e"
-    },
-    {
-      "path": "main/apps/file_tree.h",
-      "sha256": "21f0f95f5f20c70b1541e0b0d8434de8c7e26937cead32a6690b68125f2edbbb"
-    },
-    {
-      "path": "main/apps/app_touch.c",
-      "sha256": "6a9f146cd0d063504677a3cfa52e605998d734f2584036b34cb0b26548467ee7"
-    },
-    {
-      "path": "main/apps/app_transfer_mode.h",
-      "sha256": "3b9dc1d91de014604611d51923401f3ac0279d34521db1a6f7d386caa8bdfad6"
-    },
-    {
-      "path": "main/apps/usb_storage.c",
-      "sha256": "c3d72e0f3ade4c99961e2e6bafa10c66708144cd667f2adfc114b3d0b5cf8748"
-    },
-    {
-      "path": "main/apps/book_toc.h",
-      "sha256": "358cf9b2b4000d66c15a8e70a479e447310d95110871ab9533cd4f6f28b73c13"
-    },
-    {
-      "path": "main/apps/app_selftest.c",
-      "sha256": "f1589e41c24ed69fa2c64426416c49f19f4cd7d4f3a0cb0216b80344fb499e87"
-    },
-    {
-      "path": "main/apps/app_power.c",
-      "sha256": "5404bcc75358779e509bc9575cd91d0a2ea249c237ebc2163742c6d763e25a45"
-    },
-    {
-      "path": "main/apps/app_axis.c",
-      "sha256": "f5fd1b6999ace03a97102446cda27482c615d13d0802cb7a4718747ba277e707"
-    },
-    {
-      "path": "main/apps/app_sleep.c",
-      "sha256": "435a9a9dde3d569ede7682fd1583c2ee82acd1b7db6e009fd00a090755b61a37"
-    },
-    {
-      "path": "main/apps/app_book.c",
-      "sha256": "d64d5a2d0f5ea24d118a8bae9bc5b6cced1fd8d24f00bce51629f82033712933"
-    },
-    {
-      "path": "main/apps/app_reading.c",
-      "sha256": "22e07fce7b0940e963e7f4838e91c5c1deab95a0d86cf347581d2a3fa8c77eec"
-    },
-    {
-      "path": "main/apps/app_font_pick.c",
-      "sha256": "e2dc676a91e348b5556f1f74cdb11d0ebb394c3d79f498ae2f5f912ac9f68a0a"
-    },
-    {
-      "path": "main/apps/app_pmu.c",
-      "sha256": "80f520b92f21d61571e324f1a5031274abe5c07bde5ae2301165fcb1eeff0bba"
-    },
-    {
-      "path": "main/apps/app_sd.c",
-      "sha256": "2ad1b87d5d4c113a20a20b2e648f25bc7f3b5c6a1287e77f958cabe5bc9cad2f"
-    },
-    {
-      "path": "main/factory/pmu_selftest.h",
-      "sha256": "9304fa249e69ce0aed81b942c531bde6bc3edfb9140e33bdb3e31a0693a366a7"
-    },
-    {
-      "path": "main/factory/vcom_setup.h",
-      "sha256": "2ba1214a131621bcedfe02da06da6f8357db3662461ad05248122cf6cc8aa33c"
-    },
-    {
-      "path": "main/factory/pmu_selftest.c",
-      "sha256": "2bad125f4d00c45a6aa5d409b9f9d496fdd1f54d16cb2e005bd0a9f6beaf0bc5"
-    },
-    {
-      "path": "main/factory/vcom_setup.c",
-      "sha256": "b5b87e1ee2c43c28904044c259854dce42c9f3e3e692522ab18b955ddafd27ce"
-    },
-    {
-      "path": "components/epdiy/CMakeLists.txt",
-      "sha256": "2784883587d17ef1f3b566cb31aa8f2efab562a1cf354fb78c4173269e05de47"
-    },
-    {
-      "path": "components/epdiy/idf_component.yml",
-      "sha256": "ba7eb83d4d3190cafb77666f93993d33a5a71112b6314c44fb7772b6f6a47981"
-    },
-    {
-      "path": "components/read_pico_search/CMakeLists.txt",
-      "sha256": "83013fb9918aea396deed6a9fbcc8dddcf9f59be4e108fb7a88ce98b75b2979a"
-    },
-    {
-      "path": "components/read_pico_search/search_candidates.h",
-      "sha256": "d20244ab99ec028f5f0bb79bfccda0b4259c3ec858d3b5c5300b7a29887957ad"
-    },
-    {
-      "path": "components/read_pico_search/search_table.h",
-      "sha256": "4966b633afdc2b93bedb4b291b33a0a86310c69442ba6e9d8e99818e6394cb0b"
-    },
-    {
-      "path": "components/read_pico_search/read_pico_search.c",
-      "sha256": "6f008af78e0979e5801032f252d5385ae8588ae5636461dade0c4e76d1c10955"
-    },
-    {
-      "path": "components/e0470_page_turn/e0470_page_turn.c",
-      "sha256": "72136c605f1da9d5778b30cfa57cb7ef5b970a09f3a9251a303fe70e2a92c120"
-    },
-    {
-      "path": "components/e0470_page_turn/CMakeLists.txt",
-      "sha256": "dbc66f90ca175a45b0cab175548357de73e341db3ebcc1afe687a958acbf8a38"
-    },
-    {
-      "path": "components/e0470_page_turn/idf_component.yml",
-      "sha256": "3027ef5d24593ac0aeb731a1c83e4db274aafa2d80c1914b120f5c5e58150b9f"
-    },
-    {
-      "path": "components/metalio_hw/CMakeLists.txt",
-      "sha256": "b1f08302478a14a9281aec399818147abb7e9196470537adf7b2a1ba7e069b6f"
-    },
-    {
-      "path": "components/metalio_hw/metalio_usb.c",
-      "sha256": "70ac69a5226fb3563d226e3fe31c5714071dc9a9e13bb5f464fbf5d2daec770d"
-    },
-    {
-      "path": "components/metalio_hw/metalio_hw.c",
-      "sha256": "d945d7ec504626fbf7c566a8116b47bb5d1725d623fa2d55543ac5bcf470560f"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/e0470_epaper_waveform.c",
-      "sha256": "8c0a094ce1c47fb11e9e0f4ed2945c5b32c15fa27e61bb21e8626e8ad2739490"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/CMakeLists.txt",
-      "sha256": "9c54aaa7dd606adab93e2b1d8eb25bdf6c8e3452ad185de5d269b50ba811a387"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/idf_component.yml",
-      "sha256": "2563c0a89c6357a41621dcc2f4f1e0f80b92c00b0875441bc2d812f8638bcab6"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/e0470_waveform_trim.c",
-      "sha256": "137b3fffcf87df19f96b9662ca03d37a5e3278776d29d8018821da99ac63ae2e"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/tinyusb_msc.c",
-      "sha256": "ebbd44bf271af1628f643bf6749a597d2323b25d2b1652395f2637e4ff94d935"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/CMakeLists.txt",
-      "sha256": "6a349e55c9cbe91e2cd74298e1e31823ee994fb2e173ecfd6a63d69a2235d7b6"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/vfs_tinyusb.c",
-      "sha256": "abe122ab94b4f6336ba91157b12f7abcd99306d936860369e25e7c189a230b1a"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/usb_descriptors.c",
-      "sha256": "c9d7356d9b2ccc8f04df15aede2762be51f61aaf70da1798126a94dd3357758c"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/idf_component.yml",
-      "sha256": "bd1759b8bf533e6d116a806789a523c1d386317e35bc220a706c84503c6bcede"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/tinyusb_vbus_monitor.c",
-      "sha256": "2af46fc16fa4c5fba323872bea2cc1c1895db4f63fe95f559abd8d27143a3239"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/tinyusb_task.c",
-      "sha256": "7070f0b54939559ab67b70a96c404223cd2696ba68b108934620e12a64d590f2"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/tinyusb_console.c",
-      "sha256": "26b230a04d5a9e6d3d06757f989bfc452ea57c1204194d6066c864e7759e6171"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/storage_sdmmc.c",
-      "sha256": "12598750b0f070550d323c5f277e849fb6bc47f398b1f9f49199d9f58f623c8d"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/cdc.c",
-      "sha256": "b358a03f7adf0bf944999c8eff682a31cb228f62ebe981f3fa5a6a1f66b92301"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/storage_spiflash.c",
-      "sha256": "98cec11db933f25d81f06526ee8a1f9a95c053cab12fdc629777b0bf7e5ddaff"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/tinyusb_pm.c",
-      "sha256": "d7302b9cf9d026340b3c2f469a3e9ec34b9ae7ed28e04082739e93bb3854dc63"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/sbom.yml",
-      "sha256": "59a4cf54e71f7d5552a0e12626b9e6846d09d0c172d2aa0c93528f7c63f00e96"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/tinyusb_net.c",
-      "sha256": "91cb2582d352f81a754598bf87243d0082de165b695faf9ee7b21fb95855bb52"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/tinyusb_usb_wakeup.c",
-      "sha256": "8231bc72d575ebcc5dcec83238aba26b894bb34bc02f76ba5e389a60764456a7"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/tinyusb.c",
-      "sha256": "6c9259a905910a50b476fa7027700769592ed9d1b414a6a3f7b2710ff1db85c8"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/descriptors_control.c",
-      "sha256": "df5fc472ad83d187aaf677668d951164acfc880952a44244a5ac7da21374e0f1"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/tinyusb_cdc_acm.c",
-      "sha256": "b9bd8ac519da2692e415efe421bccc64cea9c4f25bc2ccf500a67fd9f51765f7"
-    },
-    {
-      "path": "components/cst836u/CMakeLists.txt",
-      "sha256": "1b02ac3cc67233f899b0d975328f849d324867a86eacc0397d6e994f2eb1e4a5"
-    },
-    {
-      "path": "components/cst836u/metalio_ft6336.c",
-      "sha256": "179c32345b43c5f852484f849bddf2eb1313bc057f7f2521e557c956d8e1484d"
-    },
-    {
-      "path": "components/cst836u/idf_component.yml",
-      "sha256": "5a350a84ef7f9f44c81c24ebb82416a2ac9fefd26df8867c5ef4388e67c29ca4"
-    },
-    {
-      "path": "components/cst836u/metalio_touch_decode.c",
-      "sha256": "2d36708c172cf398263f85274c45a7244c5961e20b30e4cef86d9fbf43598474"
-    },
-    {
-      "path": "components/cst836u/cst836u.c",
-      "sha256": "73c7d3cc1f2321132c58c44c781e339e2e1575e2fe0979d7e731e044cc4169ca"
-    },
-    {
-      "path": "components/continuous_du/CMakeLists.txt",
-      "sha256": "7a7b1d84e29215b01121b28f40b24bf587505860f32e2c6b622ecd970b1df5a9"
-    },
-    {
-      "path": "components/continuous_du/idf_component.yml",
-      "sha256": "a7543ee9c12bfd5bfaa835c506e2669568b14feffb46a60dbe00ee11aaa073c2"
-    },
-    {
-      "path": "components/continuous_du/continuous_du.c",
-      "sha256": "1c85e19bc2dd4ee3074336b17441a4b3309dfd2782218c7947b704b0674ecf26"
-    },
-    {
-      "path": "components/sc7a20h/CMakeLists.txt",
-      "sha256": "d5eff1e002952cc51d548a66736f81e4dd38d63939d89c592f205d929b0386b7"
-    },
-    {
-      "path": "components/sc7a20h/idf_component.yml",
-      "sha256": "08f1db410fe54e9639fa601b35cdeefc2e801175d6abc97089173c875d256679"
-    },
-    {
-      "path": "components/sc7a20h/sc7a20h.c",
-      "sha256": "42e1e1136d6c3ecc2c8953fef37644be9a716139f14c6b69dc3ec8b84abdb449"
-    },
-    {
-      "path": "components/pwm_audio/CMakeLists.txt",
-      "sha256": "e594aa0106622bc6c05fb895ccd3b964d06a899c891ccd4b2884ef936f4dc759"
-    },
-    {
-      "path": "components/pwm_audio/pwm_audio.c",
-      "sha256": "6078368352b75d71819bc1d8465b5c60905b49574451040a9c3b3f56de50dbef"
-    },
-    {
-      "path": "components/read_pico/metalio_haptic.c",
-      "sha256": "2032289c6d6accea4c126f20344b1299409933df134300dbf5e182b9cda9cde4"
-    },
-    {
-      "path": "components/read_pico/CMakeLists.txt",
-      "sha256": "52a2055a0f59585f45a87a71d1184b7f607b345b4e1381fd469de80935f7fffc"
-    },
-    {
-      "path": "components/read_pico/read_pico_crashlog.c",
-      "sha256": "0b583c9f65425321bc0d1fa1e87b6c4f92c01a28f7c9ef698b5409d2ee33e340"
-    },
-    {
-      "path": "components/read_pico/idf_component.yml",
-      "sha256": "b92dd10e0157278e338d3da2416197a5a8d1edfc6c362d877420cfa987104958"
-    },
-    {
-      "path": "components/read_pico/buzzer_duty_map.c",
-      "sha256": "536a0c5c2c7b9e49acae2bb9176e65f679b976227ef02ebcfcf5077f2a2eadfd"
-    },
-    {
-      "path": "components/read_pico/buzzer_score.c",
-      "sha256": "044ac9129e3ac3e00e17398133b18a56afb0a62573500dc0989cc962ca7c1541"
-    },
-    {
-      "path": "components/read_pico/read_pico_board.c",
-      "sha256": "cca7770110b36c4cdba6d19ba34261fada2d03ca935d0c04628b2877a438b5e8"
-    },
-    {
-      "path": "components/read_pico/read_pico_buzzer.c",
-      "sha256": "23baa47e08092a86ebe66f2825707145a4fe457400a984f12aed11eb15870197"
-    },
-    {
-      "path": "components/read_pico/read_pico_sd.c",
-      "sha256": "3e9ff4d3f6387486e45e911773476e60ee7843b1e31c6f9722170c665bde86f1"
-    },
-    {
-      "path": "components/read_pico/read_pico_epd_timing.c",
-      "sha256": "5f58e06fcfbf34c32451dca34d985516e3d06a6e03b3536e49160d854bc376ec"
-    },
-    {
-      "path": "components/read_pico/read_pico_init.c",
-      "sha256": "5a13dadac29e0e3f4ca505a904c1c5a52869e0fbec4e792c12558831e9b8ccf1"
-    },
-    {
-      "path": "components/read_pico/buzzer_1bit.c",
-      "sha256": "e3e9c85cc19c2909624b36553beeca155964fd12c43775e37035e6e263dcbf53"
-    },
-    {
-      "path": "components/read_pico/read_pico_flash_hpm.c",
-      "sha256": "49284af0bb69ce55a0435c89e57d22d18be7fd23e25a06207090ed8cd6ed1420"
-    },
-    {
-      "path": "components/read_pico_transfer/CMakeLists.txt",
-      "sha256": "e40e5739aa9786917eb334e84ddb068b51972f00515c488afc421b5baf556b8d"
-    },
-    {
-      "path": "components/read_pico_transfer/transfer_ntp_time.h",
-      "sha256": "2626d67fb6aff56656c6d06c2e04204bc95cb9f624feb2cb634ff0b698961672"
-    },
-    {
-      "path": "components/read_pico_transfer/transfer_credentials_store.h",
-      "sha256": "fa299af30d839650a7fe6cf4dfb2b1bbd9476ba23958248699249670d145190c"
-    },
-    {
-      "path": "components/read_pico_transfer/transfer_netif.h",
-      "sha256": "4b7553468663a667e2dcc359d08bbd755f706f9d8fa313db65c459f1ef056484"
-    },
-    {
-      "path": "components/read_pico_transfer/idf_component.yml",
-      "sha256": "51a47a71c505fcdef74982acf6c9afdd95bb117ca5f67aecebf57d44294a8988"
-    },
-    {
-      "path": "components/read_pico_transfer/transfer_http_time.h",
-      "sha256": "926b31faa6b5cbebfb866fe1d87981ab6ad6ef7294aa66796ab619d22302b037"
-    },
-    {
-      "path": "components/read_pico_transfer/transfer_policy.h",
-      "sha256": "99e9fc78a3fb4c1b90e94e1a68762b4078de21a0802a55e3e9788a88c3a58124"
-    },
-    {
-      "path": "components/read_pico_transfer/transfer_signature.h",
-      "sha256": "1bc92d9a4746076248e9fc6694b57353f1f7ed1ca54acbd2ccc57f754f6217cd"
-    },
-    {
-      "path": "components/read_pico_transfer/read_pico_transfer.c",
-      "sha256": "33ec6f3d472bfa86f674604c7685d4d751ef14cb42ae999470ea6c0333bde682"
-    },
-    {
-      "path": "components/read_pico_transfer/transfer_ntp_time.c",
-      "sha256": "d68e796752df86866660f4761a3c817addc4cfbe26672e0723b9709e2761b87a"
-    },
-    {
-      "path": "components/read_pico_transfer/transfer_http_time.c",
-      "sha256": "076c34cc34f497c02d46246dfb75171a3e67cefca3beb0d70b15769f94dc8a14"
-    },
-    {
-      "path": "components/fca9555/CMakeLists.txt",
-      "sha256": "9a24c3bb3e6df315e5aebdc0a04668b743cef9172dce244ff155d495b4db6392"
-    },
-    {
-      "path": "components/fca9555/idf_component.yml",
-      "sha256": "4a7f8e3a255fe1c0f7e1e403d4741f709ac969c0bcac729ce600357aa301eb63"
-    },
-    {
-      "path": "components/fca9555/fca9555.c",
-      "sha256": "dd9d27e04b146168b43f12b0ac07cc4eebd534a088e1c75e83a63adf8bbd31ce"
-    },
-    {
-      "path": "components/jpegdec/CMakeLists.txt",
-      "sha256": "f9fbc39d3406199654067a60b31fb09718b2d9f37d7454a33591efdef4e19259"
-    },
-    {
-      "path": "components/sy7636a/CMakeLists.txt",
-      "sha256": "c942d2f9c7f1ff4e320d8a63e50deee2e318213e415dcefd4c4f9e8b54067425"
-    },
-    {
-      "path": "components/sy7636a/idf_component.yml",
-      "sha256": "057c20c926bdfb21fb3ada55f5ad439bbd634b96b1e93c61a673abff217b2c68"
-    },
-    {
-      "path": "components/sy7636a/sy7636a.c",
-      "sha256": "3d7396311d14bad0301962e8debda2bf05b7df354036874c6621d9e9381db607"
-    },
-    {
-      "path": "components/ble_page_turner/CMakeLists.txt",
-      "sha256": "10e14836eefbce25b9a6eb169c28118aab860de2e3e94457a27f74cc1b662103"
-    },
-    {
-      "path": "components/read_pico_pmu/CMakeLists.txt",
-      "sha256": "4a534da06f7a3bfe89fedc94915efb922328383b3c82b757c1cca7da45ebe9fd"
-    },
-    {
-      "path": "components/read_pico_pmu/idf_component.yml",
-      "sha256": "42a966c83b0b674251dcd80e3d599faf28cd6633bf82dd73525fc5e226d34372"
-    },
-    {
-      "path": "components/read_pico_pmu/metalio_power_adapter.c",
-      "sha256": "6daa82aedb5866f4fddb98cd99903e069453c1711cc66a461e674108f3dd0abf"
-    },
-    {
-      "path": "components/read_pico_pmu/read_pico_pmu.c",
-      "sha256": "673cba7a2c3b6d17c3d620013e4131c8dab479e672ca8ba7138adf84e4f69589"
-    },
-    {
-      "path": "components/epdiy/include/epd_lcd.h",
-      "sha256": "b7e5dac3c0f89981de817fe170112eebf0bd6e781dc0bab0696f127c7063317f"
-    },
-    {
-      "path": "components/epdiy/include/epd_waveform.h",
-      "sha256": "691c8d775c7295a56d527f5b7e6e40abcfce921f16884f059eba74a1c450551a"
-    },
-    {
-      "path": "components/epdiy/src/epd_board.h",
-      "sha256": "bdc3eb976df2bd3c6e68a294f29f38375d19ae3a2289e0ba182fe2dec06e514a"
-    },
-    {
-      "path": "components/epdiy/src/highlevel.c",
-      "sha256": "f4c800a37cf1d1a3553d5445cb679df05d7cbef9df22b2bee4564a546ca64eef"
-    },
-    {
-      "path": "components/epdiy/src/epd_internals.h",
-      "sha256": "3d744692afa46149ef53d34854967a737d941c31f331f3246fa6e55b91666634"
-    },
-    {
-      "path": "components/epdiy/src/font.c",
-      "sha256": "f4c5ef1f6db6187999ba1c78233a904cabcb7edf7bebadaedbfcf73bc96a02dd"
-    },
-    {
-      "path": "components/epdiy/src/epdiy.c",
-      "sha256": "6329190e91e96ce2240428c5c372fba264d2618c923118e798bc34a6a0a8ed13"
-    },
-    {
-      "path": "components/epdiy/src/render.c",
-      "sha256": "3958b1376db2a1e6171fbfada9d6c5af15d3334f61a378dd1612b252de36fa08"
-    },
-    {
-      "path": "components/epdiy/src/epd_display.h",
-      "sha256": "2ea243e59af6f55dc58451ab5ad0d220dd563760d3c6bf99c5f84447075c4f38"
-    },
-    {
-      "path": "components/epdiy/src/displays.c",
-      "sha256": "d34c5a2175a9f55b05edece5c85856ae2b2fe5440c0cb95f5bdab3c2be18ecea"
-    },
-    {
-      "path": "components/epdiy/src/riscv_pixels.c",
-      "sha256": "278ae73290f86f2630d82d3802989090ebefbc564594f01947e96f6fc962858b"
-    },
-    {
-      "path": "components/epdiy/src/epdiy.h",
-      "sha256": "389344267a13b59924343686a1228d05fddbdc453797a54c5c4ea22266b88c39"
-    },
-    {
-      "path": "components/epdiy/src/render.h",
-      "sha256": "23ee5d45efa948b946f2cb430bda39062b547abb387d75cb3a1b1e4c8747c3f8"
-    },
-    {
-      "path": "components/epdiy/src/epd_highlevel.h",
-      "sha256": "755f8e7976e3707d49f8cebf031cd82b106a96ee2ee073799cf39ddc0bd030b2"
-    },
-    {
-      "path": "components/epdiy/src/board/epd_board.c",
-      "sha256": "30932e4ceb31e6f082f0da8baaff3a36329081d32f29a30798fb9da270b71066"
-    },
-    {
-      "path": "components/epdiy/src/output_lcd/epdiy_idf6_compat.h",
-      "sha256": "604452703c0f5c6e937e327081f60322521bc555e8452376517fefcd52e7f947"
-    },
-    {
-      "path": "components/epdiy/src/output_lcd/render_lcd.c",
-      "sha256": "ceb9abc2c5aedb98041123f9209dd91bb284d5ad43613043446084c4c640abfc"
-    },
-    {
-      "path": "components/epdiy/src/output_lcd/lcd_driver.h",
-      "sha256": "054eca076bee841d658110137cd915d7c979faff153bd0c9d2a6ede84053962b"
-    },
-    {
-      "path": "components/epdiy/src/output_lcd/render_lcd.h",
-      "sha256": "471118d9a4657a68616d561adc43c48419524579c88121ab1119a4ceb4076b5d"
-    },
-    {
-      "path": "components/epdiy/src/output_lcd/idf-4-backports.h",
-      "sha256": "2d9b5caabec4927f27dbd588ca1802ddb09c5da1ce155f55270a4432eef54a0c"
-    },
-    {
-      "path": "components/epdiy/src/output_lcd/lcd_driver.c",
-      "sha256": "83fd38474d06b18e23e11500ac5fc684639e337d9252a8ac33c44e6b01dfef0c"
-    },
-    {
-      "path": "components/epdiy/src/output_common/line_queue.h",
-      "sha256": "70cd54837772807c88ed5c4e83c788adde5b6bd73dc1a0f3b568427603b581a5"
-    },
-    {
-      "path": "components/epdiy/src/output_common/lut.c",
-      "sha256": "3b9b9e4c7b31f1025586c01789ae552638f67f5f1ce13357afcf17bd38ba69af"
-    },
-    {
-      "path": "components/epdiy/src/output_common/rmt_compat.c",
-      "sha256": "24aab25d84f46d585c5c76ddb7fca96a769a0ae42cd862a303140f31b5ea83b9"
-    },
-    {
-      "path": "components/epdiy/src/output_common/white_border.h",
-      "sha256": "ad99e229dfc09fe0fe783b2e9f9c9e5c689942b424fe0db761265fa274cb3f1b"
-    },
-    {
-      "path": "components/epdiy/src/output_common/render_context.h",
-      "sha256": "066242dcb32883ba4cc6cf7c94ff10c3d68955d43192afa323c1f601086f8601"
-    },
-    {
-      "path": "components/epdiy/src/output_common/render_method.h",
-      "sha256": "17c2a84016da887e62ec0dcbb597d5dbfdea2bc55850301d5e001e0e5ca40d2f"
-    },
-    {
-      "path": "components/epdiy/src/output_common/line_queue.c",
-      "sha256": "3fdb60681eaf6775a8ad72ac36165647fe4295a462fd80cb77a6dae0f2a29ea4"
-    },
-    {
-      "path": "components/epdiy/src/output_common/rmt_compat.h",
-      "sha256": "e517bdb1f54cb723ee339d88f72f426d72427b5f906b45d241eddd9f5be0eed8"
-    },
-    {
-      "path": "components/epdiy/src/output_common/lut.h",
-      "sha256": "0722f61a5f73e0ddbb1cc9e5a8ef50bd8f8e38edf52384a5a29fd81be3a510af"
-    },
-    {
-      "path": "components/epdiy/src/output_common/render_context.c",
-      "sha256": "822a2d7b410c384d52e287fdaa9ae2d724c17745f2768245972185cfa13a3960"
-    },
-    {
-      "path": "components/read_pico_search/include/read_pico_search.h",
-      "sha256": "7340d11de75992398de552e317c3e4c235fa20495ac1f4e2319013abfb8afe03"
-    },
-    {
-      "path": "components/e0470_page_turn/include/e0470_page_turn.h",
-      "sha256": "36c89881386e41fc5339e4d5a9072d0e5e0ca63c4999152dbbd0210a1729a29b"
-    },
-    {
-      "path": "components/metalio_hw/include/metalio_hw.h",
-      "sha256": "76761c4984a78082a2d63db8706a9a8f6301c9286a3574c399c83b1f523fca9b"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/include/e0470_waveform_trim.h",
-      "sha256": "51277b6d91828cb3c4617ec754a0992b76395da8e885321a514ce753e71e9f93"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/include/e0470_epaper_waveform.h",
-      "sha256": "66544ab49863d42fc1c06190f3acb60be3e76bd488b452ba150c53897d6d55aa"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/waveforms/gl16.h",
-      "sha256": "98ff6c06d99f13ae4daf69096852814ae5a846b64605b54eb27fb56b0166279d"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/waveforms/gray8_gl16.h",
-      "sha256": "bf4ffbac31b95af6855bd51bccc38f88cce3470f3b39fd6a71ed1a6b1fe21569"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/waveforms/gc16.h",
-      "sha256": "12b275d21abc1a578af2fcee87c1f64152e7dbe8eec7613f7d0d4ebead0ad9a1"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/waveforms/gray8_gc16.h",
-      "sha256": "400c7d514ace230c806b83222d6524a180908505276a1bcd5cfcc244e4a7ef69"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/waveforms/du.h",
-      "sha256": "8bd94b91e05dc5219d978c1358ae83b9bdcd00991eab91869bdb291c78bff38d"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/metalio/my_waveform_gc.h",
-      "sha256": "f8c7f1a79981f45025867461d2d7074859e343797fc5257fc4fe4740b07f497d"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/metalio/my_waveform_gl.h",
-      "sha256": "4eb2e37f55ba66da714c20266e21af1b9d8d3a462fdb5058c0584d004f3923f5"
-    },
-    {
-      "path": "components/e0470_epaper_waveform/metalio/my_waveform_du.h",
-      "sha256": "62ff83aeb2aae3048078f8d1c1d5bdcf24231b4b142d1893d566e64f496ee7db"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tusb_console.h",
-      "sha256": "35213acdfacda95d9bf0cf15960c6ea4e8c3e385e41b3b4f898b353f8670385e"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tinyusb.h",
-      "sha256": "91f632ac045b04695194f36bec59da0f4c30126a1752c64382c671bdab72d543"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tinyusb_net.h",
-      "sha256": "dc8aa7fffe5bb6fb7033100010ccc12d00c9eaa3bb895a4a82cbdf10defc8006"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tinyusb_default_config.h",
-      "sha256": "ce4bfc9500350450f02745d3dbcdba6f11004bf967ac9e62e1b1fd09a9642ab1"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tinyusb_cdc_acm.h",
-      "sha256": "536f1fc5eaf00830657a8e20c4bfe9234c3031249b71f7dfe1f157cab27dea58"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tinyusb_mtp.h",
-      "sha256": "d6be5eba5f5ddb8f5b3af66a0ae20ab0db306b78de1f19054d400aac06dd966b"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tusb_cdc_acm.h",
-      "sha256": "da84155e327ca53d1d49ba351d9cd544c3001498202228f851531bc10200da7d"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tusb_msc_storage.h",
-      "sha256": "c38509e7ddc795a34fc993403d617099e42240fca54c11f2e0bcd0222a871c1c"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tinyusb_msc.h",
-      "sha256": "08b40fba33ce9d8dbc97ff323236cd45a6cd900d109a03798e337d01ca32b0b0"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/vfs_tinyusb.h",
-      "sha256": "0b4f18f0aefc07fec408dba68b6d515008abba46420d2792a93d74fa3991c2dd"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tusb_config.h",
-      "sha256": "85e10f8f3ea61dbd3d75d324f88393f7994535de1fd192789a5f01d78bfc2557"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/tinyusb_console.h",
-      "sha256": "05dcfe49d0c448f5804e0331bffb718984b049ed730710b74a25279474acee53"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/mtp/tinyusb_mtp.c",
-      "sha256": "5284b3c8b982da77f9bb3a98e0f831435e57e4bf5c59a22eaeb1f8e3989b9393"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_codec.c",
-      "sha256": "75f6303e15b7d61fc86beddf94d18941980e9577204396899d126ac4536e88aa"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_operations.c",
-      "sha256": "3d41a6e4521ad2ed14812e01f257345de15d9d237336d3207a3f01beb0fd77a2"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_transfer.c",
-      "sha256": "e977b9bc2ba115119d2f7319c8529fe571cadfdba8205711586f85f39429e71a"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_properties.c",
-      "sha256": "68aafb4de9541a49bef55f7450e0bb54aa540b5f1067f15a4b25e738c8afc9d9"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_transport.c",
-      "sha256": "039d81e84e9190f5fe59f7fc0b4664918794ab2edba6e9edfcc230e515e0d980"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_write.c",
-      "sha256": "5ba15c4b5d57479096f286121d1be265595be9c5d8f566586cb94b894188af41"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_object_store.c",
-      "sha256": "d390ac35a2284aaa1c00c93283b3bc3baf6d0e97d5f4a1c444ec036a253313ad"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_read.c",
-      "sha256": "c0aae1fa542dc5517132b1418d6059cd66ea7d621270003a3cff306ee270d3f2"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/storage_spiflash.h",
-      "sha256": "2fe545d0bf20898136d72feb18ebace2838686fd06293b8eef6e8631c5421d32"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/cdc.h",
-      "sha256": "ed4c2b2204faaffaed8c8141ed2d37b3b4722b6ba9ff938539f0a298900eb7a3"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/tinyusb_usb_wakeup.h",
-      "sha256": "e178b979e07d9bb807343c379466572537408a0c2c87b9b86f905414a860d501"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/tinyusb_pm.h",
-      "sha256": "900d4ae68380a6b9857c738183bca3fa475fc56deae4804a934b7df64fef3c71"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/descriptors_control.h",
-      "sha256": "8bde60ba92fed85796686f6c245f68400a4bff066373a9acc496a33ea58bf35c"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/msc_storage.h",
-      "sha256": "e8cb1f77a167c9b1c28465a9edfa28f11821476f6f1b397edc473035711f5c83"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/usb_descriptors.h",
-      "sha256": "e7224a98418a6f3607f3f8c2dc01032cfad8bc7337f880b4c40d54b916763f0b"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/tinyusb_task.h",
-      "sha256": "ee919ac03f2d97d4ac10209e47463f99ddf8c47bc5e303d451f8538864f6a845"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/tinyusb_vbus_monitor.h",
-      "sha256": "ecca904747adab43f309b0a4f99b4893bdbc9083df4e5a973ccfbda7ab38bdf1"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/storage_sdmmc.h",
-      "sha256": "fd4e367e1da0367432b13969ec92617a406c039ee7aab4c4827f985d29483224"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/deprecated/tusb_console.h",
-      "sha256": "90658804abd2685139d2677c66c3d4780acd902e84925e7c2a2ae69091c8322d"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/deprecated/tusb_cdc_acm.h",
-      "sha256": "80170ca9f979a132f039ed8a4710d755cb9e8f51f1681b15d9b0601b8f64a453"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include/deprecated/tusb_msc_storage.h",
-      "sha256": "cf3af80979bbdb56bb7ad546f7155f89290d002f85005cadb6b5b38ea097af95"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/cdc/CMakeLists.txt",
-      "sha256": "c7767152c9a5244c908211951f14fb6fee4ea79a4d58052e857e5c067c6082d3"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/ncm/CMakeLists.txt",
-      "sha256": "15a2de79803fe6775082c301b257026eb19701958afe10ad1c9523bd54f07aad"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/power_management/CMakeLists.txt",
-      "sha256": "72bf6e334fbab8af729828663b8848e16eb4af424071b286d099e5228c43abf9"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/CMakeLists.txt",
-      "sha256": "ad66cbdcc683080c254c1a44a4f44901223d1286a032d11f0b7a7fddbe18f5ea"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/dconn_detection/CMakeLists.txt",
-      "sha256": "467dd35f2eae4c04aca3662d1490cababc8b1b7ca7d6f09c26e8ec89775833a4"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/CMakeLists.txt",
-      "sha256": "17624ee876092c265397523520a6402310f0009285e2c36fd46f2de51b91a054"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/usb_cv/CMakeLists.txt",
-      "sha256": "7cb154668e56faeb0b4a7881b4396c1283a74fc6dd91e1cb6004fc35e65e7ea4"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/mtp_storage/CMakeLists.txt",
-      "sha256": "1453f77606013ebb6fcccf045b7b340b9f8aeb9c3e4f949d025f6b1b8a8f5392"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/vendor/CMakeLists.txt",
-      "sha256": "bea145a8460ede7a3870c8c94c2c69b32ad1c49c8944a352d974b5ad3d9a7516"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/teardown_device/CMakeLists.txt",
-      "sha256": "d928624e69e09be327a7c2eb93d856982a7a390bdffdd4010de4f2105af280ff"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/cdc/main/CMakeLists.txt",
-      "sha256": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/cdc/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/cdc/main/test_cdc.c",
-      "sha256": "a7a878f6315966ccd775c04cc7d3b2c9b0b5f40a2b17f042c560b24eb63291c8"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/cdc/main/test_app_main.c",
-      "sha256": "b69c692ab8fad143a5d483e8d11a2400b8d2cf0fd9250e669703a63064d762b9"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/ncm/main/CMakeLists.txt",
-      "sha256": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/ncm/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/ncm/main/device_common.c",
-      "sha256": "c51046936d13bba4999461b7209772e921c39e37a11dfd24052a970430d76431"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/ncm/main/test_ncm.c",
-      "sha256": "4bd499c5e105fdbfddbcd04661e2657f4038a50f8f928c24a125e214b66be4a1"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/ncm/main/device_common.h",
-      "sha256": "a2aeceb95daeee03369ee7b80e807d794072b2d0622b7a2afd89882b8a9d5b16"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/ncm/main/test_app_main.c",
-      "sha256": "62088aea4bc17eb1cdefb22449c9f80c62e3f53ce860e911e287ce0d7763e9d4"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/power_management/main/test_esp_pm_integration.c",
-      "sha256": "e43671198609ed3a6f4a8db4532249407cef638afc71455ef4df374a866fe9d8"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/power_management/main/common_pm.c",
-      "sha256": "2728728cfb4efe01077ef85ff823849a30c311f700acc3674c9c08eec0e5c3f5"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/power_management/main/CMakeLists.txt",
-      "sha256": "334025633baf5a79e4239b27cc7b16162aaa319c6f72681e16e54ad2aed64ccb"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/power_management/main/test_esp_pm_public_api.c",
-      "sha256": "8a2c2294b3161d9c0f259ec4912448d15a5f5dfadbed9d2efab0007bf9f77358"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/power_management/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/power_management/main/test_device_pm.c",
-      "sha256": "2cf8bce0f9addfbbac08c214e19d0c6681b1e08498f0f9fc1fffda7bf446f4ae"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/power_management/main/common_pm.h",
-      "sha256": "6dfea91a05365295be1ca1fcb6cc0b17d000ea5abd7f11b7ffca020f94d4396e"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/power_management/main/test_app_main.c",
-      "sha256": "752c51db4a08844210a7ae28cb6edab21726dbc1e2b3a47790b523ae2082deb3"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/CMakeLists.txt",
-      "sha256": "23f9afd9a1fcfd56e210948583fc54655f5f17d8b4bff01e2136d555693ff33f"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_common.h",
-      "sha256": "5889f122cd6e552b075052ec6a609e4d86424e954acb36df2a6644f0adfac5da"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/device_common.c",
-      "sha256": "dbfe7e5194c2be07514ee37e52db2261e798f8fd84fb8fabed1fae511d10056e"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/storage_common.c",
-      "sha256": "31de841d75f089569daacaa84ca7859cec138606a4c05ba942fc3bf18a77f131"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_filesystem.c",
-      "sha256": "c13183be96eb1a3280d4fd64ebca7c284cf036e52ed1b6b49a63a3f36fabb9ae"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_multitask.c",
-      "sha256": "d14b3c2e3f95b545d4afb2c55a917eeafd3b3c188cdbee734740b9e005d5c5fc"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_common.c",
-      "sha256": "baa430dce5e54c3b60bbcaa9972075663757291b6ecd849d8f63d4c1d07e2d5a"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/device_common.h",
-      "sha256": "cd4df6a151a4eea0a7a0c0f5dbd49d828af6f9c8f5cf972b0ea2e40048aa8244"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_storage.c",
-      "sha256": "a1e4be399883a47d00a49630859297af20d68ae03348d9ef6da6b0406a674030"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_app_main.c",
-      "sha256": "05d71f0d703187b1446697ae2486918f1518d9739a7f8a584338a8e73cb733e3"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/msc_storage/main/storage_common.h",
-      "sha256": "7d60c5406555155eb5d50561fe796fc801ab583148bff97717ce5b46536e66e6"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/dconn_detection/main/CMakeLists.txt",
-      "sha256": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/dconn_detection/main/test_dconn_detection.c",
-      "sha256": "7cde2a65b409a45ba87fdef63b8bd67f31ebdfe5cd3bcff336776f42714cd510"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/dconn_detection/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/dconn_detection/main/test_app_main.c",
-      "sha256": "d86e5c67370fbcf5b6224faa1d0df2917a08167aa2e6f7f3aa22d40143d4acf2"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_pm.c",
-      "sha256": "047cb460d045cc48379fa691730052d5563d5990900d9945446adff84c893825"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_config.c",
-      "sha256": "a82b46c193d208b1ae03660457987ae30868140d7dcfc1b8eafcfaa9e8563d1b"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/CMakeLists.txt",
-      "sha256": "16fa080c85464a0c997cfbbbc4c07de0e48d59d9a3d4e60366e85e8f9b8b87e1"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_device.c",
-      "sha256": "1e4b7ceae38018348185d294f93f72879f7efb49c76c03fdffa06e1381f09414"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/device_handling.h",
-      "sha256": "a2aeceb95daeee03369ee7b80e807d794072b2d0622b7a2afd89882b8a9d5b16"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_task.h",
-      "sha256": "cafe595b45ae4c0d465a9b311bd22f790891f7aed86559de39db974e34c4bbfe"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_periph.c",
-      "sha256": "da688d584901624b7da9ac976fd0c8eb08fddee1d506c5e55338a0a1a67d65ee"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_multitask_access.c",
-      "sha256": "e6f19c99427f3c646efd9634f5e5e304d23d0d221723e6474064bc1f875dbb8f"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_task.c",
-      "sha256": "5bcaee72544011d669cc47713b939d1ff3b3da8d950526c4875c822162c366b0"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/device_handling.c",
-      "sha256": "808f98da46f71e9799c6fbac7a36697f1bbd9c359e10788f522309cfaff5cff7"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_app_main.c",
-      "sha256": "9008a083d6f7a1d1e9afc25d71b8287fca5be48b46006e48f296e50a3f8639b5"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_cpu_load.c",
-      "sha256": "e3dfdc3364230123a64f1d18eaff49a8dbbebb44040f300af2dd4bc91306d2c1"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/usb_cv/main/CMakeLists.txt",
-      "sha256": "00359ee9202f4a0715656a7b85ee85b1cdbbc62ca179c3c8cce00c6b17a3ef93"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/usb_cv/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/usb_cv/main/device_common.c",
-      "sha256": "da170b513b210e5096eb99f2a940d834298a6b6be6b8293271829b5035e089a4"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/usb_cv/main/storage_common.c",
-      "sha256": "ce22dc51500c593a2ebb1257c65b3cc48b90931245436ecaf81b2733182d1f46"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/usb_cv/main/test_usbcv.c",
-      "sha256": "e608eeb469c7eb21849c9a1f4553cd9f6826f8dc321b480c38a816afc0c6ed37"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/usb_cv/main/device_common.h",
-      "sha256": "a2aeceb95daeee03369ee7b80e807d794072b2d0622b7a2afd89882b8a9d5b16"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/usb_cv/main/test_app_main.c",
-      "sha256": "280afb3940a072a6b30f19f87312ca0f2e5b9ee2de505b230aebd4ff3283ea50"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/usb_cv/main/storage_common.h",
-      "sha256": "a617c935a616cd57b46d2af35b198177faea08feac169a9b3feb432387374a83"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/CMakeLists.txt",
-      "sha256": "a90bd6219b4b969e69ddfcafcde872d3cc25dea27fac0a3c7ba30bed0397a2d4"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/tinyusb_mtp_test.c",
-      "sha256": "547366e705214aab08eee0616a4d87acacc719fd6ccd9094c95fc7ca7278292d"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/test_mtp_storage.c",
-      "sha256": "8475363015cbc062457bc381ac24226212f663de1c5f7fe54acca2fbbf955599"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/test_mtp_codec.c",
-      "sha256": "bf523ef8963237b1b252ef8ba9199983e4e3bb0cb764e5d793cd2301f6f6c587"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/tinyusb_mtp_test.h",
-      "sha256": "d52d7d667e3ab3ef8f5498cfd0d677a992ba917668f74211f1fc894f810c5a65"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/test_app_main.c",
-      "sha256": "edd53e4d225bab8e909992ea8fe4f634863f1208ee93c6ad22f9e6f8f8c56b29"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/vendor/main/CMakeLists.txt",
-      "sha256": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/vendor/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/vendor/main/test_vendor.c",
-      "sha256": "6178372fe93bad26e94005c73d554443d8be8179b305b04b393eb182ae008f6d"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/vendor/main/test_app_main.c",
-      "sha256": "e1b999bd7566cf2bd42928387f9ced8abf9b4593761a57db99b25e165c7ba660"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/teardown_device/main/test_teardown.c",
-      "sha256": "6fdf66cfb997e989f3b19f82b2bd82a9e7a8d3d790776c67921ee4d0a1f50882"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/teardown_device/main/CMakeLists.txt",
-      "sha256": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/teardown_device/main/idf_component.yml",
-      "sha256": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/test_apps/teardown_device/main/test_app_main.c",
-      "sha256": "b69c692ab8fad143a5d483e8d11a2400b8d2cf0fd9250e669703a63064d762b9"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_transfer.h",
-      "sha256": "dce7aedb540ddbbc2c96641bf2fae96aa46952eaebbd08f81c5aa0d6ba59b8b9"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_types.h",
-      "sha256": "b64b77b01d5c178b8425c999ae5404fa499623563467997847afb9d89cd5498c"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_context.h",
-      "sha256": "9a1ef8bd54b8c0947f8a48dcee0fa1b6031de3a52097b8646b757636b2fbe161"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_transport.h",
-      "sha256": "01a638b2d9851a1cd00f81a35d5087d496ea0cd7fe05cac8f8bf27d8ed5a4195"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_properties.h",
-      "sha256": "9de35662a58a3bfb4df2ea3c0592ddfaef92a427391b26ba4c96285494fe777f"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_object_store.h",
-      "sha256": "ef362aa0b0438e5a561af5384f9e85a61098ddb106f212e4c361acf1b93a0512"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_write.h",
-      "sha256": "6ee6f25b328501a78513b9ca70ff67ed923d195faf826ca785f1d532a7102710"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_read.h",
-      "sha256": "4aa1576746ce3686038c304d31ea1b90c64f0d32ce359990d1f5b33ad7a802cf"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_codec.h",
-      "sha256": "32369864e0ee07719b4f4e21779c232f0bcf4e37f988c873abcdf1328e83e2a8"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_internal.h",
-      "sha256": "3d31dc7b6599ed72b67a4c286ecd27014292bc4c877a31848888fa4963b985fa"
-    },
-    {
-      "path": "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_operations.h",
-      "sha256": "f51de9c67f536e5692a8f315a45da01ef0c54a59d47b495d1123e3754218a641"
-    },
-    {
-      "path": "components/cst836u/include/cst836u.h",
-      "sha256": "d7e5d0f12ce751737af17cd29f97fe53444a9035ece9b3c32e400f1e4e6b16cb"
-    },
-    {
-      "path": "components/cst836u/include/metalio_touch_decode.h",
-      "sha256": "8bb8f806f532ef1391a3ae3c3f6d0a2bf7645cde3b12dad676dbf0144fc6f274"
-    },
-    {
-      "path": "components/cst836u/examples/touch_read/CMakeLists.txt",
-      "sha256": "c0f3033195a81fe7464b4a9818c84cdfe864fc45d90771956bd08f002017d39d"
-    },
-    {
-      "path": "components/cst836u/examples/touch_read/main/CMakeLists.txt",
-      "sha256": "959a071a966ef65c3d4001d0ba6c66bc95901bd3ac935549e6133a148237ebd8"
-    },
-    {
-      "path": "components/cst836u/examples/touch_read/main/idf_component.yml",
-      "sha256": "6dc06f3a6de3895ac1d37d2119885765d14bcfd8d18fd214cdde0c4071d5519d"
-    },
-    {
-      "path": "components/cst836u/examples/touch_read/main/main.c",
-      "sha256": "a608ad09e92d4d21400bc967fbdf4e963662d57f8ff68615638682fc4aa9c2c7"
-    },
-    {
-      "path": "components/continuous_du/include/continuous_du.h",
-      "sha256": "5b11d2d0df32b6ca7e2b8b4d32b1d3e7c5133d86f439faa3f961126e99f010b8"
-    },
-    {
-      "path": "components/sc7a20h/include/sc7a20h.h",
-      "sha256": "c76bf2c3951d26a51850a668614260cd13f684de1706b5fb54cc7c7dafb4663e"
-    },
-    {
-      "path": "components/sc7a20h/include/sc7a20h_lab.h",
-      "sha256": "e0a16e1c2d8a2e5a3d2b148f3750fb5aa8dd2aebbff4e92d8a046cb0874d13e3"
-    },
-    {
-      "path": "components/sc7a20h/examples/pickup_wake/CMakeLists.txt",
-      "sha256": "87e3f2d1edbf39982d190bd3793e9705e49688d8632fe5467e67ed10c5c52c03"
-    },
-    {
-      "path": "components/sc7a20h/examples/pickup_wake/main/CMakeLists.txt",
-      "sha256": "55516a324f0c45c5e54b602db2e4f8c955e263ef3e1acaa741a75c454bc025d9"
-    },
-    {
-      "path": "components/sc7a20h/examples/pickup_wake/main/idf_component.yml",
-      "sha256": "fcfe10036b279776a15700ffa44027d90c3393ab8fff229173fa2618d11d68c4"
-    },
-    {
-      "path": "components/sc7a20h/examples/pickup_wake/main/main.c",
-      "sha256": "aca622133e0b556fc75d861ff14417ea7e51b01d24fb73ca46f8f4c2274e84a6"
-    },
-    {
-      "path": "components/pwm_audio/include/pwm_audio.h",
-      "sha256": "54a93f538ddaa2def16f5474f63e13e95b75e512a7b58e240af48791ebef86c1"
-    },
-    {
-      "path": "components/read_pico/include/read_pico_buzzer.h",
-      "sha256": "44c018fb739fafafc05d9b955f46f93151d80925fdccbf010795c228983ff44c"
-    },
-    {
-      "path": "components/read_pico/include/read_pico_board.h",
-      "sha256": "1f74e56c6c535c1a74d1c03431b7297f2dea41156b9a44d1a347b7a45b393df1"
-    },
-    {
-      "path": "components/read_pico/include/buzzer_score.h",
-      "sha256": "c6a481fa3018d445974118c35a5d62348c0dbcbffec6383471bf89f546235320"
-    },
-    {
-      "path": "components/read_pico/include/buzzer_1bit.h",
-      "sha256": "810de7116e86c43eec7da1d9bf0be2c5a093e21bfdf7406a324f54ad53d984c4"
-    },
-    {
-      "path": "components/read_pico/include/read_pico_init.h",
-      "sha256": "cb26eeb04208e209cc518cc8dc4248479bc772488cc85c1fb251cbcba3c70849"
-    },
-    {
-      "path": "components/read_pico/include/read_pico_epd_timing.h",
-      "sha256": "154773f8a8c3112d635552139419f97f5c810ceeca76a3e2e43b1b708424309e"
-    },
-    {
-      "path": "components/read_pico/include/read_pico_sd.h",
-      "sha256": "e034523bce4ac477a4b45b863229b7cea412ef3e8c1eb31ccbc56c129253cbad"
-    },
-    {
-      "path": "components/read_pico/include/read_pico.h",
-      "sha256": "ada7311a774a7122437c73dc4485f9963624d0f0ccaf8ffa7897ac7724072187"
-    },
-    {
-      "path": "components/read_pico/include/read_pico_crashlog.h",
-      "sha256": "af4cfcc5431decb25809f8848408a3640d2385070e2973716d088ba097ab18f9"
-    },
-    {
-      "path": "components/read_pico/include/buzzer_duty_map.h",
-      "sha256": "cdac7fa9f480f6915d5713ee77763e5e31a0a8f0e6ec2f13e9814244fa2f1a69"
-    },
-    {
-      "path": "components/read_pico_transfer/include/read_pico_transfer_network.h",
-      "sha256": "96a6b968899de32f2d4612ce7a2cafb226a9619196cae89b2e97595921c6d94f"
-    },
-    {
-      "path": "components/read_pico_transfer/include/read_pico_transfer.h",
-      "sha256": "eac0f853386dd3299d9c4513b722b8b3c49353a7fd220b1fec5d2683cfb7a5dd"
-    },
-    {
-      "path": "components/fca9555/include/fca9555.h",
-      "sha256": "fe1885750f288eda9c068da9bba0c863b8ca5a712c22963e6c4b0ab75cd1432e"
-    },
-    {
-      "path": "components/fca9555/examples/read_ports/CMakeLists.txt",
-      "sha256": "b78c30bc1e7c23d6e58c04d5fc26f46da1cc30382252abcff76edbfa3376c568"
-    },
-    {
-      "path": "components/fca9555/examples/read_ports/main/CMakeLists.txt",
-      "sha256": "112a1e76ed1d887258de303a7319658c5cb25ebd450196243b5a32db2cf0e515"
-    },
-    {
-      "path": "components/fca9555/examples/read_ports/main/idf_component.yml",
-      "sha256": "88e305376110ecabe8ef1933597429854501616e2be03decdd10bd0111dba57a"
-    },
-    {
-      "path": "components/fca9555/examples/read_ports/main/main.c",
-      "sha256": "430c322235b64fd45f5d9dc6e38ca11e671562cb2a797c231347b817a05c80b8"
-    },
-    {
-      "path": "components/jpegdec/src/JPEGDEC.h",
-      "sha256": "ebb0b79d627d9585e1b985c29a85ea19f9b78e69c6235e2a8e95daed3030e402"
-    },
-    {
-      "path": "components/jpegdec/src/my_cm4_simd.h",
-      "sha256": "f3a623f6e5eb277cafa4f07ace0fbc78b24c877a88f30903c177920d86475a72"
-    },
-    {
-      "path": "components/sy7636a/include/sy7636a.h",
-      "sha256": "36b96fc5d4b622699312b2d5eadf5aabce54d40c6bb29ee47301a7b1d150f1dd"
-    },
-    {
-      "path": "components/sy7636a/examples/read_status/CMakeLists.txt",
-      "sha256": "7605a4e0b9dda76cd3e40d3b9650458d231d6e52d90a0317efc4306cea7498f1"
-    },
-    {
-      "path": "components/sy7636a/examples/read_status/main/CMakeLists.txt",
-      "sha256": "56e711dcf33ba7b164f9654d11da9a365e3dd07d88e0778328defe8021901759"
-    },
-    {
-      "path": "components/sy7636a/examples/read_status/main/idf_component.yml",
-      "sha256": "ed0f88dc545f84bef01e6c6f2d31e3b0c36224804bb10240c8ff73375fb420b0"
-    },
-    {
-      "path": "components/sy7636a/examples/read_status/main/main.c",
-      "sha256": "f1d8d5a7b45fb49800ad2a899caba7fdbd219484e31be82857f299c7622ee9c1"
-    },
-    {
-      "path": "components/ble_page_turner/include/ble_page_turner.h",
-      "sha256": "f55af3761fe1cb680b0613330f8bec926f18a1e9082c2c3d760c48b1afc9065c"
-    },
-    {
-      "path": "components/ble_page_turner/src/ble_page_turner.c",
-      "sha256": "b783256daca33f2d613ae00f22d69dba51219e88581b6616a7d4e4c07f629e74"
-    },
-    {
-      "path": "components/read_pico_pmu/include/read_pico_pmu.h",
-      "sha256": "e755d8cce2a3b5d84d015c30741399d35e787f88eb04ae207aac67f41cce747e"
-    },
-    {
-      "path": "components/read_pico_pmu/include/read_pico_pmu_protocol.h",
-      "sha256": "07c9b135d306a91cfd4028262f90fe703706f0782b1076c23c1d04e46c9db3d5"
-    },
-    {
-      "path": "components/read_pico_pmu/docs/pmu_protocol_en.h",
-      "sha256": "31be4a4cf19a53ca4bdca08204367bfeea93451329e30dcbac55b41ba8c2fc94"
-    },
-    {
-      "path": "components/read_pico_pmu/docs/pmu_protocol_zh_cn.h",
-      "sha256": "7b421aa189dc560c52fff8139dada3ee284e68221ac1b8911e95fef4e73ea5b4"
-    },
-    {
-      "path": "CMakeLists.txt",
-      "sha256": "16dc11b46a65ff2f7adb8812cf4af5ac872f98660efe1389924c08856e34c06f"
-    },
-    {
-      "path": "sdkconfig",
-      "sha256": "9f6af1df5ecb93962ab54ff24171240dc2d0c70ee48bf9e3274c5312ac085bd6"
-    },
-    {
-      "path": "sdkconfig.defaults",
-      "sha256": "4dcf648d915e4398a03d60d3602306cceb8744d1a16084ee57d7a27899e5cd4b"
-    },
-    {
-      "path": "partitions_metalio.csv",
-      "sha256": "2ffd6167a2a9fdc65fe777c46276254b058d78079a5828ac273056d5806eef9c"
-    }
-  ]
+  "version": "0.3.3-rc90-metalio-test36",
+  "files": {
+    "main/lock_screen.h": "6162f99ddb2b8d10e1026c38899746ce2eed8a124b7c20d14a474bee6a513ad5",
+    "main/display_waveform_smooth.h": "2ea7f07b1c49e83a8670c8d8fc4a782e2dff7c0a405dc12722eb9b9dcd4c089a",
+    "main/display.c": "501e47610512716cbce26449a58681d4e99cd4a89529083c0dbfe96cc620bfc2",
+    "main/sleep.h": "cb88a0a3ee7df1f6da9db9636eaa3b7875915232ae670d4c0d312c0c8a0347c8",
+    "main/CMakeLists.txt": "ae6157de683a0b9a06193bc44d9030e4acdb0ba4ffd43b1cf436b72c5bb51b49",
+    "main/ota_online.c": "779898ac66ee2e386c3d50e9cbdbb9bde9821ded9dd63a5c398cc33e8284c09a",
+    "main/boot_state.h": "c5d16ba8d2a3419f4a07634fa03cf6ea65553d0a222b726880da86059bf5d7a9",
+    "main/metalio_crash.lf": "adb9938e9f2c3d1fc3382be36ded33b28ad64831d18a8a14201be4c7cb75e695",
+    "main/anti_fade.h": "f15e9aaa28ca1862754a132ce3db01b59385a2310e974c6a800f9f68b5a611df",
+    "main/settings.h": "fea44b9f6e02a37262af7c31c40763c83d8e20cc5194a87230dd6f1843b98243",
+    "main/time_service.h": "09dd860533a114f64397f4995defeb7629f1699b812a31b39975cdecce2503d9",
+    "main/lock_pin.c": "e0dd2d5a55fdb0a596693a94ada7e31f7e0f05177aea02770ab4d8fda52f4c61",
+    "main/lock_pin_flow.h": "bbc73231e99d414309a78275763b220957039fb5a28efe52811bb1caf9f767e3",
+    "main/display_main_waveform.h": "802fc1b1b01a4b6a8e549f869a2bc019c7fb9da1849d96c065a78ddc23561d77",
+    "main/idf_component.yml": "d19582a02b4a028126be204882bcacecd2a3bfc721764130ba2cfbc86c96f547",
+    "main/display_reader_waveform.c": "715d204bd251cacb4f3110e70e3461123d7eb6192eb79e192c0a376d4b5cd6b1",
+    "main/ota_update.h": "a00160e17f069949afb376febcd6f595fef94e7611d2c1b8ac9172165c3ef860",
+    "main/sleep.c": "0801637f8018345f7a363c3f3d1200f1107123d9294b8ede2bea944539932dab",
+    "main/display.h": "84697924054b716d32b0d6c1595b9fd8bcd0f97ea654ad13d4aac80b335fc76f",
+    "main/lock_screen.c": "f380a08835c1b5c1b07d05a1c04e296ce2f00228d9018affad0633e5536b53ce",
+    "main/time_service.c": "72af8cd80adee703ed1d909fc581bcc0e1fdf731f59b775741eb42220b902fca",
+    "main/lock_pin.h": "eb54f18e283c1e0a2727d389ff6e76685d3b8485d7cb527d256423215694a65e",
+    "main/boot_state.c": "6a7dbb6a586ba13b843295a42d59f616fb79782bae62f1eec60f74bf97536ace",
+    "main/anti_fade.c": "de0e242208f361b2474f8fd5ecd13b07dbd00716a0084a080d60265b65f1cca9",
+    "main/settings.c": "bac2acbf1f1d87037d28ee353670797b6dc7cf10ee3f48bc3eda819b0e994d4e",
+    "main/ota_online.h": "fdeeeed6529eb968169852739c8d45d7f87d1aff70bb7b9d9913ca364c71f473",
+    "main/auto_lock.h": "5530b78113604aa70778ef00a207bd1844495f291a9851e1d5e40329cc4668f4",
+    "main/app_main.c": "2aaf3d4f6241ce082bb26b565276100a579e81878a68d632a1945bcc99553224",
+    "main/lock_pin_flow.c": "4acf55626ea68150cdc1f9eefe2284d7a86cfe118495663ae882e750cbd3823a",
+    "main/display_main_waveform.c": "914147c832a42f1ae4d14fea823b1f4e37d15ae70c75f5621363082d3ab1b73e",
+    "main/ota_update.c": "7bb9d370d765f4044deff4cc548b97a1e5d40aefb2ca5b4a2bb1293fcc0f56b9",
+    "main/display_reader_waveform.h": "340d68d722471acae3927813051a01dd18249540dbe87792372c5bf05f0f7bc0",
+    "main/ota_release.c": "59d06702f2b6bd5cd9d6ba813c448f13d7cb89acd138844b12a7dc3ce543b1ac",
+    "main/ui/ui_lock_feedback.h": "5676c98eda5ae3d76e5f286f577138b6a1759279daa2aad1f85d8a6f1e6d9196",
+    "main/ui/ui_glass.h": "a37bf18599592d82a58698933cb0da54f84e69dd9fbfaef3068c5e94cf908ab8",
+    "main/ui/ui_text_input.c": "5083784280b3de3ff0c4c980a7834b93fe7cfed342ebf6b232dd918ef534632f",
+    "main/ui/ui_menu.h": "448ce00aefed77b8d6dac3c62ddec4b179515ddefe2931375eec80e90bef08df",
+    "main/ui/ui_home_clock_assets.h": "9b53084dbe5783e201984da5d4059bb570d786ad387b871ece26eeed5ad52f6f",
+    "main/ui/ui_gesture.h": "122d4c6cba3f25d22d21f6be17114d52ca9d55aaa765a79039872a4d67340e6b",
+    "main/ui/datamatrix.c": "0faa69c09ee987306c5eaa8dcd22d7463032557f1595447f28c571ff98fbce89",
+    "main/ui/ui_wifi_qr.h": "478439a99ec345f6d7d40c3b552ce461d4b33be5cb3819854f0354858d869cea",
+    "main/ui/ui_ime.h": "2e278ed75cb758c0f2eeec3cb0b45ba47712746e71d84c5a8e6ba27011dfca82",
+    "main/ui/ui_home_clock.c": "aa73ac25dfd480d1e077b9d49285c59c3a13d21cd100a92261f571e86383df61",
+    "main/ui/ui_image_dither.c": "78ffcfb767e5c82d4c10abf486c53e3127f3a94c4cdd31a66cbbfc96eb9cdc6b",
+    "main/ui/ui_home_clock_new_assets.h": "7c04fb6ed8a62532bb25282f5e50aef27ed1e8ec2c34aa6c18d92eb21ac84da1",
+    "main/ui/ui_click_feedback.c": "255958f460b56ca54d6989575177bdbe681849b2c1f9b101b912a525b1325dcf",
+    "main/ui/ui_text_edit.h": "ecccdbea34d7d0de162fc044bd0e52454c611c94ccf48939ed9545616f45d5d5",
+    "main/ui/ui_kit.h": "8de239882bde92c376424b02e2a0c74a56e1e6d4bc239bf6332783aaa13a8bb9",
+    "main/ui/ui_avatar.c": "89a0422a11a315a138abe6bb27334aa87963df66c16d258ec6ed1be610372c13",
+    "main/ui/ui_quick_menu.c": "302593b16f866f61d5ca235c854b46bc54a02d40338392333fecb2101628fa54",
+    "main/ui/ui_wallpaper.h": "843c2974130a9f913efacfe718c4eee2a1477e09aa17eb2b2584c892344d43a1",
+    "main/ui/ui_home_widget.h": "3e2c7bf14dbda873861f9d191c25af9b37ab02ba6164e6026a727b840024bc1d",
+    "main/ui/ui_pinpad.c": "45fc921f33ee9abf0623340190fa6be980418a2feb37ac109b4d117c7fa852b0",
+    "main/ui/ui_keyboard.h": "c349bd02a0ff6fe59b5ab034fbf5554e2ccab656337f14dba049b4bbd93e9ba2",
+    "main/ui/ui_nav.h": "044abd8555dafc3fa317cff054bfc62b7ca9f5af6a463989769d1db8bb0175fc",
+    "main/ui/ui_follow_pixels.h": "2656e95444f739f75da84a321f9e34bddf123601339a0c4bc9a6e6d2e31da6d2",
+    "main/ui/ui_quick_menu_input.c": "5f6de1efe2cd768be9bcf708767ddb6945977a525c40578cdf6d8090436848a4",
+    "main/ui/ui_reader_background.c": "c2a84be90e84df7599f3065e43ffddf3a8dca22d503d974255bfbba57f0e0387",
+    "main/ui/ui_power_dialog.h": "674814209d15be39c19e02aed151587964c2ac53a2b674737aebf269727a181e",
+    "main/ui/ui_gesture.c": "04fda32064e3d43734d64354a16533abd20d70efa97ab6961c5c6b04bbbcc176",
+    "main/ui/datamatrix.h": "4facb032c293882ada99b9dd8d5570095ed2ced6ce23e08d677826e216017ca9",
+    "main/ui/ui_wifi_qr.c": "bdf4529aaa98fc605b90a34aee79de45f52d32fd9fd6cc17758502431330edbd",
+    "main/ui/ui_menu.c": "4886916c88598b9b05b7e2c60ea8b9446c5fdafed7bfd51a16492f465f4ae6f5",
+    "main/ui/ui_text_input.h": "e7502101467bb59bdc61d554e96e88dfc70d95e048fd93fc647c242819220e9c",
+    "main/ui/ui_glass.c": "aab83d73bc3dc61e2ed4cc2fcc9bb7c47239bc2ef470c9af6cdc76ae088fdd41",
+    "main/ui/ui_follow_cache.h": "7fb65bca4299782be419ea12564eeadef473a4f129edb26d36072c0b916ec480",
+    "main/ui/ui_home_clock_blur.h": "e0aa2b6a03eb8d2218dae283a8bae1d91fdc63d35978a68e926c607442112ecd",
+    "main/ui/ui_home_shapes.h": "804d30299ae901e758f25c3fc87d25ad1f169d814d4f2d42c61f604d739347cd",
+    "main/ui/ui_nav_layout.h": "90b08510b15d8faadefa58b3ffcdcb77ce47077a01510baae2efe1d69c722f59",
+    "main/ui/ui_ime_phrases.h": "bc3f4a1b9cb65129ffdb481c1a30f5ccc9100b090896cd758f1153260f5a8ea5",
+    "main/ui/ui_lock_feedback.c": "ac1ed6946c2176a974aa0602cd488808d5833d57a5bee56cc3bd99bbf3d3c615",
+    "main/ui/ui_ime.c": "f54f815481be5e761069a1c79704107f67ce28201884ae43aa7b150cd9a598c3",
+    "main/ui/ui_image_dither.h": "01f3c87dcb1cd3bd7374cd31a65991691de51fd1add420cd7b0c10751c882f45",
+    "main/ui/ui_home_clock.h": "f3b8fa0af2f8ce642b9d2b0edec12ce61a8e3ff564c393e647ded3c3d74cd2a6",
+    "main/ui/ui_wallpaper_crop.h": "81b6ba4e14fdbef000ccc60372fcf1622946bd44ec0cd4b4760abfe8874e2d76",
+    "main/ui/ui_wallpaper.c": "0ccb959bafebb89147554513662e86ecea09cbcd0a1d5515f2e5587dff9411fc",
+    "main/ui/ui_home_widget.c": "aad2a32fae3a1b0b400ec8a28b7fccec125d316af21fea4cc2ec2739df0b5922",
+    "main/ui/ui_quick_menu.h": "0daa8659dab01a2e1041908f06afeb0f0d468b84693e8fe536b667a48ea7f72e",
+    "main/ui/ui_avatar.h": "f4edf9ea4e0245d4840e98004e92c1dcaaac086d7ea6ddfd2c3a201c7250d591",
+    "main/ui/ui_kit.c": "1b693d8eef5c86d93cc7f72479e5a27a99c8d20f06ca6d64b5f3e755191840a6",
+    "main/ui/ui_text_edit.c": "9a5e986cf7e408254ec78c6ce76ff272e093084d19df31aeb3e86016801798b6",
+    "main/ui/ui_click_feedback.h": "a9b35600957d9c104d1116034c4a887e9d9ca84a6f0834242548d04d65ec159d",
+    "main/ui/ui_power_dialog.c": "bd8673aee36b3a015a4a6b98779892d2debabf12f06a48680aa1742029082a78",
+    "main/ui/ui_reader_background.h": "37130f4b58c0725c10aac08b2aa0a6b0eb72913d45aa5f7a141230a64dbc600c",
+    "main/ui/ui_follow_scroll.h": "ae47d40ef2e7c602bcc46e4de3f4b2b7450df40a29d3d4b0c37e8d880eb3fcf5",
+    "main/ui/ui_nav.c": "e37b42b8fb73197fdd9036ab12dbe6229e3c4e505c86ef5ef7480fc9f68580f1",
+    "main/ui/ui_pinpad.h": "307c24ec129e8e319852f4fb4b4bd786a76133e00a4648862188aa0a97c2e29d",
+    "main/ui/ui_keyboard.c": "fc2c1795855c55c37545d54c735ae453647b4909a9add3059e6e130a4ff05baa",
+    "main/app/crash_note.h": "24657de81267e72619330a6ac0232e691c1a3becabe0693e234c47e1706f1442",
+    "main/app/app_registry.h": "65b119c9c6bbb09c1ae5044eda22f89cbebc2361d2c3cd2c589196ac1cfcde63",
+    "main/app/app_config.h": "b24077aabe95654be603e5f76755d38e85d746b795a6258399cae2bf8015090f",
+    "main/app/local_latency_probe.h": "3a66bdfab2c1e97fc5476d98295ce2bd4090e1082e1a328c0c9c90417fee83da",
+    "main/app/app_loop.c": "8d81a27424141773cf64da5b1dacea39961d9e58c78bb83c5c1bd7a964f193a9",
+    "main/app/app.h": "f31fcde2e3860cd7b2a4a4a6979787a2d5e915b90e5456bf4cda91e2b7c32aa4",
+    "main/app/crash_note.c": "5a1c5d94f5a2d90d45844ccd3daff0c13d500f0f306bb69b10b9f232cb354179",
+    "main/app/app_registry.c": "1bcb9a9da2b91aae670d21865dbdd8d354afa2883e458146cf362f0d5dce9eb6",
+    "main/app/app_loop.h": "562f01d136ffb3644357a457d731bd52a478856b0967a2a8ff4885d35cf423b1",
+    "main/book/book_image_header.c": "57fcf9250bd83b894cfae84f60d151aab755d43801b4b48acc1c9b2d66678d6e",
+    "main/book/book_title.c": "e850da1d28700c26dda380efb63f36a15fef14883a6cfa9e761db23f060f2901",
+    "main/book/gbk_table.h": "4df55b84ae3287c8e802c14a2b6de477ef84e5b47b10e885a7048848404d5518",
+    "main/book/book_index_cache.h": "d5aee566d7fe85b98d350041b93af7e78404a4672a1a15b7f8f46c064451bef6",
+    "main/book/book_excerpt.c": "e17d85b56922cf55a2ef8c2a9f887738dae5939a72486c00e9b528fb18ecc6c3",
+    "main/book/book_lock_bookmark.c": "d1a045f798e09d4111f481b184fb4e51508fae652b1a59cee6b2da48e00eda7e",
+    "main/book/reader_page_cache.c": "163dacd1351ac9f8160827b28a1d3ee5bc0ba3fd4d42be55d090770e728edc70",
+    "main/book/book_lock_collage.c": "52c5f005466353f8ea5682bbd10f7a55662e45ad447e74aa888c3b0488c61463",
+    "main/book/book_source.h": "3d0897401438d65b864e9cf261cd9ed1736176a9eb6598746e4057e155089d80",
+    "main/book/metalio_cover_cache.c": "5af50c0c1cc65f4133166678e7e83f5e90298fada22755d1f808dda5f0004f11",
+    "main/book/book_cover_auto.h": "9380a935307fecf0e1eb3532935ac300df72e439e2379d6d80219c3d6b08975c",
+    "main/book/book_progress.c": "ee6a382a27f56d0c5e3bb02e443260384c67d56d14f0ec2a028f0cc89024a720",
+    "main/book/book_cover_jobs.c": "9c058bad9cc35877df3e2a0216992a9fa26d0b24c2dbd55857167fa0319fb160",
+    "main/book/book_policy.h": "d540758b02e85fef3a9195ec296ed86045701758d87f68913a5db1ec217afbc5",
+    "main/book/zip_reader.h": "334f473ab5f88ffb1ec2a8e00999950028434da7fa5ff6759be64a4fddd17fb7",
+    "main/book/html_text.h": "f5d555d49830d9baa20bf4f78e4d7951f55d5a9cacd71a178c371d8086687944",
+    "main/book/book_store.h": "7995ce99c599c98905d8594b1b653f483a9da419ff68e4c9bc4e667203c346ad",
+    "main/book/gbk.h": "f61d98da87514277f6f2645980f493fc6a2424f5aa671cde8e1dc05ad8f3a49e",
+    "main/book/metalio_memory.h": "d1df4928dcdf32822471da77fab351b322f04ec50e0f4c1294f2de06955019bb",
+    "main/book/book_source_internal.h": "db3b3f739d3798f55da0979bb8a14a7a7f06f75ad5bd2cc098f937a2ff4d7866",
+    "main/book/book_history_backup.h": "3fac71be6ee79a5d120b02a590ed63ec29047dae80f440b5414da5445d5f77e2",
+    "main/book/book_layout.c": "64d6ac72b13eb8a651e99939caa5024a2f8b1481fe59cadf97de2eed287cd2f8",
+    "main/book/book_epub.h": "3dffa6700359ad0c6e5b2076040d300d72f77303c0a1403514e1520444a9d871",
+    "main/book/book_font_size.h": "a73ad4072236dc2fe31322e284048dcc579262dee324a1d9fa46915ed38a1738",
+    "main/book/book_cover.h": "4fed70dd5eb207f36ba791bb11a4985d473109b065a5f0a2db31b7863d079ba8",
+    "main/book/book_ticket.h": "dcd0e1c6f19166d70d2f7abae1de1a6ab108b7a6bb8826b8b7409b13d98a8fa1",
+    "main/book/book_lock_bookmark.h": "e602cee75c75c7da490f18d4521344a6ec88b52dc66581994c11d8ae9784567b",
+    "main/book/book_excerpt.h": "e68ec3c1edb39f97bf27a7e22c9037e444d206ccd5e7330502c6e109f7507e5c",
+    "main/book/book_index_cache.c": "3beba38274dc0e96a27e8f4d7aa70318182266720e1cba97a1ec11fdb1f91fe3",
+    "main/book/book_lock_collage.h": "88296f2acb0125fc913f7578eb99541644e4ecd9fdccc9a73bae304eeacba60e",
+    "main/book/reader_page_cache.h": "801e1cff310424b197fbc2f101a5974edc32c69469e39ff4f4e05a55222d1dbd",
+    "main/book/book_title.h": "d715595f614dd197d6fe3601163d7ce60f03e2daf92a9685e5c2d165db6be9bf",
+    "main/book/book_cover_auto.c": "98b18eeab5bd9eb719dc234ef4dcd89850d3bb9d9a21718a8ba4247ebf27b1ae",
+    "main/book/book_progress.h": "c4cd76350c36a18e8ec8000030cee8d8e165d3f6de69f5b213119322535d4a43",
+    "main/book/book_file_path.h": "35f7deef24ba2ee06867e498397c7676307ce69424259a627180984ce59688b8",
+    "main/book/metalio_cover_cache.h": "55cd8fda76b8e86672e6a5db7c626541254b77c529998410a569c00223fee7a5",
+    "main/book/book_source.c": "b477669c1478eadc2ae9d4ff83541166eb85e3df23ad29441dd0f4d996c91e7e",
+    "main/book/book_store.c": "cb130cc3b97ba0a67960c886fa83808f74b08c52499dd99f6eff1df4fcbdc65e",
+    "main/book/zip_reader.c": "d43c89f380f7c40e8a2dc9f23fadaabfaf2c5a25770e0b2d0b09f8d73c596cf1",
+    "main/book/html_text.c": "07cc7b0d18488ded72311046ca0f9d155d201d24cd207580f4afc7d3e2e8473e",
+    "main/book/book_txt.c": "e46e0fa89e37e4a67903d572e55f72ebbc3200221ee35ab2ea1be8d3c7a17c7b",
+    "main/book/book_cover_jobs.h": "0ec422a038664b069242957142bb7e7dc3322b317a86fd68072fadffbe69a673",
+    "main/book/book_reader_input.h": "6ee708d8c713f2732f5f0ca53419072fbef974d5159af6c2c2dc346096a44e34",
+    "main/book/book_cover.c": "96f105869a75acc4faa62d2957451bb1eb059d1b3b7424ab8bb9fc9c866cfb23",
+    "main/book/book_ticket.c": "4e96a3fb760029a48576d2e48a30401d25c49d5ed13032403937c65bb90e46ee",
+    "main/book/book_history_backup.c": "80634bd75ab4e5138e6dd02e33a5cdf015d497f42834a8bf66dbf6797146a185",
+    "main/book/book_shelf_categories.h": "e5e41dcf0de37185b6dca4d99242e8f72e1994e6327fe7c77e05e08e7bbd1614",
+    "main/book/book_epub.c": "0e82545f3674d8e5d2ef6c3b269bdce396be69fa872e947bcbb5e793e0253ad0",
+    "main/book/book_layout.h": "d5588c35145e82caad71a24c3947176dd1a6f1b0c816681842d5ec431bb51c85",
+    "main/book/gbk.c": "9f51727255148ce5bd64cdf614c8886848d78ae842ca798cf4f2dc53b7bd4c25",
+    "main/font/fallback.h": "555e4ae7837166f75bacc18033942ffee07c39dd23eb2747e08a6ce1bb853d5f",
+    "main/font/ui_hanzi_scale.h": "415c627c53a7c6fcf36c5ed0961445777aa8d1642f678b79c21302fb4f68961d",
+    "main/font/ttf_font.h": "64616e4d278a8aae736fcf727e4df9cf9b4ccc6d00cc0e34493d59a56bfa0acf",
+    "main/font/ttf_stroke_filter.h": "1128500e25171ad52d2b7ffa874365f3cd5d3027c07e956463655abd772518e0",
+    "main/font/ui_hanzi.h": "ae69673048de259b230a792738feff736b0c8f5b485abc63fa96f128ff9056eb",
+    "main/font/charset.txt": "7643f0421edae37bc3a74542ddade5a74f65248aba63d89a85dfdbf764695f4e",
+    "main/font/ui_font.h": "f2b69af0b5b83d2b9350c482d0b322717fffe28f0716740ab878cd37bdb7f8d6",
+    "main/font/app_font_context.c": "ac33144bc49c85646e230d4873f58337bb14dee06c4179ddefea1f3ca66d5da8",
+    "main/font/stb_truetype.h": "ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab",
+    "main/font/ttf_font.c": "9f1342f5f6500b436cf803f1c884ba6d35cb665a30c75c1e59743b0562406ac7",
+    "main/font/ui_font.c": "6224fbcca7b5174572f48500ecdc887ef28962b8457c809286038af9c7ea626a",
+    "main/font/app_font_context.h": "f3cd2797fa037aed2b8ae8e043ea3f6090c19d004515246276553300ec884139",
+    "main/font/ui_hanzi.c": "ed0d89f952db6fc6281b6223bef59c389800263b0b784aea4ec3a264b8c798bc",
+    "main/assets/loading_4bpp.bin": "3f39ddd0cb253c18c414e1a740a1e85977c9931f616456b2015013979f142100",
+    "main/assets/ui-hanzi.bin": "6c1b29d0786b673a6ee8ced773cf48b3b08c837b453219f15ff9e01ee7f0155b",
+    "main/assets/OFL-Noto.txt": "babcfe66c8a098b2fa279bc724a3a342f8124f77ce18941fbcc1bbb39823cded",
+    "main/assets/builtin.ttf": "24152bb49ac640eb762456d2abb8b4d40c2496ec94504b95886c49587c3c3644",
+    "main/assets/reading.md": "cea17d99bd443b41317a8de0e01c1db9919e3114da3893b127790ac38dcde7cc",
+    "main/assets/ui_icons.h": "32971e0af78ebd623ce187491572b6974709781ac0a2cfab4e48fb4991662a35",
+    "main/assets/display-test.png": "585991e487934eac405f461dac0a46dc2115e63330ef1f8f1a6bfede3a44a60b",
+    "main/assets/lock_4bpp.bin": "436d0e91dc2279246e0d5f7f91f668ca4d22e825ab6476f4ac15d70ffb2a12d9",
+    "main/apps/app_files.c": "65cab9dd0c950e2e2ffcb2a65dfc8ace3c808986d3e4af24637e28b911ccbd8f",
+    "main/apps/app_key.c": "8cc223449b143ec1969fd11b78a9034ec50ffdd52a7197c77003128f10ed83d6",
+    "main/apps/file_tree.c": "a327f0c68712b112220c500b11fa89feb75eb2594927fd4e8c536b21950f26e2",
+    "main/apps/usb_storage.h": "11a25810d971f020c9caec1a95ee571cb75adc2ae5f96014d43e94971de72db5",
+    "main/apps/app_transfer.c": "cc8d983c08ce36cdbe6e9f0d44612462611fb58fe0a921a13108a9ba0bdb1620",
+    "main/apps/app_dashboard.c": "ec67cb14fcc684bc64ceac4ac0c1975d5d3156fbf6ce63fe067abad4caf71617",
+    "main/apps/app_boot_recovery.c": "3e1dfdd6423e10ea443e56b0abad62dfba6a28e0be29bb55ae7731efe7c0ba1f",
+    "main/apps/app_image.c": "a04fdbfb3aad821424dae164754ec9f0de39f3496cef0e9b6c817b61d4816d94",
+    "main/apps/book_toc.c": "61111a6280e97b9e9d9712e8f3923c680b982b18c2ce5d7ffca87b8e46e5e5d3",
+    "main/apps/app_refresh.c": "d0dc383f20c8eeb1c43f7f0894d35b9ba2d8c5036c2d2cd81b55b131da9fb286",
+    "main/apps/app_content_open.h": "78b20e8d9e205309c72c823239878dde5ad1616df7c447847bddc4693176d85c",
+    "main/apps/app_home.c": "3f551c3c528bc91043ee6ed44380c7831ef5d849da68797e922ff57ee8231c1c",
+    "main/apps/app_ioe.c": "22efbefcd613736b05ca0880cc3bd89c6d89d6c62f542b5044b6fb311de460bd",
+    "main/apps/app_device_settings.c": "407ba247411d7ffacb8fbe16382d7563ec42bc5a4e87384da25954112815fe6c",
+    "main/apps/file_tree.h": "21f0f95f5f20c70b1541e0b0d8434de8c7e26937cead32a6690b68125f2edbbb",
+    "main/apps/app_touch.c": "6a9f146cd0d063504677a3cfa52e605998d734f2584036b34cb0b26548467ee7",
+    "main/apps/app_transfer_mode.h": "3b9dc1d91de014604611d51923401f3ac0279d34521db1a6f7d386caa8bdfad6",
+    "main/apps/usb_storage.c": "c3d72e0f3ade4c99961e2e6bafa10c66708144cd667f2adfc114b3d0b5cf8748",
+    "main/apps/book_toc.h": "358cf9b2b4000d66c15a8e70a479e447310d95110871ab9533cd4f6f28b73c13",
+    "main/apps/app_selftest.c": "f1589e41c24ed69fa2c64426416c49f19f4cd7d4f3a0cb0216b80344fb499e87",
+    "main/apps/app_power.c": "5404bcc75358779e509bc9575cd91d0a2ea249c237ebc2163742c6d763e25a45",
+    "main/apps/app_axis.c": "f5fd1b6999ace03a97102446cda27482c615d13d0802cb7a4718747ba277e707",
+    "main/apps/app_sleep.c": "435a9a9dde3d569ede7682fd1583c2ee82acd1b7db6e009fd00a090755b61a37",
+    "main/apps/app_book.c": "daabf4113d74e3a9832561086e70a5ead4f03f83b0fa549da4268d2232f1c177",
+    "main/apps/app_reading.c": "22e07fce7b0940e963e7f4838e91c5c1deab95a0d86cf347581d2a3fa8c77eec",
+    "main/apps/app_font_pick.c": "aa8873476b71dd43f0fc20b285ab253aa2dd02dbe0cbddf0f7334cb71d6fbe68",
+    "main/apps/app_pmu.c": "80f520b92f21d61571e324f1a5031274abe5c07bde5ae2301165fcb1eeff0bba",
+    "main/apps/app_sd.c": "2ad1b87d5d4c113a20a20b2e648f25bc7f3b5c6a1287e77f958cabe5bc9cad2f",
+    "main/factory/pmu_selftest.h": "9304fa249e69ce0aed81b942c531bde6bc3edfb9140e33bdb3e31a0693a366a7",
+    "main/factory/vcom_setup.h": "3e90aef8cddd2cab80af7c531f78446e88e53bd8c1dd6c6e69173b1e4fcec219",
+    "main/factory/debug_panel.h": "8c218b7bf4aa92164e593ee5b03da6319b6590ccabbe71a57ad008411630b95d",
+    "main/factory/pmu_selftest.c": "2bad125f4d00c45a6aa5d409b9f9d496fdd1f54d16cb2e005bd0a9f6beaf0bc5",
+    "main/factory/debug_panel.c": "e99f64406066db0b5114318227e39d17f5aeaff2702a4c061bb5c558772f48ea",
+    "main/factory/vcom_setup.c": "248e33955fd1361017b533233c343ec87b4790e96c430270a19e1748c0474f1c",
+    "components/epdiy/CMakeLists.txt": "2784883587d17ef1f3b566cb31aa8f2efab562a1cf354fb78c4173269e05de47",
+    "components/epdiy/LICENSE": "58fc9df3f0481f71a7a011d3d72e2268fa4ba4a21e5d0f30377f28e4e5438abb",
+    "components/epdiy/idf_component.yml": "ba7eb83d4d3190cafb77666f93993d33a5a71112b6314c44fb7772b6f6a47981",
+    "components/epdiy/README.md": "3ff00f0f546317c6b8cf7623abb4ff1977fe35e534a47f66837766a3cf23b016",
+    "components/read_pico_search/CMakeLists.txt": "83013fb9918aea396deed6a9fbcc8dddcf9f59be4e108fb7a88ce98b75b2979a",
+    "components/read_pico_search/search_candidates.h": "d20244ab99ec028f5f0bb79bfccda0b4259c3ec858d3b5c5300b7a29887957ad",
+    "components/read_pico_search/search_table.h": "4966b633afdc2b93bedb4b291b33a0a86310c69442ba6e9d8e99818e6394cb0b",
+    "components/read_pico_search/README.md": "32c798b6afd08ff4918a9cc4b1e8304210567bc88d9c2402d33cf5e2b8cea00e",
+    "components/read_pico_search/read_pico_search.c": "6f008af78e0979e5801032f252d5385ae8588ae5636461dade0c4e76d1c10955",
+    "components/read_pico_search/LICENSE.pypinyin": "1e6c90014b4912815c296ee64bb6f6280af47e6d4c5d80e86232dfc5defe764c",
+    "components/e0470_page_turn/e0470_page_turn.c": "cc043270db0c90e81b1dc9791003a13ac2b365aafed639fefb447fbce4709c72",
+    "components/e0470_page_turn/CMakeLists.txt": "dbc66f90ca175a45b0cab175548357de73e341db3ebcc1afe687a958acbf8a38",
+    "components/e0470_page_turn/idf_component.yml": "3027ef5d24593ac0aeb731a1c83e4db274aafa2d80c1914b120f5c5e58150b9f",
+    "components/metalio_hw/CMakeLists.txt": "b1f08302478a14a9281aec399818147abb7e9196470537adf7b2a1ba7e069b6f",
+    "components/metalio_hw/metalio_usb.c": "70ac69a5226fb3563d226e3fe31c5714071dc9a9e13bb5f464fbf5d2daec770d",
+    "components/metalio_hw/metalio_hw.c": "9fa5781e41fdb05882d4f0aea77f66f571fd6f7d3a62117b6f890d59ceee289a",
+    "components/e0470_epaper_waveform/e0470_epaper_waveform.c": "973d974f2d23947beae88b4df1a9def605848222c81fd49d2ab28853471ceea3",
+    "components/e0470_epaper_waveform/CMakeLists.txt": "9c54aaa7dd606adab93e2b1d8eb25bdf6c8e3452ad185de5d269b50ba811a387",
+    "components/e0470_epaper_waveform/LICENSE": "b7147589048285d212950e284ba51bf31facb620764a7ea773129c76560c7cc0",
+    "components/e0470_epaper_waveform/idf_component.yml": "2563c0a89c6357a41621dcc2f4f1e0f80b92c00b0875441bc2d812f8638bcab6",
+    "components/e0470_epaper_waveform/README.md": "0ae035e592542baa6e17b1d3cdd5fdcde5e17f2ffac1faa163c52f302f75a68d",
+    "components/e0470_epaper_waveform/e0470_waveform_trim.c": "137b3fffcf87df19f96b9662ca03d37a5e3278776d29d8018821da99ac63ae2e",
+    "components/espressif__esp_tinyusb/tinyusb_msc.c": "ebbd44bf271af1628f643bf6749a597d2323b25d2b1652395f2637e4ff94d935",
+    "components/espressif__esp_tinyusb/CMakeLists.txt": "6a349e55c9cbe91e2cd74298e1e31823ee994fb2e173ecfd6a63d69a2235d7b6",
+    "components/espressif__esp_tinyusb/vfs_tinyusb.c": "abe122ab94b4f6336ba91157b12f7abcd99306d936860369e25e7c189a230b1a",
+    "components/espressif__esp_tinyusb/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "components/espressif__esp_tinyusb/usb_descriptors.c": "c9d7356d9b2ccc8f04df15aede2762be51f61aaf70da1798126a94dd3357758c",
+    "components/espressif__esp_tinyusb/CHANGELOG.md": "788880064c7771ed194b6da31bf40ffc655f5df8f33a79996c9edbf7c94e0589",
+    "components/espressif__esp_tinyusb/idf_component.yml": "bd1759b8bf533e6d116a806789a523c1d386317e35bc220a706c84503c6bcede",
+    "components/espressif__esp_tinyusb/tinyusb_vbus_monitor.c": "2af46fc16fa4c5fba323872bea2cc1c1895db4f63fe95f559abd8d27143a3239",
+    "components/espressif__esp_tinyusb/Kconfig": "1bdbaeaa2a12190155d9ad1eb7788f3077daae8be3d55dc7eb589b9387711761",
+    "components/espressif__esp_tinyusb/tinyusb_task.c": "7070f0b54939559ab67b70a96c404223cd2696ba68b108934620e12a64d590f2",
+    "components/espressif__esp_tinyusb/tinyusb_console.c": "26b230a04d5a9e6d3d06757f989bfc452ea57c1204194d6066c864e7759e6171",
+    "components/espressif__esp_tinyusb/storage_sdmmc.c": "12598750b0f070550d323c5f277e849fb6bc47f398b1f9f49199d9f58f623c8d",
+    "components/espressif__esp_tinyusb/README.md": "89f295dcab255747b039068061c81cf0b38895adb301c5b7504b8f06b27ea35b",
+    "components/espressif__esp_tinyusb/cdc.c": "b358a03f7adf0bf944999c8eff682a31cb228f62ebe981f3fa5a6a1f66b92301",
+    "components/espressif__esp_tinyusb/storage_spiflash.c": "98cec11db933f25d81f06526ee8a1f9a95c053cab12fdc629777b0bf7e5ddaff",
+    "components/espressif__esp_tinyusb/tinyusb_pm.c": "d7302b9cf9d026340b3c2f469a3e9ec34b9ae7ed28e04082739e93bb3854dc63",
+    "components/espressif__esp_tinyusb/sbom.yml": "59a4cf54e71f7d5552a0e12626b9e6846d09d0c172d2aa0c93528f7c63f00e96",
+    "components/espressif__esp_tinyusb/tinyusb_net.c": "91cb2582d352f81a754598bf87243d0082de165b695faf9ee7b21fb95855bb52",
+    "components/espressif__esp_tinyusb/tinyusb_usb_wakeup.c": "8231bc72d575ebcc5dcec83238aba26b894bb34bc02f76ba5e389a60764456a7",
+    "components/espressif__esp_tinyusb/tinyusb.c": "6c9259a905910a50b476fa7027700769592ed9d1b414a6a3f7b2710ff1db85c8",
+    "components/espressif__esp_tinyusb/descriptors_control.c": "df5fc472ad83d187aaf677668d951164acfc880952a44244a5ac7da21374e0f1",
+    "components/espressif__esp_tinyusb/CHECKSUMS.json": "08ac2c26841fb8496160833078bf333ce8db6a10cf8815d4ec5f1167ab9dfa95",
+    "components/espressif__esp_tinyusb/.component_hash": "981302eba9f654eb43e972f7e9a9e231cbad9350d8b35b8c098a30228b2b6550",
+    "components/espressif__esp_tinyusb/tinyusb_cdc_acm.c": "b9bd8ac519da2692e415efe421bccc64cea9c4f25bc2ccf500a67fd9f51765f7",
+    "components/cst836u/CMakeLists.txt": "1b02ac3cc67233f899b0d975328f849d324867a86eacc0397d6e994f2eb1e4a5",
+    "components/cst836u/metalio_ft6336.c": "179c32345b43c5f852484f849bddf2eb1313bc057f7f2521e557c956d8e1484d",
+    "components/cst836u/LICENSE": "b7147589048285d212950e284ba51bf31facb620764a7ea773129c76560c7cc0",
+    "components/cst836u/idf_component.yml": "5a350a84ef7f9f44c81c24ebb82416a2ac9fefd26df8867c5ef4388e67c29ca4",
+    "components/cst836u/metalio_touch_decode.c": "2d36708c172cf398263f85274c45a7244c5961e20b30e4cef86d9fbf43598474",
+    "components/cst836u/README.md": "428cde16934ec26dcac1dc3eed4ed208ae608b2960507f2b58a77220b1e83dcc",
+    "components/cst836u/cst836u.c": "73c7d3cc1f2321132c58c44c781e339e2e1575e2fe0979d7e731e044cc4169ca",
+    "components/continuous_du/CMakeLists.txt": "7a7b1d84e29215b01121b28f40b24bf587505860f32e2c6b622ecd970b1df5a9",
+    "components/continuous_du/LICENSE": "b7147589048285d212950e284ba51bf31facb620764a7ea773129c76560c7cc0",
+    "components/continuous_du/idf_component.yml": "a7543ee9c12bfd5bfaa835c506e2669568b14feffb46a60dbe00ee11aaa073c2",
+    "components/continuous_du/README.md": "0cbd162f2c66b37be55dd98c447fdb790016e639c818f3827d0c62ac2c257858",
+    "components/continuous_du/continuous_du.c": "1c85e19bc2dd4ee3074336b17441a4b3309dfd2782218c7947b704b0674ecf26",
+    "components/sc7a20h/CMakeLists.txt": "d5eff1e002952cc51d548a66736f81e4dd38d63939d89c592f205d929b0386b7",
+    "components/sc7a20h/LICENSE": "b7147589048285d212950e284ba51bf31facb620764a7ea773129c76560c7cc0",
+    "components/sc7a20h/idf_component.yml": "08f1db410fe54e9639fa601b35cdeefc2e801175d6abc97089173c875d256679",
+    "components/sc7a20h/README.md": "821d2476da448656a7cc965910a260e7ac50857676350aaec2fb73ddf0c2c487",
+    "components/sc7a20h/sc7a20h.c": "42e1e1136d6c3ecc2c8953fef37644be9a716139f14c6b69dc3ec8b84abdb449",
+    "components/pwm_audio/CMakeLists.txt": "e594aa0106622bc6c05fb895ccd3b964d06a899c891ccd4b2884ef936f4dc759",
+    "components/pwm_audio/LICENSE": "cbe56fbd68872aaf2c25caab9e3d3913cfb4c341627adc4ffbf5066006a2a628",
+    "components/pwm_audio/pwm_audio.c": "6078368352b75d71819bc1d8465b5c60905b49574451040a9c3b3f56de50dbef",
+    "components/pwm_audio/README.md": "b71d09bdd3277417cdea8767116c7d91f68f97d85c6c87de58fdec4ad665b0cd",
+    "components/read_pico/metalio_haptic.c": "2032289c6d6accea4c126f20344b1299409933df134300dbf5e182b9cda9cde4",
+    "components/read_pico/CMakeLists.txt": "52a2055a0f59585f45a87a71d1184b7f607b345b4e1381fd469de80935f7fffc",
+    "components/read_pico/LICENSE": "b7147589048285d212950e284ba51bf31facb620764a7ea773129c76560c7cc0",
+    "components/read_pico/read_pico_crashlog.c": "0b583c9f65425321bc0d1fa1e87b6c4f92c01a28f7c9ef698b5409d2ee33e340",
+    "components/read_pico/idf_component.yml": "b92dd10e0157278e338d3da2416197a5a8d1edfc6c362d877420cfa987104958",
+    "components/read_pico/buzzer_duty_map.c": "536a0c5c2c7b9e49acae2bb9176e65f679b976227ef02ebcfcf5077f2a2eadfd",
+    "components/read_pico/Kconfig": "ce85f28fbf902d78d567ce7d4fd331861b89a0180ba6084305c9ad2b4e3eb742",
+    "components/read_pico/read_pico_blockchain.ots": "1949539f749832fe25a70175fd49f24f7fe9a8afd7b965a91b2270a718a3e03d",
+    "components/read_pico/README.md": "f5c26b8e974d36725bc727bf8f935ec11aa1f27cac5539a44e931d3d5f06e19b",
+    "components/read_pico/buzzer_score.c": "044ac9129e3ac3e00e17398133b18a56afb0a62573500dc0989cc962ca7c1541",
+    "components/read_pico/read_pico_board.c": "8daecee3b3a2c208522a76f33e7074ce82e3fe15258bbc8fa010686e46c13d9f",
+    "components/read_pico/read_pico_buzzer.c": "23baa47e08092a86ebe66f2825707145a4fe457400a984f12aed11eb15870197",
+    "components/read_pico/read_pico_sd.c": "3e9ff4d3f6387486e45e911773476e60ee7843b1e31c6f9722170c665bde86f1",
+    "components/read_pico/read_pico_epd_timing.c": "1457df69bf2ac01cf5e8cc7279b1b791d95fcda00c7f783d8d1ffdc6bebe453d",
+    "components/read_pico/read_pico_init.c": "5a13dadac29e0e3f4ca505a904c1c5a52869e0fbec4e792c12558831e9b8ccf1",
+    "components/read_pico/buzzer_1bit.c": "e3e9c85cc19c2909624b36553beeca155964fd12c43775e37035e6e263dcbf53",
+    "components/read_pico/read_pico_flash_hpm.c": "49284af0bb69ce55a0435c89e57d22d18be7fd23e25a06207090ed8cd6ed1420",
+    "components/read_pico_transfer/CMakeLists.txt": "e40e5739aa9786917eb334e84ddb068b51972f00515c488afc421b5baf556b8d",
+    "components/read_pico_transfer/transfer_ntp_time.h": "2626d67fb6aff56656c6d06c2e04204bc95cb9f624feb2cb634ff0b698961672",
+    "components/read_pico_transfer/transfer_credentials_store.h": "fa299af30d839650a7fe6cf4dfb2b1bbd9476ba23958248699249670d145190c",
+    "components/read_pico_transfer/transfer_netif.h": "4b7553468663a667e2dcc359d08bbd755f706f9d8fa313db65c459f1ef056484",
+    "components/read_pico_transfer/idf_component.yml": "51a47a71c505fcdef74982acf6c9afdd95bb117ca5f67aecebf57d44294a8988",
+    "components/read_pico_transfer/transfer_http_time.h": "926b31faa6b5cbebfb866fe1d87981ab6ad6ef7294aa66796ab619d22302b037",
+    "components/read_pico_transfer/transfer_policy.h": "99e9fc78a3fb4c1b90e94e1a68762b4078de21a0802a55e3e9788a88c3a58124",
+    "components/read_pico_transfer/transfer_signature.h": "1bc92d9a4746076248e9fc6694b57353f1f7ed1ca54acbd2ccc57f754f6217cd",
+    "components/read_pico_transfer/read_pico_transfer.c": "33ec6f3d472bfa86f674604c7685d4d751ef14cb42ae999470ea6c0333bde682",
+    "components/read_pico_transfer/transfer_ntp_time.c": "d68e796752df86866660f4761a3c817addc4cfbe26672e0723b9709e2761b87a",
+    "components/read_pico_transfer/transfer_http_time.c": "076c34cc34f497c02d46246dfb75171a3e67cefca3beb0d70b15769f94dc8a14",
+    "components/read_pico_transfer/upload.html": "39369d461bfd65cef33c4cd85a5cf2fed6d55af3ec4dfcd7c1296a067e8298e2",
+    "components/fca9555/CMakeLists.txt": "9a24c3bb3e6df315e5aebdc0a04668b743cef9172dce244ff155d495b4db6392",
+    "components/fca9555/LICENSE": "b7147589048285d212950e284ba51bf31facb620764a7ea773129c76560c7cc0",
+    "components/fca9555/idf_component.yml": "4a7f8e3a255fe1c0f7e1e403d4741f709ac969c0bcac729ce600357aa301eb63",
+    "components/fca9555/Kconfig": "2b069235af45df89c06faabf00462dbb8ff93748e3f4c2ef61fbc99cb2278eb1",
+    "components/fca9555/README.md": "f7e0416d099d90c42d1d57d12adc3e44fca9bed08ceb99e095a2221cf8463705",
+    "components/fca9555/fca9555.c": "dd9d27e04b146168b43f12b0ac07cc4eebd534a088e1c75e83a63adf8bbd31ce",
+    "components/jpegdec/CMakeLists.txt": "f9fbc39d3406199654067a60b31fb09718b2d9f37d7454a33591efdef4e19259",
+    "components/jpegdec/LICENSE": "16b742c2110129c89df82164a28dbecb7ca1fe100c75c30e5c506f050c0c6de5",
+    "components/jpegdec/README.md": "ef158cb1882b8a6abe6c3902d9c08ff590821516bdcd4c83b4b21a587711d40f",
+    "components/jpegdec/FORK.md": "a4c3fe631b157274e6feaa89bac9096fd612cbf7c08eb5f7f464f4cddfbacf43",
+    "components/sy7636a/CMakeLists.txt": "c942d2f9c7f1ff4e320d8a63e50deee2e318213e415dcefd4c4f9e8b54067425",
+    "components/sy7636a/LICENSE": "b7147589048285d212950e284ba51bf31facb620764a7ea773129c76560c7cc0",
+    "components/sy7636a/idf_component.yml": "057c20c926bdfb21fb3ada55f5ad439bbd634b96b1e93c61a673abff217b2c68",
+    "components/sy7636a/sy7636a.c": "3d7396311d14bad0301962e8debda2bf05b7df354036874c6621d9e9381db607",
+    "components/sy7636a/README.md": "e7224fec81c0b912c07a4ddadf8ce91fbcc699a0370384acc86148616c07de99",
+    "components/ble_page_turner/CMakeLists.txt": "10e14836eefbce25b9a6eb169c28118aab860de2e3e94457a27f74cc1b662103",
+    "components/read_pico_pmu/CMakeLists.txt": "4a534da06f7a3bfe89fedc94915efb922328383b3c82b757c1cca7da45ebe9fd",
+    "components/read_pico_pmu/LICENSE": "b7147589048285d212950e284ba51bf31facb620764a7ea773129c76560c7cc0",
+    "components/read_pico_pmu/idf_component.yml": "42a966c83b0b674251dcd80e3d599faf28cd6633bf82dd73525fc5e226d34372",
+    "components/read_pico_pmu/README.md": "c7c6fe2ec52503f1c8104e0c6d4ff014b76440fd3369ef2f5a1274859adcee86",
+    "components/read_pico_pmu/metalio_power_adapter.c": "6daa82aedb5866f4fddb98cd99903e069453c1711cc66a461e674108f3dd0abf",
+    "components/read_pico_pmu/read_pico_pmu.c": "673cba7a2c3b6d17c3d620013e4131c8dab479e672ca8ba7138adf84e4f69589",
+    "components/epdiy/include/epd_lcd.h": "b7e5dac3c0f89981de817fe170112eebf0bd6e781dc0bab0696f127c7063317f",
+    "components/epdiy/include/epd_waveform.h": "691c8d775c7295a56d527f5b7e6e40abcfce921f16884f059eba74a1c450551a",
+    "components/epdiy/src/hacks.cmake": "e6d93de680991b54508f9c4b87ac2fc05e61eb015ddb42b80c61a84574883b71",
+    "components/epdiy/src/epd_board.h": "bdc3eb976df2bd3c6e68a294f29f38375d19ae3a2289e0ba182fe2dec06e514a",
+    "components/epdiy/src/highlevel.c": "f4c800a37cf1d1a3553d5445cb679df05d7cbef9df22b2bee4564a546ca64eef",
+    "components/epdiy/src/epd_internals.h": "3d744692afa46149ef53d34854967a737d941c31f331f3246fa6e55b91666634",
+    "components/epdiy/src/font.c": "f4c5ef1f6db6187999ba1c78233a904cabcb7edf7bebadaedbfcf73bc96a02dd",
+    "components/epdiy/src/epdiy.c": "6329190e91e96ce2240428c5c372fba264d2618c923118e798bc34a6a0a8ed13",
+    "components/epdiy/src/render.c": "3958b1376db2a1e6171fbfada9d6c5af15d3334f61a378dd1612b252de36fa08",
+    "components/epdiy/src/diff.S": "b2de631e867e80efc23947910f39af37b4baa55149e41c80691596a155423ecb",
+    "components/epdiy/src/epd_display.h": "2ea243e59af6f55dc58451ab5ad0d220dd563760d3c6bf99c5f84447075c4f38",
+    "components/epdiy/src/displays.c": "d34c5a2175a9f55b05edece5c85856ae2b2fe5440c0cb95f5bdab3c2be18ecea",
+    "components/epdiy/src/riscv_pixels.c": "278ae73290f86f2630d82d3802989090ebefbc564594f01947e96f6fc962858b",
+    "components/epdiy/src/epdiy.h": "389344267a13b59924343686a1228d05fddbdc453797a54c5c4ea22266b88c39",
+    "components/epdiy/src/render.h": "23ee5d45efa948b946f2cb430bda39062b547abb387d75cb3a1b1e4c8747c3f8",
+    "components/epdiy/src/epd_highlevel.h": "755f8e7976e3707d49f8cebf031cd82b106a96ee2ee073799cf39ddc0bd030b2",
+    "components/epdiy/src/board/epd_board.c": "30932e4ceb31e6f082f0da8baaff3a36329081d32f29a30798fb9da270b71066",
+    "components/epdiy/src/output_lcd/epdiy_idf6_compat.h": "604452703c0f5c6e937e327081f60322521bc555e8452376517fefcd52e7f947",
+    "components/epdiy/src/output_lcd/render_lcd.c": "ceb9abc2c5aedb98041123f9209dd91bb284d5ad43613043446084c4c640abfc",
+    "components/epdiy/src/output_lcd/lcd_driver.h": "054eca076bee841d658110137cd915d7c979faff153bd0c9d2a6ede84053962b",
+    "components/epdiy/src/output_lcd/render_lcd.h": "471118d9a4657a68616d561adc43c48419524579c88121ab1119a4ceb4076b5d",
+    "components/epdiy/src/output_lcd/idf-4-backports.h": "2d9b5caabec4927f27dbd588ca1802ddb09c5da1ce155f55270a4432eef54a0c",
+    "components/epdiy/src/output_lcd/lcd_driver.c": "24e4be059c05c4ffe41fbc6312f8a712f0420a15af4e8c3366d3b296bd92744f",
+    "components/epdiy/src/output_common/line_queue.h": "70cd54837772807c88ed5c4e83c788adde5b6bd73dc1a0f3b568427603b581a5",
+    "components/epdiy/src/output_common/lut.c": "3b9b9e4c7b31f1025586c01789ae552638f67f5f1ce13357afcf17bd38ba69af",
+    "components/epdiy/src/output_common/rmt_compat.c": "24aab25d84f46d585c5c76ddb7fca96a769a0ae42cd862a303140f31b5ea83b9",
+    "components/epdiy/src/output_common/white_border.h": "ad99e229dfc09fe0fe783b2e9f9c9e5c689942b424fe0db761265fa274cb3f1b",
+    "components/epdiy/src/output_common/render_context.h": "066242dcb32883ba4cc6cf7c94ff10c3d68955d43192afa323c1f601086f8601",
+    "components/epdiy/src/output_common/render_method.h": "17c2a84016da887e62ec0dcbb597d5dbfdea2bc55850301d5e001e0e5ca40d2f",
+    "components/epdiy/src/output_common/line_queue.c": "3fdb60681eaf6775a8ad72ac36165647fe4295a462fd80cb77a6dae0f2a29ea4",
+    "components/epdiy/src/output_common/lut.S": "8aa056ac43479b777c5a27263809dc6846bebaeb8a3371b3dd755fd719427a62",
+    "components/epdiy/src/output_common/rmt_compat.h": "e517bdb1f54cb723ee339d88f72f426d72427b5f906b45d241eddd9f5be0eed8",
+    "components/epdiy/src/output_common/lut.h": "0722f61a5f73e0ddbb1cc9e5a8ef50bd8f8e38edf52384a5a29fd81be3a510af",
+    "components/epdiy/src/output_common/render_context.c": "822a2d7b410c384d52e287fdaa9ae2d724c17745f2768245972185cfa13a3960",
+    "components/read_pico_search/include/read_pico_search.h": "7340d11de75992398de552e317c3e4c235fa20495ac1f4e2319013abfb8afe03",
+    "components/e0470_page_turn/include/e0470_page_turn.h": "4bf706de052dd26c1b99d473603ff5fe018b132707bac6c7bd5fa3576d65e82a",
+    "components/metalio_hw/include/metalio_hw.h": "509c6a293d57ce856d935f44692709c008a95ffafc5f2aa0f75b78afaff6f3d9",
+    "components/e0470_epaper_waveform/include/e0470_waveform_trim.h": "51277b6d91828cb3c4617ec754a0992b76395da8e885321a514ce753e71e9f93",
+    "components/e0470_epaper_waveform/include/e0470_epaper_waveform.h": "de2c97648132a3247b157d9412ddc3cf1b0bab8bfc77866cc53c5857afdaa144",
+    "components/e0470_epaper_waveform/waveforms/gl16.h": "98ff6c06d99f13ae4daf69096852814ae5a846b64605b54eb27fb56b0166279d",
+    "components/e0470_epaper_waveform/waveforms/gray8_gl16.h": "bf4ffbac31b95af6855bd51bccc38f88cce3470f3b39fd6a71ed1a6b1fe21569",
+    "components/e0470_epaper_waveform/waveforms/gc16.h": "12b275d21abc1a578af2fcee87c1f64152e7dbe8eec7613f7d0d4ebead0ad9a1",
+    "components/e0470_epaper_waveform/waveforms/gray8_gc16.h": "400c7d514ace230c806b83222d6524a180908505276a1bcd5cfcc244e4a7ef69",
+    "components/e0470_epaper_waveform/waveforms/du.h": "8bd94b91e05dc5219d978c1358ae83b9bdcd00991eab91869bdb291c78bff38d",
+    "components/e0470_epaper_waveform/metalio/my_waveform_gc.h": "f8c7f1a79981f45025867461d2d7074859e343797fc5257fc4fe4740b07f497d",
+    "components/e0470_epaper_waveform/metalio/my_waveform_gl.h": "4eb2e37f55ba66da714c20266e21af1b9d8d3a462fdb5058c0584d004f3923f5",
+    "components/e0470_epaper_waveform/metalio/my_waveform_du.h": "62ff83aeb2aae3048078f8d1c1d5bdcf24231b4b142d1893d566e64f496ee7db",
+    "components/espressif__esp_tinyusb/include/tusb_console.h": "35213acdfacda95d9bf0cf15960c6ea4e8c3e385e41b3b4f898b353f8670385e",
+    "components/espressif__esp_tinyusb/include/tinyusb.h": "91f632ac045b04695194f36bec59da0f4c30126a1752c64382c671bdab72d543",
+    "components/espressif__esp_tinyusb/include/tinyusb_net.h": "dc8aa7fffe5bb6fb7033100010ccc12d00c9eaa3bb895a4a82cbdf10defc8006",
+    "components/espressif__esp_tinyusb/include/tinyusb_default_config.h": "ce4bfc9500350450f02745d3dbcdba6f11004bf967ac9e62e1b1fd09a9642ab1",
+    "components/espressif__esp_tinyusb/include/tinyusb_cdc_acm.h": "536f1fc5eaf00830657a8e20c4bfe9234c3031249b71f7dfe1f157cab27dea58",
+    "components/espressif__esp_tinyusb/include/tinyusb_mtp.h": "d6be5eba5f5ddb8f5b3af66a0ae20ab0db306b78de1f19054d400aac06dd966b",
+    "components/espressif__esp_tinyusb/include/tusb_cdc_acm.h": "da84155e327ca53d1d49ba351d9cd544c3001498202228f851531bc10200da7d",
+    "components/espressif__esp_tinyusb/include/tusb_msc_storage.h": "c38509e7ddc795a34fc993403d617099e42240fca54c11f2e0bcd0222a871c1c",
+    "components/espressif__esp_tinyusb/include/tinyusb_msc.h": "08b40fba33ce9d8dbc97ff323236cd45a6cd900d109a03798e337d01ca32b0b0",
+    "components/espressif__esp_tinyusb/include/vfs_tinyusb.h": "0b4f18f0aefc07fec408dba68b6d515008abba46420d2792a93d74fa3991c2dd",
+    "components/espressif__esp_tinyusb/include/tusb_config.h": "85e10f8f3ea61dbd3d75d324f88393f7994535de1fd192789a5f01d78bfc2557",
+    "components/espressif__esp_tinyusb/include/tinyusb_console.h": "05dcfe49d0c448f5804e0331bffb718984b049ed730710b74a25279474acee53",
+    "components/espressif__esp_tinyusb/test_apps/README.md": "484633ed4a5929bc7c9f873770f56bb898bd10ff1b3b4706659ef6df0c610394",
+    "components/espressif__esp_tinyusb/mtp/tinyusb_mtp.c": "5284b3c8b982da77f9bb3a98e0f831435e57e4bf5c59a22eaeb1f8e3989b9393",
+    "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_codec.c": "75f6303e15b7d61fc86beddf94d18941980e9577204396899d126ac4536e88aa",
+    "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_operations.c": "3d41a6e4521ad2ed14812e01f257345de15d9d237336d3207a3f01beb0fd77a2",
+    "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_transfer.c": "e977b9bc2ba115119d2f7319c8529fe571cadfdba8205711586f85f39429e71a",
+    "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_properties.c": "68aafb4de9541a49bef55f7450e0bb54aa540b5f1067f15a4b25e738c8afc9d9",
+    "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_transport.c": "039d81e84e9190f5fe59f7fc0b4664918794ab2edba6e9edfcc230e515e0d980",
+    "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_write.c": "5ba15c4b5d57479096f286121d1be265595be9c5d8f566586cb94b894188af41",
+    "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_object_store.c": "d390ac35a2284aaa1c00c93283b3bc3baf6d0e97d5f4a1c444ec036a253313ad",
+    "components/espressif__esp_tinyusb/mtp/tinyusb_mtp_read.c": "c0aae1fa542dc5517132b1418d6059cd66ea7d621270003a3cff306ee270d3f2",
+    "components/espressif__esp_tinyusb/include_private/storage_spiflash.h": "2fe545d0bf20898136d72feb18ebace2838686fd06293b8eef6e8631c5421d32",
+    "components/espressif__esp_tinyusb/include_private/cdc.h": "ed4c2b2204faaffaed8c8141ed2d37b3b4722b6ba9ff938539f0a298900eb7a3",
+    "components/espressif__esp_tinyusb/include_private/tinyusb_usb_wakeup.h": "e178b979e07d9bb807343c379466572537408a0c2c87b9b86f905414a860d501",
+    "components/espressif__esp_tinyusb/include_private/tinyusb_pm.h": "900d4ae68380a6b9857c738183bca3fa475fc56deae4804a934b7df64fef3c71",
+    "components/espressif__esp_tinyusb/include_private/descriptors_control.h": "8bde60ba92fed85796686f6c245f68400a4bff066373a9acc496a33ea58bf35c",
+    "components/espressif__esp_tinyusb/include_private/msc_storage.h": "e8cb1f77a167c9b1c28465a9edfa28f11821476f6f1b397edc473035711f5c83",
+    "components/espressif__esp_tinyusb/include_private/usb_descriptors.h": "e7224a98418a6f3607f3f8c2dc01032cfad8bc7337f880b4c40d54b916763f0b",
+    "components/espressif__esp_tinyusb/include_private/tinyusb_task.h": "ee919ac03f2d97d4ac10209e47463f99ddf8c47bc5e303d451f8538864f6a845",
+    "components/espressif__esp_tinyusb/include_private/tinyusb_vbus_monitor.h": "ecca904747adab43f309b0a4f99b4893bdbc9083df4e5a973ccfbda7ab38bdf1",
+    "components/espressif__esp_tinyusb/include_private/storage_sdmmc.h": "fd4e367e1da0367432b13969ec92617a406c039ee7aab4c4827f985d29483224",
+    "components/espressif__esp_tinyusb/include/deprecated/tusb_console.h": "90658804abd2685139d2677c66c3d4780acd902e84925e7c2a2ae69091c8322d",
+    "components/espressif__esp_tinyusb/include/deprecated/tusb_cdc_acm.h": "80170ca9f979a132f039ed8a4710d755cb9e8f51f1681b15d9b0601b8f64a453",
+    "components/espressif__esp_tinyusb/include/deprecated/tusb_msc_storage.h": "cf3af80979bbdb56bb7ad546f7155f89290d002f85005cadb6b5b38ea097af95",
+    "components/espressif__esp_tinyusb/test_apps/cdc/sdkconfig.ci": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "components/espressif__esp_tinyusb/test_apps/cdc/CMakeLists.txt": "c7767152c9a5244c908211951f14fb6fee4ea79a4d58052e857e5c067c6082d3",
+    "components/espressif__esp_tinyusb/test_apps/cdc/pytest_cdc.py": "a5dce4ad6416bdce4650302e616c3b85cb9140ca63ce3e0d64fcdccc8202a407",
+    "components/espressif__esp_tinyusb/test_apps/cdc/sdkconfig.ci.esp32p4_eco4": "c8844f33fca1a73951d9b9731caa46d84ec72a2e29d7d77eeb5b69fb03c039ec",
+    "components/espressif__esp_tinyusb/test_apps/cdc/README.md": "23a05a02faa88bb5fc28229c5f8a41d7b893b9954eb00dad02fa995e02bfe2c6",
+    "components/espressif__esp_tinyusb/test_apps/cdc/sdkconfig.defaults.esp32p4": "71f023949460fc183fc381cf2c02f7720d0b5d540f79f525c845699149294142",
+    "components/espressif__esp_tinyusb/test_apps/cdc/pytest_cdc_throughput.py": "b2d9c6f2a8165bf29e4d75b2064a90d9b5a5a5fb13f36c9ed320e2f8fb5232d6",
+    "components/espressif__esp_tinyusb/test_apps/cdc/sdkconfig.defaults": "7889c63a8cb783815cd0ec8992394f3b0216cf1ec0f1ee83db9272000ca81769",
+    "components/espressif__esp_tinyusb/test_apps/ncm/sdkconfig.ci": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "components/espressif__esp_tinyusb/test_apps/ncm/CMakeLists.txt": "15a2de79803fe6775082c301b257026eb19701958afe10ad1c9523bd54f07aad",
+    "components/espressif__esp_tinyusb/test_apps/ncm/sdkconfig.ci.esp32p4_eco4": "c8844f33fca1a73951d9b9731caa46d84ec72a2e29d7d77eeb5b69fb03c039ec",
+    "components/espressif__esp_tinyusb/test_apps/ncm/sdkconfig.defaults.esp32p4": "71f023949460fc183fc381cf2c02f7720d0b5d540f79f525c845699149294142",
+    "components/espressif__esp_tinyusb/test_apps/ncm/sdkconfig.defaults": "e9c2b806a16aa649cd636e5f3f8afe704552427950e8282c22ef1dc08cce766e",
+    "components/espressif__esp_tinyusb/test_apps/power_management/pytest_remote_wake.py": "acd5e23b35b05f3e0d1a9b6408284d4199607f16f9c073265620d5485d3c1585",
+    "components/espressif__esp_tinyusb/test_apps/power_management/sdkconfig.ci.otg_wake": "e58924c8443b4ba1f0dc5430e4323b96cb654bf0e5f076f596e2294bb51a6d1f",
+    "components/espressif__esp_tinyusb/test_apps/power_management/sdkconfig.ci": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "components/espressif__esp_tinyusb/test_apps/power_management/CMakeLists.txt": "72bf6e334fbab8af729828663b8848e16eb4af424071b286d099e5228c43abf9",
+    "components/espressif__esp_tinyusb/test_apps/power_management/sdkconfig.ci.pm_otg_wake": "a31558273b04d1188b1ad00c9b8a0f1c1b9bce50973a35567b0815f32dfc3fb1",
+    "components/espressif__esp_tinyusb/test_apps/power_management/sdkconfig.ci.esp32p4_eco4": "c8844f33fca1a73951d9b9731caa46d84ec72a2e29d7d77eeb5b69fb03c039ec",
+    "components/espressif__esp_tinyusb/test_apps/power_management/README.md": "00ccbfa91b920f64dde7c67484b25134f861b06456f073d67ab9db9aa8be9ffe",
+    "components/espressif__esp_tinyusb/test_apps/power_management/sdkconfig.defaults.esp32p4": "71f023949460fc183fc381cf2c02f7720d0b5d540f79f525c845699149294142",
+    "components/espressif__esp_tinyusb/test_apps/power_management/sdkconfig.defaults": "dd0668abf73997b06d7981d66808974145165cfb650f17b468b86aae1f7b9875",
+    "components/espressif__esp_tinyusb/test_apps/power_management/sdkconfig.ci.pm": "aa773bdeb0904c1ad0fd35e39dc8bc32c7c867439e40bfa2d321ec812330b65c",
+    "components/espressif__esp_tinyusb/test_apps/power_management/pytest_usb_pm.py": "2d9d738f47133455a1261917031d7dfb809038da9c8375cf5d506f56ee3a82bd",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/sdkconfig.ci": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/CMakeLists.txt": "ad66cbdcc683080c254c1a44a4f44901223d1286a032d11f0b7a7fddbe18f5ea",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/sdkconfig.ci.esp32p4_eco4": "c8844f33fca1a73951d9b9731caa46d84ec72a2e29d7d77eeb5b69fb03c039ec",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/README.md": "bc6c61ee99d22f417a794b6b90693450cc243f3db887770297f3becf025137ec",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/partitions.csv": "9afb3c4324fe275c5ac4b129c72f58587e7d75dd30ebd0292ad0b8ac553d329b",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/sdkconfig.defaults.esp32p4": "71f023949460fc183fc381cf2c02f7720d0b5d540f79f525c845699149294142",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/sdkconfig.defaults": "dbedaee78ff3b073ef4e671963a8b853e8927cfb82a8066454210b3f93fed218",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/pytest_msc_storage.py": "04037a9751836ba96bed32dac5ac1a9a9fcd23436e51a07c4f2fc7380fa51be8",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/sdkconfig.ci": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/CMakeLists.txt": "467dd35f2eae4c04aca3662d1490cababc8b1b7ca7d6f09c26e8ec89775833a4",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/sdkconfig.ci.esp32p4_eco4": "c8844f33fca1a73951d9b9731caa46d84ec72a2e29d7d77eeb5b69fb03c039ec",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/pytest_dconn_detection.py": "f34c7862e73bb90dec6b15f12dd635f86c2bbb6afbef29b2478ea6e579324da7",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/README.md": "a5300b1ce23eb1abbd8fbcd1568cae7e4c5d59a7ee6699da4283d637c7d70f36",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/sdkconfig.defaults.esp32p4": "71f023949460fc183fc381cf2c02f7720d0b5d540f79f525c845699149294142",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/sdkconfig.defaults": "cf270e5605969cbc46772d85d88e45046f16fa19576d234ff486dd9a6d4912bb",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/sdkconfig.ci": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/CMakeLists.txt": "17624ee876092c265397523520a6402310f0009285e2c36fd46f2de51b91a054",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/sdkconfig.ci.esp32p4_eco4": "c8844f33fca1a73951d9b9731caa46d84ec72a2e29d7d77eeb5b69fb03c039ec",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/README.md": "e3c22b93ceddd50e421d414fc6b80058d68949468df67dc31b565758640007f7",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/pytest_runtime_config.py": "d2473c87e2d16ee50f5226852a1ff2de734038426f44a89ac93e438b39ac134c",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/sdkconfig.defaults.esp32p4": "71f023949460fc183fc381cf2c02f7720d0b5d540f79f525c845699149294142",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/sdkconfig.defaults": "b66a3b4604c98995f2373bc3d44b9980b2c7313e4a42e26f24754d0eb3f11e8d",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/CMakeLists.txt": "7cb154668e56faeb0b4a7881b4396c1283a74fc6dd91e1cb6004fc35e65e7ea4",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/partitions.csv": "9afb3c4324fe275c5ac4b129c72f58587e7d75dd30ebd0292ad0b8ac553d329b",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/sdkconfig.defaults": "b5e40e504972a14f1bcd44c761df143358f1ff7ab52929a5eea18542834e6838",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/pytest_mtp_storage.py": "5bee6bace60d172f26609f77000b65153e4a05d10f0502acb656014d042e0407",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/sdkconfig.ci": "6327b6291a853576605b3a6a09a8c9ce2edbec2b9bb5fc9b6472e5c561030624",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/CMakeLists.txt": "1453f77606013ebb6fcccf045b7b340b9f8aeb9c3e4f949d025f6b1b8a8f5392",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/sdkconfig.ci.esp32p4_eco4": "c8844f33fca1a73951d9b9731caa46d84ec72a2e29d7d77eeb5b69fb03c039ec",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/README.md": "1de1a102949c9ff1f5a99944d1993ad841fb7a4bcc962d5a468a178dd90bb29d",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/partitions.csv": "2fad142dbf85c58466b46dd96866e0efd785f244c6d64c164ff03ef7a624f0ee",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/sdkconfig.defaults.esp32p4": "71f023949460fc183fc381cf2c02f7720d0b5d540f79f525c845699149294142",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/sdkconfig.defaults": "ba5b45c61d3cee74a6d2bbf913fb40d1fa6f23c9ef86bdbe7b49918fb3b2416f",
+    "components/espressif__esp_tinyusb/test_apps/vendor/sdkconfig.ci": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "components/espressif__esp_tinyusb/test_apps/vendor/CMakeLists.txt": "bea145a8460ede7a3870c8c94c2c69b32ad1c49c8944a352d974b5ad3d9a7516",
+    "components/espressif__esp_tinyusb/test_apps/vendor/sdkconfig.ci.esp32p4_eco4": "c8844f33fca1a73951d9b9731caa46d84ec72a2e29d7d77eeb5b69fb03c039ec",
+    "components/espressif__esp_tinyusb/test_apps/vendor/pytest_vendor.py": "ed7d07d3705d7df9b935ecb2155d753f36d24ab87be55b1757d5b607fb1f5125",
+    "components/espressif__esp_tinyusb/test_apps/vendor/README.md": "31e28252ea85e9025fec447b4264f894b28883e140283ee649a380b472821c62",
+    "components/espressif__esp_tinyusb/test_apps/vendor/sdkconfig.defaults.esp32p4": "71f023949460fc183fc381cf2c02f7720d0b5d540f79f525c845699149294142",
+    "components/espressif__esp_tinyusb/test_apps/vendor/sdkconfig.defaults": "aa4c82c924a5c30b03daafe9034df5a938d4342724ad0cc3639d81270897166f",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/sdkconfig.ci": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/CMakeLists.txt": "d928624e69e09be327a7c2eb93d856982a7a390bdffdd4010de4f2105af280ff",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/sdkconfig.ci.esp32p4_eco4": "c8844f33fca1a73951d9b9731caa46d84ec72a2e29d7d77eeb5b69fb03c039ec",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/pytest_teardown_device.py": "d1d96b6fbb5b1fd0ad3ca04a3acfbc763e5093149c4484fc9f97b3aa24064e1f",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/README.md": "3dcae73dc8bd9cfeca2511764b6d6a2284c80953a6ba92f6a51b33ad98729708",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/sdkconfig.defaults.esp32p4": "71f023949460fc183fc381cf2c02f7720d0b5d540f79f525c845699149294142",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/sdkconfig.defaults": "33af66671d52be86852940c0559af69020e1069c670add7d91ebe46554704c55",
+    "components/espressif__esp_tinyusb/test_apps/cdc/main/CMakeLists.txt": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763",
+    "components/espressif__esp_tinyusb/test_apps/cdc/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/cdc/main/test_cdc.c": "a7a878f6315966ccd775c04cc7d3b2c9b0b5f40a2b17f042c560b24eb63291c8",
+    "components/espressif__esp_tinyusb/test_apps/cdc/main/test_app_main.c": "b69c692ab8fad143a5d483e8d11a2400b8d2cf0fd9250e669703a63064d762b9",
+    "components/espressif__esp_tinyusb/test_apps/ncm/main/CMakeLists.txt": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763",
+    "components/espressif__esp_tinyusb/test_apps/ncm/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/ncm/main/device_common.c": "c51046936d13bba4999461b7209772e921c39e37a11dfd24052a970430d76431",
+    "components/espressif__esp_tinyusb/test_apps/ncm/main/test_ncm.c": "4bd499c5e105fdbfddbcd04661e2657f4038a50f8f928c24a125e214b66be4a1",
+    "components/espressif__esp_tinyusb/test_apps/ncm/main/device_common.h": "a2aeceb95daeee03369ee7b80e807d794072b2d0622b7a2afd89882b8a9d5b16",
+    "components/espressif__esp_tinyusb/test_apps/ncm/main/test_app_main.c": "62088aea4bc17eb1cdefb22449c9f80c62e3f53ce860e911e287ce0d7763e9d4",
+    "components/espressif__esp_tinyusb/test_apps/power_management/main/test_esp_pm_integration.c": "e43671198609ed3a6f4a8db4532249407cef638afc71455ef4df374a866fe9d8",
+    "components/espressif__esp_tinyusb/test_apps/power_management/main/common_pm.c": "2728728cfb4efe01077ef85ff823849a30c311f700acc3674c9c08eec0e5c3f5",
+    "components/espressif__esp_tinyusb/test_apps/power_management/main/CMakeLists.txt": "334025633baf5a79e4239b27cc7b16162aaa319c6f72681e16e54ad2aed64ccb",
+    "components/espressif__esp_tinyusb/test_apps/power_management/main/test_esp_pm_public_api.c": "8a2c2294b3161d9c0f259ec4912448d15a5f5dfadbed9d2efab0007bf9f77358",
+    "components/espressif__esp_tinyusb/test_apps/power_management/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/power_management/main/test_device_pm.c": "2cf8bce0f9addfbbac08c214e19d0c6681b1e08498f0f9fc1fffda7bf446f4ae",
+    "components/espressif__esp_tinyusb/test_apps/power_management/main/common_pm.h": "6dfea91a05365295be1ca1fcb6cc0b17d000ea5abd7f11b7ffca020f94d4396e",
+    "components/espressif__esp_tinyusb/test_apps/power_management/main/test_app_main.c": "752c51db4a08844210a7ae28cb6edab21726dbc1e2b3a47790b523ae2082deb3",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/CMakeLists.txt": "23f9afd9a1fcfd56e210948583fc54655f5f17d8b4bff01e2136d555693ff33f",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_common.h": "5889f122cd6e552b075052ec6a609e4d86424e954acb36df2a6644f0adfac5da",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/device_common.c": "dbfe7e5194c2be07514ee37e52db2261e798f8fd84fb8fabed1fae511d10056e",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/storage_common.c": "31de841d75f089569daacaa84ca7859cec138606a4c05ba942fc3bf18a77f131",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_filesystem.c": "c13183be96eb1a3280d4fd64ebca7c284cf036e52ed1b6b49a63a3f36fabb9ae",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_multitask.c": "d14b3c2e3f95b545d4afb2c55a917eeafd3b3c188cdbee734740b9e005d5c5fc",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_common.c": "baa430dce5e54c3b60bbcaa9972075663757291b6ecd849d8f63d4c1d07e2d5a",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/device_common.h": "cd4df6a151a4eea0a7a0c0f5dbd49d828af6f9c8f5cf972b0ea2e40048aa8244",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_msc_storage.c": "a1e4be399883a47d00a49630859297af20d68ae03348d9ef6da6b0406a674030",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/test_app_main.c": "05d71f0d703187b1446697ae2486918f1518d9739a7f8a584338a8e73cb733e3",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/Kconfig.projbuild": "35ff819f95b1864094ea8d2173f1b6a1b717728487a256c21fca0df6a7462eab",
+    "components/espressif__esp_tinyusb/test_apps/msc_storage/main/storage_common.h": "7d60c5406555155eb5d50561fe796fc801ab583148bff97717ce5b46536e66e6",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/main/CMakeLists.txt": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/main/test_dconn_detection.c": "7cde2a65b409a45ba87fdef63b8bd67f31ebdfe5cd3bcff336776f42714cd510",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/dconn_detection/main/test_app_main.c": "d86e5c67370fbcf5b6224faa1d0df2917a08167aa2e6f7f3aa22d40143d4acf2",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_pm.c": "047cb460d045cc48379fa691730052d5563d5990900d9945446adff84c893825",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_config.c": "a82b46c193d208b1ae03660457987ae30868140d7dcfc1b8eafcfaa9e8563d1b",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/CMakeLists.txt": "16fa080c85464a0c997cfbbbc4c07de0e48d59d9a3d4e60366e85e8f9b8b87e1",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_device.c": "1e4b7ceae38018348185d294f93f72879f7efb49c76c03fdffa06e1381f09414",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/device_handling.h": "a2aeceb95daeee03369ee7b80e807d794072b2d0622b7a2afd89882b8a9d5b16",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_task.h": "cafe595b45ae4c0d465a9b311bd22f790891f7aed86559de39db974e34c4bbfe",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_periph.c": "da688d584901624b7da9ac976fd0c8eb08fddee1d506c5e55338a0a1a67d65ee",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_multitask_access.c": "e6f19c99427f3c646efd9634f5e5e304d23d0d221723e6474064bc1f875dbb8f",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_task.c": "5bcaee72544011d669cc47713b939d1ff3b3da8d950526c4875c822162c366b0",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/device_handling.c": "808f98da46f71e9799c6fbac7a36697f1bbd9c359e10788f522309cfaff5cff7",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_app_main.c": "9008a083d6f7a1d1e9afc25d71b8287fca5be48b46006e48f296e50a3f8639b5",
+    "components/espressif__esp_tinyusb/test_apps/runtime_config/main/test_cpu_load.c": "e3dfdc3364230123a64f1d18eaff49a8dbbebb44040f300af2dd4bc91306d2c1",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/main/CMakeLists.txt": "00359ee9202f4a0715656a7b85ee85b1cdbbc62ca179c3c8cce00c6b17a3ef93",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/main/device_common.c": "da170b513b210e5096eb99f2a940d834298a6b6be6b8293271829b5035e089a4",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/main/storage_common.c": "ce22dc51500c593a2ebb1257c65b3cc48b90931245436ecaf81b2733182d1f46",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/main/test_usbcv.c": "e608eeb469c7eb21849c9a1f4553cd9f6826f8dc321b480c38a816afc0c6ed37",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/main/device_common.h": "a2aeceb95daeee03369ee7b80e807d794072b2d0622b7a2afd89882b8a9d5b16",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/main/test_app_main.c": "280afb3940a072a6b30f19f87312ca0f2e5b9ee2de505b230aebd4ff3283ea50",
+    "components/espressif__esp_tinyusb/test_apps/usb_cv/main/storage_common.h": "a617c935a616cd57b46d2af35b198177faea08feac169a9b3feb432387374a83",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/CMakeLists.txt": "a90bd6219b4b969e69ddfcafcde872d3cc25dea27fac0a3c7ba30bed0397a2d4",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/tinyusb_mtp_test.c": "547366e705214aab08eee0616a4d87acacc719fd6ccd9094c95fc7ca7278292d",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/test_mtp_storage.c": "8475363015cbc062457bc381ac24226212f663de1c5f7fe54acca2fbbf955599",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/test_mtp_codec.c": "bf523ef8963237b1b252ef8ba9199983e4e3bb0cb764e5d793cd2301f6f6c587",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/tinyusb_mtp_test.h": "d52d7d667e3ab3ef8f5498cfd0d677a992ba917668f74211f1fc894f810c5a65",
+    "components/espressif__esp_tinyusb/test_apps/mtp_storage/main/test_app_main.c": "edd53e4d225bab8e909992ea8fe4f634863f1208ee93c6ad22f9e6f8f8c56b29",
+    "components/espressif__esp_tinyusb/test_apps/vendor/main/CMakeLists.txt": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763",
+    "components/espressif__esp_tinyusb/test_apps/vendor/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/vendor/main/test_vendor.c": "6178372fe93bad26e94005c73d554443d8be8179b305b04b393eb182ae008f6d",
+    "components/espressif__esp_tinyusb/test_apps/vendor/main/test_app_main.c": "e1b999bd7566cf2bd42928387f9ced8abf9b4593761a57db99b25e165c7ba660",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/main/test_teardown.c": "6fdf66cfb997e989f3b19f82b2bd82a9e7a8d3d790776c67921ee4d0a1f50882",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/main/CMakeLists.txt": "1e2a65aeba1c7a0eff71e291b3b5259d9706801e01f025fcd6d3e53c4e4ab763",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/main/idf_component.yml": "4e77b9887d34aba003baa79625761b166c3db7722d1c7b77841a580729fb1824",
+    "components/espressif__esp_tinyusb/test_apps/teardown_device/main/test_app_main.c": "b69c692ab8fad143a5d483e8d11a2400b8d2cf0fd9250e669703a63064d762b9",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_transfer.h": "dce7aedb540ddbbc2c96641bf2fae96aa46952eaebbd08f81c5aa0d6ba59b8b9",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_types.h": "b64b77b01d5c178b8425c999ae5404fa499623563467997847afb9d89cd5498c",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_context.h": "9a1ef8bd54b8c0947f8a48dcee0fa1b6031de3a52097b8646b757636b2fbe161",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_transport.h": "01a638b2d9851a1cd00f81a35d5087d496ea0cd7fe05cac8f8bf27d8ed5a4195",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_properties.h": "9de35662a58a3bfb4df2ea3c0592ddfaef92a427391b26ba4c96285494fe777f",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_object_store.h": "ef362aa0b0438e5a561af5384f9e85a61098ddb106f212e4c361acf1b93a0512",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_write.h": "6ee6f25b328501a78513b9ca70ff67ed923d195faf826ca785f1d532a7102710",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_read.h": "4aa1576746ce3686038c304d31ea1b90c64f0d32ce359990d1f5b33ad7a802cf",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_codec.h": "32369864e0ee07719b4f4e21779c232f0bcf4e37f988c873abcdf1328e83e2a8",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_internal.h": "3d31dc7b6599ed72b67a4c286ecd27014292bc4c877a31848888fa4963b985fa",
+    "components/espressif__esp_tinyusb/include_private/mtp/tinyusb_mtp_operations.h": "f51de9c67f536e5692a8f315a45da01ef0c54a59d47b495d1123e3754218a641",
+    "components/cst836u/include/cst836u.h": "d7e5d0f12ce751737af17cd29f97fe53444a9035ece9b3c32e400f1e4e6b16cb",
+    "components/cst836u/include/metalio_touch_decode.h": "8bb8f806f532ef1391a3ae3c3f6d0a2bf7645cde3b12dad676dbf0144fc6f274",
+    "components/cst836u/examples/touch_read/CMakeLists.txt": "c0f3033195a81fe7464b4a9818c84cdfe864fc45d90771956bd08f002017d39d",
+    "components/cst836u/examples/touch_read/sdkconfig.defaults": "d450f8aac46a603a2da4ec135132ac99863a1929822500bd93fc3cb7cf1e44da",
+    "components/cst836u/examples/touch_read/main/CMakeLists.txt": "959a071a966ef65c3d4001d0ba6c66bc95901bd3ac935549e6133a148237ebd8",
+    "components/cst836u/examples/touch_read/main/idf_component.yml": "6dc06f3a6de3895ac1d37d2119885765d14bcfd8d18fd214cdde0c4071d5519d",
+    "components/cst836u/examples/touch_read/main/main.c": "a608ad09e92d4d21400bc967fbdf4e963662d57f8ff68615638682fc4aa9c2c7",
+    "components/cst836u/examples/touch_read/main/Kconfig.projbuild": "fcba6794b5e015d9176dd8e68ee6987afaf56a5e1da2100e8dea1acdce7b3a7a",
+    "components/continuous_du/include/continuous_du.h": "5b11d2d0df32b6ca7e2b8b4d32b1d3e7c5133d86f439faa3f961126e99f010b8",
+    "components/sc7a20h/include/sc7a20h.h": "c76bf2c3951d26a51850a668614260cd13f684de1706b5fb54cc7c7dafb4663e",
+    "components/sc7a20h/include/sc7a20h_lab.h": "e0a16e1c2d8a2e5a3d2b148f3750fb5aa8dd2aebbff4e92d8a046cb0874d13e3",
+    "components/sc7a20h/examples/pickup_wake/CMakeLists.txt": "87e3f2d1edbf39982d190bd3793e9705e49688d8632fe5467e67ed10c5c52c03",
+    "components/sc7a20h/examples/pickup_wake/sdkconfig.defaults": "d450f8aac46a603a2da4ec135132ac99863a1929822500bd93fc3cb7cf1e44da",
+    "components/sc7a20h/examples/pickup_wake/main/CMakeLists.txt": "55516a324f0c45c5e54b602db2e4f8c955e263ef3e1acaa741a75c454bc025d9",
+    "components/sc7a20h/examples/pickup_wake/main/idf_component.yml": "fcfe10036b279776a15700ffa44027d90c3393ab8fff229173fa2618d11d68c4",
+    "components/sc7a20h/examples/pickup_wake/main/main.c": "aca622133e0b556fc75d861ff14417ea7e51b01d24fb73ca46f8f4c2274e84a6",
+    "components/sc7a20h/examples/pickup_wake/main/Kconfig.projbuild": "323af7db61777f9a916fbb913090854fc8c453385eae69a8927afa036501d724",
+    "components/pwm_audio/include/pwm_audio.h": "54a93f538ddaa2def16f5474f63e13e95b75e512a7b58e240af48791ebef86c1",
+    "components/read_pico/include/read_pico_buzzer.h": "44c018fb739fafafc05d9b955f46f93151d80925fdccbf010795c228983ff44c",
+    "components/read_pico/include/read_pico_board.h": "1f74e56c6c535c1a74d1c03431b7297f2dea41156b9a44d1a347b7a45b393df1",
+    "components/read_pico/include/buzzer_score.h": "c6a481fa3018d445974118c35a5d62348c0dbcbffec6383471bf89f546235320",
+    "components/read_pico/include/buzzer_1bit.h": "810de7116e86c43eec7da1d9bf0be2c5a093e21bfdf7406a324f54ad53d984c4",
+    "components/read_pico/include/read_pico_init.h": "cb26eeb04208e209cc518cc8dc4248479bc772488cc85c1fb251cbcba3c70849",
+    "components/read_pico/include/read_pico_epd_timing.h": "154773f8a8c3112d635552139419f97f5c810ceeca76a3e2e43b1b708424309e",
+    "components/read_pico/include/read_pico_sd.h": "e034523bce4ac477a4b45b863229b7cea412ef3e8c1eb31ccbc56c129253cbad",
+    "components/read_pico/include/read_pico.h": "ada7311a774a7122437c73dc4485f9963624d0f0ccaf8ffa7897ac7724072187",
+    "components/read_pico/include/read_pico_crashlog.h": "af4cfcc5431decb25809f8848408a3640d2385070e2973716d088ba097ab18f9",
+    "components/read_pico/include/buzzer_duty_map.h": "cdac7fa9f480f6915d5713ee77763e5e31a0a8f0e6ec2f13e9814244fa2f1a69",
+    "components/read_pico_transfer/include/read_pico_transfer_network.h": "96a6b968899de32f2d4612ce7a2cafb226a9619196cae89b2e97595921c6d94f",
+    "components/read_pico_transfer/include/read_pico_transfer.h": "eac0f853386dd3299d9c4513b722b8b3c49353a7fd220b1fec5d2683cfb7a5dd",
+    "components/fca9555/include/fca9555.h": "fe1885750f288eda9c068da9bba0c863b8ca5a712c22963e6c4b0ab75cd1432e",
+    "components/fca9555/examples/read_ports/CMakeLists.txt": "b78c30bc1e7c23d6e58c04d5fc26f46da1cc30382252abcff76edbfa3376c568",
+    "components/fca9555/examples/read_ports/sdkconfig.defaults": "d450f8aac46a603a2da4ec135132ac99863a1929822500bd93fc3cb7cf1e44da",
+    "components/fca9555/examples/read_ports/main/CMakeLists.txt": "112a1e76ed1d887258de303a7319658c5cb25ebd450196243b5a32db2cf0e515",
+    "components/fca9555/examples/read_ports/main/idf_component.yml": "88e305376110ecabe8ef1933597429854501616e2be03decdd10bd0111dba57a",
+    "components/fca9555/examples/read_ports/main/main.c": "430c322235b64fd45f5d9dc6e38ca11e671562cb2a797c231347b817a05c80b8",
+    "components/fca9555/examples/read_ports/main/Kconfig.projbuild": "3b27f2cab87e52b0526fde0972f96939c7b83fbb46e5cab79634d1425b38c36d",
+    "components/jpegdec/src/jpegdec_shim.cpp": "41a1b17c2adb80ef020b7866298ff8957ad9d4b8dfbc823e75e6520deb5d24b6",
+    "components/jpegdec/src/JPEGDEC.h": "ebb0b79d627d9585e1b985c29a85ea19f9b78e69c6235e2a8e95daed3030e402",
+    "components/jpegdec/src/my_cm4_simd.h": "f3a623f6e5eb277cafa4f07ace0fbc78b24c877a88f30903c177920d86475a72",
+    "components/jpegdec/src/jpeg.inl": "a1a9196459e9223ab35bd54ab1d5f21efbac1431aa00a23b610c0121d7e792e3",
+    "components/jpegdec/src/JPEGDEC.cpp": "cce4a7cd6fe8fe26825276f9c65ed9c96bf1fe31a15c79e0169ee2385543d210",
+    "components/sy7636a/include/sy7636a.h": "36b96fc5d4b622699312b2d5eadf5aabce54d40c6bb29ee47301a7b1d150f1dd",
+    "components/sy7636a/examples/read_status/CMakeLists.txt": "7605a4e0b9dda76cd3e40d3b9650458d231d6e52d90a0317efc4306cea7498f1",
+    "components/sy7636a/examples/read_status/main/CMakeLists.txt": "56e711dcf33ba7b164f9654d11da9a365e3dd07d88e0778328defe8021901759",
+    "components/sy7636a/examples/read_status/main/idf_component.yml": "ed0f88dc545f84bef01e6c6f2d31e3b0c36224804bb10240c8ff73375fb420b0",
+    "components/sy7636a/examples/read_status/main/main.c": "f1d8d5a7b45fb49800ad2a899caba7fdbd219484e31be82857f299c7622ee9c1",
+    "components/ble_page_turner/include/ble_page_turner.h": "1cf1ce79999cbf2f8b0a526003d0ed1dfd12de0216b803a83c0c4277aabd67d5",
+    "components/ble_page_turner/src/ble_page_turner.c": "3d8e69adbd6052f2b4f2e020f39f98a2bff10ddb491ab8e666e2e9d064dd8115",
+    "components/read_pico_pmu/include/read_pico_pmu.h": "e755d8cce2a3b5d84d015c30741399d35e787f88eb04ae207aac67f41cce747e",
+    "components/read_pico_pmu/include/read_pico_pmu_protocol.h": "07c9b135d306a91cfd4028262f90fe703706f0782b1076c23c1d04e46c9db3d5",
+    "components/read_pico_pmu/docs/llms-full_zh_cn.md": "ab630ce02f77aeb122b746a2d309af274135085c7bdababc6dd3e5cf5514f11e",
+    "components/read_pico_pmu/docs/llms-full_en.md": "937dfa30b4cc8a86b4b790604d3e7b575d1221eb4ed8800d2d1f8b24444ce9b6",
+    "components/read_pico_pmu/docs/read_pico_pmu_datasheet_v1.0.8_zh_cn.pdf": "0586fc829cb5be5931ca9a06dc0929a2167ec215ab5a9f95142ad841fec1f224",
+    "components/read_pico_pmu/docs/read_pico_pmu_datasheet_v1.0.8_en.pdf": "1ac03ec9924f38280cfc294ad57282d80b1db2118ea9158a6ae0e06adf497529",
+    "components/read_pico_pmu/docs/pmu_registers_en.json": "6585f419a1b91e9ca8086f9a0eeffd486a5ae0d354880214df4cdce95827cdd2",
+    "components/read_pico_pmu/docs/pmu_registers_zh_cn.json": "45e78c086c1c60955bb50f444a5745f037d0a9d0b310bb60510de1c8c2781d62",
+    "components/read_pico_pmu/docs/pmu_protocol_en.h": "31be4a4cf19a53ca4bdca08204367bfeea93451329e30dcbac55b41ba8c2fc94",
+    "components/read_pico_pmu/docs/pmu_protocol_zh_cn.h": "7b421aa189dc560c52fff8139dada3ee284e68221ac1b8911e95fef4e73ea5b4",
+    "CMakeLists.txt": "9cfcce7b23d4f9018f3833f9e1c4cca454fbbef30b0b138c364ddb3ca645d401",
+    "sdkconfig.defaults": "4dcf648d915e4398a03d60d3602306cceb8744d1a16084ee57d7a27899e5cd4b",
+    "sdkconfig": "9f6af1df5ecb93962ab54ff24171240dc2d0c70ee48bf9e3274c5312ac085bd6",
+    "partitions_metalio.csv": "2ffd6167a2a9fdc65fe777c46276254b058d78079a5828ac273056d5806eef9c"
+  }
 }

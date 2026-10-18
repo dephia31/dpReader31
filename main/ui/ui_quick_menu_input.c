@@ -125,3 +125,8 @@ bool ui_quick_menu_feed(ui_quick_menu_t *menu, const app_ctx_t *ctx, bool allowe
     }
     return true;
 }
+
+// Only a stationary held circle can show press feedback; sliders own their entire drag.
+int ui_quick_menu_pressed(const ui_quick_menu_t *menu) {
+    return menu&&menu->open&&menu->tracking&&!menu->swallow&&!menu->moved&&menu->hit>=0&&menu->hit<4 ? menu->hit : -1;
+}

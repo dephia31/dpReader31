@@ -25,6 +25,7 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as folder:
                 advance = struct.unpack_from('>H', reader, p)[0]
                 struct.pack_into('>H', reader, p, advance + advance // 4)
     (work / 'reader.ttf').write_bytes(reader)
+    (work / 'bad.ttf').write_bytes(b'not a font')
     (work / 'esp_err.h').write_text('''#pragma once
 typedef int esp_err_t;
 #define ESP_OK 0
@@ -62,6 +63,7 @@ static inline size_t heap_caps_get_largest_free_block(int caps){(void)caps;retur
 #include "ui_kit.h"
 #include <assert.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <stdalign.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,12 +71,13 @@ static inline size_t heap_caps_get_largest_free_block(int caps){(void)caps;retur
 #include <unistd.h>
 typedef union {max_align_t align;size_t bytes;} allocation_t;
 static size_t live,peak;
+static const char *deny_path; static int deny_errno; static bool fail_metadata;
 static unsigned opens,active_fd,max_fd,painted,ui_scale=100;
 unsigned app_settings_system_font_size(void){return ui_scale;}
-void *heap_caps_malloc(size_t n,int caps){(void)caps;allocation_t *p=malloc(sizeof(*p)+n);assert(p);p->bytes=n;live+=n;if(live>peak)peak=live;return p+1;}
-void *heap_caps_calloc(size_t n,size_t s,int caps){void *p=heap_caps_malloc(n*s,caps);memset(p,0,n*s);return p;}
+void *heap_caps_malloc(size_t n,int caps){(void)caps;if(fail_metadata&&n>131072){fail_metadata=false;return NULL;}allocation_t *p=malloc(sizeof(*p)+n);assert(p);p->bytes=n;live+=n;if(live>peak)peak=live;return p+1;}
+void *heap_caps_calloc(size_t n,size_t s,int caps){void *p=heap_caps_malloc(n*s,caps);if(p)memset(p,0,n*s);return p;}
 void heap_caps_free(void *p){if(!p)return;allocation_t *a=(allocation_t *)p-1;live-=a->bytes;free(a);}
-int title_test_open(const char *path,int flags,...){int fd=open(path,flags,0600);if(fd>=0){++opens;++active_fd;if(active_fd>max_fd)max_fd=active_fd;}return fd;}
+int title_test_open(const char *path,int flags,...){if(deny_path&&!strcmp(path,deny_path)){errno=deny_errno;return -1;}int fd=open(path,flags,0600);if(fd>=0){++opens;++active_fd;if(active_fd>max_fd)max_fd=active_fd;}return fd;}
 int title_test_close(int fd){assert(active_fd);--active_fd;return close(fd);}
 const char *app_settings_fonts_dir(void){return "/absent";}
 const char *app_settings_font_path(void){return "builtin";}
@@ -84,11 +87,11 @@ int ui_font_text_width_px(int px,const char *s){(void)px;(void)s;assert(0);retur
 void ui_font_measure_line_px(int px,const char *s,int *above,int *below){(void)px;(void)s;(void)above;(void)below;assert(0);}
 void ui_font_draw_text_px(uint8_t *fb,int x,int y,int px,const char *s,enum EpdFontFlags a,uint8_t fg,uint8_t bg,bool bw){(void)fb;(void)x;(void)y;(void)px;(void)s;(void)a;(void)fg;(void)bg;(void)bw;assert(0);}
 void ui_font_draw_title_px(uint8_t *fb,int x,int y,int px,const char *s,enum EpdFontFlags a){(void)fb;(void)x;(void)y;(void)px;(void)s;(void)a;assert(0);}
-static uint8_t pixels[400*200];
+static uint8_t pixels[400*200],preview_golden[400*200];
 static bool record_coverage;
 void epd_draw_pixel(int x,int y,uint8_t c,uint8_t *fb){assert(x>=0&&x<400&&y>=0&&y<200);if(record_coverage)fb[y*400+x]=c>>4;else{assert(c==0);fb[y*400+x]=1;}++painted;}
 int main(int argc,char **argv){
- assert(argc==3&&ttf_get_antialias());const char *text="字体设置";unsigned widths[2];
+ assert((argc==3||argc==4)&&ttf_get_antialias());const char *text="字体设置";unsigned widths[2];
  for(int face=0;face<2;++face){
   assert(ttf_font_open(argv[face+1])==ESP_OK&&ttf_font_ready()&&!ttf_font_is_builtin());
   assert(ttf_font_has_text(text)&&!ttf_font_has_text("\xf4\x8f\xbf\xbf"));
@@ -161,11 +164,67 @@ int main(int argc,char **argv){
   }
   record_coverage=false;
   ttf_set_stroke_adjust(0);assert(opens==initial_opens);
+  if(!face){record_coverage=true;memset(pixels,15,sizeof(pixels));
+   assert(ttf_font_draw_preview(argv[1],pixels,200,80,25,text,300));
+   memcpy(preview_golden,pixels,sizeof(pixels));record_coverage=false;}
   widths[face]=ttf_text_width_px(40,text);
   assert(live-resident<128*1024&&peak<1024*1024);
  }
  assert(widths[1]>widths[0]&&max_fd==1);
+ // Same-face activation preserves the live face and its warm glyph cache.
+ unsigned warm_opens=opens;size_t warm_live=live;
+ for(int i=0;i<100;++i)assert(ttf_font_open(argv[2])==ESP_OK);
+ assert(opens==warm_opens&&live==warm_live&&active_fd==1);
+ // A failed target must never report success merely because the previous face was restored.
+ char missing[512],bad[512];snprintf(missing,sizeof(missing),"%s.missing",argv[1]);
+ snprintf(bad,sizeof(bad),"%s",argv[1]);strcpy(strrchr(bad,'/')+1,"bad.ttf");
+ assert(ttf_font_open(missing)==ESP_ERR_NOT_FOUND);
+ assert(ttf_font_ready()&&!strcmp(ttf_font_path(),argv[2])&&active_fd==1);
+ deny_path=argv[1];deny_errno=EMFILE;
+ assert(ttf_font_open(argv[1])==ESP_FAIL);
+ assert(ttf_font_ready()&&!strcmp(ttf_font_path(),argv[2])&&active_fd==1);deny_path=NULL;
+ assert(ttf_font_open(bad)!=ESP_OK);
+ assert(ttf_font_ready()&&!strcmp(ttf_font_path(),argv[2])&&active_fd==1);
+ fail_metadata=true;assert(ttf_font_open(argv[1])==ESP_ERR_NO_MEM&&!fail_metadata);
+ assert(ttf_font_ready()&&!strcmp(ttf_font_path(),argv[2])&&active_fd==1);
+ // Preview does not unload/reload the active face, and every transient allocation/FD is returned.
+ record_coverage=true;size_t before_preview=live;
+ for(int i=0;i<30;++i){
+  memset(pixels,15,sizeof(pixels));
+  assert(ttf_font_draw_preview(argv[1],pixels,200,80,25,text,300));
+  assert(!memcmp(preview_golden,pixels,sizeof(pixels)));
+  assert(ttf_font_ready()&&!strcmp(ttf_font_path(),argv[2])&&active_fd==1&&live==before_preview);
+  assert(!ttf_font_draw_preview(missing,pixels,200,80,25,text,300));
+  assert(!ttf_font_draw_preview(bad,pixels,200,80,25,text,300));
+  assert(live==before_preview&&active_fd==1&&ttf_font_selected()==0);
+ }
+ deny_path=argv[1];deny_errno=EMFILE;
+ assert(!ttf_font_draw_preview(argv[1],pixels,200,80,25,text,300));deny_path=NULL;
+ fail_metadata=true;assert(!ttf_font_draw_preview(argv[1],pixels,200,80,25,text,300)&&!fail_metadata);
+ assert(live==before_preview&&active_fd==1&&!strcmp(ttf_font_path(),argv[2]));
+ // All three book slots remain intact. An exhausted slot pool falls back to a UI label.
+ for(int slot=1;slot<TTF_FONT_SLOTS;++slot){
+  FILE *f=fopen(argv[1],"rb");assert(f);fseek(f,0,SEEK_END);size_t len=ftell(f);rewind(f);
+  uint8_t *data=heap_caps_malloc(len,3);assert(fread(data,1,len,f)==len);fclose(f);
+  assert(ttf_font_open_mem(data,len,"embedded")==slot);
+ }
+ int keep=ttf_font_select(2);assert(keep==0);warm_live=live;
+ assert(!ttf_font_draw_preview(argv[1],pixels,200,80,25,text,300));
+ assert(live==warm_live&&active_fd==1&&ttf_font_selected()==2);
+ for(int slot=1;slot<TTF_FONT_SLOTS;++slot)assert(ttf_font_slot_ready(slot));
+ ttf_font_close_embedded();ttf_font_select(0);
+ if(argc==4){
+  assert(ttf_font_open(argv[3])==ESP_OK&&ttf_font_ready()&&!ttf_font_is_builtin());
+  assert(!strcmp(ttf_font_path(),argv[3])&&ttf_font_has_text(text));
+  for(int px=20;px<=72;px+=4){memset(pixels,15,sizeof(pixels));painted=0;
+   ttf_draw_text_px(pixels,200,100,px,text,EPD_DRAW_ALIGN_CENTER,0,15);assert(painted);}
+  assert(active_fd==1);unsigned same_opens=opens;
+  assert(ttf_font_open(argv[3])==ESP_OK&&opens==same_opens);
+  assert(ttf_font_draw_preview(argv[1],pixels,200,80,25,text,300)&&!strcmp(ttf_font_path(),argv[3]));
+  assert(active_fd==1);puts("PASS: actual user imported font loads and rasterizes at20..72px; previews preserve its active path");
+ }
  ttf_font_unload();assert(!active_fd&&!ttf_font_ready()&&!ttf_font_has_text(text));
+ puts("PASS: missing/EMFILE/corrupt/OOM target returns failure and restores old face;30 preview cycles have no transient memory/FD leak; full embedded slots preserved");
  puts("PASS: actual imported system/reader TTF at 32/40/48px, direct raster identity, five stroke levels with native normal identity and fixed advances, single file/face, bounded warm cache and no duplicate font load");
 }
 '''
@@ -181,4 +240,6 @@ int main(int argc,char **argv){
     gc = '-Wl,-dead_strip' if os.uname().sysname == 'Darwin' else '-Wl,--gc-sections'
     subprocess.run(flags + [str(work / 'test.c'), str(work / 'assets.c'), str(work / 'ttf.o'),
                             str(ROOT / 'main/ui/ui_kit.c'), '-lm', gc, '-o', str(work / 'test')], check=True)
-    subprocess.run([str(work / 'test'), str(work / 'system.ttf'), str(work / 'reader.ttf')], check=True)
+    args=[str(work / 'test'), str(work / 'system.ttf'), str(work / 'reader.ttf')]
+    if os.environ.get('METALIO_TEST_USER_FONT'):args.append(os.environ['METALIO_TEST_USER_FONT'])
+    subprocess.run(args, check=True)

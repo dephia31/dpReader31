@@ -93,6 +93,14 @@ static void prepare_inline_image(void){}
 static bool app_settings_reader_hide_images(void){return false;}
 static int book_layout_page_image_count(int p){(void)p;return 0;}
 static size_t fb_bytes(void){return sizeof(fb);}
+// S31 four-page cache is an external resource boundary for this clock test.
+static const uint8_t* reader_page_cache_find(size_t page,uint32_t generation,size_t bytes){
+ assert(bytes==sizeof(fb));return page==(size_t)s_next_page&&generation==s_next_generation?next_fb:NULL;
+}
+static bool reader_page_cache_store(size_t page,uint32_t generation,const uint8_t* pixels,size_t bytes,size_t focus){
+ assert(page==focus&&generation==s_next_generation&&pixels==fb&&bytes==sizeof(fb));return true;
+}
+
 static void draw_reader(uint8_t *f,int p){(void)f;(void)p;assert(false);}
 static EpdRect reader_area(void){return (EpdRect){0,160,684,900};}
 '''

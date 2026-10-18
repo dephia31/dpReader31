@@ -1,12 +1,16 @@
 /* SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
- * 中文：长按电源的滑动关机层；不分配、刷屏、写设置或调用硬件。
- * English: Slide-to-off layer for a power hold; no allocation, presentation, settings writes or hardware calls.
+ * 中文：长按电源的滑动关机层；参考MokuReader液态玻璃，控件底图只在打开时存入PSRAM，关闭释放。
+ * English: Slide-to-off layer with liquid glass inspired by MokuReader; snapshot controls in PSRAM on open and release on close.
+ * 用户修订：滑动和点按只恢复控件底图并绘制局部反馈，不重新模糊、排字、写设置或调用硬件。
+ * User revision: movement/presses restore cached controls without reblurring, shaping text, settings writes or hardware calls.
  */
 #include "ui_power_dialog.h"
 #include <stdlib.h>
 #include <string.h>
 #include "ui_kit.h"
+#include "ui_glass.h"
+#include "esp_heap_caps.h"
 
 enum { HIT_NONE, HIT_SLIDER, HIT_RESTART, HIT_CANCEL };
 
@@ -124,49 +128,94 @@ ui_power_action_t ui_power_dialog_feed(ui_power_dialog_t *dialog, const app_ctx_
 
 EpdRect ui_power_dialog_rect(void) { return (EpdRect){0, 0, UI_LOCK_WIDTH, UI_LOCK_HEIGHT}; }
 
-static void draw_circle_button(uint8_t *fb, const ui_power_dialog_t *dialog, int hit, int cx) {
-    epd_fill_circle(cx, UI_POWER_BUTTON_Y, UI_POWER_BUTTON_R,
-        dialog->pressed && dialog->hit == hit ? 0xd0 : UI_GRAY_WHITE, fb);
-    epd_draw_circle(cx, UI_POWER_BUTTON_Y, UI_POWER_BUTTON_R, 0x60, fb);
-    epd_draw_circle(cx, UI_POWER_BUTTON_Y, UI_POWER_BUTTON_R - 1, 0x60, fb);
-    if (hit == HIT_RESTART) ui_draw_icon(fb, cx, UI_POWER_BUTTON_Y, 46, UI_ICON_ROTATE_CW, UI_GRAY_BLACK);
-    else {
-        // 圆帽取消符号，圆钮外部保持原白底。/ Round-ended cancel mark; preserve the white outside the circle.
-        for (int i = -14; i <= 14; ++i) {
-            epd_fill_circle(cx + i, UI_POWER_BUTTON_Y + i, 2, UI_GRAY_BLACK, fb);
-            epd_fill_circle(cx + i, UI_POWER_BUTTON_Y - i, 2, UI_GRAY_BLACK, fb);
+// 只缓存三个组件的4bpp底图，图形包含固定文字；不保留整页，也不在输入时分配。
+// Cache three 4bpp components including fixed labels, without a full page or input-time allocation.
+static uint8_t *s_control_backdrop;
+static EpdRect power_track_rect(void) {
+    return (EpdRect){UI_POWER_TRACK_X,UI_POWER_TRACK_Y,UI_POWER_TRACK_W,UI_POWER_TRACK_H};
+}
+static EpdRect power_button_rect(int slot) {
+    int cx=slot==1?UI_POWER_RESTART_X:UI_POWER_CANCEL_X;
+    return (EpdRect){cx-UI_POWER_BUTTON_R,UI_POWER_BUTTON_Y-UI_POWER_BUTTON_R,
+                     2*UI_POWER_BUTTON_R,2*UI_POWER_BUTTON_R};
+}
+static size_t control_bytes(EpdRect r) {return ((size_t)r.width*r.height+1)/2;}
+static uint8_t *control_slot(int slot) {
+    if(!s_control_backdrop)return NULL;
+    return s_control_backdrop+(slot?control_bytes(power_track_rect())+(slot-1)*control_bytes(power_button_rect(1)):0);
+}
+static void control_save(uint8_t *fb,int slot,EpdRect r) {
+    uint8_t *dst=control_slot(slot);if(!dst)return;
+    for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x){
+        size_t at=(size_t)y*r.width+x;
+        uint8_t value=ui_read_pixel(fb,r.x+x,r.y+y);
+        if(at&1)dst[at/2]|=(uint8_t)(value<<4);else dst[at/2]=value;
+    }
+}
+static void control_restore(uint8_t *fb,int slot,EpdRect r,EpdRect dirty) {
+    const uint8_t *src=control_slot(slot);if(!src)return;
+    int left=r.x>dirty.x?r.x:dirty.x,top=r.y>dirty.y?r.y:dirty.y;
+    int right=r.x+r.width<dirty.x+dirty.width?r.x+r.width:dirty.x+dirty.width;
+    int bottom=r.y+r.height<dirty.y+dirty.height?r.y+r.height:dirty.y+dirty.height;
+    for(int y=top;y<bottom;++y)for(int x=left;x<right;++x){
+        size_t at=(size_t)(y-r.y)*r.width+x-r.x;
+        epd_draw_pixel(x,y,(uint8_t)(((src[at/2]>>((at&1)*4))&15)<<4),fb);
+    }
+}
+static bool control_overlap(EpdRect a,EpdRect b) {
+    return a.x<b.x+b.width&&b.x<a.x+a.width&&a.y<b.y+b.height&&b.y<a.y+a.height;
+}
+static void power_control_base(uint8_t *fb,int slot,bool glass) {
+    EpdRect r=slot?power_button_rect(slot):power_track_rect();
+    int radius=slot?UI_POWER_BUTTON_R:UI_POWER_TRACK_H/2;
+    if(!glass||!ui_glass_panel(fb,r,radius,25,160)){
+        ui_fill_round_rect(fb,r,radius,slot?0xf0:0xd0);
+        ui_draw_control_frame(fb,r,radius,0x70);
+    }
+    if(!slot){
+        ui_text_box(fb,(EpdRect){r.x+80,r.y+45,r.width-160,60},40,"滑动关机",EPD_DRAW_ALIGN_CENTER,false);
+        return;
+    }
+    int cx=r.x+r.width/2,cy=r.y+r.height/2;
+    if(slot==1)ui_draw_icon(fb,cx,cy-20,44,UI_ICON_ROTATE_CW,UI_GRAY_BLACK);
+    else for(int i=-15;i<=15;++i){
+        epd_fill_circle(cx+i,cy-20+i,2,UI_GRAY_BLACK,fb);
+        epd_fill_circle(cx+i,cy-20-i,2,UI_GRAY_BLACK,fb);
+    }
+    ui_text_box(fb,(EpdRect){cx-66,cy+18,132,38},24,slot==1?"重启":"取消",EPD_DRAW_ALIGN_CENTER,false);
+}
+void ui_power_dialog_end(void) {
+    heap_caps_free(s_control_backdrop);s_control_backdrop=NULL;
+}
+void ui_power_dialog_draw_controls(uint8_t *fb,const ui_power_dialog_t *dialog,EpdRect dirty) {
+    if(!fb||!dialog)return;
+    for(int slot=0;slot<3;++slot){
+        EpdRect r=slot?power_button_rect(slot):power_track_rect();
+        if(!control_overlap(r,dirty))continue;
+        if(s_control_backdrop)control_restore(fb,slot,r,dirty);
+        else power_control_base(fb,slot,false);
+        if(!slot){
+            int cx=UI_POWER_THUMB_X+dialog->position;
+            epd_fill_circle(cx,UI_POWER_THUMB_Y,UI_POWER_THUMB_R,0xc8,fb);
+            ui_draw_icon(fb,cx,UI_POWER_THUMB_Y,52,UI_ICON_POWER,UI_GRAY_BLACK);
+        }else if(dialog->pressed&&dialog->hit==slot+1){
+            // 内环不覆盖文字或图标，抬手从缓存恢复原灰阶，不出现方框。
+            // The inner ring avoids labels/icons; release restores original gray pixels without a box.
+            for(int rr=UI_POWER_BUTTON_R-8;rr>=UI_POWER_BUTTON_R-11;--rr)
+                epd_draw_circle(r.x+r.width/2,r.y+r.height/2,rr,UI_GRAY_BLACK,fb);
         }
     }
 }
-
-void ui_power_dialog_draw_controls(uint8_t *fb, const ui_power_dialog_t *dialog) {
-    if (!fb || !dialog) return;
-    EpdRect track = {UI_POWER_TRACK_X, UI_POWER_TRACK_Y, UI_POWER_TRACK_W, UI_POWER_TRACK_H};
-    ui_fill_round_rect(fb, track, UI_POWER_TRACK_H / 2, 0xe0);
-    ui_draw_control_frame(fb, track, UI_POWER_TRACK_H / 2, 0x60);
-    ui_text_box(fb, (EpdRect){254, UI_POWER_TRACK_Y + 28, 302, 56}, 30,
-        "滑动关机", EPD_DRAW_ALIGN_CENTER, false);
-    int cx = UI_POWER_THUMB_X + dialog->position;
-    epd_fill_circle(cx, UI_POWER_THUMB_Y, UI_POWER_THUMB_R, UI_GRAY_WHITE, fb);
-    epd_draw_circle(cx, UI_POWER_THUMB_Y, UI_POWER_THUMB_R, 0x60, fb);
-    epd_draw_circle(cx, UI_POWER_THUMB_Y, UI_POWER_THUMB_R - 1, 0x60, fb);
-    ui_draw_icon(fb, cx, UI_POWER_THUMB_Y, 46, UI_ICON_POWER, UI_GRAY_BLACK);
-    draw_circle_button(fb, dialog, HIT_RESTART, UI_POWER_RESTART_X);
-    draw_circle_button(fb, dialog, HIT_CANCEL, UI_POWER_CANCEL_X);
-}
-
-void ui_power_dialog_draw(uint8_t *fb, const ui_power_dialog_t *dialog) {
-    if (!fb || !dialog) return;
-    ui_clear_page(fb);
-    ui_text_box(fb, (EpdRect){48, 166, UI_LOCK_WIDTH - 96, 84}, 44,
-        "电源选项", EPD_DRAW_ALIGN_CENTER, false);
-    ui_text_box(fb, (EpdRect){72, 458, UI_LOCK_WIDTH - 144, 48}, 24,
-        "向右滑动，松手后关机", EPD_DRAW_ALIGN_CENTER, false);
-    ui_power_dialog_draw_controls(fb, dialog);
-    ui_text_box(fb, (EpdRect){UI_POWER_RESTART_X - 90, 1044, 180, 54}, 28,
-        "重启", EPD_DRAW_ALIGN_CENTER, false);
-    ui_text_box(fb, (EpdRect){UI_POWER_CANCEL_X - 90, 1044, 180, 54}, 28,
-        "取消", EPD_DRAW_ALIGN_CENTER, false);
+void ui_power_dialog_draw(uint8_t *fb,const ui_power_dialog_t *dialog) {
+    if(!fb||!dialog)return;
+    ui_power_dialog_end();
+    size_t bytes=control_bytes(power_track_rect())+2*control_bytes(power_button_rect(1));
+    s_control_backdrop=heap_caps_malloc(bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    for(int slot=0;slot<3;++slot){
+        power_control_base(fb,slot,s_control_backdrop!=NULL);
+        control_save(fb,slot,slot?power_button_rect(slot):power_track_rect());
+    }
+    ui_power_dialog_draw_controls(fb,dialog,ui_power_dialog_rect());
 }
 
 void ui_power_final_draw(uint8_t *fb, bool restarting) {

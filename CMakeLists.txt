@@ -11,7 +11,7 @@ idf_build_set_property(MINIMAL_BUILD ON)
 if(DEFINED ENV{METALIO_PROJECT_VER} AND NOT "$ENV{METALIO_PROJECT_VER}" STREQUAL "")
     set(PROJECT_VER "$ENV{METALIO_PROJECT_VER}")
 else()
-set(PROJECT_VER "0.3.3-rc90-metalio-test30")
+set(PROJECT_VER "0.3.3-rc90-metalio-test36")
 endif()
 project(Kiikoread_Metalio_S31)
 

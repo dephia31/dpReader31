@@ -51,7 +51,7 @@ uint8_t ui_contrast_gray(uint8_t gray) {
     return (uint8_t)value & 0xf0;
 }
 
-static uint8_t ui_read_pixel(const uint8_t *fb, int x, int y) {
+uint8_t ui_read_pixel(const uint8_t *fb, int x, int y) {
     int px = x, py = y;
     switch (epd_get_rotation()) {
         case EPD_ROT_PORTRAIT: px = epd_width() - y - 1; py = x; break;

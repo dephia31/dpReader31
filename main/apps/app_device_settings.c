@@ -854,9 +854,8 @@ static void render(app_ctx_t *ctx, uint8_t *fb) {
     if (s_page == SETTINGS_PIN_ENTRY) { ui_pinpad_paint(fb, &s_pinpad, ui_pinpad_full()); return; }
     ui_clear_page(fb);
 
-    if (s_page == SETTINGS_MAIN || s_page == SETTINGS_SHELF_STYLE)
-        ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, UI_NAV_TOP},
-                      app_settings_main_fast_refresh() && s_page == SETTINGS_MAIN ? 0xf0 : 0xe0, fb);
+    // 同rc96保留白底，灰阶只由头像/卡片/字形生成；S31专属设置项保持原布局。
+    // Match rc96 white chrome/background; only artwork/cards/glyphs add grays. Retain S31-specific settings geometry.
     ui_nav_status(fb);
     if (s_page == SETTINGS_LOCK_PIN) {
         back_header(fb, "锁屏密码");
@@ -1446,12 +1445,17 @@ static void render(app_ctx_t *ctx, uint8_t *fb) {
     // 主列表也要有一行提示位：确认、修复结果都写在这里，不然点了没有任何回音。
     // The main list needs a notice line too: confirmation and the repair result land here, or a tap
     // would have no answer at all.
-    ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, 160},
-                  app_settings_main_fast_refresh() ? 0xf0 : 0xe0, fb);
+    ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,160},UI_GRAY_WHITE,fb);
     ui_nav_status(fb);
     ui_text(fb, 36, 91, 52, "设置", EPD_DRAW_ALIGN_LEFT, false);
     if (s_notice[0]) ui_text_fixed_vc(fb, 36, 138, 20, s_notice, EPD_DRAW_ALIGN_LEFT, false);
     ui_nav_draw(fb, 3);
+    if(app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL){
+        // 同rc96逐相同步：题头柔和、内容留白单向擦除，底栏横条在同次扫描中提交。
+        // Match rc96 simultaneous phases: soft chrome, directional white content, marker committed in the same scan.
+        const EpdRect content={0,160,UI_LOCK_WIDTH,UI_NAV_REFRESH_END-160};
+        display_main_transition_gray_bands(&content,1);
+    }
 }
 
 static void settings_prepare_profile(void) {
@@ -1541,7 +1545,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
             EpdRect area={57,180-s_main_scroll+(settings_profile_height()-82)/2,82,82};
             if (area.y<160) { area.height-=160-area.y; area.y=160; }
             if(area.height>0)guard_draw_result(ctx->hl,update_display_area_diff_with(ctx->hl,
-                app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL?display_main_normal_waveform():display_main_gray_waveform(),MODE_GL16,area));
+                app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL?display_main_shelf_soft_waveform():display_main_gray_waveform(),MODE_GL16,area));
             return APP_REDRAW_DONE;
         }
     }
@@ -2397,7 +2401,11 @@ static bool settings_present(app_ctx_t *ctx, app_redraw_t redraw) {
         EpdRect area = {0, top, UI_LOCK_WIDTH, UI_NAV_REFRESH_END - top};
         // 只驱动变化像素，滚动次数不触发黑白清屏；题头与底栏保持稳定。
         // Drive changed pixels only; scroll counts never trigger a wipe, and header/nav stay stable.
-        guard_draw_result(ctx->hl, update_display_area_diff_with(ctx->hl, &E0470_WAVEFORM, MODE_GL16, area));
+        // S31柔和表沿用本机DU20端点/完整GL48中灰，无Pico额外相位；局刷不补等白。
+        // Use local DU20 endpoints/full GL48 midgrays, without Pico extra phases or white maintenance on partial controls.
+        const EpdWaveform *wave=app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL
+            ? display_main_shelf_soft_waveform():&E0470_WAVEFORM;
+        guard_draw_result(ctx->hl, update_display_area_diff_with(ctx->hl,wave,MODE_GL16,area));
         return true;
     }
     if (s_page != SETTINGS_UPGRADE) return false;

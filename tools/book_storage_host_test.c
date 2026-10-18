@@ -70,9 +70,10 @@ esp_err_t nvs_entry_info(nvs_iterator_t it,nvs_entry_info_t* out){
 }
 void nvs_release_iterator(nvs_iterator_t it){(void)it;}
 static int listed;
+static uint8_t listed_px;
 static char listed_paths[8][BOOK_STORE_PATH_MAX];
 static bool record_list_visit(const char* path,const book_progress_t* progress,void* ctx){
-    (void)progress;
+    listed_px=progress->px;
     if(listed<8)snprintf(listed_paths[listed],BOOK_STORE_PATH_MAX,"%s",path);
     ++listed;return ctx==NULL;
 }
@@ -125,7 +126,7 @@ int main(void){
     assert(book_progress_last_path(out,sizeof(out))&&!strcmp(out,long_path));assert(!book_progress_last_path(out,2)&&!out[0]);
     assert(book_progress_forget(long_path)==ESP_OK&&!has_last);
     assert(book_progress_set_last_path("")==ESP_OK);assert(!book_progress_last_path(out,sizeof(out))&&!out[0]);
-    p.px=35;assert(book_progress_save(sd,&p)==ESP_ERR_INVALID_ARG);p.px=48;p.pct=101;assert(book_progress_save(sd,&p)==ESP_ERR_INVALID_ARG);
+    p.px=17;assert(book_progress_save(sd,&p)==ESP_ERR_INVALID_ARG);p.px=48;p.pct=101;assert(book_progress_save(sd,&p)==ESP_ERR_INVALID_ARG);
     p.pct=83;sequence=UINT32_MAX;int before=commits;
     assert(book_progress_save(sd,&p)==ESP_ERR_INVALID_STATE&&commits==before&&sequence==UINT32_MAX);
     // 枚举只返回仍保存进度的路径：sd 与 long_path 都已遗忘，flash 还在。
@@ -144,5 +145,11 @@ int main(void){
     listed=0;assert(book_progress_list(record_list_visit,&listed)==ESP_OK&&listed==1);
     assert(book_progress_forget(sd)==ESP_OK&&book_progress_forget(flash)==ESP_OK);
     listed=0;assert(book_progress_list(record_list_visit,NULL)==ESP_OK&&listed==0);
+    for(int px=18;px<=90;++px){
+        p.px=(uint8_t)px;p.pct=83;assert(book_progress_save(sd,&p)==ESP_OK);
+        assert(book_progress_load(sd,p.file_size,&q)&&q.px==px);
+        listed=0;assert(book_progress_list(record_list_visit,NULL)==ESP_OK);
+        assert(listed==1&&listed_px==px&&!strcmp(listed_paths[0],sd));
+    }
     puts("book progress: v1/v2, sequence, collision, two roots, NVS-full, partial forget and retry passed");
 }

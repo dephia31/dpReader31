@@ -60,6 +60,12 @@ enum EpdDrawError e0470_page_turn_with_waveform_compact(
     const EpdWaveform* waveform, unsigned bands
 );
 
+/// 同次扫描：外侧柔和、封面/材质校准。仅倒置竖屏全宽32列对齐，成功才提交真实back；临时2KiB，失败保持原back。
+/// Simultaneous soft chrome/calibrated art: inverted portrait, full width, 32-column aligned; commit real back only on success, using temporary 2 KiB.
+enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* hl, EpdRect area,
+    EpdRect strong_area, const EpdWaveform* soft_waveform,
+    const EpdWaveform* strong_waveform, enum EpdDrawMode strong_mode);
+
 #ifdef __cplusplus
 }
 #endif

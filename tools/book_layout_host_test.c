@@ -155,6 +155,13 @@ int ttf_vertical_text_height_px(int px, const char* text, int tracking_px) {
     return total;
 }
 int main(void) {
+    const char *size_text="甲乙丙丁戊己庚辛壬癸。天地玄黄宇宙洪荒。";
+    for(int px=18;px<=90;++px){
+        assert(book_layout_build(size_text,strlen(size_text),(EpdRect){12,180,660,900},px));
+        assert(book_layout_page_count()>0&&book_layout_page_start_offset(0)==0);
+        assert(book_layout_page_for_offset(strlen(size_text))<book_layout_page_count());
+    }
+
     EpdRect r = {0, 0, 20, 30};
     const char text[] = "甲乙丙丁戊己庚辛壬癸";
     assert(book_layout_build(text, strlen(text), r, 10));
@@ -365,7 +372,7 @@ int main(void) {
     r = (EpdRect){36, 0, 612, 180};
     test_cjk_advance = 33;
     for (unsigned em = 0; em <= 3; ++em) {
-        for (int tracking = -4; tracking <= 16; ++tracking) {
+        for (int tracking = -15; tracking <= 15; ++tracking) {
             book_layout_set_first_line_indent(em);
             book_layout_set_typography(tracking);
             const char *cases[] = {"甲乙丙丁", "　甲乙丙丁", "\xef\xbb\xbf\xe2\x80\x8b甲乙丙丁",
@@ -376,6 +383,7 @@ int main(void) {
                 drawn[0] = 0;
                 book_layout_draw_page(&fb, 0, r, 48);
                 int shift = em ? test_opener_bearing : 0;
+                int indent=(int)em*(33+tracking);if(shift>indent)shift=indent;
                 assert(first_draw_x + shift == r.x + (int)em * (33 + tracking));
                 assert(book_layout_page_start_offset(0) == 0);
             }

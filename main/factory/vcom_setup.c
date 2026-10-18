@@ -17,6 +17,7 @@
  */
 
 #include "vcom_setup.h"
+#include "metalio_hw.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -27,7 +28,6 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "metalio_hw.h"
 #include "nvs.h"
 #include "ui_kit.h"
 
@@ -192,16 +192,16 @@ static void draw_setup(uint8_t* fb, const vcom_geom_t* g, const vcom_state_t* s)
     const int chip = metalio_tps_vcom_mv();
     char hint[96];
     if (chip >= 0) {
-        // 同时显示"保存值 / 芯片实测值"：两者不一致说明保存值没生效。
+        // 同时显示"保存值 / 最近寄存器回读"：两者不一致说明保存值没生效。
         // Show the saved value next to the chip read-back; a mismatch means the
         // saved value never reached the TPS65185.
         snprintf(
-            hint, sizeof(hint), "保存 -%d.%02d V / 芯片 -%d.%02d V",
+            hint, sizeof(hint), "保存 -%d.%02d V / 回读 -%d.%02d V",
             current / 1000, (current % 1000) / 10, chip / 1000, (chip % 1000) / 10
         );
     } else {
         snprintf(
-            hint, sizeof(hint), "保存 -%d.%02d V / 芯片读取失败",
+            hint, sizeof(hint), "保存 -%d.%02d V / 尚无回读",
             current / 1000, (current % 1000) / 10
         );
     }
@@ -292,7 +292,14 @@ static bool persist(int mv) {
         ESP_LOGE(TAG, "VCOM NVS save: %s", esp_err_to_name(err));
         return false;
     }
-    if (vcom_setup_load_mv() != mv) return false;
+    // 保存确认必须区分真实回读与默认值回退（3000mV）。
+    // A failed read must not masquerade as a verified save of the default.
+    uint16_t verified_mv = 0;
+    err = nvs_open(VCOM_NVS_NAMESPACE, NVS_READONLY, &h);
+    if (err != ESP_OK) return false;
+    err = nvs_get_u16(h, VCOM_NVS_KEY, &verified_mv);
+    nvs_close(h);
+    if (err != ESP_OK || verified_mv != mv) return false;
     epd_set_vcom((uint16_t)mv);
     // 新 VCOM 只在下一次上电写入 TPS65185：先撤轨，再让下一帧全刷重新上电。
     // The new VCOM is written on the next rail power-up: drop the rails now and
