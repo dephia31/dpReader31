@@ -56,9 +56,13 @@ void display_set_bulk_io(bool active) {
     ESP_LOGI(TAG, "bulk I/O scan margin %s", active ? "on" : "off");
 }
 
-// 高压轨在连续操作间保留8秒，避免反复500ms放电；像素驱动在每轮结束时立即释放。
-// Keep HV rails for an eight-second burst to avoid repeated 500ms discharge; release pixel drive after every output.
-#define RAILS_IDLE_TIMEOUT_MS 8000
+// 厂家 epd_refresh.cc 每帧结束后立刻 epd_poweroff()，不保留高压轨；旧实现保留 8 秒只为
+// 减少连续操作时的放电等待。强光下"带电但驱动已释放"的像素更容易被灌灰，这里改回厂家时序。
+// Vendor epd_refresh.cc powers the rails off right after every frame and keeps no HV
+// hold. The old eight-second keepalive only saved discharge waits between bursts; a
+// powered panel with the drive released leaks grey faster under strong light, so go
+// back to the vendor timing.
+#define RAILS_IDLE_TIMEOUT_MS 0
 
 // 0 表示轨道已断电；否则是到期时间（ms），到点后主循环断电。
 // 0 means the rails are off; otherwise a deadline (ms) after which the loop powers them down.
@@ -71,7 +75,15 @@ void rails_keepalive(void) {
     // 包括无变化和失败返回：释放像素驱动，不增加扫描或全刷。
     // Release pixel drive even after unchanged/failed output, without another scan or full refresh.
     drive_release_retry_ms = read_pico_epd_release_drive() ? 0 : now_ms + 50;
+#if RAILS_IDLE_TIMEOUT_MS > 0
     rails_deadline_ms = now_ms + RAILS_IDLE_TIMEOUT_MS;
+#else
+    // 厂家时序：每帧输出完立刻断电，不留在"带电但驱动已释放"的状态。
+    // Vendor timing: cut the rails right after the frame instead of leaving the panel
+    // powered with the drive released.
+    rails_deadline_ms = 0;
+    epd_poweroff();
+#endif
     pico_online_display_end(held);
 }
 
@@ -106,6 +118,12 @@ static void use_scan_for(const EpdWaveform* waveform, enum EpdDrawMode mode) {
 // 自上次整屏 GC16 以来的整页差分次数。局部反馈不计数，否则菜单按压几次就会触发黑白全刷。
 // Whole-page differentials since the last full GC16. Local feedback is excluded so a few taps cannot trigger flashing.
 static int s_page_refreshes;
+// 厂家 epd_refresh.cc：24 次实质页刷且距上次全屏 GC16 ≥60s 才升级；光学状态未知时下一帧先清白再从白重建。
+// Vendor epd_refresh.cc: promote after 24 substantive page updates AND ≥60 s since
+// the last full-frame GC16; when the optical state is unknown, clear and rebuild
+// from white on the next frame.
+static int64_t s_page_last_full_us;
+static bool s_page_state_unknown;
 
 static const void* s_main_armed;
 static bool s_main_fault;
@@ -437,10 +455,17 @@ static enum EpdDrawError hl_update(
     enum EpdDrawError intercepted;
     if (main_before_update(hl, &intercepted)) return intercepted;
     if (waveform != &E0470_FOLLOW_WAVEFORM && area == NULL) {
+        const int64_t now_us = esp_timer_get_time();
         if ((mode & 0xF) == MODE_GC16) {
             s_page_refreshes = 0;
-        } else if (APP_UI_GC16_EVERY > 0 && ++s_page_refreshes >= APP_UI_GC16_EVERY) {
+            s_page_last_full_us = now_us;
+        } else if (APP_UI_GC16_EVERY > 0 && ++s_page_refreshes >= APP_UI_GC16_EVERY &&
+                   now_us - s_page_last_full_us >= 60000000LL) {
+            // 厂家 epd_refresh.cc：次数和 60 秒两个条件都满足才升级 GC16 全屏。
+            // Vendor epd_refresh.cc: promote only when both the count and the 60 s
+            // interval are satisfied.
             s_page_refreshes = 0;
+            s_page_last_full_us = now_us;
             mode = (enum EpdDrawMode)((mode & ~0xF) | MODE_GC16);
             full = true;
             waveform = &E0470_FULL_WAVEFORM;
@@ -465,7 +490,23 @@ static enum EpdDrawError update_display_mode_unlocked(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
     epd_poweron();
-    enum EpdDrawError result = hl_update(hl, &E0470_WAVEFORM, mode, false, NULL, false);
+    enum EpdDrawError result;
+    if (s_page_state_unknown) {
+        // 厂家 epd_refresh.cc 的 clean/state_unknown 分支：上一帧光学状态未知时，
+        // 先物理清白再从白底全屏重建，不能拿半途图当参考帧。
+        // Vendor clean/state_unknown branch: clear the panel physically, then rebuild
+        // the whole frame from white instead of trusting a half-written reference.
+        epd_clear();
+        epd_hl_waveform(hl, &E0470_FULL_WAVEFORM);
+        result = epd_hl_update_screen_from_white(hl, MODE_GC16, 25);
+        epd_hl_waveform(hl, &E0470_WAVEFORM);
+        s_page_state_unknown = result != EPD_DRAW_SUCCESS;
+        s_page_refreshes = 0;
+        s_page_last_full_us = esp_timer_get_time();
+    } else {
+        result = hl_update(hl, &E0470_WAVEFORM, mode, false, NULL, false);
+        if (result != EPD_DRAW_SUCCESS) s_page_state_unknown = true;
+    }
     rails_keepalive();
     return result;
 }

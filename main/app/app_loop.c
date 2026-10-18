@@ -35,6 +35,7 @@
  */
 
 #include "app_loop.h"
+#include "anti_fade.h"
 #include "auto_lock.h"
 #include "crash_note.h"
 
@@ -562,6 +563,7 @@ void app_loop_run(const app_loop_config_t* config) {
     int64_t last_media_poll_ms = 0;
     int64_t last_network_poll_ms = 0;
     int64_t last_input_ms = esp_timer_get_time() / 1000;
+    int64_t anti_fade_last_ms = esp_timer_get_time() / 1000;
     uint32_t last_ble_input = ble_pt_input_serial();
     unsigned idle_minutes = app_settings_auto_lock_minutes();
     unsigned cover_policy = (unsigned)app_settings_main_refresh_mode() | ((unsigned)app_settings_system_contrast() << 8);
@@ -1174,6 +1176,23 @@ void app_loop_run(const app_loop_config_t* config) {
                 usb_storage_active() || !main_page_ready(&ctx,current))ui_click_feedback_reset();
             else if(ui_click_feedback_nav_tick(ctx.fb,esp_timer_get_time()/1000,&click_area))
                 click_present(&ctx,current,click_area);
+        }
+        // 防褪色：强光会让像素电荷缓慢泄漏，画面逐渐变淡；静置到设定间隔后整屏
+        // GC16 重推当前画面，把墨粒推回正确状态。波形本身改不了泄漏，只能靠重刷。
+        // Anti-fade: strong light slowly leaks pixel charge and the image fades; after
+        // the configured idle interval re-drive the whole frame with GC16. No waveform
+        // can stop the leakage, so periodic re-driving is the only software remedy.
+        const unsigned anti_fade = anti_fade_minutes();
+        if (anti_fade > 0 && !power_dialog_open && !menu_open && !s_quick.open &&
+            !quick_input_owned && !usb_storage_active() && !app_download_active() &&
+            !ctx.request_app && !ctx.request_menu && !ctx.request_return &&
+            !ui_click_feedback_active() && !touch.touched && !ctx.consumed &&
+            ctx.now_ms - last_input_ms >= 2000 &&
+            ctx.now_ms - anti_fade_last_ms >= (int64_t)anti_fade * 60000) {
+            anti_fade_last_ms = ctx.now_ms;
+            ESP_LOGI("anti_fade", "idle %u min: full refresh", anti_fade);
+            display_request_full_refresh();
+            app_present(&ctx, current, APP_REDRAW_PAGE);
         }
         // 连续列表相位期间缩短等待；每次仍读触摸，并给其他任务让出一个调度周期。
         // Reduce waits during continuous list phases; poll touch each time and yield one scheduling tick.

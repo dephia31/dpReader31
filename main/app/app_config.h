@@ -45,7 +45,9 @@
 // 阅读页另有独立的可选整屏清残影周期。
 // Count only whole system-page transitions; local controls, dialogs and cover updates do not advance
 // the cleanup cadence. Reading keeps its own configurable full-screen cleanup interval.
-#define APP_UI_GC16_EVERY 40
+// 24 与 60s 对齐厂家 epd_refresh.cc 的升级条件（两次条件同时满足才做 GC16 全屏）。
+// 24 and 60 s mirror the vendor epd_refresh.cc promote condition (both must hold).
+#define APP_UI_GC16_EVERY 24
 // 非普通子页面的旧灰阶出口每三次做全像素整理；普通模式已改用单次柔和差分，仅保留下面的完整清残影周期。
 // Legacy nonordinary subpage output settles every third page; ordinary uses single soft differences with only the full-cleanup interval below.
 #define APP_UI_FAST_GL16_SETTLE_EVERY 3

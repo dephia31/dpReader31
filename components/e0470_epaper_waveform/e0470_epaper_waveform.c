@@ -136,7 +136,9 @@ static void e0470_complete_du_build(void) {
 // / Source 15→15 is all-hold. Hang one extra white push on an already-white
 // phase without adding phases. Diff skips unchanged white; GL16 must be
 // full-pixel for this tick to hit the white background.
-static void e0470_gl16_white_tick(uint8_t (*data)[16][4], int frames) {
+// 返回补入的相序号，找不到可用相时返回 -1。
+// / Returns the phase index it wrote, or -1 when no white phase exists.
+int e0470_waveform_white_tick(uint8_t (*data)[16][4], int frames) {
     int tick = -1;
     for (int f = frames - 1; f >= 0; f--) {
         for (int from = 0; from < 15; from++) {
@@ -149,6 +151,18 @@ static void e0470_gl16_white_tick(uint8_t (*data)[16][4], int frames) {
     }
     if (tick < 0) tick = frames > 2 ? frames - 3 : 0;
     lut_or(data, tick, 15, 15, 2);
+    return tick;
+}
+
+// 在表尾再补 extra 帧擦白（只写 15→15 这一格，不增加相数），把白像素充得更深。
+// / Add `extra` tail erase pulses on the unchanged-white cell only, without new phases.
+int e0470_waveform_white_boost(uint8_t (*data)[16][4], int frames, int extra) {
+    int applied = 0;
+    for (int i = 0; i < extra && i < frames; i++) {
+        lut_or(data, frames - 1 - i, 15, 15, 2);
+        applied++;
+    }
+    return applied;
 }
 
 /* ---- 完整表 / Full tables ---- */
@@ -295,17 +309,30 @@ void e0470_waveform_init(void) {
 #endif
 
     memcpy(e0470_full_gl16_live, my_gl_25_0_data, sizeof(e0470_full_gl16_live));
-    e0470_gl16_white_tick(e0470_full_gl16_live, E0470_FULL_GL16_FRAMES);
+    e0470_waveform_white_tick(e0470_full_gl16_live, E0470_FULL_GL16_FRAMES);
     // 完整表和裁剪表都要补白帧（厂家 2.0.76 相同处理）。
     // Both full and trimmed GL16 get the unchanged-white pulse (vendor 2.0.76).
-    e0470_gl16_white_tick(e0470_gl16_data, E0470_GL16_FRAMES);
-    // 文字沿用当前默认表的迁移顺序；只屏蔽等值像素，取消旧 S3 的调序/删擦白。
-    // Text keeps the active GL order, masking equal pairs only.
+    e0470_waveform_white_tick(e0470_gl16_data, E0470_GL16_FRAMES);
+    // 白底只有 1 帧擦白时，强光下几秒就漏灰（实测：开机 3 轮清白后照不灰，页刷后照就灰）。
+    // 在尾段再补几帧擦白，把白像素充到更深的电位；不增加相数，只占用原本保持的尾相。
+    // One erase pulse on unchanged white leaks grey in seconds under strong light
+    // (measured: immune after the 3-pass boot clear, grey after a page refresh). A
+    // few more tail erase pulses charge white deeper without adding phases.
+    e0470_waveform_white_boost(e0470_gl16_data, E0470_GL16_FRAMES, 3);
+    e0470_waveform_white_boost(e0470_full_gl16_live, E0470_FULL_GL16_FRAMES, 3);
+    // 完整 DU 表同样补白：全像素二进制推屏时白底要重新擦一次，否则只靠电荷保持。
+    // The complete DU table gets the same tick so full-pixel binary passes re-drive white.
+    e0470_waveform_white_tick(e0470_complete_du_data, E0470_FULL_DU_FRAMES);
+    e0470_waveform_white_boost(e0470_complete_du_data, E0470_FULL_DU_FRAMES, 2);
+    // 文字沿用当前默认表的迁移顺序；只屏蔽非白等值像素，保留 15→15 的擦白补帧。
+    // Text keeps the active GL order; hold equal pairs except the white one, which
+    // keeps its erase pulses so full-pixel text pages re-drive the white background.
     memcpy(e0470_textturn_gl16_data,e0470_gl16_data,sizeof(e0470_textturn_gl16_data));
     for (int f = 0; f < E0470_GL16_FRAMES; f++) {
-        for (int v = 0; v < 16; v++) {
+        for (int v = 0; v < 15; v++) {
             e0470_textturn_gl16_data[f][v][v / 4] &= (uint8_t)~(3u << (6 - 2 * (v % 4)));
         }
     }
+    e0470_waveform_white_boost(e0470_textturn_gl16_data, E0470_GL16_FRAMES, 2);
 
 }

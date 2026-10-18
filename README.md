@@ -12,7 +12,7 @@
 idf.py -B build-s31-native -D IDF_TARGET=esp32s31 -D SDKCONFIG_DEFAULTS=sdkconfig.defaults -D METALIO_LOCAL_LATENCY=OFF build
 ```
 
-原始 GC48/GL48/DU20 表默认完整使用（`E0470_WAVEFORM_TRIM=1` 才回退官方 GC36/GL37 裁剪，对齐厂家 2.0.76）；8bit/20MHz、192行预填、12ms最短相位。VCOM 实测最优 **3000mV（-3.00V）**，开机按住音量键进标定页可调（900–4000mV），值存 NVS，不烧写永久标定。
+原始 GC48/GL48/DU20 表默认完整使用（`E0470_WAVEFORM_TRIM=1` 才回退官方 GC36/GL37 裁剪，对齐厂家 2.0.76）；8bit/20MHz、192行预填、12ms最短相位。等白档保留厂家擦白补帧并补尾段擦白，全像素页刷会重新驱动白底。TPS 上电顺序与每帧断电对齐厂家 `epd_board_poweron`/`epd_refresh.cc`：PWRUP+VCOM_CTRL 同时拉高、ENABLE 后写 VCOM，每帧推完立刻断电（强光下带电浮空会让白底灌灰）。VCOM 实测最优 **3000mV（-3.00V，厂家 config 默认 1200）**；开机按住音量键进调试面板：VCOM 校准（900–4000mV，存 NVS，不烧写永久标定）、防褪色重刷间隔（关/1/3/5/10/30 分钟）、立即整屏重刷、继续开机。
 
 ## 本地更新
 

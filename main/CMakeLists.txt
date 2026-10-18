@@ -51,6 +51,7 @@ idf_component_register(
         "display_main_waveform.c"
         "display_reader_waveform.c"
         "sleep.c"
+        "anti_fade.c"
         "time_service.c"
         "lock_pin.c"
         "lock_pin_flow.c"
@@ -118,6 +119,7 @@ idf_component_register(
         "font/ui_hanzi.c"
         "factory/pmu_selftest.c"
         "factory/vcom_setup.c"
+        "factory/debug_panel.c"
     REQUIRES ${main_requires}
     INCLUDE_DIRS "." "app" "apps" "font" "ui" "factory" "book"
     EMBED_FILES

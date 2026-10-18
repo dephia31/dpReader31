@@ -97,6 +97,19 @@ const EpdWaveformPhases* e0470_waveform_phases(const EpdWaveform* waveform, int 
 /// / 2-bit action for (from→to) at `phase`: 0 hold, 1 darken, 2 erase.
 int e0470_phase_action(const EpdWaveformPhases* phases, int phase, int to, int from);
 
+/// 给"白→白"等值迁移补一相擦白（不增加相数），全像素推屏时白底才会被重新驱动；
+/// 否则白底只靠电荷保持，强光照射后逐渐变灰。返回补入的相序号，-1 表示没找到白相。
+/// / Add one erase pulse to the unchanged-white transition without adding phases, so a
+/// full-pixel pass re-drives the white background instead of only holding it; otherwise
+/// strong light greys it out. Returns the phase index written, or -1 when none was found.
+int e0470_waveform_white_tick(uint8_t (*data)[16][4], int frames);
+
+/// 在表尾再补 extra 帧擦白（只写 15→15 这一格，不增加相数），把白像素充得更深，
+/// 强光下更不容易漏灰。返回实际补入的帧数。
+/// / Add `extra` tail erase pulses on the unchanged-white cell only, without adding
+/// phases, so white pixels hold deeper charge and grey out later under strong light.
+int e0470_waveform_white_boost(uint8_t (*data)[16][4], int frames, int extra);
+
 /// 生成 E0470_WAVEFORM 与 E0470_FOLLOW_WAVEFORM 的表。必须在第一次刷新之前调用一次。
 /// / Build E0470_WAVEFORM and E0470_FOLLOW_WAVEFORM. Call once before the first refresh.
 void e0470_waveform_init(void);

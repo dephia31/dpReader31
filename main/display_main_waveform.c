@@ -32,7 +32,7 @@ const EpdWaveform* display_main_gray_waveform(void) {
         if(!original||!original->luts||original->phases!=E0470_GL16_FRAMES||original->phase_times)
             return &E0470_WAVEFORM;
         memcpy(s_gray,original->luts,sizeof(s_gray));
-        for(int f=0;f<E0470_GL16_FRAMES;++f)for(int v=0;v<16;++v)
+        for(int f=0;f<E0470_GL16_FRAMES;++f)for(int v=0;v<15;++v)
             s_gray[f][v][v/4]&=(uint8_t)~(3u<<(6-2*(v%4)));
         s_gray_waveform.temp_intervals=E0470_WAVEFORM.temp_intervals;s_gray_ready=true;
     }
@@ -44,8 +44,12 @@ const EpdWaveform* display_main_bw_waveform(void) {
         if(!original||!original->luts||original->phases!=E0470_FULL_DU_FRAMES||original->phase_times)
             return &E0470_WAVEFORM;
         memcpy(s_bw,original->luts,sizeof(s_bw));
-        for(int f=0;f<E0470_FULL_DU_FRAMES;++f)for(int v=0;v<16;++v)
+        for(int f=0;f<E0470_FULL_DU_FRAMES;++f)for(int v=0;v<15;++v)
             s_bw[f][v][v/4]&=(uint8_t)~(3u<<(6-2*(v%4)));
+        // 白底 15→15 补一相擦白：全像素快刷时白底要重新驱动，否则强光下白底发灰。
+        // Give unchanged white one erase tick so full-pixel fast pages re-drive the
+        // white background instead of only holding it (strong light greys it out).
+        e0470_waveform_white_tick(s_bw,E0470_FULL_DU_FRAMES);
         s_bw_waveform.temp_intervals=E0470_WAVEFORM.temp_intervals;s_bw_ready=true;
     }
     return &s_bw_waveform;

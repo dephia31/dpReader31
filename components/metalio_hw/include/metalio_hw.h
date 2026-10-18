@@ -29,6 +29,9 @@ void metalio_volume_sample(uint16_t inputs,int64_t now_ms);
 esp_err_t metalio_tps_on(int vcom_mv);
 void metalio_tps_off(void);
 bool metalio_tps_ready(void);
+/// 读 TPS65185 里实际生效的 VCOM（VCOM1/VCOM2 9 位，10mV 一档）；失败返回 -1。
+/// Read the VCOM actually latched in the TPS65185 (9-bit, 10 mV LSB); -1 on failure.
+int metalio_tps_vcom_mv(void);
 void metalio_frontlight(unsigned brightness, unsigned warmth);
 unsigned metalio_brightness(void);
 unsigned metalio_warmth(void);

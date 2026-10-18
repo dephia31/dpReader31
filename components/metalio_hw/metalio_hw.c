@@ -172,6 +172,22 @@ void metalio_tps_off(void) {
     (void)metalio_io_set(2,false); tps_on=false;
 }
 bool metalio_tps_ready(void) { return tps_on; }
+int metalio_tps_vcom_mv(void) {
+    // VCOM1(0x03)=低 8 位、VCOM2(0x04) bit0=最高位，单位 10mV；读不回来返回 -1。
+    // VCOM1(0x03) holds the low 8 bits, VCOM2(0x04) bit0 the MSB, LSB = 10 mV.
+    uint8_t lsb=0, msb=0;
+    if (metalio_read(0x68,0x03,&lsb,1)!=ESP_OK) return -1;
+    if (metalio_read(0x68,0x04,&msb,1)!=ESP_OK) return -1;
+    return (int)(((unsigned)(msb&1)<<8 | lsb) & 0x1ff) * 10;
+}
+// 上电时序对齐厂家 2.0.76 epd_board_poweron：
+//   PWRUP低+WAKEUP高+VCOM低 → 50ms → REVID → UPSEQ0/1 → **PWRUP和VCOM_CTRL一起拉高**
+//   → 等扩展器 PWR_GOOD → ENABLE=0x3F → **写 VCOM** → 等 PG=0xFA → XOE 由 ctrl 状态打开。
+// VCOM 写在 VCOM_CTRL 已经拉高之后，与厂家顺序一致（此前我们是写完 VCOM 才拉 VCOM_CTRL）。
+// Power-up order mirrors vendor 2.0.76 epd_board_poweron: PWRUP low + WAKEUP high +
+// VCOM low, 50 ms, REVID, UPSEQ0/1, raise PWRUP and VCOM_CTRL together, wait for the
+// expander PWR_GOOD, ENABLE=0x3F, then write VCOM (after VCOM_CTRL is high), wait for
+// PG=0xFA. XOE is opened through the ctrl state afterwards.
 esp_err_t metalio_tps_on(int mv) {
     if (mv<0 || mv>5110) return ESP_ERR_INVALID_ARG;
     if (tps_on) return ESP_OK;
@@ -190,7 +206,10 @@ esp_err_t metalio_tps_on(int mv) {
     }
     if (err==ESP_OK) err=metalio_write8(0x68,0x09,0xe4);
     if (err==ESP_OK) err=metalio_write8(0x68,0x0a,0x55);
+    // PWRUP 和 VCOM_CTRL 同时拉高（厂家同一次 ctrl 写入）。
+    // Raise PWRUP and VCOM_CTRL together, as the vendor does in one ctrl write.
     if (err==ESP_OK) err=metalio_io_set(1,true);
+    if (err==ESP_OK) err=metalio_io_set(0,true);
     if (err==ESP_OK) {
         bool good=false;
         for (unsigned ms=0;ms<300;ms+=5) {
@@ -201,6 +220,11 @@ esp_err_t metalio_tps_on(int mv) {
         if (!good) err=ESP_ERR_TIMEOUT;
     }
     if (err==ESP_OK) err=metalio_write8(0x68,0x01,0x3f);
+    // ENABLE 之后再写 VCOM（厂家 tps_set_vcom 在 GPIO PG 成功、ENABLE 之后调用）。
+    // Write VCOM after ENABLE, matching the vendor call order.
+    const unsigned value=(unsigned)mv/10;
+    if (err==ESP_OK) err=metalio_write8(0x68,0x04,(value>>8)&1);
+    if (err==ESP_OK) err=metalio_write8(0x68,0x03,value&255);
     if (err==ESP_OK) {
         bool good=false;
         for(unsigned ms=0;ms<200;ms+=5) {
@@ -210,11 +234,6 @@ esp_err_t metalio_tps_on(int mv) {
         }
         if (!good) err=ESP_ERR_TIMEOUT;
     }
-    // 仅更新运行寄存器，不烧 TPS 的永久 VCOM。/ Set runtime VCOM without programming TPS NVM.
-    const unsigned value=(unsigned)mv/10;
-    if (err==ESP_OK) err=metalio_write8(0x68,0x04,(value>>8)&1);
-    if (err==ESP_OK) err=metalio_write8(0x68,0x03,value&255);
-    if (err==ESP_OK) err=metalio_io_set(0,true);
     if (err!=ESP_OK) { metalio_tps_off(); ESP_LOGE(TAG,"TPS startup failed; rails off: %s",esp_err_to_name(err)); return err; }
     tps_on=true;
     ESP_LOGI(TAG,"TPS ready REVID=0x%02x runtime VCOM=%dmV",revision,mv);

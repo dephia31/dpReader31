@@ -27,6 +27,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "metalio_hw.h"
 #include "nvs.h"
 #include "ui_kit.h"
 
@@ -188,11 +189,22 @@ static void sync_ok(
 static void draw_setup(uint8_t* fb, const vcom_geom_t* g, const vcom_state_t* s) {
     ui_clear_page(fb);
     const int current = vcom_setup_load_mv();
-    char hint[72];
-    snprintf(
-        hint, sizeof(hint), "当前 -%d.%02d V；输入三位，129 即 -1.29 V",
-        current / 1000, (current % 1000) / 10
-    );
+    const int chip = metalio_tps_vcom_mv();
+    char hint[96];
+    if (chip >= 0) {
+        // 同时显示"保存值 / 芯片实测值"：两者不一致说明保存值没生效。
+        // Show the saved value next to the chip read-back; a mismatch means the
+        // saved value never reached the TPS65185.
+        snprintf(
+            hint, sizeof(hint), "保存 -%d.%02d V / 芯片 -%d.%02d V",
+            current / 1000, (current % 1000) / 10, chip / 1000, (chip % 1000) / 10
+        );
+    } else {
+        snprintf(
+            hint, sizeof(hint), "保存 -%d.%02d V / 芯片读取失败",
+            current / 1000, (current % 1000) / 10
+        );
+    }
     ui_draw_header(fb, "设定 VCOM Set", hint);
     draw_number(fb, g, s->digits);
     for (int i = 0; i < 12; i++) {
