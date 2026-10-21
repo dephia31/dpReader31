@@ -10,3 +10,6 @@
 /// 画中央黑白圆形锁图标，返回局部范围；空画布或尺寸不足时不画。
 /// Paint a centered monochrome lock badge and return its bounds; skip missing or undersized frames.
 EpdRect ui_lock_feedback_draw(uint8_t *framebuffer);
+/// 锁屏图不可用时，纯白底上绘制居中圆锁；不依赖资源文件、字体或TF卡。
+/// Paint a centered round lock on white when art is unavailable, without resource files, fonts or SD.
+void ui_lock_fallback_draw(uint8_t *framebuffer);

@@ -9,6 +9,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include "esp_heap_caps.h"
+#include "esp_system.h"
+#if KIIKO_BOARD_METALIO47
+void epd_pie_pixels_enable(bool enabled);
+bool epd_pie_pixels_enabled(void);
+void epd_pie_pixels_bench(void);
+void epd_pipeline_enable(bool enabled);
+void epd_pipeline_test(void);
+void epd_lcd_cache_probe_arm(int phases);
+int epd_lcd_cache_probe_completed(void);
+#endif
+static int64_t local_probe_contact_start_us;
+static void click_present(app_ctx_t *ctx,const app_desc_t *current,EpdRect area);
+static void local_probe_quick(app_ctx_t *ctx,const app_desc_t *current,bool open);
 
 static void local_latency_init(void) {
     int flags=fcntl(STDIN_FILENO,F_GETFL,0);
@@ -29,6 +42,33 @@ static app_redraw_t local_latency_poll(app_ctx_t *ctx,const app_desc_t *current)
                 app_index_of(current),app_settings_main_refresh_mode(),app_settings_auto_lock_minutes(),app_settings_home_component(),
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),(unsigned)uxTaskGetStackHighWaterMark(NULL));
+#if KIIKO_BOARD_METALIO47
+            ESP_LOGI("latency","CONTEXT recovery=%d radio=%d font=%s",pico_boot_recovery(),read_pico_transfer_radio_busy(),ttf_font_path());
+#endif
+        }
+#if KIIKO_BOARD_METALIO47
+        else if(!strcmp(line,"perf pie test"))epd_pie_pixels_bench();
+        else if(!strcmp(line,"perf pipeline test"))epd_pipeline_test();
+        else if(!strcmp(line,"perf restart")){ESP_LOGI("latency","INTENTIONAL_RESTART");esp_restart();}
+        else if(sscanf(line,"perf cache %d",&a)==1&&a>=0&&a<=48) {
+            epd_lcd_cache_probe_arm(a);ESP_LOGI("latency","CACHE_ARM phases=%d",a);
+        }
+        else if(!strcmp(line,"perf cacheinfo"))ESP_LOGI("latency","CACHE_COMPLETED phases=%d",epd_lcd_cache_probe_completed());
+        else if(sscanf(line,"perf pipeline %d",&a)==1&&(a==0||a==1)) {
+            epd_pipeline_enable(a!=0);epd_pie_pixels_enable(a!=0);
+            ESP_LOGI("latency","PIPELINE_ENABLED value=%d",a);
+        }
+        else if(sscanf(line,"perf pie %d",&a)==1&&(a==0||a==1)) {
+            epd_pie_pixels_enable(a!=0);ESP_LOGI("latency","PIE_ENABLED value=%d",epd_pie_pixels_enabled());
+        }
+#endif
+        else if(sscanf(line,"perf nav %d",&a)==1&&a>=0&&a<4&&app_index_of(current)>=0&&app_index_of(current)<4) {
+            // 重放同一底栏请求/按压反馈路径，计时包含反馈扫描，不冒充触摸硬件或光学测量。
+            // Replay root request/press feedback, including its scan, without claiming physical touch or optical measurement.
+            local_probe_contact_start_us=esp_timer_get_time();
+            ui_nav_request(ctx,a);ui_click_feedback_nav_request(a);
+            EpdRect area;if(ui_click_feedback_nav_tick(ctx->fb,esp_timer_get_time()/1000,&area))click_present(ctx,current,area);
+            ESP_LOGI("latency","NAV_REQUEST page=%d",a);
         } else if(sscanf(line,"perf page %d",&a)==1&&a>=0&&a<4) {
             ui_nav_request(ctx,a);ESP_LOGI("latency","REQUEST page=%d",a);
         } else if(sscanf(line,"perf mode %d",&a)==1&&a>=0&&a<=2) {
@@ -39,6 +79,12 @@ static app_redraw_t local_latency_poll(app_ctx_t *ctx,const app_desc_t *current)
             app_redraw_t result=current->on_gesture(ctx,&ev);
             ESP_LOGI("latency","HANDLER tap=%d,%d redraw=%d us=%lld",a,b,result,(long long)(esp_timer_get_time()-t));
             return result;
+        } else if(sscanf(line,"perf quick %d",&a)==1&&(a==0||a==1)) {
+            local_probe_quick(ctx,current,a!=0);
+        } else if(sscanf(line,"perf widget %d",&a)==1&&a>=0&&a<APP_HOME_COMPONENT_COUNT&&a!=3) {
+            esp_err_t error=app_settings_set_home_component((app_home_component_t)a);
+            ESP_LOGI("latency","WIDGET value=%d error=%d",a,error);
+            return error==ESP_OK?APP_REDRAW_PAGE:APP_REDRAW_NONE;
         } else if(!strcmp(line,"perf back")&&current->on_key) {
             return current->on_key(ctx,UI_KEY_1);
         } else if(!strcmp(line,"perf repaint"))return APP_REDRAW_PAGE;

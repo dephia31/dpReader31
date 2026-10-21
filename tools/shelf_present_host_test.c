@@ -17,9 +17,9 @@ static uint8_t front[BYTES], back[BYTES], old[BYTES], diff[W*H];
 static bool dirty_lines[H];
 static uint8_t dirty_columns[W/2];
 static EpdiyHighlevelState hl={front,back,diff,dirty_lines,dirty_columns};
-static const EpdWaveformPhases soft={.phases=48,.luts=(const uint8_t*)"soft"};
-static const EpdWaveformPhases art={.phases=48,.luts=(const uint8_t*)"art"};
-static EpdWaveformPhases cleanup={.phases=48,.luts=(const uint8_t*)"cleanup"};
+static const EpdWaveformPhases soft={.phases=37,.luts=(const uint8_t*)"soft"};
+static const EpdWaveformPhases art={.phases=37,.luts=(const uint8_t*)"art"};
+static const EpdWaveformPhases cleanup={.phases=36,.luts=(const uint8_t*)"cleanup"};
 const EpdWaveform E0470_WAVEFORM={1}, E0470_APPLY_WAVEFORM={2};
 static const EpdWaveform soft_wave={3};
 static enum EpdRotation rotation=EPD_ROT_INVERTED_PORTRAIT;
@@ -80,12 +80,12 @@ enum EpdDrawError epd_draw_base(EpdRect area,const uint8_t* pixels,EpdRect crop,
     for(int y=0;y<H;y+=83){
         // 每一相均覆盖题头/中部/分页，输入必须来自同一真实前后帧。
         // Every phase covers header/art/pagination using the same real prior/target pair.
-        const int points[]={0,1,159,160,161,191,192,193,991,992,993,1087,1088,1097,1101,1119};
+        const int points[]={0,1,expected_art.y-1,expected_art.y,expected_art.y+1,expected_art.y+expected_art.height-1,expected_art.y+expected_art.height,1097,1101,1119};
         for(unsigned i=0;i<sizeof(points)/sizeof(points[0]);++i){int x=points[i];assert(diff[y*W+x]==((nibble(front,x,y)<<4)|nibble(old,x,y)));}
     }
     for(int band=0;band<3;++band){
         assert(mapped_selectors[band]==(band==1?1:0));
-        int expected=band==1?((!full_cleanup||scans<cleanup.phases)?scans+1:0):129+scans;
+        int expected=band==1?((!full_cleanup||scans<36)?scans+1:0):129+scans;
         for(int i=0;i<1024;++i)assert(mapped_luts[mapped_selectors[band]][i]==expected);
     }
     ++scans;
@@ -100,17 +100,16 @@ static enum EpdDrawError run(void){
     return e0470_update_regions(&hl,expected_area,expected_art,&soft_wave,&E0470_WAVEFORM,full_cleanup?MODE_GC16:MODE_GL16);
 }
 int main(void){
-    for(int layout=0;layout<2;++layout)for(int gc=0;gc<3;++gc)for(int fail=0;fail<=48;++fail){
+    for(int layout=0;layout<2;++layout)for(int gc=0;gc<2;++gc)for(int fail=0;fail<=37;++fail){
         expected_art=layout?(EpdRect){0,160,H,928}:(EpdRect){0,192,H,800};
-        reset();full_cleanup=gc!=0;cleanup.phases=gc==2?47:48;fail_at=fail;
+        reset();full_cleanup=gc;fail_at=fail;
         assert(run()==(fail?EPD_DRAW_OTHER_ERROR:EPD_DRAW_SUCCESS));
-        assert(scans==(fail?fail:48)&&differences==1&&powerons==1&&!mapped_luts);
+        assert(scans==(fail?fail:37)&&differences==1&&powerons==1&&!mapped_luts);
         for(int y=0;y<H;++y)for(int x=0;x<W;++x){
             bool committed=!fail&&x>=expected_area.y&&x<expected_area.y+expected_area.height;
             assert(nibble(back,x,y)==nibble(committed?front:old,x,y));
         }
     }
-    expected_art=(EpdRect){0,192,H,800};
     reset();water_test_alloc_fail=1;assert(run()==EPD_DRAW_NO_PHASES_AVAILABLE);
     assert(!scans&&!differences&&!powerons&&!memcmp(old,back,BYTES));
     const EpdRect invalid[]={{0,0,H,1119},{1,0,H,1120},{0,-32,H,1120},{0,0,H,2147483647},{0,1184,H,64}};
@@ -126,6 +125,6 @@ int main(void){
         assert(!scans&&!differences&&!powerons);
     }
     for(int rot=0;rot<3;++rot){reset();rotation=rot;assert(run()==EPD_DRAW_INVALID_CROP);assert(!scans);}
-    puts("simultaneous shelf: shared shelf/settings chrome/art phases, GL48/GC48 plus 47-phase padding, footer, all phase failures, OOM and geometry passed");
+    puts("simultaneous shelf/settings: shared chrome/art phases, original 37/36 lengths, footer, all phase failures, OOM and geometry passed");
     return 0;
 }

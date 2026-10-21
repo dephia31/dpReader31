@@ -16,13 +16,6 @@ a=quick.index("code=r'"+"''")+len("code=r'"+"''");b=quick.index("'"+"''",a)
 code=quick[a:b].split('static uint8_t ui_contrast_gray')[0]
 code=code.replace('assert(x==xx);for(;y<=yy;++y)epd_draw_pixel(x,y,gray,fb);','if(x==xx){for(;y<=yy;++y)epd_draw_pixel(x,y,gray,fb);}else{assert(y==yy);for(;x<=xx;++x)epd_draw_pixel(x,y,gray,fb);}')
 code+=r"""
-static void epd_draw_line(int x,int y,int xx,int yy,uint8_t gray,uint8_t *fb){
- if(x==xx){if(y>yy){int tmp=y;y=yy;yy=tmp;}for(;y<=yy;++y)epd_draw_pixel(x,y,gray,fb);}
- else{assert(y==yy);if(x>xx){int tmp=x;x=xx;xx=tmp;}for(;x<=xx;++x)epd_draw_pixel(x,y,gray,fb);}
-}
-"""
-code+=function('components/epdiy/src/epdiy.c','epd_draw_circle')
-code+=r"""
 static void ui_fill_rect_fast(EpdRect r,uint8_t gray,uint8_t *fb){epd_fill_rect(r,gray,fb);}
 static int contrast=100,guard_draws;
 static size_t free_psram=5u*1024u*1024u;

@@ -63,7 +63,9 @@ bool metalio_cover_cache_get(const metalio_cover_key_t *key,void *out,size_t cap
     }
     ++stats.misses; unlock(); return false;
 }
-bool metalio_cover_cache_put(const metalio_cover_key_t *key,const void *pixels,size_t bytes,metalio_cover_meta_t meta) {
+static bool put_rows(const metalio_cover_key_t *key,const void *pixels,size_t stride,size_t span,size_t rows,metalio_cover_meta_t meta) {
+    if(!rows||!span||span>stride||rows>SIZE_MAX/span||rows>SIZE_MAX/stride)return false;
+    size_t bytes=span*rows;
     if(!key || !pixels || !bytes || bytes>CACHE_BUDGET) return false;
     lock();
     if(!entries) entries=heap_caps_calloc(CACHE_SLOTS,sizeof(*entries),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
@@ -81,11 +83,29 @@ bool metalio_cover_cache_put(const metalio_cover_key_t *key,const void *pixels,s
     while(!copy && evict()) copy=heap_caps_malloc(bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
     if(!copy) { unlock(); return false; }
     for(unsigned i=0;i<CACHE_SLOTS;i++) if(!entries[i].pixels) {
-        memcpy(copy,pixels,bytes);
+        for(size_t y=0;y<rows;++y)memcpy(copy+y*span,(const uint8_t*)pixels+y*stride,span);
         entries[i]=(cache_entry_t){.key=*key,.meta=meta,.pixels=copy,.bytes=bytes,.used=++stamp};
         stats.bytes+=bytes; ++stats.entries; unlock(); return true;
     }
     free(copy); unlock(); return false;
+}
+bool metalio_cover_cache_put(const metalio_cover_key_t *key,const void *pixels,size_t bytes,metalio_cover_meta_t meta) {
+    return put_rows(key,pixels,bytes,bytes,1,meta);
+}
+bool metalio_cover_cache_put_rows(const metalio_cover_key_t *key,const void *pixels,size_t stride,size_t span,size_t rows) {
+    return put_rows(key,pixels,stride,span,rows,(metalio_cover_meta_t){0});
+}
+bool metalio_cover_cache_get_rows(const metalio_cover_key_t *key,void *out,size_t stride,size_t span,size_t rows) {
+    if(!key||!out||!rows||!span||span>stride||rows>SIZE_MAX/span||rows>SIZE_MAX/stride)return false;
+    lock();
+    if(entries)for(unsigned i=0;i<CACHE_SLOTS;++i) {
+        cache_entry_t *e=&entries[i];
+        if(e->pixels&&e->bytes==span*rows&&!memcmp(&e->key,key,sizeof(*key))) {
+            for(size_t y=0;y<rows;++y)memcpy((uint8_t*)out+y*stride,e->pixels+y*span,span);
+            e->used=++stamp;++stats.hits;unlock();return true;
+        }
+    }
+    ++stats.misses;unlock();return false;
 }
 void metalio_cover_cache_trim(size_t budget) {
     lock(); while(stats.bytes>budget && evict()) {} unlock();

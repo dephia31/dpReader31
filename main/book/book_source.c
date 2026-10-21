@@ -10,16 +10,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#if KIIKO_BOARD_METALIO47
 #include <sys/stat.h>
+#else
+#endif
 static book_txt_t s_book;
 static book_epub_t *s_epub;
+#if KIIKO_BOARD_METALIO47
 static char s_io_path[512];
 static bool s_io_suspended;
 static struct stat s_io_stat;
+#else
+#endif
 esp_err_t book_open(const char *path) {
     book_close();
+#if KIIKO_BOARD_METALIO47
     if (!path || !*path || strlen(path) >= sizeof(s_io_path)) return ESP_ERR_INVALID_ARG;
     snprintf(s_io_path, sizeof(s_io_path), "%s", path);
+#else
+    if (!path || !*path) return ESP_ERR_INVALID_ARG;
+#endif
     const char *ext = strrchr(path, '.');
     if (ext && !strcasecmp(ext, ".epub")) return book_epub_open(path, &s_epub);
     if (!ext || strcasecmp(ext, ".txt")) return ESP_ERR_NOT_SUPPORTED;
@@ -28,7 +38,10 @@ esp_err_t book_open(const char *path) {
     return err;
 }
 void book_close(void) {
+#if KIIKO_BOARD_METALIO47
     s_io_suspended = false; s_io_path[0] = 0;
+#else
+#endif
     book_epub_close(s_epub); s_epub = NULL;
     if (s_book.file) fclose(s_book.file);
     free(s_book.entries); memset(&s_book, 0, sizeof(s_book));
@@ -93,9 +106,12 @@ uint32_t book_chapter_byte_offset(size_t i) {
     return s_epub ? book_epub_chapter_byte_offset(s_epub, i) : i < s_book.count ? s_book.entries[i].offset : 0;
 }
 book_kind_t book_kind(void) { return s_epub ? BOOK_KIND_EPUB : BOOK_KIND_TXT; }
+#if KIIKO_BOARD_METALIO47
 int book_chapter_prefetch_step(size_t chapter) {
     return s_epub?book_epub_prefetch_step(s_epub,chapter):-1;
 }
+#else
+#endif
 esp_err_t book_chapter_image(size_t chapter, const char *src, uint8_t **data, size_t *size, bool *png) {
     return s_epub ? book_epub_image(s_epub, chapter, src, data, size, png) : ESP_ERR_NOT_SUPPORTED;
 }
@@ -103,6 +119,7 @@ esp_err_t book_chapter_image(size_t chapter, const char *src, uint8_t **data, si
 esp_err_t book_chapter_image_dimensions(size_t chapter, const char *src, unsigned *width, unsigned *height) {
     return s_epub ? book_epub_image_dimensions(s_epub, chapter, src, width, height) : ESP_ERR_NOT_SUPPORTED;
 }
+#if KIIKO_BOARD_METALIO47
 
 esp_err_t book_suspend_io(void) {
     if (s_epub) return book_epub_suspend_io(s_epub);
@@ -125,3 +142,5 @@ esp_err_t book_resume_io(void) {
     s_book.file = file; s_io_suspended = false;
     return ESP_OK;
 }
+#else
+#endif

@@ -11,9 +11,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/book-tests
 
-python3 tools/gen_book_fixtures.py
-python3 tools/test_zip_reader.py
-python3 tools/test_book_epub.py
+python tools/gen_book_fixtures.py
+python tools/test_zip_reader.py
+python tools/test_book_epub.py
 
 flags=(-std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -g -fsanitize=address,undefined -fno-omit-frame-pointer)
 includes=(-Itools/book_epub_stubs -Itools/zip_host_stubs -Imain/book)

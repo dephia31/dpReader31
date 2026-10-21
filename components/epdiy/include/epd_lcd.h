@@ -28,8 +28,11 @@ typedef struct {
 typedef struct {
     size_t pixel_clock;
     LcdLineTiming_t line;
+#if KIIKO_BOARD_METALIO47
     int ckv_high_time, line_front_porch, le_high_time;
     int dummy_clocks_after_data, white_border_pixels;
+#else
+#endif
     int bus_width;
     lcd_bus_config_t bus;
 } LcdEpdConfig_t;

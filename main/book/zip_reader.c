@@ -15,10 +15,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if KIIKO_BOARD_METALIO47
 #include <sys/stat.h>
+#else
+#endif
 #include "esp_heap_caps.h"
 #include "miniz.h"
+#if KIIKO_BOARD_METALIO47
 #include "metalio_memory.h"
+#else
+#endif
 
 #define PSRAM (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
 #define NAME_MAX_BYTES 1024U
@@ -35,19 +41,25 @@ typedef struct {
 
 struct zip_reader {
     FILE* file;
+#if KIIKO_BOARD_METALIO47
     bool io_suspended;
     struct stat io_stat;
+#else
+#endif
     zip_entry_t* entries;
     uint16_t* slots;
     uint16_t slot_mask;
     uint32_t size, directory;
     uint16_t count;
+#if KIIKO_BOARD_METALIO47
     uint8_t *prefetch;
     size_t prefetch_size,prefetch_read;
     uint32_t prefetch_offset;
     int prefetch_index;
     bool prefetch_ready;
     struct stat prefetch_stat;
+#else
+#endif
 };
 
 static uint32_t name_hash(const char* name) {
@@ -60,12 +72,16 @@ static uint32_t name_hash(const char* name) {
 static uint16_t u16(const uint8_t* p) { return (uint16_t)(p[0] | ((uint16_t)p[1] << 8)); }
 static uint32_t u32(const uint8_t* p) { return (uint32_t)u16(p) | ((uint32_t)u16(p + 2) << 16); }
 static bool read_at(zip_reader_t* z, uint32_t pos, void* dst, size_t size) {
+#if KIIKO_BOARD_METALIO47
     if(z->prefetch_ready && pos>=z->prefetch_offset &&
        (size_t)(pos-z->prefetch_offset)<=z->prefetch_size &&
        size<=z->prefetch_size-(size_t)(pos-z->prefetch_offset)) {
         memcpy(dst,z->prefetch+pos-z->prefetch_offset,size);return true;
     }
     return z->file && pos <= z->size && size <= z->size - pos &&
+#else
+    return pos <= z->size && size <= z->size - pos &&
+#endif
         fseek(z->file, (long)pos, SEEK_SET) == 0 && fread(dst, 1, size, z->file) == size;
 }
 
@@ -98,6 +114,7 @@ static bool trailing_whitespace(const uint8_t* data, size_t len) {
     return true;
 }
 
+#if KIIKO_BOARD_METALIO47
 // 用户提供的EPUB在EOCD后附加[*AT*]+32位十六进制标记；仅兼容这一有界格式。
 // The supplied EPUB appends [*AT*]+32 hex digits after EOCD; accept only this bounded format.
 // 中央目录/条目范围、压缩方式和CRC仍完整校验，不接受任意尾部二进制内容。
@@ -115,14 +132,20 @@ static bool trailing_metadata(const uint8_t* data,size_t len) {
     return trailing_whitespace(data+at+38,len-at-38);
 }
 
+#else
+#endif
 void zip_close(zip_reader_t* z) {
     if (!z) return;
+#if KIIKO_BOARD_METALIO47
     zip_prefetch_clear(z);
+#else
+#endif
     if (z->file) fclose(z->file);
     if (z->entries) for (unsigned i = 0; i < z->count; ++i) free(z->entries[i].name);
     free(z->entries);
     free(z->slots);
     free(z);
+#if KIIKO_BOARD_METALIO47
 }
 
 esp_err_t zip_suspend_io(zip_reader_t *z) {
@@ -147,6 +170,8 @@ esp_err_t zip_resume_io(zip_reader_t *z, const char *path) {
     z->file = file;
     z->io_suspended = false;
     return ESP_OK;
+#else
+#endif
 }
 
 esp_err_t zip_open(const char* path, zip_reader_t** out) {
@@ -174,7 +199,11 @@ esp_err_t zip_open(const char* path, zip_reader_t** out) {
         if (u32(tail + end) == UINT32_C(0x06054b50)) {
             size_t declared_end = end + 22U + u16(tail + end + 20);
             if (declared_end <= tail_len &&
+#if KIIKO_BOARD_METALIO47
                 trailing_metadata(tail + declared_end, tail_len - declared_end)) break;
+#else
+                trailing_whitespace(tail + declared_end, tail_len - declared_end)) break;
+#endif
         }
         if (!end) goto fail;
         --end;
@@ -264,11 +293,14 @@ size_t zip_entry_size(const zip_reader_t* z, int index) {
 
 static esp_err_t extract_impl(zip_reader_t* z, int index, void* dst, size_t cap, bool prefix) {
     if (!z || index < 0 || index >= z->count) return ESP_ERR_INVALID_ARG;
+#if KIIKO_BOARD_METALIO47
     if(z->prefetch_ready) {
         struct stat now;
         if(!z->file||fstat(fileno(z->file),&now)||now.st_size!=z->prefetch_stat.st_size||
            now.st_mtime!=z->prefetch_stat.st_mtime)zip_prefetch_clear(z);
     }
+#else
+#endif
     const zip_entry_t* entry = &z->entries[index];
     if ((!prefix && (entry->unpacked > ZIP_OUTPUT_MAX || entry->packed > ZIP_INPUT_MAX)) ||
         (!prefix && cap < entry->unpacked) || (prefix && (!cap || cap > 65536)) || (!dst && entry->unpacked)) return ESP_ERR_INVALID_SIZE;
@@ -301,17 +333,25 @@ static esp_err_t extract_impl(zip_reader_t* z, int index, void* dst, size_t cap,
         uint8_t* input = heap_caps_malloc(INFLATE_CHUNK, PSRAM);
         tinfl_decompressor* state = heap_caps_malloc(sizeof(*state), PSRAM);
         if (!input || !state) { free(input); free(state); return ESP_ERR_NO_MEM; }
+#if KIIKO_BOARD_METALIO47
         const uint8_t *packed=z->prefetch_ready&&z->prefetch_index==index?
             z->prefetch+data_pos-z->prefetch_offset:NULL;
         bool ok = packed || fseek(z->file, (long)data_pos, SEEK_SET) == 0;
+#else
+        bool ok = fseek(z->file, (long)data_pos, SEEK_SET) == 0;
+#endif
         if (ok) {
             tinfl_init(state);
             size_t remaining = entry->packed, buffered = 0, consumed = 0, produced = 0;
             while (ok) {
                 if (consumed == buffered && remaining) {
                     buffered = remaining < INFLATE_CHUNK ? remaining : INFLATE_CHUNK;
+#if KIIKO_BOARD_METALIO47
                     if(packed)memcpy(input,packed+entry->packed-remaining,buffered);
                     else if (fread(input, 1, buffered, z->file) != buffered) { ok = false; break; }
+#else
+                    if (fread(input, 1, buffered, z->file) != buffered) { ok = false; break; }
+#endif
                     remaining -= buffered;
                     consumed = 0;
                 }
@@ -345,6 +385,7 @@ static esp_err_t extract_impl(zip_reader_t* z, int index, void* dst, size_t cap,
 
 esp_err_t zip_extract(zip_reader_t *z, int index, void *dst, size_t cap) { return extract_impl(z, index, dst, cap, false); }
 esp_err_t zip_extract_prefix(zip_reader_t *z, int index, void *dst, size_t cap) { return extract_impl(z, index, dst, cap, true); }
+#if KIIKO_BOARD_METALIO47
 
 void zip_prefetch_clear(zip_reader_t *z) {
     if(!z)return;
@@ -381,3 +422,5 @@ int zip_prefetch_step(zip_reader_t *z,int index) {
     }
     return 0;
 }
+#else
+#endif

@@ -51,14 +51,14 @@ static int fake_settimeofday(const struct timeval *tv,void *zone){(void)zone;ass
 '''+function('restore_time_from_pmu',root/'main/app_main.c')+r'''
 int main(void){
  pmu=(pmu_snapshot_t){1800000000,987,true,true};restore_time_from_pmu();
- assert(reads==1&&writes==1&&assigned.tv_sec==1800000000&&assigned.tv_usec==0);
+ assert(reads==1&&writes==1&&assigned.tv_sec==1800000000&&assigned.tv_usec==987000);
  current=(struct timeval){1800000001,123456};restore_time_from_pmu();assert(reads==1&&writes==1);
- current.tv_sec=0;
+ current.tv_sec=0;pmu.unix_millis=1000;restore_time_from_pmu();assert(writes==1);
  pmu.unix_millis=0;pmu.time_ok=false;restore_time_from_pmu();assert(writes==1);
  pmu.time_ok=true;pmu.time_synced=false;restore_time_from_pmu();assert(writes==1);
  pmu.time_synced=true;pmu.unix_sec=1;restore_time_from_pmu();assert(writes==1);
  pmu.unix_sec=1800000000;pmu_error=ESP_FAIL;restore_time_from_pmu();assert(writes==1);
- puts("PASS: retained S31 time survives reset; cold boot uses fresh PCF8563 whole seconds; invalid/unsynced PMU cannot overwrite it");
+ puts("PASS: retained S3 time survives reset; cold boot uses fresh PMU milliseconds; invalid/unsynced PMU cannot overwrite it");
 }
 '''
 scheduler=common+r'''
@@ -72,7 +72,7 @@ static uint32_t pending;
 static int jobs,task_ok=1,pmu_syncs,saves,worker_result,credential_reads;
 static bool creds=true;
 static void (*job)(void *);
-static int nvs_open(const char *ns,int mode,int *h){(void)mode;assert(!strcmp(ns,"mt_clock"));*h=1;return ESP_OK;}
+static int nvs_open(const char *ns,int mode,int *h){(void)mode;assert(!strcmp(ns,"kiiko_clock"));*h=1;return ESP_OK;}
 static int nvs_get_u64(int h,const char *k,uint64_t *v){(void)h;(void)k;*v=stored;return ESP_OK;}
 static int nvs_set_u64(int h,const char *k,uint64_t v){(void)h;(void)k;stored=v;++saves;return ESP_OK;}
 static int nvs_commit(int h){(void)h;return ESP_OK;}
@@ -134,8 +134,30 @@ int main(void){uint32_t utc;
  puts("PASS: SNTP/config share one admission lock; active operations cannot be reentered, failed work publishes no success, stopped network can calibrate");
 }
 '''
+ntp=common+r'''
+static bool s_time_cancel;
+static int inits,deinits,waits,cancel_at,success_at,init_error;
+typedef struct {int count;const char *servers[3];} esp_sntp_config_t;
+#define ESP_SNTP_SERVER_LIST(...) {__VA_ARGS__}
+#define ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(n,list) {.count=n,.servers=list}
+static bool time_sync_cancelled(void){return s_time_cancel;}
+static int esp_netif_sntp_init(esp_sntp_config_t *c){assert(c->count==3&&!strcmp(c->servers[0],"ntp.aliyun.com"));++inits;return init_error;}
+static int esp_netif_sntp_sync_wait(int ms){mono+=ms*1000;++waits;if(waits==cancel_at)s_time_cancel=true;return waits==success_at?ESP_OK:ESP_ERR_TIMEOUT;}
+static void esp_netif_sntp_deinit(void){++deinits;}
+'''+function('time_sync_ntp',root/'components/read_pico_transfer/read_pico_transfer.c')+r'''
+static void reset(void){mono=0;s_time_cancel=false;inits=deinits=waits=cancel_at=success_at=init_error=0;}
+int main(void){uint32_t utc=0;
+ reset();success_at=2;assert(time_sync_ntp(&utc)==ESP_OK&&utc==wall&&inits==1&&deinits==1&&waits==2);
+ reset();s_time_cancel=true;assert(time_sync_ntp(&utc)==ESP_ERR_INVALID_STATE&&!inits&&!deinits);
+ reset();cancel_at=2;assert(time_sync_ntp(&utc)==ESP_ERR_INVALID_STATE&&deinits==1&&mono==200000);
+ reset();assert(time_sync_ntp(&utc)==ESP_ERR_TIMEOUT&&deinits==1&&mono==12000000);
+ reset();init_error=ESP_FAIL;assert(time_sync_ntp(&utc)==ESP_FAIL&&!deinits&&!waits);
+ reset();success_at=1;wall=1;assert(time_sync_ntp(&utc)==ESP_ERR_INVALID_RESPONSE&&deinits==1);
+ puts("PASS: actual SNTP helper has one init/deinit, valid UTC only,100ms cancellation checkpoints and12s bounded timeout; failed init never tears down an unowned singleton");
+}
+'''
 with tempfile.TemporaryDirectory(prefix='kiiko-clock-test-',dir='/private/tmp') as folder:
- for name,unit in [('restore',restore),('scheduler',scheduler),('lease',lease)]:
+ for name,unit in [('restore',restore),('scheduler',scheduler),('lease',lease),('ntp',ntp)]:
   c=Path(folder)/(name+'.c');binary=Path(folder)/name;c.write_text(unit)
   subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined',str(c),'-o',str(binary)],check=True)
   subprocess.run([str(binary)],check=True)

@@ -4,6 +4,8 @@
  */
 #pragma once
 #include "ui_text_input.h"
+// 系统键盘在常驻底栏上方，正文键盘由调用方独立定位。/ Keep system keyboards above persistent navigation; reader callers retain their own placement.
+#define UI_SYSTEM_KEYBOARD_TOP 560
 typedef enum { UI_KEYBOARD_NONE, UI_KEYBOARD_CHANGED, UI_KEYBOARD_DONE } ui_keyboard_result_t;
 /// 绑定编辑缓冲区；九宫格只输入拼音，密码模式只用英文全键盘、数字和符号。
 /// Bind the editor; T9 is Pinyin-only, passwords use English QWERTY, digits and symbols.

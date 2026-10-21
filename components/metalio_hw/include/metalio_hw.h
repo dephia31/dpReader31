@@ -27,6 +27,9 @@ int metalio_take_volume(void);
 void metalio_volume_clear(void);
 void metalio_volume_sample(uint16_t inputs,int64_t now_ms);
 esp_err_t metalio_tps_on(int vcom_mv);
+/// 仅提前唤醒TPS，PWRUP/VCOM保持低；取消或失败仍下电。/ Wake only TPS ahead of paint, holding PWRUP/VCOM low; cancel/failure powers down.
+esp_err_t metalio_tps_prepare(void);
+void metalio_tps_cancel_prepare(void);
 void metalio_tps_off(void);
 bool metalio_tps_ready(void);
 /// 读 TPS65185 的 VCOM 寄存值；断电后返回最近成功回读，失败 -1。这不是电压表测量。

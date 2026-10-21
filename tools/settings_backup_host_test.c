@@ -60,6 +60,7 @@ esp_err_t book_history_backup_restore(FILE *file) {
 }
 
 static bool card_mounted = true;
+static char loaded_dirs[2][96];
 static bool commit_fails;
 static int commit_count;
 static uint8_t test_loaded_system_size;
@@ -91,17 +92,34 @@ esp_err_t nvs_set_u8(nvs_handle_t h, const char *key, uint8_t value) { (void)h; 
 esp_err_t nvs_get_str(nvs_handle_t h, const char *key, char *value, size_t *size) {
  (void)h;
  if(!strcmp(key,NVS_KEY_BOOKS_DIR)||!strcmp(key,NVS_KEY_FONTS_DIR)) {
-  const char *legacy="/sdcard/legacy/custom";size_t bytes=strlen(legacy)+1;
+  const char *legacy=loaded_dirs[!strcmp(key,NVS_KEY_FONTS_DIR)];if(!legacy[0])return ESP_FAIL;size_t bytes=strlen(legacy)+1;
   if(*size<bytes)return ESP_FAIL;
   memcpy(value,legacy,bytes);*size=bytes;return ESP_OK;
  }
  return ESP_FAIL;
 }
-esp_err_t nvs_set_str(nvs_handle_t h, const char *key, const char *value) { (void)h; (void)key; (void)value; return ESP_OK; }
+esp_err_t nvs_set_str(nvs_handle_t h, const char *key, const char *value) { (void)h;
+ if((!strcmp(key,NVS_KEY_BOOKS_DIR)||!strcmp(key,NVS_KEY_FONTS_DIR))&&!commit_fails)
+  strlcpy(loaded_dirs[!strcmp(key,NVS_KEY_FONTS_DIR)],value,sizeof(loaded_dirs[0]));
+ return ESP_OK; }
 esp_err_t nvs_erase_key(nvs_handle_t h, const char *key) { (void)h; (void)key; return ESP_OK; }
 esp_err_t nvs_commit(nvs_handle_t h) { (void)h; ++commit_count; return commit_fails ? ESP_FAIL : ESP_OK; }
 
 int main(void) {
+    // 自定义目录持久化、非法路径和提交失败；重启读取不能丢掉已经选中的根。
+    // Custom roots survive reload; reject invalid paths and leave the active root intact on failed commits.
+    assert(app_settings_set_books_dir("/sdcard/我的书库"));
+    assert(app_settings_set_fonts_dir("/sdcard/typefaces"));
+    app_settings_init();
+    assert(!strcmp(app_settings_books_dir(),"/sdcard/我的书库")&&!strcmp(app_settings_fonts_dir(),"/sdcard/typefaces"));
+    int commits_before=commit_count;
+    const char *bad[]={"/sdcard","/sdcard/","/sdcard/../fonts","/sdcard/a//b","/flash/fonts","/sdcard/a/./b","/sdcard/a\\b"};
+    for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);++i){assert(!app_settings_set_books_dir(bad[i])&&!app_settings_set_fonts_dir(bad[i]));}
+    assert(commit_count==commits_before);
+    commit_fails=true;assert(!app_settings_set_books_dir("/sdcard/other"));commit_fails=false;
+    assert(!strcmp(app_settings_books_dir(),"/sdcard/我的书库"));
+    assert(app_settings_set_books_dir("/sdcard/books")&&app_settings_set_fonts_dir("/sdcard/fonts"));
+
     loaded_home=3;app_settings_init();assert(app_settings_home_component()==APP_HOME_CLOCK);
     loaded_home=APP_HOME_MOON;app_settings_init();assert(app_settings_home_component()==APP_HOME_MOON);
     loaded_home=-1;keys_v2=false;
@@ -207,7 +225,7 @@ int main(void) {
     app_settings_set_book_indent_adjust(-7);
     s_book_rule_offset = 7; /* +6 px */
     s_reader_full_pages = 5;
-    s_reader_turn_effect = 1;
+    s_reader_turn_effect = READER_TURN_EFFECT_MAX;
     s_reader_power_turn = true;
     s_reader_immersive = true;
     s_shelf_style = 3;
@@ -346,7 +364,7 @@ int main(void) {
     assert(app_settings_book_indent_adjust()==-7&&loaded_adjust==13);
     assert(s_book_px == 62 && s_book_tracking == 8 && s_book_indent == 3 &&
            s_book_rule_offset == 7 && s_reader_full_pages == 5);
-    assert(s_reader_turn_effect == 1 && s_reader_power_turn && s_reader_immersive && s_shelf_style == 2);
+    assert(s_reader_turn_effect == READER_TURN_EFFECT_MAX && s_reader_power_turn && s_reader_immersive && s_shelf_style == 2);
     assert(s_staged_shutdown&&app_settings_auto_lock_minutes()==5);
     assert(s_ble_turner);
     assert(s_reader_hold_refresh);
@@ -523,7 +541,7 @@ int main(void) {
     app_settings_init();
     assert(!strcmp(app_settings_books_dir(),"/sdcard/books")&&!strcmp(app_settings_fonts_dir(),"/sdcard/fonts"));
 
-    assert(!s_home_full_refresh && !strcmp(s_device_name, "Metalio S31") && !s_status_signature[0]);
+    assert(!s_home_full_refresh && !strcmp(s_device_name, "kiikoread") && !s_status_signature[0]);
     assert(!strcmp(saved_wifi.ssid, "Home_2.4G")); /* Old backups leave network alone. */
 
     /* Existing PICOSET2 backups remain readable, with centered guide lines. */

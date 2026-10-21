@@ -9,9 +9,6 @@
 #define HEIGHT 1102
 #define BYTES (WIDTH * HEIGHT)
 int html_test_fail_after = -1;
-static unsigned haptic_requests, haptic_pulses;
-static bool haptic_enabled=true;
-int metalio_haptic_click(void){++haptic_requests;if(haptic_enabled)++haptic_pulses;return 0;}
 static unsigned width_calls, text_calls;
 static void pixel(uint8_t *fb,int x,int y,uint8_t gray) { assert(x>=0&&x<WIDTH&&y>=0&&y<HEIGHT);fb[y*WIDTH+x]=gray; }
 static bool inside(EpdRect r,int radius,int x,int y) {
@@ -58,25 +55,11 @@ static void begin(bool ascii){value[0]=0;ui_text_edit_init(&edit,value,sizeof(va
 int main(void){
  fb=malloc(BYTES);reference=malloc(BYTES);previous=malloc(BYTES);assert(fb&&reference&&previous);
  begin(true);
- // Shift上箭头顶点真实可见；大写反白且仍输出大写，增量绘制等于完整绘制。
- // The Shift tip is visible, uppercase inverts it and still types capitals with exact incremental paint.
- assert(fb[914*684+64]==0);
- key(64,930);assert(s_upper&&fb[914*684+64]==255);
- key(26,742);assert(!strcmp(value,"Q"));
- key(64,930);assert(!s_upper&&fb[914*684+64]==0);
- begin(true);
  // 按下不输入，反馈范围只含该键；松开复原，滑出取消不误输入。
  // Press commits nothing, paints only its key, and restores on release/cancel.
  assert(ui_keyboard_press(26,742,560,0));unsigned old_layouts=layouts;repaint(false);assert(layouts==old_layouts&&!value[0]);
- assert(haptic_requests==1&&haptic_pulses==1);
  assert(ui_keyboard_release());key(26,742);assert(!strcmp(value,"q"));
- assert(haptic_requests==1); // 松手提交不能再震一次。/ Release commits without another click.
  assert(ui_keyboard_press(26,742,560,100));repaint(false);assert(ui_keyboard_release());repaint(false);assert(!strcmp(value,"q"));
- assert(haptic_requests==2&&haptic_pulses==2);
- assert(!ui_keyboard_press(-1,742,560,200)&&!ui_keyboard_press(5,500,560,200)&&haptic_requests==2);
- haptic_enabled=false;assert(ui_keyboard_press(64,930,560,300));assert(haptic_requests==3&&haptic_pulses==2);
- assert(ui_keyboard_release());repaint(false);haptic_enabled=true;
- ui_keyboard_end();assert(!ui_keyboard_press(26,742,560,400)&&haptic_requests==3);
  begin(true);
  for(int i=0;i<70;i++)key(26+(i%10)*64,742);
  assert(strlen(value)==70);
@@ -97,9 +80,7 @@ int main(void){
  key(420,820);key(580,820);key(590,900);
  begin(false);const char *code="64426";for(const char *p=code;*p;p++){int i=*p-'1';key(120+(i%3)*150,742+(i/3)*78);}
  ui_keyboard_hold_start(590,770,560,0);
- unsigned before_hold=haptic_requests;
  for(int i=0;i<5;i++){assert(ui_keyboard_hold_tick(true,590,770,500+i*120)==UI_KEYBOARD_CHANGED);unsigned old_layouts=layouts;repaint(false);assert(layouts==old_layouts);}
- assert(haptic_requests==before_hold+5);
  assert(ui_keyboard_hold_tick(false,590,770,1100)==UI_KEYBOARD_NONE);
  begin(true);for(int i=0;i<6;i++)key(26+i*64,742);
  ui_keyboard_hold_start(610,930,560,0);

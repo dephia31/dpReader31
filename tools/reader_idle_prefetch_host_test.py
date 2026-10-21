@@ -16,7 +16,6 @@ unit=r'''
 #include <stdatomic.h>
 #include <pthread.h>
 #include <time.h>
-#include "reader_page_cache.h"
 typedef struct{int x,y,width,height;}EpdRect;
 typedef struct{bool touched;}touch_t;
 typedef struct{bool consumed,request_app,request_menu,request_return;touch_t *touch;}app_ctx_t;
@@ -65,10 +64,8 @@ static unsigned book_layout_page_image_count(size_t page){(void)page;return imag
 static uint32_t book_layout_generation(void){return generation;}
 static const char *app_settings_book_background_path(void){return wallpaper?"wallpaper":"";}
 static EpdRect body_rect(void){return(EpdRect){1,2,3,4};}
-size_t heap_caps_get_free_size(unsigned caps){assert(caps==3);return free_space;}
-size_t heap_caps_get_largest_free_block(unsigned caps){assert(caps==3);return free_space;}
-void *heap_caps_malloc(size_t n,unsigned caps){assert(caps==3);++allocs;return fail_alloc?NULL:malloc(n);}
-void *heap_caps_calloc(size_t n,size_t size,unsigned caps){assert(caps==3);return fail_alloc?NULL:calloc(n,size);}
+static size_t heap_caps_get_free_size(int caps){assert(caps==3);return free_space;}
+static void *heap_caps_aligned_alloc(size_t align,size_t n,int caps){assert(align==16&&caps==3);++allocs;return fail_alloc?NULL:malloc(n);}
 static atomic_llong fake_us;
 static int64_t esp_timer_get_time(void){return atomic_fetch_add(&fake_us,1000);}
 static pthread_mutex_t row_lock=PTHREAD_MUTEX_INITIALIZER;
@@ -76,7 +73,7 @@ static pthread_cond_t row_cond=PTHREAD_COND_INITIALIZER;
 static bool gate_rows;
 static unsigned row_entries,row_permits;
 static int book_layout_draw_slice(uint8_t *fb,size_t page,EpdRect area,int px,book_layout_draw_cursor_t *cursor){
- (void)area;assert(px==48&&(page<=s_page+2&&(page>=s_page||s_page-page<=1)));if(fail_draw)return -1;
+ (void)area;assert(px==48&&(page==s_page+1||page==s_page));if(fail_draw)return -1;
  if(cursor->generation&&cursor->generation!=generation)return -1;
  if(cursor->offset==36)return 1;
  pthread_mutex_lock(&row_lock);++row_entries;pthread_cond_broadcast(&row_cond);
@@ -89,7 +86,7 @@ static int book_layout_draw_slice(uint8_t *fb,size_t page,EpdRect area,int px,bo
 }
 static int s_px=48;
 '''
-for name in ['lock_draw','unlock_draw','invalidate_prep','reader_prefetch_step','reader_prefetch_target','prep_task','kick_prep','reader_prefetch_end','reader_prefetch_resume','reader_prefetch_idle']:
+for name in ['lock_draw','unlock_draw','invalidate_prep','reader_prefetch_step','reader_prefetch_buffer','prep_task','kick_prep','reader_prefetch_end','reader_prefetch_resume','reader_prefetch_idle']:
  unit+=function(name,book)+'\n'
 assert 'reader_prefetch_end(prep);' in function('present',book)
 assert 'reader_prefetch_resume(s_page)' in function('paint_reading',book)
@@ -131,12 +128,12 @@ int main(void){touch_t touch={0};app_ctx_t ctx={.touch=&touch};
  fail_task=true;assert(!kick_prep());fail_task=false;fail_draw=true;reader_prefetch_idle(&ctx);assert(s_prep_page==-1&&s_next_page==-1);fail_draw=false;
  invalidate_prep();images=true;assert(!kick_prep());images=false;wallpaper=true;assert(!kick_prep());wallpaper=false;
  s_toolbar=true;assert(!kick_prep());s_toolbar=false;s_reader_panel=READER_PANEL_FONT;assert(!kick_prep());s_reader_panel=READER_PANEL_NONE;
- s_page=499;assert(kick_prep());reader_prefetch_end(true);
- destroy_worker();reader_page_cache_clear();
+ s_page=499;assert(!kick_prep());
+ destroy_worker();free(s_next_fb);
  puts("PASS: real-thread scan overlap, row-boundary stop instead of whole-page join, partial-page continuation, 40 rapid cache hits, input/navigation priority and generation/OOM/image/background/panel guards");
 }
 '''
 with tempfile.TemporaryDirectory(dir='/private/tmp') as d:
  c=Path(d)/'test.c';exe=Path(d)/'test';c.write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-pthread','-fsanitize=address,undefined','-I'+str(root/'main/book'),'-I'+str(root/'tools/metalio_cache_host_stubs'),str(c),str(root/'main/book/reader_page_cache.c'),'-o',str(exe)],check=True)
+ subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-pthread','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True,timeout=30)

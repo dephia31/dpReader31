@@ -1,3 +1,4 @@
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/board.cmake")
 # 上游裁剪 fork：只保留可移植的 C/C++ 解码路径。
 # Trimmed upstream fork: keep the portable C/C++ decode path only.
 #
@@ -14,8 +15,9 @@
 # 所以编译类本体与一个 extern "C" 包装给 book_cover.c 调用。
 # Under ESP-IDF only the C++ JPEGDEC class exists (jpeg.inl's C API is behind
 # __LINUX__/_WIN64 and friends), so build the class plus an extern "C" wrapper for book_cover.c.
+kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "src/JPEGDEC.cpp" "src/jpegdec_shim.cpp")
 idf_component_register(
-    SRCS "src/JPEGDEC.cpp" "src/jpegdec_shim.cpp"
+    SRCS ${kiiko_selected_sources}
     INCLUDE_DIRS "src"
 )
 

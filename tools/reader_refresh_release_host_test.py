@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""中文：验证正式rc92阅读刷新回退及真实推屏路由。/ English: Verify official rc92 reader rollback and actual presenter routing.
+"""中文：验证 rc90 阅读全刷与保留的 rc92 普通翻页路由。/ English: Verify rc90 reader full refresh and preserved rc92 ordinary-turn routing.
 SPDX-License-Identifier: Apache-2.0
 """
 from pathlib import Path
 import subprocess,tempfile
 from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1]
-# test29 intentionally adopts vendor GL37 and fused footer; verify the production presenter below.
+# 生成视图没有历史Git对象；下面执行真实present，校验调用次数、模式及失败边界。
+# Generated views have no historical Git objects; execute the real presenter and check calls, modes and failure boundaries.
 unit=r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -26,8 +27,7 @@ enum {MODE_DU,MODE_GL16,MODE_GC16,APP_PAGE_REFRESH_MODE=MODE_GL16};
 static int E0470_WAVEFORM,E0470_FULL_WAVEFORM,E0470_FOLLOW_WAVEFORM;
 static bool s_reader_clock_pending,s_input_settle,s_shelf_feedback_pending,s_cover_batch_present_pending,s_shelf_page_pending;
 static bool s_reader_image_refresh_pending,s_reader_cleanup,s_reader_turn_pending,s_water_turn_pending,s_clear_confirm,s_reader_fullscreen,s_reader_footer_pending,s_reader_text_frame;
-static bool s_toolbar,s_shelf_key_paint_pending;
-static bool reader_indent_present(app_ctx_t*c,app_redraw_t d){(void)c;(void)d;return false;}
+static bool s_toolbar;
 static int s_view=READING,s_reader_panel,s_mode=MODE_GL16,s_presented_view=READING,s_water_turn_dir,s_page,s_du_count;
 static unsigned s_cover_dirty_mask,s_cover_present_mask;
 static int64_t s_reader_clock_minute,s_reader_clock_painted_minute,s_du_ms;
@@ -51,23 +51,25 @@ static bool ui_reader_background_prepare(const char *p){(void)p;return true;}
 static unsigned book_layout_page_image_count(int page){(void)page;return images;}
 static bool shelf_cover_frame_ready(void){return true;}
 static EpdRect ui_rect_union(EpdRect a,EpdRect b){(void)b;return a;}
-static EpdRect reader_fullscreen_progress_area(void){return(EpdRect){0,1208,684,8};}
-static EpdRect progress_rect(void){return(EpdRect){0,1060,684,32};}
 static int app_settings_reader_turn_effect(void){return tick;}
 static void guard_draw_result(void *hl,enum EpdDrawError err){(void)hl;(void)err;}
 static int e0470_page_turn_tick_us(void){return 11090;}
 static void e0470_page_turn_set_tick_us(int t){assert(t==11090);}
 #define display_main_transition_shelf_page() ((void)0)
-#define update_display_reader_cleanup(...) push(11)
 #define update_display_full(...) push(12)
 #define update_display_area_diff_with(...) push(13)
 #define update_display_area_full_with(...) push(14)
 #define update_display_area_with(...) push(15)
 #define update_display_with(...) push(16)
 #define update_display_mode_diff(...) push(17)
+#define display_main_normal_waveform() (&E0470_WAVEFORM)
 #define update_display_water_turn(...) push(18)
+#define E0470_TURN_RTL 0
+#define update_display_text_turn(...) push(19)
 #define update_display_fast_page(...) push(19)
 '''
+unit+='static bool s_shelf_key_paint_pending;\n'
+unit+='static bool reader_indent_present(app_ctx_t *ctx,app_redraw_t redraw){(void)ctx;(void)redraw;return false;}\n'
 unit+=function('present',root/'main/apps/app_book.c')
 unit+=r'''
 static void reset(void){
@@ -81,7 +83,7 @@ int main(void){
  for(int full=0;full<2;++full){
   reset();s_reader_fullscreen=full;s_reader_footer_pending=!full;
   assert(present(&ctx,APP_REDRAW_AREA));
-  assert(calls==1&&selected==13&&s_reader_text_frame);
+  assert(calls==2&&selected==(full?13:15)&&s_reader_text_frame);
   assert(!s_reader_footer_pending&&!s_reader_cleanup);
  }
  for(int full=0;full<2;++full){
@@ -90,9 +92,9 @@ int main(void){
   assert(!s_reader_cleanup&&!s_reader_turn_pending);
  }
  reset();s_reader_turn_pending=false;present(&ctx,APP_REDRAW_FULL);assert(calls==1&&selected==12&&rendered==1);
- reset();s_reader_turn_pending=false;present(&ctx,APP_REDRAW_PAGE);assert(calls==1&&selected==17&&rendered==1);
+ reset();s_reader_turn_pending=false;present(&ctx,APP_REDRAW_PAGE);assert(calls==1&&selected==13&&rendered==1);
  reset();fail=1;s_reader_footer_pending=false;
- present(&ctx,APP_REDRAW_AREA);assert(calls==1&&selected==13&&!s_reader_text_frame);
+ present(&ctx,APP_REDRAW_AREA);assert(calls==1&&selected==19&&!s_reader_text_frame);
  reset();s_water_turn_pending=true;s_reader_footer_pending=false;
  present(&ctx,APP_REDRAW_AREA);assert(selected==13&&calls==2&&!s_water_turn_pending);
  reset();images=1;s_reader_image_refresh_pending=true;s_reader_footer_pending=false;
@@ -102,8 +104,10 @@ int main(void){
  reset();s_reader_clock_pending=true;s_reader_fullscreen=false;s_reader_turn_pending=false;
  s_reader_clock_painted_minute=321;
  present(&ctx,APP_REDRAW_AREA);assert(calls==1&&selected==13&&s_reader_clock_minute==321&&!s_reader_clock_pending);
+ reset();s_view=s_presented_view=SHELF;s_shelf_key_paint_pending=true;
+ present(&ctx,APP_REDRAW_AREA);assert(calls==1&&selected==13&&!s_shelf_key_paint_pending&&!prepares);
  reset();ctx.request_app=true;present(&ctx,APP_REDRAW_AREA);assert(calls==0);ctx.request_app=false;
- puts("PASS: vendor GL37 text/body and fused footer, single GC48 periodic cleanup, manual full, chrome redraw, ripple, image, minute clock and cancellation routes; failed frames stay uncommitted");
+ puts("PASS: manual rc90/periodic complete GC16 each use one full output and no footer replay; ordinary turns, ripple, images, clock and cancellation unchanged");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='kiikoread-reader-release-',dir='/private/tmp') as folder:

@@ -158,6 +158,9 @@ int ui_text_title_fit(char *text, int preferred_px, int width, const char *font_
 /// Rasterize the active face directly with gray antialiasing at the target size, visually centered and independent of UI scaling.
 void ui_text_title_vc(uint8_t *fb, int x, int center_y, int px, const char *text,
                       const char *font_sample, enum EpdFontFlags align);
+/// 与标题共用字体及抗锯齿规则，边缘混合至卡片实际底色。/ Share title font/AA rules while blending edges into the card's actual background.
+void ui_text_title_background_vc(uint8_t *fb, int x, int center_y, int px, const char *text,
+                                 const char *font_sample, enum EpdFontFlags align, uint8_t background);
 void ui_text_bw(
     uint8_t* framebuffer, int x, int y_top, int px, const char* text,
     enum EpdFontFlags align, bool inverted
@@ -186,6 +189,11 @@ void ui_draw_icon(
 /// 书架与文件目录共用四向分页栏；矩形止于导航触摸区之上，无圆圈或反馈底框。
 /// Shared shelf/file pager, ending above the navigation touch strip, without circles or backing boxes.
 enum { UI_PAGER_NONE=-1, UI_PAGER_FIRST, UI_PAGER_PREVIOUS, UI_PAGER_NEXT, UI_PAGER_LAST };
+/// 分页绘制、命中和局部输出共享同一纵坐标。/ Pager drawing, hits and local output share one vertical origin.
+EpdRect ui_pager_area_at(int top);
+EpdRect ui_pager_rect_at(int action,int top);
+int ui_pager_hit_at(int x,int y,int top);
+void ui_pager_draw_at(uint8_t *fb,const char *label,int page,int pages,bool key_mode,int pressed,int top);
 EpdRect ui_pager_area(void);
 EpdRect ui_pager_rect(int action);
 int ui_pager_hit(int x,int y);
@@ -306,8 +314,7 @@ int ui_datamatrix_side(const char* text);
 void ui_draw_datamatrix(uint8_t* framebuffer, EpdRect rect, const char* text);
 
 void ui_clear_page(uint8_t* framebuffer);
-/// 跟踪实际绘出的状态栏，避免电量更新覆盖沉浸正文或全屏图片。
-/// Track the drawn status bar so battery updates never cover immersive text/fullscreen images.
+/// 记录实际绘有状态栏的帧；清页会失效，离屏清页不影响当前帧。/ Track a painted header; clearing that frame invalidates it, while offscreen clears leave it visible.
 void ui_status_mark_visible(uint8_t *fb);
 bool ui_status_visible(const uint8_t *fb);
 /// Exact logical fill using contiguous packed rows; preserves boundary nibbles.

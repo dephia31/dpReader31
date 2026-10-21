@@ -10,9 +10,9 @@ epdiy waveform tables for the **E0470A01** 4.7" monochrome e-paper panel (684 ×
 
 | 符号 / Symbol | 内容 / Content | 用途 / Use |
 | --- | --- | --- |
-| `E0470_WAVEFORM` | 默认表。厂家 2.0.76 起为完整 GC16 / GL16 48 相（`E0470_WAVEFORM_TRIM=1` 才开机裁成 GC36 / GL37）；附阈值 DU（目标 0–7 → 黑，8–15 → 白） / Default. Full GC16 / GL16 48 phases since vendor 2.0.76 (GC36 / GL37 only with `E0470_WAVEFORM_TRIM=1`), plus a threshold DU (dest 0–7 → black, 8–15 → white) | 固件的页面刷新 / Page refresh in the firmware |
+| `E0470_WAVEFORM` | 默认表。GC16 36 相 / GL16 37 相，开机由裁剪器派生；附阈值 DU（目标 0–7 → 黑，8–15 → 白） / Default. GC16 36 phases / GL16 37 phases derived by the trimmer at boot, plus a threshold DU (dest 0–7 → black, 8–15 → white) | 固件的页面刷新 / Page refresh in the firmware |
 | `E0470_FULL_WAVEFORM` | 完整表：GC16 / GL16 各 48 相，DU 20 相，单一 0–50 °C 温度档 / Full tables: GC16 / GL16 48 phases, DU 20 phases, one 0–50 °C temperature range | 对照与 A/B 比较 / Reference and A/B comparison |
-| `E0470_GRAY8_WAVEFORM` | 旧接口兼容名；S31 本地版沿用完整 48 相表（未提供 30 相 8 灰表），仅相位耗时至少约 576 ms / Legacy compatibility alias: the S31 build keeps the full 48-phase tables (no 30-phase 8-gray calibration), at least about 576 ms for phases alone | 刷新测试页的灰阶对照 / Gray comparison on the refresh test page |
+| `E0470_GRAY8_WAVEFORM` | 8 级可分辨灰阶，GC16 / GL16 各 30 相，整屏约 360 ms（默认表约 430 ms） / 8 distinguishable grays, GC16 / GL16 30 phases, about 360 ms per full refresh (default is about 430 ms) | 可选的更快页面模式 / Optional faster page mode |
 | `E0470_FOLLOW_WAVEFORM` | 开机生成的 8 帧短 DU（黑 7 / 白 8），配合 FAST 扫描档使用 / 8-frame short DU (7 black / 8 white) built at boot, meant for the FAST scan profile | 触摸笔迹与实时读数 / Touch ink and live digits |
 
 开机在第一次刷新前调用一次 `e0470_waveform_init()`，它负责生成默认表与跟随表。
@@ -21,17 +21,13 @@ Call `e0470_waveform_init()` once before the first refresh; it builds the defaul
 
 ## 裁剪器 / Trimmer
 
-裁剪默认关闭（厂家 2.0.76-debug 起 `E0470_WAVEFORM_TRIM 0`）：裁剪把黑目标的饱和期从 18 帧减到 13 帧，强光下墨色偏淡、原生 16 灰阶出现级别合并与非单调跳变；三份参考的原始数组逐字节相同，问题出在裁剪本身。DU 表与原始 GC48 / GL48 保持一致，`E0470_WAVEFORM_TRIM=1` 仍可回退到 GC36 / GL37 的快速页面表。
-
-Trimming is off by default (vendor 2.0.76-debug sets `E0470_WAVEFORM_TRIM 0`): it cut the black saturation from 18 to 13 frames, which left ink pale in strong light and merged / broke the monotonic native 16-gray ladder; the raw arrays are byte-identical across the three references, so trimming was the cause. DU and the raw GC48 / GL48 tables are unchanged, and `E0470_WAVEFORM_TRIM=1` still selects the faster GC36 / GL37 page tables.
-
 `e0470_waveform_trim()` 在不改变灰阶梯子的前提下缩短完整的 GC16 / GL16 表。完整表中每对 (from, to) 的序列共用同一个骨架：保持补齐、往反向轨道擦除、在目标轨道饱和、灰阶尾、结尾保持。灰阶档位全部位于尾段；裁剪器保留尾段不动，只裁擦除上限和饱和开头，再把所有序列右对齐。代价是擦除余量变小，旧内容的残影会先出现，因此参数需要在真机上对着残影调整。
 
 `e0470_waveform_trim()` shortens a full GC16 / GL16 table without changing its gray ladder. Every (from, to) sequence in the full table shares one skeleton: hold pad, erase toward the opposite rail, saturate on the target rail, gray tail, trailing hold. The gray levels live in the tail; the trimmer keeps the tail intact, cuts the erase maximum and the saturation head, then right-aligns every sequence. The cost is less erase margin, so ghosting from old content appears first. Parameters should be tuned on hardware against that ghosting.
 
-裁剪参数：`erase_max = 11`，`sat_cut = 5`，`white_sat_cut = 0`，`hold = 3`（仅 `E0470_WAVEFORM_TRIM=1` 时生效）。
+默认裁剪参数：`erase_max = 11`，`sat_cut = 5`，`white_sat_cut = 0`，`hold = 3`。
 
-Trim parameters: `erase_max = 11`, `sat_cut = 5`, `white_sat_cut = 0`, `hold = 3` (only with `E0470_WAVEFORM_TRIM=1`).
+Default trim: `erase_max = 11`, `sat_cut = 5`, `white_sat_cut = 0`, `hold = 3`.
 
 ## 辅助函数 / Helpers
 

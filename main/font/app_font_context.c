@@ -103,7 +103,12 @@ void app_font_begin_lock(app_lock_font_t *saved) {
 
 void app_font_end_lock(const app_lock_font_t *saved) {
     if (!saved) return;
+#if KIIKO_BOARD_METALIO47
+#else
+    (void)activate(saved->path);
+#endif
     s_reading = saved->reading;
+#if KIIKO_BOARD_METALIO47
     const char *restore=saved->path;
     // 暂时退回内建不能覆盖阅读意图；锁屏前未加载成功的TF字体在解锁时再尝试。
     // A temporary built-in fallback does not replace reader intent; retry the selected TF face on unlock.
@@ -112,6 +117,8 @@ void app_font_end_lock(const app_lock_font_t *saved) {
     if(ttf_font_path_is_builtin(restore)) restore=TTF_FONT_BUILTIN;
     if ((!ttf_font_ready() || strcmp(restore, ttf_font_path())) && !activate(restore) && !ttf_font_is_builtin())
         (void)ttf_font_open_builtin();
+#else
+#endif
     ttf_set_stroke_adjust_fine(s_reading ? app_settings_book_weight_fine() : 0);
     ttf_set_antialias(!s_reading || app_settings_book_antialias());
     const char *chosen = app_settings_system_font_path();

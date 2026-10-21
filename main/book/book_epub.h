@@ -9,8 +9,6 @@
  * Frozen: Progress uses cumulative uncompressed source HTML bytes, not physical ZIP offsets; no event-loop integration.
  */
 #pragma once
-// 中文：保持章节/内嵌字体索引；浅睡期间不持有 TF 文件句柄。
-// English: Retain chapter/embedded-font indexes without TF handles during light sleep.
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -65,7 +63,10 @@ esp_err_t book_epub_metadata_cached(const char *path, char *title, size_t title_
 
 /// 有界头部读取，仅探测插图尺寸。/ Probe image dimensions from a bounded header.
 esp_err_t book_epub_image_dimensions(book_epub_t *book, size_t chapter, const char *src, unsigned *width, unsigned *height);
+#if KIIKO_BOARD_METALIO47
 
 esp_err_t book_epub_suspend_io(book_epub_t *book);
 esp_err_t book_epub_resume_io(book_epub_t *book);
 int book_epub_prefetch_step(book_epub_t *book,size_t chapter);
+#else
+#endif

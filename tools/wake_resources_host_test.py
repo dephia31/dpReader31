@@ -7,7 +7,7 @@ import subprocess,tempfile
 from home_cover_cache_host_test import function
 r=Path(__file__).resolve().parents[1]
 s=(r/'main/app_main.c').read_text()
-assert 'const bool resuming = pico_boot_has_resume() && reset == ESP_RST_DEEPSLEEP;' in s
+assert 'const bool resuming = pico_boot_has_resume();' in s
 assert 'if(!resuming || lock_pin_enabled())app_font_activate_system();' in s
 assert 'if(first==app_at(1) && resume.reader)app_font_activate_reading();' in s
 u=r'''
@@ -21,7 +21,7 @@ u=r'''
 typedef struct{uint8_t *back_fb;}EpdiyHighlevelState;
 typedef struct{bool mounted;}read_pico_sd_info_t;
 static int probes,waits,remaining;static bool good;
-static int read_pico_sd_get_info(read_pico_sd_info_t *p){(void)p;++probes;return remaining-->0?1:0;}
+static int read_pico_sd_get_info(read_pico_sd_info_t *p){++probes;int error=remaining-->0?1:0;p->mounted=!error;return error;}
 static void vTaskDelay(int ms){assert(ms==20);++waits;}
 static int epd_width(void){return 684;}
 static int epd_height(void){return 1216;}
@@ -31,8 +31,9 @@ int main(void){
  uint8_t front[684u*1216u/2u],back[sizeof(front)];EpdiyHighlevelState hl={back};
  for(int mount=0;mount<4;++mount)for(int valid=0;valid<2;++valid){
   memset(back,0x99,sizeof(back));remaining=mount==3?1000:mount*20;waits=probes=0;good=valid;
-  assert(restore_retained_lock(&hl,front)==good);assert(waits<=150&&probes<=150);
-  if(good)assert(!memcmp(front,back,sizeof(front)));else for(unsigned i=0;i<sizeof(back);++i)assert(back[i]==0x99);
+  bool restored=good&&mount!=3;
+  assert(restore_retained_lock(&hl,front)==restored);assert(waits<=150&&probes<=150);
+  if(restored)assert(!memcmp(front,back,sizeof(front)));else for(unsigned i=0;i<sizeof(back);++i)assert(back[i]==0x99);
  }
  puts("PASS: validated retained front/back frame, bounded missing-card wait, corrupt-cache fallback, no font/display work inside restore helper; resume routes avoid redundant system-face load");
 }

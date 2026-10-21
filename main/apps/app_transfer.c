@@ -55,6 +55,10 @@
 #include "ui_wifi_qr.h"
 #include "usb_storage.h"
 
+static void transfer_navigation(uint8_t *fb,int active) {
+    ui_nav_draw(fb,active);
+}
+
 static const char* TAG = "transfer_page";
 static book_store_root_t s_root;
 static read_pico_transfer_status_t s_status;
@@ -191,6 +195,12 @@ static void transfer_header(uint8_t *fb, const char *title, const char *subtitle
     if (subtitle && subtitle[0]) ui_hairline(fb, 190, 36, 612, UI_GRAY_LIGHT);
 }
 
+static int transfer_content_end(void) {
+    return UI_NAV_REFRESH_END;
+}
+static int transfer_footer_top(void) {
+    return UI_NAV_REFRESH_END-102;
+}
 static EpdRect method_control_rect(int id) {
     return (EpdRect){36, 224 + id * 112, 612, 112};
 }
@@ -199,7 +209,7 @@ static EpdRect method_control_rect(int id) {
 // S05 keeps method selection separate from the service details shown on the next page.
 static void draw_methods(uint8_t *fb) {
     ui_clear_page(fb);
-    ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, UI_NAV_TOP}, 0xe0, fb);
+    ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, transfer_content_end()}, 0xe0, fb);
     transfer_header(fb, "Wifi/热点传书", NULL);
     ui_text(fb, 42, 180, 21, "选择方式", EPD_DRAW_ALIGN_LEFT, false);
     EpdRect card = {36, 224, 612, 224};
@@ -228,7 +238,7 @@ static void draw_methods(uint8_t *fb) {
     }
     ui_text(fb, 42, 594, 19, "浏览器传书支持 EPUB、TXT、字体和图片文件。", EPD_DRAW_ALIGN_LEFT, false);
     ui_text(fb, 42, 634, 18, "传输完成后，新内容会自动出现在书架或字体列表。", EPD_DRAW_ALIGN_LEFT, false);
-    ui_nav_draw(fb, 2);
+    transfer_navigation(fb,2);
 }
 
 /* ---- 设备端配网 / Device provisioning ---- */
@@ -254,9 +264,9 @@ static EpdRect network_control_rect(int id) {
     if (id == 11) return s_forget_confirm ? ui_row_rect(0, 2, 600, UI_BTN_H) : (EpdRect){501, 315, 123, 52};
     if (id == 12) return ui_row_rect(1, 2, 600, UI_BTN_H);
     bool paged = s_network_count > NETWORK_ROWS;
-    if (id == 7) return paged ? (EpdRect){36, 873, 64, 66} : (EpdRect){0};
-    if (id == 8) return paged ? (EpdRect){112, 873, 460, 66} : (EpdRect){36, 873, 612, 66};
-    if (id == 9) return paged ? (EpdRect){584, 873, 64, 66} : (EpdRect){0};
+    if (id == 7) return paged ? (EpdRect){36, transfer_footer_top()-103, 64, 66} : (EpdRect){0};
+    if (id == 8) return paged ? (EpdRect){112, transfer_footer_top()-103, 460, 66} : (EpdRect){36, transfer_footer_top()-103, 612, 66};
+    if (id == 9) return paged ? (EpdRect){584, transfer_footer_top()-103, 64, 66} : (EpdRect){0};
     return (EpdRect){0};
 }
 
@@ -288,7 +298,7 @@ static void network_button(uint8_t *fb, int id, const char *label, bool dark) {
 
 static void draw_networks(uint8_t* fb) {
     ui_clear_page(fb);
-    ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, UI_NAV_TOP}, 0xe0, fb);
+    ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, transfer_content_end()}, 0xe0, fb);
     if (s_forget_confirm) {
         transfer_header(fb, "遗忘网络", "仅清除 WiFi 连接信息，不影响图书");
         char name[33];
@@ -298,7 +308,7 @@ static void draw_networks(uint8_t* fb) {
         ui_text(fb, UI_MARGIN, 450, UI_PX_CAPTION, s_network_message, EPD_DRAW_ALIGN_LEFT, false);
         provisioning_button(fb, network_control_rect(11), "确认遗忘", 11);
         provisioning_button(fb, network_control_rect(12), "取消", 12);
-        ui_nav_draw(fb, 3);
+        transfer_navigation(fb,3);
         return;
     }
     transfer_header(fb, "无线网络", NULL);
@@ -368,8 +378,8 @@ static void draw_networks(uint8_t* fb) {
     snprintf(message, sizeof(message), "%s", s_network_message[0] ? s_network_message :
              s_status.network_ready ? "退出此页后，WiFi 仍保持连接。" : "连接后，可退出此页继续使用。");
     fit_label(message, 21, 600);
-    ui_text(fb, 42, 1014, 21, message, EPD_DRAW_ALIGN_LEFT, false);
-    ui_nav_draw(fb, 3);
+    ui_text(fb, 42, transfer_footer_top()+38, 21, message, EPD_DRAW_ALIGN_LEFT, false);
+    transfer_navigation(fb,3);
 }
 
 static void draw_password(uint8_t* fb) {
@@ -389,7 +399,7 @@ static void draw_password(uint8_t* fb) {
     provisioning_button(fb, password_control_rect(44), "取消", 44);
     provisioning_button(fb, password_control_rect(45), s_password_visible ? "隐藏" : "显示", 45);
     provisioning_button(fb, password_control_rect(46), "连接并保存", 46);
-    ui_keyboard_draw(fb, 560);
+    ui_keyboard_draw(fb, UI_SYSTEM_KEYBOARD_TOP);
 }
 
 static void queue_network_start(read_pico_transfer_mode_t mode) {
@@ -594,7 +604,7 @@ static app_redraw_t provisioning_action(int id) {
 
 static bool s_input_layout, s_input_settle;
 static app_redraw_t password_paint(app_ctx_t *ctx, bool field, bool controls) {
-    ui_keyboard_update_t update = ui_keyboard_update(ctx->fb, 560, password_control_rect(47),
+    ui_keyboard_update_t update = ui_keyboard_update(ctx->fb, UI_SYSTEM_KEYBOARD_TOP, password_control_rect(47),
         UI_PX_BODY, !s_password_visible, NULL, field);
     EpdRect extra = {UI_MARGIN, 215, ui_content_width(), controls ? 287 : 159};
     if (update.field || controls) {
@@ -618,7 +628,7 @@ static app_redraw_t password_paint(app_ctx_t *ctx, bool field, bool controls) {
 static app_redraw_t provisioning_gesture(app_ctx_t* ctx, const ui_gesture_event_t* ev) {
     if (s_view == TRANSFER_PASSWORD) {
         if (ev->type == UI_GESTURE_PRESS)
-            return ui_keyboard_press(ev->x0, ev->y0, 560, ctx->now_ms) ? password_paint(ctx, false, false) : APP_REDRAW_NONE;
+            return ui_keyboard_press(ev->x0, ev->y0, UI_SYSTEM_KEYBOARD_TOP, ctx->now_ms) ? password_paint(ctx, false, false) : APP_REDRAW_NONE;
         bool feedback = ev->type != UI_GESTURE_LONG_PRESS && ui_keyboard_release();
         if (ev->type != UI_GESTURE_TAP) return feedback ? password_paint(ctx, false, false) : APP_REDRAW_NONE;
         int x = ev->x0, y = ev->y0;
@@ -630,7 +640,7 @@ static app_redraw_t provisioning_gesture(app_ctx_t* ctx, const ui_gesture_event_
             if (changed == APP_REDRAW_AREA) return password_paint(ctx, true, true);
             return changed;
         }
-        ui_keyboard_result_t result = ui_keyboard_tap(x, y, 560, ctx->now_ms);
+        ui_keyboard_result_t result = ui_keyboard_tap(x, y, UI_SYSTEM_KEYBOARD_TOP, ctx->now_ms);
         if (result == UI_KEYBOARD_DONE) {
             app_redraw_t changed = provisioning_action(46);
             if (changed == APP_REDRAW_PAGE) return changed;
@@ -721,11 +731,11 @@ static void draw_status(uint8_t* fb) {
 static EpdRect control_rect(int id) {
     if (id == 0) return (EpdRect){36, 608, 296, 56};
     if (id == 1) return (EpdRect){352, 608, 296, 56};
-    if (id == 2) return (EpdRect){36, 976, 612, 76};
+    if (id == 2) return (EpdRect){36, transfer_footer_top(), 612, 76};
     return (EpdRect){0};
 }
 
-static void render(app_ctx_t* ctx, uint8_t* fb) {
+static void render_content(app_ctx_t* ctx, uint8_t* fb) {
     (void)ctx;
     if (s_usb_entry) {
         ui_clear_page(fb);
@@ -759,7 +769,7 @@ static void render(app_ctx_t* ctx, uint8_t* fb) {
         ui_text(fb, 64, 802, 21, "1  在电脑上等待复制完成", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 64, 855, 21, "2  安全弹出 SD_CARD，再结束读卡", EPD_DRAW_ALIGN_LEFT, false);
         ui_fill_round_rect(fb, control_rect(2), 22, s_pressed == 2 ? 0x60 : 0x38);
-        ui_text_vc(fb, 342, 1014, 24, active ? "结束 USB 读卡" : "返回文件管理",
+        ui_text_vc(fb, 342, transfer_footer_top()+38, 24, active ? "结束 USB 读卡" : "返回文件管理",
                    EPD_DRAW_ALIGN_CENTER, true);
         return;
     }
@@ -813,8 +823,16 @@ static void render(app_ctx_t* ctx, uint8_t* fb) {
     ui_draw_button(fb, back,
                    s_mode == READ_PICO_TRANSFER_MODE_AP && s_status.state == READ_PICO_TRANSFER_ERROR && !s_status.network_ready
                        ? "重试热点传书" : "停止传输服务", false);
-    ui_nav_draw(fb, 2);
+    transfer_navigation(fb,2);
 }
+static void render(app_ctx_t *ctx,uint8_t *fb) {
+    render_content(ctx,fb);
+#if KIIKO_BOARD_METALIO47
+    display_monochrome_content(fb);
+#endif
+    transfer_navigation(fb,s_wifi_settings_only?3:2);
+}
+
 
 static void on_enter(app_ctx_t* ctx) {
     (void)ctx;
@@ -1114,15 +1132,7 @@ static app_redraw_t method_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev)
 
 static app_redraw_t on_gesture(app_ctx_t* ctx, const ui_gesture_event_t* ev) {
     if (s_status.state == READ_PICO_TRANSFER_UPLOADING) return APP_REDRAW_NONE;
-    if (ev->type == UI_GESTURE_TAP && s_view != TRANSFER_PASSWORD && !usb_storage_active()) {
-        int tab = ui_nav_hit(ev->x0, ev->y0);
-        if (tab >= 0 && tab == ui_nav_hit(ev->x, ev->y)) {
-            if (s_view == TRANSFER_HOME && !stop_upload_if_idle()) return APP_REDRAW_NONE;
-            s_pressed = -1;
-            ui_nav_request(ctx, tab);
-            return APP_REDRAW_NONE;
-        }
-    }
+
     if (ev->type == UI_GESTURE_TAP && ev->y0 < 160 && ev->x0 < 120) {
         if (s_usb_entry || usb_storage_active()) return stop_usb_for_navigation(ctx, false);
         if (s_view == TRANSFER_PASSWORD) { clear_password(); s_view = TRANSFER_NETWORKS; return APP_REDRAW_PAGE; }
@@ -1213,15 +1223,26 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
     return true;
 }
 
+static bool transfer_edge_back(app_ctx_t *ctx) {
+    (void)ctx;
+    return !usb_storage_active() && s_status.state != READ_PICO_TRANSFER_UPLOADING;
+}
 static bool transfer_menu_handle_enabled(app_ctx_t* ctx) {
     (void)ctx;
     return false;
 }
 
+static bool transfer_back_swipe_area(app_ctx_t *ctx,const ui_gesture_event_t *event) {
+    (void)ctx;
+    return s_view!=TRANSFER_PASSWORD || event->y0<UI_SYSTEM_KEYBOARD_TOP;
+}
+
 const app_desc_t app_transfer = {
+    .binary_ui = true,.persistent_navigation=true,.navigation_enabled=transfer_edge_back,
     .on_media_lost = transfer_on_media_lost,
     .title = "传书 Transfer", .detail = "热点或已有 WiFi，浏览器上传", .enter_full = false,
     .on_enter = on_enter, .on_exit = transfer_on_exit, .render = render, .present = present,
     .on_tick = on_tick, .on_gesture = on_gesture, .on_key = on_key, .owns_keys = true,
-    .menu_handle_enabled = transfer_menu_handle_enabled,
+    .menu_handle_enabled = transfer_menu_handle_enabled, .edge_back_enabled = transfer_edge_back,
+    .back_swipe_area=transfer_back_swipe_area,
 };

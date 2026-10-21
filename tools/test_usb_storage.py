@@ -17,9 +17,6 @@ STUB = r'''
 #include <stdlib.h>
 #include <assert.h>
 typedef int esp_err_t;
-static bool book_cover_jobs_quiesce(unsigned ms){assert(ms==2000);return true;}
-static bool ui_avatar_quiesce(unsigned ms){assert(ms==2000);return true;}
-static void book_lock_collage_invalidate(void){}
 #define ESP_OK 0
 #define ESP_FAIL -1
 #define ESP_ERR_INVALID_STATE 2
@@ -38,17 +35,9 @@ typedef struct {int marker;} sdmmc_card_t;
 #define SDMMC_SLOT_CONFIG_DEFAULT() ((sdmmc_slot_config_t){0})
 #define SDMMC_FREQ_DEFAULT 20000
 #define SDMMC_SLOT_FLAG_INTERNAL_PULLUP 1
-#define SDMMC_HOST_SLOT_0 0
-#define GPIO_NUM_20 20
-#define GPIO_NUM_21 21
-#define GPIO_NUM_22 22
-#define GPIO_NUM_23 23
-#define GPIO_NUM_24 24
-#define GPIO_NUM_25 25
-void metalio_ana_sw(bool high);
-esp_err_t metalio_usb_route_serial(bool serial);
-void metalio_usb_serial_startup(void);
-void metalio_sd_release_hold(void);
+#define GPIO_NUM_38 38
+#define GPIO_NUM_42 42
+#define GPIO_NUM_44 44
 #define GPIO_NUM_NC -1
 int sdmmc_host_init(void);
 int sdmmc_host_init_slot(int slot,const sdmmc_slot_config_t *config);
@@ -86,9 +75,9 @@ UNIT = r'''
 #include "usb_stub.h"
 #include "usb_storage.c"
 #include <stdio.h>
-static bool mounted=true,host,driver,msc,connected,serial_route;
+static bool mounted=true,host,driver,msc,connected;
 static sdmmc_card_t *borrowed;
-static int stage,delete_error,usb_error,msc_error,busy,deletes,remounts,phy_restores,route_error;
+static int stage,delete_error,usb_error,msc_error,busy,deletes,remounts,phy_restores;
 static int failed(int where){return stage==where?ESP_FAIL:ESP_OK;}
 void vTaskDelay(int ms){assert(ms>0);}
 const char *esp_err_to_name(int e){(void)e;return "test";}
@@ -98,11 +87,7 @@ int read_pico_sd_remount(void){assert(!driver&&!borrowed&&!msc&&!host);mounted=t
 bool ttf_font_is_builtin(void){return true;}
 int ttf_font_open_builtin(void){return ESP_OK;}
 int sdmmc_host_init(void){assert(!mounted&&!host);if(failed(1))return ESP_FAIL;host=true;return ESP_OK;}
-int sdmmc_host_init_slot(int slot,const sdmmc_slot_config_t *c){assert(slot==0&&c->width==4&&c->clk==24&&c->cmd==25&&c->d0==20&&c->d1==21&&c->d2==22&&c->d3==23);return failed(2);}
-void metalio_sd_release_hold(void){}
-void metalio_ana_sw(bool high){if(high&&!serial_route)++phy_restores;serial_route=high;}
-esp_err_t metalio_usb_route_serial(bool high){if(route_error)return route_error;metalio_ana_sw(high);return ESP_OK;}
-void metalio_usb_serial_startup(void){assert(metalio_usb_route_serial(true)==ESP_OK);}
+int sdmmc_host_init_slot(int slot,const sdmmc_slot_config_t *c){assert(slot==1&&c->width==1);return failed(2);}
 int sdmmc_card_init(const sdmmc_host_t *h,sdmmc_card_t *c){assert(h->max_freq_khz==20000);c->marker=47;return failed(3);}
 int sdmmc_host_deinit(void){assert(!borrowed&&!driver&&!msc);host=false;return ESP_OK;}
 int usb_new_phy(const usb_phy_config_t *c,usb_phy_handle_t *h){assert(c->controller==USB_PHY_CTRL_SERIAL_JTAG);*h=malloc(1);assert(*h);++phy_restores;return ESP_OK;}
@@ -112,7 +97,7 @@ int tinyusb_msc_new_storage_sdmmc(const tinyusb_msc_storage_config_t *c,tinyusb_
     assert(msc&&c->medium.card&&c->fat_fs.do_not_format);
     if(failed(5))return ESP_FAIL;borrowed=c->medium.card;*h=malloc(1);assert(*h);return ESP_OK;
 }
-int tinyusb_driver_install(const tinyusb_config_t *c){(void)c;assert(borrowed&&!mounted&&!serial_route);if(failed(6))return ESP_FAIL;driver=connected=true;return ESP_OK;}
+int tinyusb_driver_install(const tinyusb_config_t *c){(void)c;assert(borrowed&&!mounted&&!s_serial_phy);if(failed(6))return ESP_FAIL;driver=connected=true;return ESP_OK;}
 int tinyusb_msc_delete_storage(tinyusb_msc_storage_handle_t h){
     assert(borrowed&&borrowed->marker==47&&!mounted);++deletes;
     if(busy>0){--busy;return ESP_ERR_INVALID_STATE;}if(delete_error)return delete_error;
@@ -122,10 +107,10 @@ int tinyusb_driver_uninstall(void){assert(!borrowed&&!connected);if(usb_error)re
 int tinyusb_msc_uninstall_driver(void){assert(!borrowed&&!driver);if(msc_error)return msc_error;msc=false;return ESP_OK;}
 bool tud_mounted(void){return connected;}
 void tud_disconnect(void){assert(driver);connected=false;}
-static void stopped(void){assert(mounted&&!usb_storage_active()&&!usb_storage_connected());assert(!s_cleanup_pending&&!s_card&&!s_storage&&!host&&!driver&&!msc&&serial_route);}
-static void retained(void){assert(!mounted&&usb_storage_active()&&!usb_storage_connected()&&s_cleanup_pending&&s_card&&host&&serial_route);assert(usb_storage_start()==ESP_ERR_INVALID_STATE);}
+static void stopped(void){assert(mounted&&!usb_storage_active()&&!usb_storage_connected());assert(!s_cleanup_pending&&!s_card&&!s_storage&&!host&&!driver&&!msc&&s_serial_phy);}
+static void retained(void){assert(!mounted&&usb_storage_active()&&!usb_storage_connected()&&s_cleanup_pending&&s_card&&host&&s_serial_phy);assert(usb_storage_start()==ESP_ERR_INVALID_STATE);}
 int main(void){
-    usb_storage_phy_init();assert(serial_route);usb_storage_phy_init();assert(serial_route);
+    usb_storage_phy_init();assert(phy_restores==1);usb_storage_phy_init();assert(phy_restores==1);
     assert(usb_storage_stop()==ESP_OK);stopped();
     for(int i=0;i<3;++i){assert(usb_storage_start()==ESP_OK&&usb_storage_connected());busy=3;assert(usb_storage_stop()==ESP_OK);stopped();}
     assert(usb_storage_start()==ESP_OK);delete_error=ESP_FAIL;int before=remounts;
@@ -140,22 +125,17 @@ int main(void){
     assert(usb_storage_start()==ESP_OK);msc_error=ESP_FAIL;before=remounts;
     assert(usb_storage_stop()==ESP_FAIL);retained();assert(!borrowed&&!driver&&msc&&remounts==before);
     msc_error=0;assert(usb_storage_stop()==ESP_OK);stopped();
-    route_error=ESP_FAIL;assert(usb_storage_start()==ESP_FAIL);assert(s_active&&s_cleanup_pending&&!driver&&!mounted);
-    route_error=0;assert(usb_storage_stop()==ESP_OK);stopped();
-    assert(usb_storage_start()==ESP_OK);route_error=ESP_FAIL;before=remounts;
-    assert(usb_storage_stop()==ESP_FAIL&&s_active&&s_cleanup_pending&&remounts==before&&!mounted);
-    route_error=0;assert(usb_storage_stop()==ESP_OK);stopped();
     for(stage=1;stage<=6;++stage){assert(usb_storage_start()==ESP_FAIL);stopped();}stage=0;
     stage=6;delete_error=ESP_FAIL;before=remounts;assert(usb_storage_start()==ESP_FAIL);retained();assert(remounts==before);
     stage=delete_error=0;assert(usb_storage_stop()==ESP_OK);stopped();
-    release_serial_phy();assert(!serial_route);
+    release_serial_phy();assert(!s_serial_phy);
     puts("USB: console recovery, delayed writes, 3 stop failures, 6 start failures, exclusive remount and retry passed");
 }
 '''
 with tempfile.TemporaryDirectory() as d:
     p = Path(d)
     (p/'usb_stub.h').write_text(STUB)
-    for name in ('ui_avatar.h','book_cover_jobs.h','book_lock_collage.h','metalio_hw.h','esp_err.h','driver/sdmmc_host.h','esp_log.h','esp_private/usb_phy.h',
+    for name in ('esp_err.h','driver/sdmmc_host.h','esp_log.h','esp_private/usb_phy.h',
                  'freertos/FreeRTOS.h','freertos/task.h','read_pico_sd.h','sdmmc_cmd.h',
                  'tinyusb.h','tinyusb_default_config.h','tinyusb_msc.h','ttf_font.h'):
         header=p/name;header.parent.mkdir(parents=True,exist_ok=True);header.write_text('#include "usb_stub.h"\n')

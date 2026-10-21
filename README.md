@@ -1,47 +1,39 @@
-# Metalio S31 kiikoread（私有协作测试工程）
+# Metalio S31 · kiikoread
 
-独立适配 Metalio E-INK4 Plus V1.5 / E0470A14-AF 34Pin，ESP32-S31，16MB Flash / 16MB PSRAM。不能与 Pico S3 固件混刷。
+本仓库为 **Metalio E-INK4 Plus 4.7 V1.5 / E0470A14-AF 34Pin / ESP32-S31** 私有固件工程。采用同一份双板维护源码，Metalio 的驱动、波形、前光、振动、USB、睡眠和分区由 `boards/metalio47/` 独立选择。
 
-当前版本：**`0.3.3-rc90-metalio-test36`**。包含 test31～test36 的字体事务、下拉菜单、书架/设置刷新、Moku 电源与防淡墨修改；设置页参考已发布的 RC96。完整说明见 [更新记录](docs/S31_CHANGELOG.md)。
+Private firmware for Metalio E-INK4 Plus V1.5. One maintained application tree selects the board-specific Metalio backend with `--board metalio47`.
 
-## 构建
+## 当前本地测试版 / Current local build
 
-使用支持 S31 的 ESP-IDF6.1 提交 `fff9895c82d744c7237be8847347bdd1b07c6643`，初始化相应子模块、安装匹配工具链并载入 `export.sh` 后执行：
+- 固件版本 / Firmware: **0.3.3-rc97**，2026-10-21 本地测试。
+- 原始维护源码 / Maintained source: `b3bfa555a01a0b92ff14843c1b728fcd3e16c4b5`。
+- [下载应用 Bin、USB 包、精确源码和校验值 / Downloads](https://github.com/wegooo-cell/Metalio-S31-kiikoread/releases/tag/v0.3.3-rc97-metalio-local-b3bfa55-20261021)。
+- 应用 / Application: `Kiikoread_Metalio_S31`，芯片 / chip `ESP32-S31`，双 5 MiB 应用槽。
+- Bin SHA-256: `5a171e8d9467243990ac655c29c8d144f0cfa44d4c592f25539699a02ff6cb7a`。
 
-```sh
-idf.py -B build-s31-native -D IDF_TARGET=esp32s31 -D SDKCONFIG_DEFAULTS=sdkconfig.defaults -D METALIO_LOCAL_LATENCY=OFF build
-```
+包含普通/水波纹四级22相文字刷新、安全192行备行、未变化白底保持；常驻灰底栏和与阅读共用判定的右滑返回；透明书封读取优化、锁屏资源失败白底圆锁，以及阅读下拉背景文字轻微模糊。保留前光/滑块和振动、异常启动字体保护等S31功能。
 
-依赖版本由 `dependencies.lock` 固定。不要用 Pico 的 SDK、引脚或分区覆盖本项目。构建输出项目身份为 `Kiikoread_Metalio_S31`，测速命令默认关闭。
+Includes short-gray text turns, safe scan prefill, unchanged-white holding, persistent gray navigation, reading-style right-swipe back, fused transparent-cover reads, white-lock fallback and slightly softer reader-menu glass. S31 hardware and recovery behavior remain board-specific.
 
-## 固件下载与更新
+S31完整编译和相关宿主回归通过。该快照的实机触控、光学、休眠恢复和实际生成耗时仍待验证。旧锁屏缓存会重建一次。静置防褪色重刷默认5分钟，本次上传保留此逻辑。
 
-下载 [test36 私有测试固件](https://github.com/wegooo-cell/Metalio-S31-kiikoread/releases/tag/v0.3.3-rc90-metalio-test36)。应用大小 4,788,464 字节，SHA256：
+Native S31 compilation and relevant host regressions passed. Hardware optics, touch feel, sleep/resume and latency for this snapshot still require validation. Old lock-art caches rebuild once; the default five-minute anti-fade refresh is retained.
 
-`f188b2c53ac9986167cb8856904d1643bbf786edf53b50f4b09c4788adde75c0`
+## 构建 / Build
 
-已有本项目的设备优先将 `Metalio-S31-update.bin` 放到 TF 卡，使用设备本地升级。USB 应用更新必须核对芯片、项目、分区及实际启动槽；应用不能写入 0x0。完整 16MB 镜像仅用于同板型首次安装，从 0x0 写入，会覆盖原系统与内部设置。TF 文件不在镜像中。
-
-共享包保留本地已验证 Bin 原字节，仅整理说明和元数据。此仓库不包含设备身份、原机恢复备份、NVS/凭据、个人字体、书籍、串口日志或绑定单台设备的电脑刷机记录。
-
-## S31 硬件约束
-
-完整原厂 GC48 / GL48 / DU20 数组保留，默认完整48相、裁剪关闭。保留 8bit / 20MHz LCD、192行预填、12ms最短相位、XOE 关闭至少12us、TPS65185、FT6336U、GPIO36 / USB、SDMMC、电池 / RTC、前光与振动。VCOM 默认3000mV来自 Moku 的对比测试，并非本台设备实测标定；已有保存值优先，只写运行寄存器，不烧永久 OTP。详见 [硬件说明](docs/S31_HARDWARE.md)。
-
-## 验证与限制
-
-test36 的 S31 完整编译、11组宿主回归及33项本地刷机保护模拟测试通过。构建输入哈希见 `docs/SOURCE_SHA256.json`，验证摘要见 `docs/TEST36_VALIDATION.json`。本轮未刷机，未完成强光保持、光学残影、实际响应时间、BLE、USB-MSC、长时间锁屏或功耗验收；不承诺所有切换达到300ms。
+准备支持 `esp32s31` 的匹配ESP-IDF 6.1及工具链，详见 [双板构建 / Board guide](docs/BOARDS.md)。以下参数复现当前本地测试的PIE/短灰阶配置：
 
 ```sh
-export METALIO_IDF_PATH="$IDF_PATH"
-bash tools/run_metalio_host_test.sh
-bash tools/run_metalio_ota_host_test.sh
-bash tools/run_water_turn_host_test.sh
-bash tools/run_display_host_test.sh
+python tools/build_firmware.py --board metalio47 --s31-pie --s31-text-ripple \
+  --idf-metalio47 /path/to/esp-idf-s31 \
+  --tools /path/to/idf-tools \
+  --python /path/to/idf-python/bin/python \
+  --output build/metalio-local
 ```
 
-其余测试及当前执行清单在 `docs/TEST36_VALIDATION.json`；部分历史夹具需要原厂对照源码或已解析的 managed_components，不等于全部旧 Pico 板级测试均适用 S31。
+产物在 `build/metalio-local/packages/metalio47/`。应用Bin用于已有匹配S31分区的更新；完整USB包内有该板的地址、镜像与校验值。保留现有数据时使用匹配分区/启动槽的应用更新流程。
 
-Wi-Fi 传书速度仍待解决：之前 STA 实测约30.2秒/1MiB，接收等待约29.8秒、写卡约0.13秒，关闭蓝牙没有明显改善。S31 只支持2.4GHz Wi-Fi6，不能连接5GHz。
+Application images update an existing matching S31 layout; the full USB bundle contains the board-specific image addresses and checksums. Use the matching-layout application update flow when retaining device data.
 
-仅作私有协作测试，非 Metalio 或 Pico 官方发布。第三方许可见 `THIRD_PARTY_NOTICES.md` 与 `licenses/`，保留各文件原有 SPDX。
+共享项目的完整功能与维护说明见 [原维护入口 / Shared upstream guide](README.upstream.md)、[更新日志 / Changelog](docs/CHANGELOG.md) 和 [许可证 / License](LICENSE)。

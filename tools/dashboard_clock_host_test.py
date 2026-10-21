@@ -22,6 +22,7 @@ unit=r'''
 #include <stdint.h>
 #include <stdio.h>
 #include <time.h>
+static bool display_pipeline_enabled(void){return false;}
 #include "app.h"
 typedef struct{int x,y,width,height;}EpdRect;
 enum EpdDrawError{EPD_DRAW_SUCCESS,EPD_DRAW_ERROR};
@@ -81,7 +82,7 @@ static enum EpdDrawError update_display_full(void *hl){(void)hl;++fulls;return E
 static enum EpdDrawError update_display_fast_page(void *hl){(void)hl;return EPD_DRAW_SUCCESS;}
 static void render(app_ctx_t *ctx,uint8_t *fb){(void)ctx;(void)fb;++paints;}
 '''+helpers+'\n'+present+'\n'+tick+r'''
-int main(void){
+int main(void){assert(!display_pipeline_enabled());
  app_ctx_t ctx={0};present(&ctx,APP_REDRAW_FULL);assert(s_clock_minute==100&&paints==1&&fulls==1);
  for(int i=0;i<100;++i)assert(on_tick(&ctx)==APP_REDRAW_NONE);
  minute=101;ctx.consumed=true;assert(on_tick(&ctx)==APP_REDRAW_NONE);ctx.consumed=false;
@@ -112,7 +113,7 @@ int main(void){
  assert(record_reads==2);
  minute=107;date.tm_min++;s_date=date;s_view=HOME_COMPONENT;s_component_browse=APP_HOME_MOON;s_component_pending=true;old_paints=paints;
  fail=true;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(s_component_pending&&paints==old_paints&&picker_bodies==1);
- fail=false;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(!s_component_pending&&paints==old_paints&&picker_bodies==2&&pushed.y==260&&pushed.height==876&&pushed_wave==&hold_gray);
+ fail=false;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(!s_component_pending&&paints==old_paints&&picker_bodies==2&&pushed.y==260&&pushed.height==812&&pushed_wave==&hold_gray);
  s_press_pending=true;s_pressed=s_area=(EpdRect){36,472,64,64};int faces=clock_faces;present(&ctx,APP_REDRAW_AREA);assert(picker_controls==1&&clock_faces==faces&&paints==old_paints);s_press_pending=false;
  s_view=HOME_ROOT;widget=APP_HOME_KEHAI;ctx.now_ms=1000;s_date=date;present(&ctx,APP_REDRAW_PAGE);subphase=1;ctx.now_ms=1050;assert(on_tick(&ctx)==APP_REDRAW_NONE);ctx.now_ms=1100;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(s_widget_phase_shown==(unsigned)date.tm_sec*10+1&&pushed_wave==&E0470_FOLLOW_WAVEFORM);subphase=7;ctx.now_ms=1500;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(s_widget_phase_shown==(unsigned)date.tm_sec*10+7);ctx.now_ms=0;subphase=0;
  for(int binary=0;binary<2;++binary)for(unsigned i=0;i<HOME_COMPONENT_OPTIONS-1;++i){

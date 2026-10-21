@@ -39,7 +39,10 @@
 #include "boot_state.h"
 #include "app_registry.h"
 #include "book_cover.h"
+#if KIIKO_BOARD_METALIO47
 #include "metalio_cover_cache.h"
+#else
+#endif
 #include "book_cover_jobs.h"
 #include "ui_image_dither.h"
 #include "book_epub.h"
@@ -147,7 +150,9 @@ void app_home_release_clock_cache(void) {
     free(s_clock_base_cache);s_clock_base_cache=NULL;s_clock_base_attempted=false;
 }
 static void clock_base_prepare(void){
-    if(s_clock_base_cache||s_clock_base_attempted||app_settings_home_component()!=APP_HOME_KEHAI)return;
+    app_home_component_t component=s_view==HOME_COMPONENT?s_component_browse:app_settings_home_component();
+    bool eligible=component!=APP_HOME_FOLDER;
+    if(s_clock_base_cache||s_clock_base_attempted||!eligible)return;
     s_clock_base_attempted=true;
     if(heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<UI_HOME_CLOCK_BASE_CACHE_BYTES+2u*1024u*1024u)return;
     s_clock_base_cache=heap_caps_malloc(UI_HOME_CLOCK_BASE_CACHE_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
@@ -570,7 +575,11 @@ static void render_root(uint8_t *fb) {
     if(s_avatar_ready)ui_wallpaper_draw_avatar(fb,s_avatar,(EpdRect){588,88,60,60},30);
     else {epd_fill_circle(618,118,30,0x30,fb);label(fb,618,118,30,"K",EPD_DRAW_ALIGN_CENTER,0xff);}
     HOME_STAGE("header");
+#if KIIKO_BOARD_METALIO47
+    const uint8_t card_gray=0xff;
+#else
     const uint8_t card_gray=app_settings_main_fast_refresh()?0xff:0xee;
+#endif
     ui_fill_round_rect(fb,(EpdRect){36,184,612,378},28,card_gray);
     home_frame(fb,(EpdRect){36,184,612,378},28);
     for(int side=0;side<2;++side) {
@@ -644,19 +653,19 @@ static void render_goal(uint8_t *fb) {
     label(fb,342,902,20,"分钟",EPD_DRAW_ALIGN_CENTER,0x50);
     const unsigned presets[]={15,30,60};
     for(unsigned i=0;i<3;++i) {
-        EpdRect box={36+i*214,970,184,56};ui_fill_round_rect(fb,box,28,s_goal_draft==presets[i]?0xe0:0xf0);home_frame(fb,box,28);
-        snprintf(value,sizeof(value),"%u 分钟",presets[i]);label(fb,box.x+92,998,25,value,EPD_DRAW_ALIGN_CENTER,0x20);
+        EpdRect box={36+i*214,920,184,56};ui_fill_round_rect(fb,box,28,s_goal_draft==presets[i]?0xe0:0xf0);home_frame(fb,box,28);
+        snprintf(value,sizeof(value),"%u 分钟",presets[i]);label(fb,box.x+92,948,25,value,EPD_DRAW_ALIGN_CENTER,0x20);
     }
-    if(s_save_error)label(fb,342,1060,23,"保存未完成，请再试一次",EPD_DRAW_ALIGN_CENTER,0x30);
-    ui_fill_round_rect(fb,(EpdRect){36,1090,612,72},28,0x20);label(fb,342,1126,28,"保存",EPD_DRAW_ALIGN_CENTER,0xff);
+    if(s_save_error)label(fb,342,990,23,"保存未完成，请再试一次",EPD_DRAW_ALIGN_CENTER,0x30);
+    ui_fill_round_rect(fb,(EpdRect){36,1008,612,72},28,0x20);label(fb,342,1044,28,"保存",EPD_DRAW_ALIGN_CENTER,0xff);
 }
 static void render_component_controls(uint8_t *fb) {
     circle_frame(fb,68,504,32);circle_frame(fb,616,504,32);
     ui_draw_icon(fb,68,504,34,UI_ICON_CHEVRON_LEFT,0x30);ui_draw_icon(fb,616,504,34,UI_ICON_CHEVRON_RIGHT,0x30);
     bool current=s_component_browse==app_settings_home_component();
-    bool pressed=s_press_pending&&s_pressed.y==1060;
-    ui_fill_round_rect(fb,(EpdRect){36,1060,612,76},38,pressed?0xe0:0x20);
-    label(fb,342,1098,30,current?"返回首页":"使用此样式",EPD_DRAW_ALIGN_CENTER,pressed?0x20:0xff);
+    bool pressed=s_press_pending&&s_pressed.y==996;
+    ui_fill_round_rect(fb,(EpdRect){36,996,612,76},38,pressed?0xe0:0x20);
+    label(fb,342,1034,30,current?"返回首页":"使用此样式",EPD_DRAW_ALIGN_CENTER,pressed?0x20:0xff);
 }
 static void render_components_body(uint8_t *fb) {
     if(s_component_browse==APP_HOME_FOLDER)ui_home_folder_draw(fb,s_folder,s_folder_fast,(EpdRect){132,282,420,459});
@@ -688,8 +697,8 @@ static void render_time(uint8_t *fb) {
     clock_draw_region(fb,time_clock_bounds(),&s_date,app_settings_main_fast_refresh(),clock_style(app_settings_home_component()),time_clock_bounds(),s_time_phase);
     label(fb,342,804,32,component_name(app_settings_home_component()),EPD_DRAW_ALIGN_CENTER,0x30);
     render_time_value(fb,&s_date);label(fb,342,975,23,"北京时间 · 24小时制",EPD_DRAW_ALIGN_CENTER,0x60);
-    bool pressed=s_press_pending&&s_pressed.y==1060;
-    ui_fill_round_rect(fb,(EpdRect){36,1060,612,76},38,pressed?0xe0:0x20);label(fb,342,1098,30,"切换时钟样式",EPD_DRAW_ALIGN_CENTER,pressed?0x20:0xff);
+    bool pressed=s_press_pending&&s_pressed.y==996;
+    ui_fill_round_rect(fb,(EpdRect){36,996,612,76},38,pressed?0xe0:0x20);label(fb,342,1034,30,"切换时钟样式",EPD_DRAW_ALIGN_CENTER,pressed?0x20:0xff);
 }
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     (void)ctx;ui_clear_page(fb);ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT},0xff,fb);
@@ -697,6 +706,7 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
     s_widget_phase=s_time_phase=clock_phase_now(&s_date);
     if(s_view==HOME_ROOT)render_root(fb);else if(s_view==HOME_GOAL)render_goal(fb);else if(s_view==HOME_TIME)render_time(fb);else render_components(fb);
     if(s_press_pending && !continue_card_pressed())ui_draw_selected_round_rect(fb,s_pressed,s_pressed.width==60?30:s_pressed.width==64?32:s_pressed.width==86?43:s_pressed.height==76?38:20);
+    if(s_view!=HOME_ROOT)ui_nav_draw(fb,0);
 }
 static enum EpdDrawError present_clock_area(app_ctx_t *ctx,EpdRect area) {
     // 脏行和脏列交集包含未变化灰底，必须使用等灰保持表，不能重刷该矩形。
@@ -714,7 +724,7 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
     if(redraw==APP_REDRAW_NONE)return true;
     int64_t minute=ui_nav_clock_minute();
     if(redraw==APP_REDRAW_AREA&&s_view==HOME_COMPONENT&&(s_component_pending||s_area.width==64||s_area.height==76)) {
-        if(s_component_pending)s_area=(EpdRect){36,260,612,876};
+        if(s_component_pending)s_area=(EpdRect){36,260,612,812};
         ui_fill_rect_fast(s_area,0xff,ctx->fb);
         if(s_component_pending){s_widget_phase=clock_phase_now(&s_date);render_components_body(ctx->fb);}
         else render_component_controls(ctx->fb);
@@ -756,6 +766,18 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
     if(redraw==APP_REDRAW_AREA&&s_clock_pending) {
         s_clock_pending=false;
         ui_fill_rect_fast((EpdRect){24,18,156,44},0xff,ctx->fb);ui_nav_clock_draw(ctx->fb);
+#if KIIKO_BOARD_METALIO47
+        if(display_pipeline_enabled()) {
+            EpdRect dirty={24,18,156,44};
+            if(s_view==HOME_ROOT&&app_settings_home_component()!=APP_HOME_FOLDER) {
+                date_now(&s_date);ui_home_clock_style_t style=clock_style(app_settings_home_component());
+                clock_draw_region(ctx->fb,(EpdRect){24,640,320,350},&s_date,app_settings_main_fast_refresh(),style,(EpdRect){24,640,320,326},s_widget_phase);
+                dirty=ui_rect_union(dirty,style==UI_HOME_CLOCK_PS1995?(EpdRect){78,684,198,198}:component_clock_graphics());
+            }
+            enum EpdDrawError result=present_clock_area(ctx,dirty);
+            guard_draw_result(ctx->hl,result);if(result==EPD_DRAW_SUCCESS)s_clock_minute=minute;return true;
+        }
+#endif
         enum EpdDrawError result=update_display_area_diff_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,(EpdRect){24,18,156,44});
         if(result==EPD_DRAW_SUCCESS&&s_view==HOME_ROOT&&app_settings_home_component()!=APP_HOME_FOLDER) {
             date_now(&s_date);ui_home_clock_style_t style=clock_style(app_settings_home_component());
@@ -777,7 +799,11 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
     }
     return true;
 }
-static void refresh_excerpt(void) {book_excerpt_load(featured()->path,s_excerpt);}
+static void refresh_excerpt(void) {
+    const home_book_t *book=featured();
+    s_excerpt[0]=0;
+    if(book->has_progress)book_excerpt_load(book->path,book->progress.chapter,s_excerpt);
+}
 static void on_enter(app_ctx_t *ctx) {
     s_cover_generation=book_cover_jobs_begin();
     const uint32_t progress_revision=book_progress_revision();
@@ -807,7 +833,10 @@ static void on_enter(app_ctx_t *ctx) {
     rp_boot_mark("excerpt");
 }
 static void on_media_lost(app_ctx_t *ctx) {
+#if KIIKO_BOARD_METALIO47
     metalio_cover_cache_clear();
+#else
+#endif
     app_home_release_clock_cache();
     (void)ctx;clear_cover_cache();memset(&s_current,0,sizeof(s_current));memset(s_recent,0,sizeof(s_recent));
     s_books_cache_valid=false;s_excerpt[0]=0;s_avatar_ready=s_avatar_pending=false;
@@ -877,7 +906,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     bool needs_folder=(s_view==HOME_ROOT&&app_settings_home_component()==APP_HOME_FOLDER)||(s_view==HOME_COMPONENT&&s_component_browse==APP_HOME_FOLDER);
     if(needs_folder&&!s_folder&&!s_folder_attempted) {
         if(prepare_folder()){
-            if(folder_preview){s_component_pending=true;s_area=(EpdRect){36,260,612,876};}
+            if(folder_preview){s_component_pending=true;s_area=(EpdRect){36,260,612,812};}
             else s_area=(EpdRect){24,604,320,350};
             return APP_REDRAW_AREA;
         }
@@ -895,11 +924,11 @@ static EpdRect control(int x,int y) {
         if(hit((EpdRect){36,472,64,64},x,y))return(EpdRect){36,472,64,64};
         if(hit((EpdRect){584,472,64,64},x,y))return(EpdRect){584,472,64,64};
     }
-    if((s_view==HOME_COMPONENT||s_view==HOME_TIME)&&hit((EpdRect){36,1060,612,76},x,y))return(EpdRect){36,1060,612,76};
+    if((s_view==HOME_COMPONENT||s_view==HOME_TIME)&&hit((EpdRect){36,996,612,76},x,y))return(EpdRect){36,996,612,76};
     if(s_view==HOME_GOAL) {
         if(hit((EpdRect){56,834,86,86},x,y))return(EpdRect){56,834,86,86};
         if(hit((EpdRect){542,834,86,86},x,y))return(EpdRect){542,834,86,86};
-        if(hit((EpdRect){36,1090,612,72},x,y))return(EpdRect){36,1090,612,72};
+        if(hit((EpdRect){36,1008,612,72},x,y))return(EpdRect){36,1008,612,72};
     }
     return(EpdRect){0};
 }
@@ -915,27 +944,27 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         int direction=ev->type==UI_GESTURE_SWIPE_L?1:ev->type==UI_GESTURE_SWIPE_R?-1:0;
         if(ev->type==UI_GESTURE_TAP&&hit((EpdRect){36,472,64,64},ev->x0,ev->y0))direction=-1;
         if(ev->type==UI_GESTURE_TAP&&hit((EpdRect){584,472,64,64},ev->x0,ev->y0))direction=1;
-        if(direction){unsigned index=component_index(s_component_browse);s_component_browse=s_components[(index+HOME_COMPONENT_OPTIONS+direction)%HOME_COMPONENT_OPTIONS];s_save_error=false;s_component_pending=true;s_widget_pending=false;s_area=(EpdRect){36,260,612,876};return APP_REDRAW_AREA;}
+        if(direction){unsigned index=component_index(s_component_browse);s_component_browse=s_components[(index+HOME_COMPONENT_OPTIONS+direction)%HOME_COMPONENT_OPTIONS];s_save_error=false;s_component_pending=true;s_widget_pending=false;s_area=(EpdRect){36,260,612,812};return APP_REDRAW_AREA;}
     }
     if(ev->type!=UI_GESTURE_TAP) {if(restore){s_area=control_feedback_area(s_pressed);return APP_REDRAW_AREA;}return APP_REDRAW_NONE;}
     int x=ev->x0,y=ev->y0;
     if(s_view!=HOME_ROOT&&hit((EpdRect){36,78,60,60},x,y)) {s_view=HOME_ROOT;s_save_error=false;return APP_REDRAW_PAGE;}
     if(s_view==HOME_COMPONENT) {
-        if(hit((EpdRect){36,1060,612,76},x,y)) {
+        if(hit((EpdRect){36,996,612,76},x,y)) {
             s_save_error=s_component_browse!=app_settings_home_component()&&app_settings_set_home_component(s_component_browse)!=ESP_OK;
             if(!s_save_error) s_view=HOME_ROOT;
             return APP_REDRAW_PAGE;
         }
     }else if(s_view==HOME_TIME){
-        if(hit((EpdRect){36,1060,612,76},x,y)){s_view=HOME_COMPONENT;s_component_browse=app_settings_home_component();s_save_error=false;return APP_REDRAW_PAGE;}
+        if(hit((EpdRect){36,996,612,76},x,y)){s_view=HOME_COMPONENT;s_component_browse=app_settings_home_component();s_save_error=false;return APP_REDRAW_PAGE;}
     }else if(s_view==HOME_GOAL) {
         uint8_t old=s_goal_draft;
         if(hit((EpdRect){56,834,86,86},x,y)&&s_goal_draft>5)s_goal_draft-=5;
         else if(hit((EpdRect){542,834,86,86},x,y)&&s_goal_draft<180)s_goal_draft+=5;
-        else if(hit((EpdRect){36,1090,612,72},x,y)) {
+        else if(hit((EpdRect){36,1008,612,72},x,y)) {
             s_save_error=app_settings_set_home_goal_minutes(s_goal_draft)!=ESP_OK;if(!s_save_error) s_view=HOME_ROOT;
             return APP_REDRAW_PAGE;
-        }else {const uint8_t presets[]={15,30,60};for(int i=0;i<3;++i)if(hit((EpdRect){36+i*214,970,184,56},x,y))s_goal_draft=presets[i];}
+        }else {const uint8_t presets[]={15,30,60};for(int i=0;i<3;++i)if(hit((EpdRect){36+i*214,920,184,56},x,y))s_goal_draft=presets[i];}
         if(old!=s_goal_draft){s_area=(EpdRect){36,198,612,830};return APP_REDRAW_AREA;}
     }else {
         int tab=ui_nav_hit(x,y);if(tab>=0){ui_nav_request(ctx,tab);return APP_REDRAW_NONE;}
@@ -963,6 +992,6 @@ static EpdRect area_hint(app_ctx_t *ctx) {(void)ctx;return s_area;}
 static void home_exit(app_ctx_t *ctx){(void)ctx;book_cover_jobs_cancel(s_cover_generation);s_cover_generation=0;}
 const app_desc_t app_dashboard={
     .title="首页 Home",.detail="继续阅读与月阅读记录",.enter_full=false,.owns_keys=true,.menu_handle_enabled=no_menu_handle,
-    .main_page_visible=main_page_visible,.on_enter=on_enter,.on_exit=home_exit,.on_media_lost=on_media_lost,.on_media_ready=on_media_ready,
+    .main_page_visible=main_page_visible,.persistent_navigation=true,.on_enter=on_enter,.on_exit=home_exit,.on_media_lost=on_media_lost,.on_media_ready=on_media_ready,
     .render=render,.present=present,.on_tick=on_tick,.on_gesture=on_gesture,.on_key=on_key,.area_hint=area_hint,
 };

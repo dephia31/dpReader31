@@ -5,7 +5,7 @@
 # EPUB主机解压替身需要zlib开发包。/ The EPUB host inflate shim requires zlib development headers.
 set -euo pipefail
 mkdir -p build/book-tests
-python3 tools/gen_book_fixtures.py
+python tools/gen_book_fixtures.py
 flags=(-std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -g -fsanitize=address,undefined -fno-omit-frame-pointer -Imain/book -Imain)
 if [[ "$(uname -s)" == Darwin ]]; then link_gc=(-Wl,-dead_strip); else link_gc=(-Wl,--gc-sections); fi
 gcc "${flags[@]}" -Itools/book_epub_stubs -Itools/zip_host_stubs tools/book_source_host_test.c main/book/book_source.c main/book/book_index_cache.c main/book/book_txt.c main/book/gbk.c main/book/book_epub.c main/book/book_image_header.c main/book/zip_reader.c main/book/html_text.c -lz -o build/book-tests/source

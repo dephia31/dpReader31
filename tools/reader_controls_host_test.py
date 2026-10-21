@@ -27,7 +27,6 @@ static bool s_clear_confirm,s_scan_pending;
 static struct {bool pending;} s_reader_tap;
 static int64_t s_stats_activity_ms,s_reader_notice_until;
 static unsigned invalidations;
-static int s_turn_direction;
 static void invalidate_prep(void){++invalidations;}
 static bool locked,aa=true,raster_aa=true,save_fail;
 static void lock_draw(void){assert(!locked);locked=true;}

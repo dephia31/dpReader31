@@ -53,14 +53,40 @@ enum EpdDrawError update_display_mode(EpdiyHighlevelState* hl, enum EpdDrawMode 
 /// 普通页面切换使用真实差分 GL16；未变化像素不进入 dirty map。
 /// True differential GL16 for ordinary page transitions; unchanged pixels stay clean.
 enum EpdDrawError update_display_mode_diff(EpdiyHighlevelState* hl, enum EpdDrawMode mode);
-/// 系统页切换：普通模式柔和16灰阶差分，等灰保持、黑白端点单向推动，周期GC16清残影；不安排二次刷新。
-/// System transitions: ordinary soft 16-gray differences hold equal grays and drive BW endpoints directionally, with periodic GC16 cleanup and no second pass.
+/// 系统子页只推最终差分，不因操作计数全刷；显式全刷和故障恢复独立。
+/// System children present final differences without count-triggered full output; explicit full and fault recovery are independent.
 /// 四主页面固定底栏，仅横条局部更新；普通保留灰阶与内容区整理，快刷用完整黑白表及棋盘格亚克力。
 /// All main screens retain navigation with local markers; ordinary uses soft gray differences and periodic body cleanup, fast uses monochrome/checkerboard acrylic.
 enum EpdDrawError update_display_fast_page(EpdiyHighlevelState* hl);
 /// 为下一次主页面输出启用固定底栏；标记书架切出与真正切页，避免同页重绘播放动画。
 /// Arm fixed navigation for the next main-screen output; tag shelf exit and actual navigation so same-page repaints do not animate.
 void display_main_transition_arm(const void* owner, bool leaving_shelf, bool changing_page);
+#if KIIKO_BOARD_METALIO47
+/// 纯绘制期间提前等待TPS唤醒，结束时取消未消费的准备；实际推屏另持Flash锁。/ Overlap TPS wake with pure paint and cancel unused preparation; actual output separately holds the Flash lock.
+bool display_page_prepare_begin(void);
+void display_page_prepare_end(bool held);
+bool display_pipeline_enabled(void);
+/// 当前设置/文件主页面按黑白输出，底栏仍从真实back保留。/ Present the armed Settings/Files root in BW, retaining navigation from actual back.
+void display_main_transition_monochrome(void);
+/// 只规整S31内容区像素，不改底栏、波形或显示历史。/ Normalize only S31 content pixels, without changing navigation, waveforms or display history.
+void display_monochrome_content(uint8_t* fb);
+/// 整个系统页二值化，不改真实back或原厂波形。/ Binarize the whole system frame without altering back history or vendor tables.
+void display_monochrome_frame(uint8_t* fb);
+/// 设置本次系统推屏策略，返回旧策略；离开作用域必须恢复。/ Set scoped system-output policy, returning the previous policy for restoration.
+bool display_system_binary_set(bool enabled);
+/// 常驻底栏的根页/子页保留灰阶，只二值化内容，返回旧值供恢复。/ Persistent root/child navigation retains gray; binarize content only and return the prior scope.
+bool display_system_navigation_set(bool visible);
+#else
+/// Pico文件/设置推屏复用快刷差分，返回旧作用域；不影响阅读、手动全刷或故障恢复。
+/// Scope Pico Files/Settings to fast differences; return the old scope without affecting reading, explicit full output or recovery.
+bool display_system_fast_set(bool enabled);
+/// 二值化系统内容，保留指定头像矩形及根页灰底栏；不改后缓冲。
+/// Binarize system content, retaining the avatar rectangle and gray root navigation without editing back history.
+void display_system_content(uint8_t* fb, bool navigation, EpdRect gray);
+/// 系统侧滑用主页灰阶水波纹，独立于阅读文字序列；区域必须是逻辑坐标。
+/// System edge returns use main-gray ripple independently of reader text; the area uses logical coordinates.
+enum EpdDrawError update_display_main_turn(EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir);
+#endif
 /// 当前主页面最多三个横向灰阶条带，其余内容按黑白驱动；无入口许可时忽略。
 /// Register at most three horizontal gray bands on the armed main page; other content uses black/white. Ignore without permission.
 void display_main_transition_gray_bands(const EpdRect* bands, unsigned count);
@@ -71,6 +97,8 @@ void display_main_transition_disarm(void);
 /// 取消尚未使用的入口；不打断物理波形，无延迟补刷任务。
 /// Cancel unused permission without interrupting a physical waveform; no deferred completion exists.
 void display_main_transition_cancel(void);
+#if KIIKO_BOARD_METALIO47
+#endif
 enum EpdDrawError update_display_from_white(EpdiyHighlevelState* hl);
 enum EpdDrawError update_display_from_white_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode
@@ -111,11 +139,14 @@ enum EpdDrawError update_display_area_diff_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode,
     EpdRect area
 );
+/// area始终为旋转后逻辑坐标，勿传物理epd_full_screen。/ area always uses rotated logical coordinates, never physical epd_full_screen.
 /// 阅读页可选的真实错相 GL16 翻页；缺相位时回退现有 GL16，失败时恢复基准帧。
 /// 纯文字水波纹复用柔和文字灰边，8带节拍不变；缺相回退GL16，扫描失败重建真实基准。
 /// Staggered text phases retain eight-band pacing, hold unchanged grays and soften edge transients; missing phases fall back and failures rebuild the baseline.
 enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect area,
                                              e0470_turn_dir_t dir);
+/// 同步普通文字翻页沿用水波纹的全部灰阶相位，单带同时输出并恢复原节拍。/ Ordinary text uses all ripple gray phases in one synchronous band and restores pacing.
+enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir);
 /// 动画中间帧使用灰阶波形，但不累计周期清屏计数；动画最终帧走普通刷新出口。
 /// Use grayscale for animation strips without advancing periodic cleanup; the final frame uses the normal path.
 

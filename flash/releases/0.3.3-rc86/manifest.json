@@ -1,0 +1,37 @@
+{
+  "name": "小纸 Pico 阅读固件",
+  "version": "0.3.3-rc86",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "improv": false,
+      "parts": [
+        {
+          "path": "bootloader.bin",
+          "offset": 0
+        },
+        {
+          "path": "partitions.bin",
+          "offset": 32768
+        },
+        {
+          "path": "../../Pico-update-0.3.3-rc86.bin",
+          "offset": 65536
+        },
+        {
+          "path": "ota_data_initial.bin",
+          "offset": 13697024
+        }
+      ]
+    }
+  ],
+  "pico_ota": {
+    "layout": "pico-dual-4m-v1",
+    "base_version": "0.3.3-rc86",
+    "minimum_base_version": "0.3.3-rc72",
+    "online_ota_base_version": "0.3.3-rc79",
+    "rollback": true
+  },
+  "updated_at": "2026-10-08T10:05:45+08:00"
+}

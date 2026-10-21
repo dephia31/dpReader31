@@ -31,12 +31,17 @@ def package(build: Path, output: Path):
     parts={'firmware.bin':build/'Read_Pico.bin','bootloader.bin':build/'bootloader/bootloader.bin',
            'partitions.bin':build/'partition_table/partition-table.bin','ota_data_initial.bin':build/'ota_data_initial.bin'}
     for name,path in parts.items():shutil.copy2(path,output/name)
+    # 清单携带本次构建的校验值，网页下载后再核对内部版本，安装器不使用未验证缓存。
+    # Bind this build's hashes into the manifest; the web flasher also verifies the embedded version before installation.
+    for part in manifest['builds'][0]['parts']:
+        payload=(output/part['path']).read_bytes()
+        part.update(size=len(payload),sha256=hashlib.sha256(payload).hexdigest())
     shutil.copy2(build/'Read_Pico.bin',output/upgrade_name)
     shutil.copy2(build/'Read_Pico.bin',output/'Pico-update.bin')
     release={'schema':1,'version':version,'project':'Read_Pico','board':'RDP-G01-W','layout':'pico-dual-4m-v1',
         'minimum_base_version':'0.3.3-rc72','url':f'https://wegooo-cell.github.io/read-pico-reader/{upgrade_name}',
         'size':len(data),'sha256':hashlib.sha256(data).hexdigest(),
-        'notes':'1. kiikoread 品牌与全新官网\n2. 资料卡简化、姓名排版优化\n3. 水波纹主页完整灰阶\n4. TF 卡兼容、缺失字体闪屏修复\n5. 拼贴及密码锁屏、列表书架、首行缩进微调\n6. 主站联网升级，保留 GitHub 更新途径'}
+        'notes':'1. 锁屏设置读取失败时直接进入系统，不拦截启动\n2. 修复字间距反复回跳至-11px，点按和拖动均支持±15px\n3. 修复段距按钮及目录章节名粗细不一、抗锯齿问题'}
     (output/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
     (output/'update.json').write_text(json.dumps(release,ensure_ascii=False,indent=2)+'\n')
     check(output)

@@ -49,7 +49,7 @@ unit = r'''
 #define pdMS_TO_TICKS(x) (x)
 #define pdPASS 1
 #define configMAX_PRIORITIES 25
-#define CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE 8192
+#define CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE 4096
 #define CONFIG_BT_NIMBLE_PINNED_TO_CORE 0
 #define BLE_SM_IO_CAP_NO_IO 0
 #define BLE_SM_IO_CAP_DISP_YES_NO 1
@@ -82,8 +82,6 @@ static uint16_t ble_uuid_u16(const uint16_t *uuid){return *uuid;}
 static void *bond_find(const char *addr){assert(addr);return NULL;}
 static atomic_flag s_lifecycle=ATOMIC_FLAG_INIT;
 static atomic_uint s_network_users;
-static atomic_bool s_sleep_suspended;
-static char s_sleep_peer[18],s_conn_addr[18],s_reconnect_addr[18];
 static atomic_bool s_running;
 static bool s_connected=true,s_connecting,s_scanning,s_link_up;
 static uint16_t s_conn_handle;
@@ -115,7 +113,7 @@ static void on_sync(void){}
 static void bonds_load(void){}
 static struct {void(*sync_cb)(void);int sm_io_cap,sm_bonding,sm_mitm,sm_sc,sm_our_key_dist,sm_their_key_dist;}ble_hs_cfg;
 static int xTaskCreatePinnedToCore(void(*fn)(void*),const char*name,int stack,void*param,int priority,void**handle,int core){
- assert(fn==host_task && !strcmp(name,"nimble_host") && stack==CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE && !param && priority==21 && core==0);
+ assert(fn==host_task && !strcmp(name,"nimble_host") && stack==4096 && !param && priority==21 && core==0);
  ++task_count;if(task_error)return 0;*handle=(void*)1;return pdPASS;
 }
 void ble_pt_scan_stop(void){s_scanning=false;}
@@ -142,7 +140,7 @@ for name in ('lifecycle_take','lifecycle_give','ble_pt_input_serial','key_push',
              'frame_idle','raw_release','raw_frame','extract_primary_code',
              'usage_to_special','emit_usage','ingest_report','ble_pt_pop_key','ble_pt_pop_raw',
              'ble_pt_learn_begin','ble_pt_bind','ble_pt_binding','start_locked','stop_locked','ble_pt_start','ble_pt_stop',
-             'ble_pt_network_acquire','ble_pt_network_release','ble_pt_suspend_for_sleep','ble_pt_resume_after_sleep','scan_cb','ble_pt_device_count',
+             'ble_pt_network_acquire','ble_pt_network_release','scan_cb','ble_pt_device_count',
              'ble_pt_device','ble_pt_action_for_frame','ble_pt_action_for_usage'):
     unit += '\n' + function(BLE, name)
 unit += '\n' + function(SETTINGS, 'ble_receive_feedback')
@@ -310,22 +308,16 @@ int main(void){
  free_internal=150*1024;largest_internal=60*1024;free_psram=2*1024*1024;
  task_error=1;assert(ble_pt_start()==ESP_ERR_NO_MEM && !s_running && task_count==1 && deinit_count==1);
  task_error=0;assert(ble_pt_start()==ESP_OK && s_running);
- stop_error=1;int stopped_before=stop_count;
- assert(ble_pt_network_acquire()==ESP_OK&&s_running&&atomic_load(&s_network_users)==1&&stop_count==stopped_before);stop_error=0;
- assert(ble_pt_network_acquire()==ESP_OK&&s_running&&atomic_load(&s_network_users)==2);
- ble_pt_network_release();ble_pt_network_release();ble_pt_network_release();assert(!atomic_load(&s_network_users)&&s_running);
- assert(ble_pt_stop(2000)==ESP_OK&&!s_running);assert(ble_pt_network_acquire()==ESP_OK);
- assert(ble_pt_start()==ESP_OK);ble_pt_network_release();assert(ble_pt_stop(2000)==ESP_OK);
+ stop_error=1;assert(ble_pt_network_acquire()==ESP_FAIL && atomic_load(&s_network_users)==0 && s_running);
+ stop_error=0;assert(ble_pt_network_acquire()==ESP_OK && !s_running && atomic_load(&s_network_users)==1);
+ int before=init_count;assert(ble_pt_start()==ESP_ERR_INVALID_STATE && init_count==before);
+ assert(ble_pt_network_acquire()==ESP_OK && atomic_load(&s_network_users)==2);
+ ble_pt_network_release();assert(ble_pt_start()==ESP_ERR_INVALID_STATE);
+ ble_pt_network_release();ble_pt_network_release();assert(!atomic_load(&s_network_users));
+ assert(ble_pt_start()==ESP_OK);assert(ble_pt_stop(2000)==ESP_OK && !s_running);
  atomic_flag_test_and_set(&s_lifecycle);assert(ble_pt_start()==ESP_ERR_TIMEOUT && !s_running);lifecycle_give();
  for(int n=0;n<100;n++){assert(ble_pt_start()==ESP_OK);assert(ble_pt_network_acquire()==ESP_OK);ble_pt_network_release();}
- assert(s_running && !atomic_load(&s_network_users));assert(ble_pt_stop(2000)==ESP_OK);
- assert(ble_pt_start()==ESP_OK);s_link_up=true;strcpy(s_conn_addr,"AA:BB:CC:DD:EE:FF");
- stop_error=1;assert(ble_pt_suspend_for_sleep()==ESP_FAIL&&!atomic_load(&s_sleep_suspended)&&s_running);stop_error=0;
- assert(ble_pt_suspend_for_sleep()==ESP_OK&&atomic_load(&s_sleep_suspended)&&!s_running);
- assert(!strcmp(s_sleep_peer,"AA:BB:CC:DD:EE:FF"));assert(ble_pt_suspend_for_sleep()==ESP_OK);
- assert(ble_pt_start()==ESP_ERR_INVALID_STATE);ble_pt_resume_after_sleep();assert(!atomic_load(&s_sleep_suspended)&&!strcmp(s_reconnect_addr,"AA:BB:CC:DD:EE:FF"));
- assert(ble_pt_start()==ESP_OK);assert(ble_pt_stop(2000)==ESP_OK);
- atomic_flag_test_and_set(&s_lifecycle);assert(ble_pt_suspend_for_sleep()==ESP_ERR_TIMEOUT);lifecycle_give();
+ assert(!s_running && !atomic_load(&s_network_users));
  puts("PASS: named discovery, YueXingTong/manual/modifier mappings, whole-frame raw identity, first-press learning, missing release reports, bounded queues, memory/task failures and network resource leases");
 }
 '''
@@ -335,6 +327,8 @@ assert 'while (ble_pt_pop_raw(&stale))' in function(SETTINGS, 'on_gesture')
 transfer = (ROOT / 'components/read_pico_transfer/read_pico_transfer.c').read_text()
 for name in ('read_pico_transfer_start', 'read_pico_transfer_scan_wifi', 'sync_time_impl'):
     assert 'ble_pt_network_acquire()' in function(ROOT / 'components/read_pico_transfer/read_pico_transfer.c', name)
+assert 'sync_time_run(utc_seconds, false, false)' in function(ROOT / 'components/read_pico_transfer/read_pico_transfer.c', 'read_pico_transfer_sync_time')
+assert 'sync_time_impl(utc_seconds)' in function(ROOT / 'components/read_pico_transfer/read_pico_transfer.c', 'sync_time_run')
 assert transfer.count('ble_pt_network_acquire()') == 3
 with tempfile.TemporaryDirectory(prefix='pico-ble-test-') as directory:
     work = Path(directory)

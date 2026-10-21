@@ -31,7 +31,7 @@ assert alpha(saved, 36, 9) >= 14  # 顶边保留。/ Retain the outer top edge.
 
 # 检查实际编译头文件，防止只改 SVG 却忘记更新成品。
 # Inspect the compiled header too, catching stale generated artwork.
-header = (ROOT / "main/assets/ui_icons.h").read_text()
+header = icons.HEADER.read_text()
 blocks = re.findall(r'\{([^{}]+)\}', header[header.index('static const uint8_t ui_icon_masks'):])
 assert len(blocks) == len(icons.ICONS)
 for name, block in zip(icons.ICONS, blocks):

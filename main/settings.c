@@ -15,6 +15,12 @@
  */
 
 #include "settings.h"
+#include "kiiko_board_config.h"
+#if KIIKO_BOARD_METALIO47
+#define READER_TURN_EFFECT_MAX 2
+#else
+#define READER_TURN_EFFECT_MAX 1
+#endif
 #include "book/book_font_size.h"
 
 #include <stdio.h>
@@ -33,7 +39,7 @@
 #include "book/book_history_backup.h"
 
 #define TAG "settings"
-#define NVS_NS "metalio_s31"
+#define NVS_NS KIIKO_BOARD_SETTINGS_NAMESPACE
 #define NVS_KEY_SLEEP "sleep"
 #define NVS_KEY_SHUTDOWN_MODE "shutdown"
 #define NVS_KEY_HOME_FULL "home_full"
@@ -89,12 +95,19 @@
 
 static app_sleep_mode_t s_sleep = APP_SLEEP_DEEP;
 static bool s_staged_shutdown;
+#if KIIKO_BOARD_METALIO47
 static uint8_t s_lock_sleep;
+#else
+#endif
 static bool s_home_full_refresh;
 static app_home_component_t s_home_component = APP_HOME_FOLDER;
 static uint8_t s_home_goal_minutes = 30;
 static app_main_refresh_mode_t s_main_refresh;
+#if KIIKO_BOARD_METALIO47
 static char s_device_name[64] = "Metalio S31";
+#else
+static char s_device_name[64] = "kiikoread";
+#endif
 static char s_avatar[288];
 static char s_status_signature[96];
 static char s_font[FONT_PATH_MAX];
@@ -138,8 +151,8 @@ static uint8_t s_book_indent = 2;
 static uint8_t s_book_indent_adjust = 20;
 static uint8_t s_auto_lock_minutes;
 static uint8_t s_shelf_style = 2;
-static const char s_books_dir[MEDIA_DIR_MAX] = "/sdcard/books";
-static const char s_fonts_dir[MEDIA_DIR_MAX] = "/sdcard/fonts";
+static char s_books_dir[MEDIA_DIR_MAX] = "/sdcard/books";
+static char s_fonts_dir[MEDIA_DIR_MAX] = "/sdcard/fonts";
 static void nvs_put_u8(const char* key, uint8_t value);
 
 static bool valid_media_dir(const char* path) {
@@ -157,6 +170,18 @@ static bool valid_media_dir(const char* path) {
         if (!end) break;
         p = end + 1;
     }
+    return true;
+}
+
+static bool set_media_dir(char *dst, const char *key, const char *path) {
+    if (!valid_media_dir(path)) return false;
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    esp_err_t err = nvs_set_str(h, key, path);
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    if (err != ESP_OK) return false;
+    strlcpy(dst, path, MEDIA_DIR_MAX);
     return true;
 }
 
@@ -180,8 +205,11 @@ void app_settings_init(void) {
         s_sleep = (app_sleep_mode_t)raw;
     }
     raw = 0;
+#if KIIKO_BOARD_METALIO47
     if (nvs_get_u8(h, "lock_lp", &raw) == ESP_OK && raw <= 2) s_lock_sleep = raw;
     raw = 0;
+#else
+#endif
     if (nvs_get_u8(h, NVS_KEY_SHUTDOWN_MODE, &raw) == ESP_OK)
         s_staged_shutdown = raw == 1;
     raw = 0;
@@ -200,15 +228,29 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_AUTO_LOCK, &raw) == ESP_OK && (raw == 1 || raw == 5 || raw == 10)) s_auto_lock_minutes = raw;
     size_t value_len = sizeof(s_device_name);
     if (nvs_get_str(h, NVS_KEY_DEVICE_NAME, s_device_name, &value_len) != ESP_OK || !s_device_name[0])
+#if KIIKO_BOARD_METALIO47
         strlcpy(s_device_name, "Metalio S31", sizeof(s_device_name));
+#else
+        strlcpy(s_device_name, "kiikoread", sizeof(s_device_name));
+#endif
     // 仅迁移旧默认名字，保留用户填写的姓名。/ Migrate only the old default, preserving custom names.
+#if KIIKO_BOARD_METALIO47
     if (!strcmp(s_device_name, "Pico") || !strcmp(s_device_name, "kiikoread")) strlcpy(s_device_name, "Metalio S31", sizeof(s_device_name));
+#else
+    if (!strcmp(s_device_name, "Pico")) strlcpy(s_device_name, "kiikoread", sizeof(s_device_name));
+#endif
     value_len = sizeof(s_avatar);
     if (nvs_get_str(h, NVS_KEY_AVATAR, s_avatar, &value_len) != ESP_OK ||
         (s_avatar[0] && strncmp(s_avatar, "/sdcard/", 8))) s_avatar[0] = 0;
     value_len = sizeof(s_status_signature);
     if (nvs_get_str(h, NVS_KEY_STATUS_SIGNATURE, s_status_signature, &value_len) != ESP_OK)
         s_status_signature[0] = 0;
+    size_t dir_len=sizeof(s_books_dir);
+    if(nvs_get_str(h,NVS_KEY_BOOKS_DIR,s_books_dir,&dir_len)!=ESP_OK||!valid_media_dir(s_books_dir))
+        strlcpy(s_books_dir,"/sdcard/books",sizeof(s_books_dir));
+    dir_len=sizeof(s_fonts_dir);
+    if(nvs_get_str(h,NVS_KEY_FONTS_DIR,s_fonts_dir,&dir_len)!=ESP_OK||!valid_media_dir(s_fonts_dir))
+        strlcpy(s_fonts_dir,"/sdcard/fonts",sizeof(s_fonts_dir));
     size_t font_len = sizeof(s_font);
     if (nvs_get_str(h, NVS_KEY_FONT, s_font, &font_len) != ESP_OK) {
         s_font[0] = '\0';
@@ -257,7 +299,7 @@ void app_settings_init(void) {
          reader_full_pages == 15 || reader_full_pages == 30))
         s_reader_full_pages = reader_full_pages;
     uint8_t reader_turn_effect = 0;
-    if (nvs_get_u8(h, NVS_KEY_READER_TURN, &reader_turn_effect) == ESP_OK && reader_turn_effect <= 1)
+    if (nvs_get_u8(h, NVS_KEY_READER_TURN, &reader_turn_effect) == ESP_OK && reader_turn_effect <= READER_TURN_EFFECT_MAX)
         s_reader_turn_effect = reader_turn_effect;
     uint8_t power_turn = 0;
     if (nvs_get_u8(h, NVS_KEY_POWER_TURN, &power_turn) == ESP_OK) s_reader_power_turn = power_turn == 1;
@@ -369,12 +411,15 @@ void app_settings_set_sleep_mode(app_sleep_mode_t mode) {
 }
 
 bool app_settings_staged_shutdown(void) { return s_staged_shutdown; }
+#if KIIKO_BOARD_METALIO47
 uint8_t app_settings_lock_sleep(void) { return s_lock_sleep; }
 void app_settings_set_lock_sleep(uint8_t mode) {
     if (mode > 2 || mode == s_lock_sleep) return;
     nvs_put_u8("lock_lp", mode);
     s_lock_sleep = mode;
 }
+#else
+#endif
 void app_settings_set_staged_shutdown(bool staged) {
     if (staged == s_staged_shutdown) return;
     s_staged_shutdown = staged;
@@ -621,7 +666,7 @@ void app_settings_set_reader_full_pages(uint8_t pages) {
 }
 uint8_t app_settings_reader_turn_effect(void) { return s_reader_turn_effect; }
 void app_settings_set_reader_turn_effect(uint8_t effect) {
-    if (effect > 1 || effect == s_reader_turn_effect) return;
+    if (effect > READER_TURN_EFFECT_MAX || effect == s_reader_turn_effect) return;
     s_reader_turn_effect = effect;
     nvs_put_u8(NVS_KEY_READER_TURN, effect);
 }
@@ -805,12 +850,21 @@ void app_settings_set_shelf_style(uint8_t style) {
 }
 const char* app_settings_books_dir(void) { return s_books_dir; }
 const char* app_settings_fonts_dir(void) { return s_fonts_dir; }
+bool app_settings_set_books_dir(const char* path) { return set_media_dir(s_books_dir,NVS_KEY_BOOKS_DIR,path); }
+bool app_settings_set_fonts_dir(const char* path) { return set_media_dir(s_fonts_dir,NVS_KEY_FONTS_DIR,path); }
+
 #ifndef APP_SETTINGS_BACKUP_ROOT
 #define APP_SETTINGS_BACKUP_ROOT "/sdcard"
 #endif
+#if KIIKO_BOARD_METALIO47
 #define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/Metalio-S31-settings.backup"
 #define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/Metalio-S31-settings.backup.tmp"
 #define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/Metalio-S31-settings.backup.previous"
+#else
+#define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/Pico-settings.backup"
+#define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/Pico-settings.backup.tmp"
+#define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/Pico-settings.backup.previous"
+#endif
 
 // All fields are bytes, so the v1 disk layout is independent of structure padding.
 // 所有字段均为字节，v1 磁盘格式不依赖编译器的结构体填充。
@@ -1122,7 +1176,7 @@ static bool backup_valid(const settings_backup_v1_t *backup) {
         f[BK_SHAKE] > 1 || (f[BK_FULL_PAGES] != 0 && f[BK_FULL_PAGES] != 5 &&
                             f[BK_FULL_PAGES] != 10 && f[BK_FULL_PAGES] != 15 &&
                             f[BK_FULL_PAGES] != 30) ||
-        f[BK_TURN] > 1 || f[BK_POWER_TURN] > 1 || f[BK_IMMERSIVE] > 1 ||
+        f[BK_TURN] > READER_TURN_EFFECT_MAX || f[BK_POWER_TURN] > 1 || f[BK_IMMERSIVE] > 1 ||
         f[BK_TRACKING] > (backup_version(backup)>=20 ? APP_BOOK_TRACK_COUNT-1 : backup_version(backup)==19 ? 20 : 4) || f[BK_READING_LINE] > 2 ||
         f[BK_LINE_SPACING] < 110 || f[BK_LINE_SPACING] > 150 ||
         f[BK_MARGIN] > 60 ||
@@ -1156,7 +1210,11 @@ esp_err_t app_settings_backup_restore(void) {
     uint8_t indent = 2, rule_offset = 4, staged_shutdown = 0;
     settings_backup_indent_adjust_t adjust = {.encoded = 20};
     settings_backup_weight_t weight = {.encoded = 2};
+#if KIIKO_BOARD_METALIO47
     settings_backup_profile_t profile = {.device_name = "Metalio S31"};
+#else
+    settings_backup_profile_t profile = {.device_name = "kiikoread"};
+#endif
     settings_backup_keys_t keys = {.actions = {APP_READER_KEY_PREV, APP_READER_KEY_TOOLS, APP_READER_KEY_NEXT}};
     settings_backup_wifi_t wifi = {0};
     bool has_wifi = false;
@@ -1258,8 +1316,8 @@ esp_err_t app_settings_backup_restore(void) {
     // Accept retired IDs from old backups and restore the default acrylic style.
     if (backup.flags[BK_SHELF] == 3 || backup.flags[BK_SHELF] == 4) backup.flags[BK_SHELF] = 2;
     if (profile.avatar[0] && !backup_file_exists(profile.avatar, false)) profile.avatar[0] = 0;
-    strlcpy(backup.books_dir, "/sdcard/books", sizeof(backup.books_dir));
-    strlcpy(backup.fonts_dir, "/sdcard/fonts", sizeof(backup.fonts_dir));
+    if(!backup_file_exists(backup.books_dir,true))strlcpy(backup.books_dir,"/sdcard/books",sizeof(backup.books_dir));
+    if(!backup_file_exists(backup.fonts_dir,true))strlcpy(backup.fonts_dir,"/sdcard/fonts",sizeof(backup.fonts_dir));
 
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
@@ -1369,6 +1427,8 @@ esp_err_t app_settings_backup_restore(void) {
     strlcpy(s_book_background, background.path, sizeof(s_book_background));
     s_home_component = (app_home_component_t)home.component;
     s_home_goal_minutes = home.minutes;
+    strlcpy(s_books_dir,backup.books_dir,sizeof(s_books_dir));
+    strlcpy(s_fonts_dir,backup.fonts_dir,sizeof(s_fonts_dir));
     strlcpy(s_font, backup.font, sizeof(s_font));
     strlcpy(s_system_font, backup.system_font, sizeof(s_system_font));
     strlcpy(s_wallpaper, backup.wallpaper, sizeof(s_wallpaper));

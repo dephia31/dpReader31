@@ -20,7 +20,7 @@ static record_t* record(const char* key, bool create) {
     if(create)for(int i=0;i<8;++i)if(!records[i].len){strcpy(records[i].key,key);return &records[i];}
     return NULL;
 }
-esp_err_t nvs_open(const char* ns,int mode,nvs_handle_t* h){(void)mode;assert(!strcmp(ns,"mt_books"));*h=1;return ESP_OK;}
+esp_err_t nvs_open(const char* ns,int mode,nvs_handle_t* h){(void)mode;assert(!strcmp(ns,"rp_books"));*h=1;return ESP_OK;}
 void nvs_close(nvs_handle_t h){(void)h;}
 esp_err_t nvs_get_blob(nvs_handle_t h,const char* key,void* out,size_t* len){
     (void)h;record_t*r=record(key,false);if(!r)return ESP_ERR_NVS_NOT_FOUND;

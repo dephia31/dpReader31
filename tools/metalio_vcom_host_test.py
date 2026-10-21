@@ -78,20 +78,25 @@ static const char* esp_err_to_name(int err){(void)err;return "error";}
 #define ESP_LOGI(tag,fmt,...) ((void)printf(fmt, __VA_ARGS__))
 #define ESP_LOGE(...) ((void)0)
 #define pdMS_TO_TICKS(x) (x)
-static bool tps_on,pg_good=true,io_good=true;static unsigned output_bits,pg_seen;static int fail_reg=-1;static unsigned off,writes;static uint8_t regs[256];
+static bool tps_on,tps_prepared,pg_good=true,io_good=true;static int64_t tps_wake_us,now_us;
+#define portTICK_PERIOD_MS 1
+static int64_t esp_timer_get_time(void){return now_us;}
+static unsigned output_bits,pg_seen;static int fail_reg=-1;static unsigned off,writes;static uint8_t regs[256];
 static int metalio_io_set(unsigned pin,bool high){assert(pin<3);if(high)output_bits|=1u<<pin;else output_bits&=~(1u<<pin);if(pin==0&&!high)pg_seen=0;return 0;}
 static int metalio_io_mask(unsigned port,unsigned mask,unsigned value){assert(port==0&&mask==3&&value==3&&(output_bits&4));output_bits|=3;return 0;}
 static int tps_last_vcom_mv=-1;
-static void vTaskDelay(int ms){assert(ms==50||ms==10||ms==5);}
-static int metalio_read(unsigned addr,unsigned reg,uint8_t*v,unsigned n){assert(addr==0x68&&n==1&&(reg==0x10||reg==0x0f||reg==3||reg==4));*v=reg==0x10?0x65:reg==0x0f?(pg_good?0xfa:0):regs[reg];return 0;}
+static void vTaskDelay(int ms){assert(ms>0&&ms<=50);now_us+=(int64_t)ms*1000;}
+static int metalio_read(unsigned addr,unsigned reg,uint8_t*v,unsigned n){assert(addr==0x68&&n==1&&(reg==0x10||reg==0x0f||reg==3||reg==4));if(reg==0x10)assert(now_us-tps_wake_us>=50000);*v=reg==0x10?0x65:reg==0x0f?(pg_good?0xfa:0):regs[reg];return 0;}
 static int metalio_io_read(uint16_t*v){assert((output_bits&7)==7);*v=io_good?0x80:0;if(io_good)pg_seen=1;return 0;}
 static int metalio_write8(unsigned addr,unsigned reg,unsigned value){assert(addr==0x68);assert(reg==0x09||reg==0x0a||reg==0x01||reg==0x04||reg==0x03);if(reg==1)assert(pg_seen&&(output_bits&7)==7);if(reg==3||reg==4)assert(regs[1]==0x3f&&pg_seen);if(reg==0x04)assert(value<=1);if((int)reg==fail_reg)return -1;regs[reg]=value;++writes;return 0;}
-static void metalio_tps_off(void){++off;tps_on=false;}
-'''+function('metalio_tps_vcom_mv',r/'components/metalio_hw/metalio_hw.c')+'\n'+function('metalio_tps_on',r/'components/metalio_hw/metalio_hw.c')+r'''
+static void metalio_tps_off(void){++off;tps_on=false;tps_prepared=false;}
+'''+function('metalio_tps_vcom_mv',r/'components/metalio_hw/metalio_hw.c')+'\n'+function('metalio_tps_prepare',r/'components/metalio_hw/metalio_hw.c')+'\n'+function('metalio_tps_cancel_prepare',r/'components/metalio_hw/metalio_hw.c')+'\n'+function('metalio_tps_on',r/'components/metalio_hw/metalio_hw.c')+r'''
 int main(void){int values[]={900,1200,3000,4000};for(unsigned i=0;i<4;i++){tps_on=false;writes=0;assert(!metalio_tps_on(values[i])&&tps_on&&writes==5);assert(regs[4]==((values[i]/10)>>8)&&regs[3]==((values[i]/10)&255));assert(!metalio_tps_on(1200)&&writes==5);}
  tps_on=false;off=writes=0;assert(metalio_tps_on(-1)==ESP_ERR_INVALID_ARG&&!writes);assert(metalio_tps_on(5111)==ESP_ERR_INVALID_ARG&&!writes);
  int fail[]={9,10,1,4,3};for(unsigned i=0;i<5;i++){tps_on=false;off=0;fail_reg=fail[i];assert(metalio_tps_on(3000)!=ESP_OK&&!tps_on&&off==1);}fail_reg=-1;
  pg_good=false;tps_on=false;off=0;assert(metalio_tps_on(3000)==ESP_ERR_TIMEOUT&&off==1&&!tps_on);pg_good=true;io_good=false;off=0;assert(metalio_tps_on(3000)==ESP_ERR_TIMEOUT&&off==1&&!tps_on);
+ io_good=pg_good=true;for(int elapsed=0;elapsed<=80;elapsed+=7){tps_on=tps_prepared=false;writes=0;now_us=1000000;assert(!metalio_tps_prepare()&&tps_prepared&&!writes&&(output_bits&7)==4);now_us+=(int64_t)elapsed*1000;assert(!metalio_tps_on(3000)&&!tps_prepared&&now_us-tps_wake_us>=50000);}
+ tps_on=false;tps_prepared=false;writes=off=0;assert(!metalio_tps_prepare()&&!writes);metalio_tps_cancel_prepare();assert(off==1&&!tps_prepared&&!tps_on);metalio_tps_cancel_prepare();assert(off==1);
  puts("PASS: actual TPS65185 runtime VCOM register encoding 900/1200/3000/4000, no OTP command, PG/write faults shut rails off");}
 '''
 with tempfile.TemporaryDirectory() as d:

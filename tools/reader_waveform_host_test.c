@@ -1,16 +1,78 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: Apache-2.0
+ * 中文：实际阅读波形的驱动边界；光学灰度和残影仍需实屏验证。
+ * English: Validate actual reader pulse boundaries; optical tone and ghosting need panel tests.
+ */
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include "display_reader_waveform.h"
 #include "e0470_epaper_waveform.h"
-int main(void){
- e0470_waveform_init();
- const EpdWaveform *wave=display_reader_text_waveform();
- const EpdWaveformPhases *actual=e0470_waveform_phases(wave,MODE_GL16);
- const EpdWaveformPhases *vendor=e0470_waveform_phases(&E0470_WAVEFORM,MODE_GL16);
- assert(actual&&vendor&&actual->phases==E0470_GL16_FRAMES&&vendor->phases==E0470_GL16_FRAMES);
- assert(e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_GL16)->phases==48);
- for(int f=0;f<E0470_GL16_FRAMES;++f)for(int from=0;from<16;++from)for(int to=0;to<16;++to)
-  assert(e0470_phase_action(actual,f,to,from)==(from==to&&to!=15?0:e0470_phase_action(vendor,f,to,from)));
- puts("PASS: reader preserves every changed default-GL transition in order, holds non-white equal pairs and retains white maintenance and retains full48 recovery");
+
+int main(void) {
+    e0470_waveform_init();
+    const EpdWaveformPhases* old = e0470_waveform_phases(&E0470_TEXTTURN_WAVEFORM, MODE_GL16);
+    uint8_t saved[E0470_GL16_FRAMES * 16 * 4];
+    assert(old && old->phases == E0470_GL16_FRAMES && !old->phase_times);
+    memcpy(saved, old->luts, sizeof(saved));
+    const EpdWaveform* wave = display_reader_text_waveform();
+    const EpdWaveformPhases* soft = e0470_waveform_phases(wave, MODE_GL16);
+    assert(wave != &E0470_TEXTTURN_WAVEFORM && display_reader_text_waveform() == wave);
+    assert(wave->temp_intervals == E0470_TEXTTURN_WAVEFORM.temp_intervals);
+    assert(soft && soft->phases == old->phases && soft->phase_times == old->phase_times);
+    unsigned changed = 0;
+    for (int from = 0; from < 16; ++from) for (int to = 0; to < 16; ++to) {
+        int a_count[4] = {0}, b_count[4] = {0}, a_balance = 0, b_balance = 0;
+        int a_peak = 0, b_peak = 0, first = -1, last = -1;
+        unsigned differences = 0;
+        for (int f = 0; f < old->phases; ++f) {
+            int a = e0470_phase_action(old, f, to, from), b = e0470_phase_action(soft, f, to, from);
+            ++a_count[a]; ++b_count[b];
+            if (a != b) ++differences;
+            if (from != 15 || to == 0 || to == 15) assert(a == b);
+            if (a == 0 || a == 3) assert(b == a);
+            if (a) {if (first < 0) first = f; last = f;}
+            a_balance += a == 1 ? 1 : a == 2 ? -1 : 0;
+            b_balance += b == 1 ? 1 : b == 2 ? -1 : 0;
+            if (a_balance > a_peak) a_peak = a_balance;
+            if (b_balance > b_peak) b_peak = b_balance;
+        }
+        assert(!memcmp(a_count, b_count, sizeof(a_count)));
+        if (first >= 0) assert(e0470_phase_action(old, first, to, from) == e0470_phase_action(soft, first, to, from));
+        if (last >= 0) assert(e0470_phase_action(old, last, to, from) == e0470_phase_action(soft, last, to, from));
+        if (differences) {
+            assert(from == 15 && to > 0 && to < 15 && differences <= 4);
+            assert(b_peak < a_peak && a_peak - b_peak <= 2);
+            ++changed;
+            printf("15->%d net black pulse peak %d -> %d; phases ", to, a_peak, b_peak);
+            for (int f = 0; f < soft->phases; ++f) putchar(".BW?"[e0470_phase_action(soft, f, to, from)]);
+            putchar('\n');
+        }
+    }
+    assert(changed > 0 && !memcmp(saved, old->luts, sizeof(saved)));
+    // 水波纹现在复用这套已验证文字序列：相同灰阶全保持，不能改字形目标、普通翻页或原表。
+    // Ripple now shares these proven text phases: equal grays hold, retaining glyph targets, ordinary turns and vendor tables.
+    const EpdWaveformPhases* raw=e0470_waveform_phases(&E0470_WAVEFORM,MODE_GL16);
+    unsigned held=0,edge_runs=0;
+    for(int to=0;to<16;++to) {
+        int old_run=0,new_run=0,old_max=0,new_max=0,old_same=0;
+        int raw_counts[4]={0},soft_counts[4]={0};
+        for(int f=0;f<raw->phases;++f) {
+            int a=e0470_phase_action(raw,f,to,15),b=e0470_phase_action(soft,f,to,15);
+            ++raw_counts[a];++soft_counts[b];
+            old_run=a==1?old_run+1:0;new_run=b==1?new_run+1:0;
+            if(old_run>old_max)old_max=old_run;
+            if(new_run>new_max)new_max=new_run;
+            old_same+=e0470_phase_action(raw,f,to,to)!=0;
+            assert(e0470_phase_action(soft,f,to,to)==0);
+        }
+        held+=old_same>0;
+        if(to>0&&to<15) {
+            assert(!memcmp(raw_counts,soft_counts,sizeof(raw_counts)));
+            assert(new_max<=old_max);edge_runs+=new_max<old_max;
+        }
+    }
+    assert(held==16&&edge_runs>=10);
+    puts("PASS: reader ripple holds all 16 unchanged grays and reduces at least ten gray-edge dark runs; existing text profile, targets and 37 phases unchanged");
+    puts("PASS: all 256 pairs, endpoints, holds, first/final actions, pulse counts, 37-frame timing and original LUT retained; optical validation pending");
+    return 0;
 }

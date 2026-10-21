@@ -12,11 +12,19 @@
 #include <stdint.h>
 #include "esp_err.h"
 
+#if KIIKO_BOARD_METALIO47
 #define PICO_OTA_LAYOUT "metalio-s31-dual-5m-v1"
 #define PICO_OTA_BOARD "Metalio-EINK4-Plus-S31"
 #define PICO_OTA_CAPABILITY "METALIO_S31_LOCAL_V1"
 #define PICO_OTA_FEED_URL ""
 #define PICO_OTA_FEED_FALLBACK_URL ""
+#else
+#define PICO_OTA_LAYOUT "pico-dual-4m-v1"
+#define PICO_OTA_BOARD "RDP-G01-W"
+#define PICO_OTA_CAPABILITY "PICO_HTTPS_OTA_V1"
+#define PICO_OTA_FEED_URL "https://kiikoread.com/update.json"
+#define PICO_OTA_FEED_FALLBACK_URL "https://wegooo-cell.github.io/read-pico-reader/update.json"
+#endif
 
 typedef enum { PICO_UPDATE_IDLE, PICO_UPDATE_CHECKING, PICO_UPDATE_AVAILABLE,
                PICO_UPDATE_LATEST, PICO_UPDATE_DOWNLOADING, PICO_UPDATE_READY,

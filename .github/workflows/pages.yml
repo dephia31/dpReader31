@@ -1,0 +1,68 @@
+name: Publish web flasher
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - flash/index.html
+      - flash/notices.html
+      - flash/manual.html
+      - flash/manual/**
+      - flash/new-features/**
+      - flash/assets/**
+      - flash/site.css
+      - flash/site.js
+      - flash/installer-bridge.js
+      - flash/flasher-integrity.js
+      - flash/_headers
+      - flash/manifest.json
+      - flash/releases.json
+      - flash/releases/**
+      - flash/versions.js
+      - flash/update.json
+      - flash/Pico-update*.bin
+      - flash/firmware.bin
+      - flash/ota_data_initial.bin
+      - flash/bootloader.bin
+      - flash/partitions.bin
+      - flash/vendor/**
+      - flash/licenses/**
+      - THIRD_PARTY_NOTICES.md
+      - LICENSE
+      - licenses/**
+      - tools/release_assets.py
+      - flash/release-assets.json
+      - tools/stage_public_flash.py
+      - tools/verify_flash_bundle.py
+      - tools/package_flash.py
+      - .github/workflows/pages.yml
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'wegooo-cell/read-pico-reader'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate and stage public flashing files
+        run: python3 tools/stage_public_flash.py _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

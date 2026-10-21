@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "releases": [
+    {
+      "version": "0.3.3-rc86",
+      "manifest": "releases/0.3.3-rc86/manifest.json",
+      "bin": "Pico-update-0.3.3-rc86.bin",
+      "source_commit": "b962d44f6e3790baf386b4a805472ab48954d38d",
+      "files": {
+        "bootloader.bin": {
+          "size": 21232,
+          "sha256": "9a4f6e899642ba624ea6a7cb9cac08a91cd8396f047421a2726670b944b96499"
+        },
+        "partitions.bin": {
+          "size": 3072,
+          "sha256": "edba9d92e5fc51c706c12f4b4a5d5d23728ba8fb0fbc00be654f1eccef404bda"
+        },
+        "firmware.bin": {
+          "size": 4060384,
+          "sha256": "9db2ecb858dffbc2dbde93794c7aed9450eeb47ba7e6e556bd9bcd070e34cd62"
+        },
+        "ota_data_initial.bin": {
+          "size": 8192,
+          "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+        }
+      }
+    },
+    {
+      "version": "0.3.3-rc85",
+      "manifest": "releases/0.3.3-rc85/manifest.json",
+      "bin": "Pico-update-0.3.3-rc85.bin",
+      "source_commit": "41348894d42c0b5b0f8a783415424c207224052c",
+      "files": {
+        "bootloader.bin": {
+          "size": 21232,
+          "sha256": "9a4f6e899642ba624ea6a7cb9cac08a91cd8396f047421a2726670b944b96499"
+        },
+        "partitions.bin": {
+          "size": 3072,
+          "sha256": "edba9d92e5fc51c706c12f4b4a5d5d23728ba8fb0fbc00be654f1eccef404bda"
+        },
+        "firmware.bin": {
+          "size": 3765536,
+          "sha256": "ff2042190827cd0f89a0c3b135ad57f76feb17f3afb0e7b14f7fc93d76c76636"
+        },
+        "ota_data_initial.bin": {
+          "size": 8192,
+          "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+        }
+      }
+    }
+  ]
+}

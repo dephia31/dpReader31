@@ -14,6 +14,3 @@ int ttf_text_width_px(int px, const char *text);
 void ttf_measure_line_px(int px, const char *text, int *above, int *below);
 void ttf_draw_text_px(uint8_t *fb, int x, int y, int px, const char *text, enum EpdFontFlags align, uint8_t fg, uint8_t bg);
 void ttf_draw_text_px_bw(uint8_t *fb, int x, int y, int px, const char *text, enum EpdFontFlags align, uint8_t fg, uint8_t bg);
-
-bool ttf_get_antialias(void);
-void ttf_set_antialias(bool enabled);

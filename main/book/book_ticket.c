@@ -65,7 +65,11 @@ static uint32_t local_day(void) {
 static void stats_load(ticket_stats_t *out) {
     memset(out, 0, sizeof(*out));
     nvs_handle_t h;
+#if KIIKO_BOARD_METALIO47
     if (nvs_open("mt_ticket", NVS_READONLY, &h) != ESP_OK) return;
+#else
+    if (nvs_open("rp_ticket", NVS_READONLY, &h) != ESP_OK) return;
+#endif
     size_t len = sizeof(*out);
     esp_err_t err = nvs_get_blob(h, "stats", out, &len);
     nvs_close(h);
@@ -81,7 +85,11 @@ esp_err_t book_ticket_record(uint32_t seconds, uint32_t turns) {
     stats.total_turns += turns;
     if (day) { stats.today_seconds += seconds; stats.today_turns += turns; }
     nvs_handle_t h;
+#if KIIKO_BOARD_METALIO47
     esp_err_t err = nvs_open("mt_ticket", NVS_READWRITE, &h);
+#else
+    esp_err_t err = nvs_open("rp_ticket", NVS_READWRITE, &h);
+#endif
     if (err != ESP_OK) return err;
     err = nvs_set_blob(h, "stats", &stats, sizeof(stats));
     if (err == ESP_OK && day && seconds) {
@@ -115,7 +123,11 @@ bool book_ticket_recent_days(uint32_t seconds[30]) {
     uint32_t today = local_day();
     if (!today) return false;
     nvs_handle_t h;
+#if KIIKO_BOARD_METALIO47
     if (nvs_open("mt_ticket", NVS_READONLY, &h) != ESP_OK) return true;
+#else
+    if (nvs_open("rp_ticket", NVS_READONLY, &h) != ESP_OK) return true;
+#endif
     ticket_heat_t heat = {0};
     size_t len = sizeof(heat);
     esp_err_t err = nvs_get_blob(h, "heatmap", &heat, &len);
@@ -137,7 +149,11 @@ bool book_ticket_month_days(int year, int month, uint32_t seconds[31]) {
     struct tm date = {0}; gmtime_r(&timestamp, &date);
     if (date.tm_year+1900 != year || date.tm_mon+1 != month) return false;
     nvs_handle_t h;
+#if KIIKO_BOARD_METALIO47
     if (nvs_open("mt_ticket", NVS_READONLY, &h) != ESP_OK) return true;
+#else
+    if (nvs_open("rp_ticket", NVS_READONLY, &h) != ESP_OK) return true;
+#endif
     ticket_month_t heat; month_load(h, &heat); nvs_close(h);
     uint32_t first = today-(date.tm_mday-1);
     for (int i=0; i<date.tm_mday; ++i) {

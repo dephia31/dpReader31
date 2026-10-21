@@ -7,27 +7,50 @@
 #include <string.h>
 #include "../main/boot_state.c"
 
-static boot_record_t durable, staged;
-static bool present, fail_open, fail_commit;
-static unsigned commits;
+static boot_record_t durable;
+static uint8_t durable_raw[BOOT_PACKED_MAX], staged_raw[BOOT_PACKED_MAX];
+static size_t durable_size, staged_size, free_bytes=SIZE_MAX;
+static bool present, staged_present, fail_open, fail_commit, fail_set_after_erase;
+static unsigned commits, erases;
+static const unsigned settings_sentinel=0x7351, progress_sentinel=0x19af;
+static void decode_durable(void) {
+    if(!present){memset(&durable,0,sizeof(durable));return;}
+    if(!unpack_record(durable_raw,durable_size,&durable)){
+        assert(durable_size==sizeof(durable));memcpy(&durable,durable_raw,sizeof(durable));
+    }
+}
 esp_err_t nvs_open(const char *ns, int mode, nvs_handle_t *h) {
-    assert(!strcmp(ns, "metalio_start") && mode == NVS_READWRITE);
-    *h = 1; return fail_open ? ESP_FAIL : ESP_OK;
+    assert(!strcmp(ns, "pico_startup") && mode == NVS_READWRITE);
+    *h=1;staged_present=present;staged_size=durable_size;
+    memcpy(staged_raw,durable_raw,durable_size);
+    return fail_open ? ESP_FAIL : ESP_OK;
 }
 void nvs_close(nvs_handle_t h) { assert(h == 1); }
 esp_err_t nvs_get_blob(nvs_handle_t h, const char *key, void *data, size_t *size) {
-    assert(h == 1 && !strcmp(key, "state") && *size == sizeof(durable));
+    assert(h == 1 && !strcmp(key, "state"));
     if (!present) return ESP_ERR_NVS_NOT_FOUND;
-    memcpy(data, &durable, *size); return ESP_OK;
+    assert(*size>=durable_size);memcpy(data,durable_raw,durable_size);*size=durable_size;return ESP_OK;
 }
 esp_err_t nvs_set_blob(nvs_handle_t h, const char *key, const void *data, size_t size) {
-    assert(h == 1 && !strcmp(key, "state") && size == sizeof(staged));
-    memcpy(&staged, data, size); return ESP_OK;
+    assert(h==1&&!strcmp(key,"state")&&size<=sizeof(staged_raw));
+    if(fail_set_after_erase&&erases)return ESP_FAIL;
+    if(size>free_bytes)return ESP_ERR_NVS_NOT_ENOUGH_SPACE;
+    memcpy(staged_raw,data,size);staged_size=size;staged_present=true;return ESP_OK;
+}
+esp_err_t nvs_erase_key(nvs_handle_t h,const char *key) {
+    assert(h==1&&!strcmp(key,"state"));++erases;
+    staged_present=false;staged_size=0;return present?ESP_OK:ESP_ERR_NVS_NOT_FOUND;
 }
 esp_err_t nvs_commit(nvs_handle_t h) {
     assert(h == 1); ++commits;
     if (fail_commit) return ESP_FAIL;
-    durable = staged; present = true; return ESP_OK;
+    if(free_bytes!=SIZE_MAX)free_bytes+=durable_size-staged_size;
+    durable_size=staged_size;present=staged_present;
+    memcpy(durable_raw,staged_raw,durable_size);decode_durable();return ESP_OK;
+}
+static void seed_legacy(boot_record_t record) {
+    record.magic=BOOT_MAGIC;record.checksum=checksum(&record);
+    durable_size=sizeof(record);present=true;memcpy(durable_raw,&record,sizeof(record));decode_durable();
 }
 int main(void) {
     pico_resume_t resume = {.tab=1, .reader=1, .fullscreen=1, .path="/sdcard/books/deep.epub"}, out;
@@ -76,7 +99,7 @@ int main(void) {
     strcpy(resume.path, "/sdcard/../danger.epub"); assert(pico_boot_save_resume(&resume)==ESP_ERR_INVALID_ARG);
     assert(pico_boot_book_begin("/sdcard/../danger.epub")==ESP_ERR_INVALID_ARG);
     assert(pico_boot_book_begin("/other/book.epub")==ESP_ERR_INVALID_ARG);
-    durable.checksum ^= 1;
+    durable_raw[durable_size-1] ^= 1;
     pico_boot_init(false); assert(pico_boot_recovery()); pico_boot_ready();
     fail_commit=true;
     assert(pico_boot_book_begin("/sdcard/book.epub")==ESP_FAIL);
@@ -95,5 +118,39 @@ int main(void) {
     assert(pico_boot_mark_frame_cached()==ESP_FAIL);fail_commit=false;
     pico_boot_init(false);assert(pico_boot_has_resume()&&!pico_boot_resume_frame_cached());
     pico_boot_ready();assert(pico_boot_take_resume(&out));
+    // 紧凑记录迁移旧格式，非图书缓存不再隔离；真实 EPUB 中断仍拦截。
+    // Migrate legacy records and ignore non-book cache entries while retaining EPUB quarantine.
+    boot_record_t legacy={.resume_valid=1,.resume={.tab=1,.reader=1,.fullscreen=1,.path="/sdcard/books/deep.epub"}};
+    seed_legacy(legacy);pico_boot_init(false);
+    assert(pico_boot_take_resume(&out)&&!strcmp(out.path,legacy.resume.path));
+    assert(durable_size<128);pico_boot_ready();
+    strcpy(legacy.resume.path,"/sdcard/books/catalog.wread");
+    strcpy(legacy.opening,legacy.resume.path);strcpy(legacy.blocked,legacy.resume.path);
+    seed_legacy(legacy);pico_boot_init(false);
+    assert(!pico_boot_recovery()&&!pico_boot_take_resume(&out)&&!pico_boot_interrupted_book(interrupted,sizeof(interrupted)));
+    assert(!durable.opening[0]&&!durable.blocked[0]);pico_boot_ready();
+    assert(pico_boot_book_begin(legacy.resume.path)==ESP_ERR_INVALID_ARG);
+    assert(pico_boot_save_resume(&legacy.resume)==ESP_ERR_INVALID_ARG);
+    // NVS 余量不足时只回收本模块旧键；其他命名空间不会被触及。
+    // Low-space recovery erases only this module's old key, never other namespaces.
+    legacy=(boot_record_t){0};seed_legacy(legacy);free_bytes=0;erases=0;
+    pico_boot_init(false);assert(!pico_boot_recovery()&&erases==1&&durable_size<64);
+    pico_boot_ready();assert(pico_boot_book_begin("/sdcard/books/retry.epub")==ESP_OK);
+    assert(settings_sentinel==0x7351&&progress_sentinel==0x19af);
+    pico_boot_init(false);assert(pico_boot_interrupted_book(interrupted,sizeof(interrupted)));
+    assert(!strcmp(interrupted,"/sdcard/books/retry.epub"));pico_boot_ready();
+    free_bytes=0;erases=0;fail_set_after_erase=true;
+    assert(pico_boot_book_begin("/sdcard/books/failed.epub")!=ESP_OK);
+    assert(!present&&erases==1);fail_set_after_erase=false;free_bytes=SIZE_MAX;
+    // 回收窗口断电后留在首页，不自动尝试解析；随后正常写入与手动开书可恢复。
+    // Power loss in the reclaim window stays Home without parsing; later manual opening can recover.
+    pico_boot_init(false);assert(!pico_boot_take_resume(&out));pico_boot_ready();
+    fail_open=true;pico_boot_init(false);fail_open=false;
+    assert(pico_boot_book_begin("/sdcard/books/recovered.txt")==ESP_OK);pico_boot_book_end(true);
+    seed_legacy(legacy);free_bytes=0;erases=0;fail_commit=true;
+    assert(pico_boot_book_begin("/sdcard/books/unadmitted.epub")==ESP_FAIL);
+    assert(present&&durable_size==sizeof(legacy)&&erases==1);
+    fail_commit=false;free_bytes=SIZE_MAX;
+    puts("PASS: compact/legacy startup records; interrupted EPUB quarantine; unsupported cache ignored; low-space key-only reclaim; interrupted reclaim and failed commits stay safe; retry after transient NVS failure; settings/progress preserved");
     puts("PASS: one-shot reader/fullscreen resume; power-cut book quarantine; explicit retry; no false book blame; absent/corrupt NVS and commit failure; checked paths");
 }

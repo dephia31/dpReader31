@@ -24,14 +24,17 @@ typedef enum {
 
 void app_settings_init(void);
 app_sleep_mode_t app_settings_sleep_mode(void);
+#if KIIKO_BOARD_METALIO47
 /// S31锁屏：0保留内存待机（默认），1硬件浅睡，2硬件深睡；USB/拿起唤醒时保留待机。
 /// S31 lock: retained(default), hardware light, hardware deep; USB/pickup retain awake standby.
 uint8_t app_settings_lock_sleep(void);
 void app_settings_set_lock_sleep(uint8_t mode);
+#else
+#endif
 void app_settings_set_sleep_mode(app_sleep_mode_t mode);
 const char* app_sleep_mode_name(app_sleep_mode_t mode);
-/// 电源菜单“关机”：false彻底断电，true进入当前选择的锁屏待机方式。
-/// Power-menu shutdown: false powers off, true enters the selected lock standby policy.
+/// 电源菜单“关机”：false 为彻底断电，true 为先浅睡 10 分钟再由 PMU 软睡断电。
+/// Power-menu shutdown: false powers fully off; true light-sleeps for 10 minutes, then PMU soft-sleeps.
 bool app_settings_staged_shutdown(void);
 void app_settings_set_staged_shutdown(bool staged);
 /// 首页进入时强制全刷；默认关闭。/ Full refresh when entering Home; off by default.
@@ -117,7 +120,7 @@ bool app_settings_set_book_background_path(const char *path);
 /// Full-screen cleanup every 5/10/15/30 turns; 0 disables periodic cleanup only.
 uint8_t app_settings_reader_full_pages(void);
 void app_settings_set_reader_full_pages(uint8_t pages);
-/// 阅读翻页效果：0默认，1采用PR17快速水波纹；沿用原设置值和默认效果。/ Reader turn effect: 0 default, 1 PR17 fast ripple; retain stored values and the default effect.
+/// 阅读翻页效果：0普通，1水波纹；S31额外提供2速读黑白。/ Reader turn effect:0 ordinary,1 ripple; S31 additionally supports2 fast BW.
 uint8_t app_settings_reader_turn_effect(void);
 void app_settings_set_reader_turn_effect(uint8_t effect);
 /// 阅读正文里短按电源键翻下一页；默认关闭。/ Short power press turns forward only in reader body; off by default.
@@ -212,6 +215,9 @@ void app_settings_set_shelf_style(uint8_t style);
 /// 固定 TF 根目录：/sdcard/books 与 /sdcard/fonts；旧配置/备份不能修改。/ Fixed TF roots, unaffected by legacy settings/backups.
 const char* app_settings_books_dir(void);
 const char* app_settings_fonts_dir(void);
+/// TF卡内自定义目录，持久化成功后才更改当前路径。/ Custom SD roots change only after persistence succeeds.
+bool app_settings_set_books_dir(const char* path);
+bool app_settings_set_fonts_dir(const char* path);
 
 /// 将设置、阅读记录和 WiFi 凭据保存到 TF 卡根目录；备份含明文密码，需妥善保管。
 /// Save settings, reading records and WiFi credentials to TF root; keep the plaintext-secret backup private.

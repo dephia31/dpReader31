@@ -1,5 +1,3 @@
-#include "anti_fade.h"
-#include "nvs.h"
 /* SPDX-License-Identifier: Apache-2.0
  * 中文：运行真实主循环，用确定性触摸和任务延时退出验证调度。
  * English: Run the real loop with deterministic touch and task-delay exit.
@@ -33,30 +31,25 @@ static bool staged_shutdown;
 EpdRect ui_power_dialog_rect(void) {return (EpdRect){0,0,684,1216};}
 void ui_power_dialog_draw(uint8_t* fb,const ui_power_dialog_t *dialog) {(void)fb;(void)dialog;++power_open_draws;}
 void ui_power_dialog_draw_controls(uint8_t* fb,const ui_power_dialog_t *dialog,EpdRect dirty) {(void)fb;(void)dialog;(void)dirty;++power_controls_draws;}
-void ui_power_dialog_end(void){}
+void ui_power_dialog_end(void) {}
 void ui_power_final_draw(uint8_t* fb,bool restarting) {(void)fb;(void)restarting;++power_final_draws;}
 
 static jmp_buf done;
+static uint8_t frame[128],panel_marker;
+static bool check_clean_action;
+static unsigned clean_action_fulls;
 typedef struct { int x, y, count, error; } sample_t;
 static sample_t samples[32];
 static int sample_count, step, ticks, enters, exits, touch_calls, keys[3], events[16];
 static int menus, highlights, restores, fulls, mode, tick_consumed[32];
 static int long_keys;
 static uint8_t idle_minutes;
-static bool download_session;
-bool app_download_active(void) { return download_session; }
 static int idle_locks, before_locks, lock_feedback_calls, lock_badges, wake_clean_requests;
 static bool feedback_enabled;
 static bool online_busy;
 static bool ble_enabled, saved_wifi, upload_busy, click_enabled, click_active;
 static read_pico_transfer_status_t transfer_status;
-static int slider_draws;
-static int power_change_step=-1,power_header_draws;
-static bool power_reported;
-static int slider_partial_draws,slider_forced_draws;
-static int button_draws,button_partial_draws;
-static int network_ready_step=-1,wifi_stop_step=-1;
-static int quick_draws, quick_opens, quick_du, wifi_starts, wifi_stops, ble_resets, click_presses, click_restores;
+static int quick_draws, quick_gl, quick_du, wifi_starts, wifi_stops, ble_resets, click_presses, click_restores;
 
 static app_redraw_t long_key(app_ctx_t* c, int k) { assert(k==UI_KEY_2); ++long_keys; c->request_menu=true; return APP_REDRAW_NONE; }
 static app_redraw_t response;
@@ -70,31 +63,43 @@ void ui_nav_request(app_ctx_t *ctx,int index){ctx->request_app=index==0?&first:&
 static bool full_tick, lock_due, font_due, shake_activity;
 static int64_t time_offset, time_step;
 static int du_areas, gl_areas;
+static int quick_button_draws,quick_status_draws,quick_press_draws,quick_recent_requests,base_renders;
 static bool main_fast, main_water;
 int app_settings_main_refresh_mode(void) {return main_water?APP_MAIN_REFRESH_WATER:main_fast?APP_MAIN_REFRESH_FAST:APP_MAIN_REFRESH_NORMAL;}
 static int shelf_exit_arms;
 static int nav_arms, nav_draws, nav_full_arms, nav_area_draws;
 static const void *nav_armed;
 static bool main_source_visible, main_target_visible;
+static bool edge_enabled,edge_blocked;
+static bool navigation_blocked(app_ctx_t*ctx){(void)ctx;return false;}
+static int persistent_ripple_height;
+static int edge_returns,back_ripples,power_header_draws,power_change_step=-1;
+static bool system_fast_scope;
+bool display_system_fast_set(bool enabled){bool old=system_fast_scope;system_fast_scope=enabled;return old;}
+enum EpdDrawError update_display_main_turn(EpdiyHighlevelState *hl,EpdRect area,int dir){return update_display_water_turn(hl,area,dir);}
+static bool power_reported;
+static bool edge_allowed(app_ctx_t *ctx){(void)ctx;return edge_enabled;}
+static bool keyboard_back_area(app_ctx_t *ctx,const ui_gesture_event_t *event){(void)ctx;return event->y0<560;}
+static app_redraw_t edge_back_key(app_ctx_t *ctx,int key){(void)ctx;assert(key==UI_KEY_1);++edge_returns;return edge_blocked?APP_REDRAW_NONE:APP_REDRAW_PAGE;}
+EpdRect epd_full_screen(void){return (EpdRect){0,0,1216,684};}
+int epd_rotated_display_width(void){return 684;}
+int epd_rotated_display_height(void){return 1216;}
+enum EpdDrawError update_display_water_turn(EpdiyHighlevelState *hl,EpdRect area,int direction){(void)hl;assert(direction==E0470_TURN_LTR&&area.width==684&&(area.height==1216||area.height==UI_NAV_MARKER_SCAN_END)&&!nav_armed);++back_ripples;persistent_ripple_height=area.height;return EPD_DRAW_SUCCESS;}
+EpdRect ui_nav_status_area(void){return (EpdRect){0,12,684,56};}
+bool ui_nav_refresh_power(uint8_t *fb){(void)fb;if(power_change_step<0||step<power_change_step||power_reported)return false;power_reported=true;++power_header_draws;return true;}
+
 static bool media_test, sd_font, saved_sd_font;
 static bool mounted_steps[32], present_steps[32];
 static int media_lost, media_ready, builtin_opens, font_opens, probes, loss_step;
 int E0470_WAVEFORM;
 int E0470_FOLLOW_WAVEFORM;
+const void *display_main_gray_waveform(void){return &E0470_WAVEFORM;}
 enum EpdDrawError update_display_area_diff_with(EpdiyHighlevelState*h,const void*w,int m,EpdRect a) {
-    if(a.y==12) {assert(a.x==0&&a.width==684&&a.height==56&&w==&E0470_FOLLOW_WAVEFORM&&m==MODE_DU);++power_header_draws;}
-    if (a.height==UI_QUICK_HEIGHT) {assert(a.x==0&&a.y==0&&a.width==684);assert(w==&E0470_FOLLOW_WAVEFORM&&m==MODE_DU);++quick_opens;}
+    if(a.y==12)assert(a.x==0&&a.width==684&&a.height==56&&w==(main_fast?&E0470_FOLLOW_WAVEFORM:&E0470_WAVEFORM)&&m==(main_fast?MODE_DU:MODE_GL16));
+    if(a.height==108){assert(a.width==108&&a.y==102&&w==&E0470_FOLLOW_WAVEFORM&&m==MODE_DU);++quick_du;}
+    if(a.height==76)assert(a.x==0&&a.y==0&&a.width==684&&w==&E0470_WAVEFORM&&m==MODE_GL16);
+    if (a.height==UI_QUICK_HEIGHT) {assert(a.x==0&&a.y==0&&a.width==684);++quick_du;}
     if (a.y==1120) assert(w==&E0470_FOLLOW_WAVEFORM&&m==MODE_DU&&a.height==48&&a.width==50);
-    if(a.x==UI_QUICK_SLIDER_X(false)+2||a.x==UI_QUICK_SLIDER_X(true)+2) {
-        assert(w==&E0470_FOLLOW_WAVEFORM&&m==MODE_DU&&a.width==UI_QUICK_SLIDER_WIDTH-4&&
-               a.height>0&&a.height<=236&&a.y>=106&&a.y+a.height<=342);
-        ++slider_partial_draws;
-    }
-    if(a.width==96) {
-        assert(w==&E0470_FOLLOW_WAVEFORM&&m==MODE_DU&&a.height==96);
-        assert((a.x==52||a.x==196)&&(a.y==104||a.y==236));
-        ++button_partial_draws;
-    }
     return update_display_area_with(h,w,m,a);
 }
 enum EpdDrawError update_display_click_feedback(EpdiyHighlevelState* hl,EpdRect area) {
@@ -103,42 +108,26 @@ enum EpdDrawError update_display_click_feedback(EpdiyHighlevelState* hl,EpdRect 
  nav_armed=owner;return result;
 }
 enum EpdDrawError update_display_area_full_with(EpdiyHighlevelState*h,const void*w,int m,EpdRect a) {
-    if(a.height==UI_QUICK_HEIGHT){assert(a.x==0&&a.y==0&&a.width==684);++quick_opens;}else {assert(a.width==UI_QUICK_SLIDER_WIDTH+4);++slider_draws;}
-    if(a.width==UI_QUICK_SLIDER_WIDTH+4)++slider_forced_draws;
+    assert(a.x==0&&a.y==0&&a.width==684&&a.height==UI_QUICK_HEIGHT);++quick_gl;
     return update_display_area_with(h,w,m,a);
 }
-static unsigned light_brightness=30,light_warmth=50,last_on=30;
-static unsigned light_brightness_position=72,light_warmth_position=120;
-static bool light_dirty;
-static bool light_enabled=true;
-static int light_saves,light_previews,haptics;
-unsigned metalio_brightness(void) {return light_brightness;}
-unsigned metalio_warmth(void) {return light_warmth;}
-bool metalio_frontlight_enabled(void) {return light_enabled;}
-unsigned metalio_frontlight_position(bool warmth) {return warmth?light_warmth_position:light_brightness_position;}
-void metalio_frontlight_preview(unsigned b,unsigned w) {assert(b<=100&&w<=100);light_brightness=b;light_warmth=w;light_dirty=true;++light_previews;if(b)last_on=b;}
-void metalio_frontlight_preview_position(unsigned b,unsigned w) {assert(b<=240&&w<=240);metalio_frontlight_preview((b*100+120)/240,(w*100+120)/240);light_brightness_position=b;light_warmth_position=w;}
-void metalio_frontlight_commit(void) {if(light_dirty){++light_saves;light_dirty=false;}}
-void metalio_frontlight_toggle(void) {light_enabled=!light_enabled;if(light_enabled&&!light_brightness){light_brightness=last_on;light_brightness_position=last_on*240/100;}light_dirty=true;metalio_frontlight_commit();}
-esp_err_t metalio_haptic_click(void) {++haptics;return ESP_OK;}
-int metalio_take_volume(void) {return 0;}
-void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool enabled,unsigned b,unsigned w) {(void)fb;(void)wifi;(void)bluetooth;assert(enabled==light_enabled&&b==light_brightness_position&&w==light_warmth_position);++quick_draws;}
-void ui_quick_menu_draw_slider(uint8_t *fb,bool warmth,unsigned value) {(void)fb;assert(value==metalio_frontlight_position(warmth));++slider_draws;}
-static int recent_requests;
-void ble_pt_reconnect_recent(void){++recent_requests;}
-void ui_quick_menu_end(void){}
-bool ui_quick_menu_restore(uint8_t *fb){(void)fb;return true;}
-bool ui_quick_menu_draw_button(uint8_t *fb,unsigned index,bool enabled,bool pressed,EpdRect *dirty) {(void)fb;(void)pressed;assert(index<4);assert(enabled==(index==0?transfer_status.mode==READ_PICO_TRANSFER_MODE_STA&&transfer_status.state!=READ_PICO_TRANSFER_STOPPED:index==1?ble_enabled:index==3?light_enabled:false));*dirty=(EpdRect){UI_QUICK_CENTER_X(index)-48,UI_QUICK_CENTER_Y(index)-48,96,96};++button_draws;return true;}
-
-EpdRect ui_quick_button_rect(unsigned index) {return (EpdRect){UI_QUICK_CENTER_X(index)-46,UI_QUICK_CENTER_Y(index)-46,93,93};}
-EpdRect ui_quick_slider_change_rect(bool warmth,unsigned before,unsigned after) {int a=240-(int)before,b=240-(int)after,t=a<b?a:b,z=a>b?a:b;if(t<2)t=2;if(t>238)t=238;if(z<2)z=2;if(z>238)z=238;return (EpdRect){UI_QUICK_SLIDER_X(warmth)+2,104+t,112,z>t?z-t:0};}
-EpdRect ui_quick_slider_rect(bool warmth) {return (EpdRect){UI_QUICK_SLIDER_X(warmth)-2,UI_QUICK_SLIDER_Y0-2,UI_QUICK_SLIDER_WIDTH+4,UI_QUICK_SLIDER_Y1-UI_QUICK_SLIDER_Y0+4};}
+void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool soften_text) {assert(!soften_text);(void)fb;(void)wifi;(void)bluetooth;fb[0]=0xaa;++quick_draws;}
+static bool quick_restore_failure;
+bool ui_quick_menu_restore(uint8_t *fb) { if(quick_restore_failure)return false;fb[0]=0x11;return true; }
+void ui_quick_menu_end(void) {}
+void ui_quick_menu_draw_status(uint8_t *fb) {(void)fb;++quick_status_draws;}
+bool ui_quick_menu_draw_button(uint8_t *fb,int button,bool active,bool pressed,EpdRect *dirty) {
+ (void)fb;(void)active;assert(button>=0&&button<4);++quick_button_draws;quick_press_draws+=pressed;
+ *dirty=(EpdRect){(button*2+1)*684/8-54,102,108,108};return true;
+}
+void ble_pt_reconnect_recent(void) {assert(ble_enabled);++quick_recent_requests;}
+void ble_pt_cancel_recent(void) {assert(!ble_enabled);}
 bool app_settings_ble_turner(void) {return ble_enabled;}
 void app_settings_set_ble_turner(bool enabled) {ble_enabled=enabled;}
 void ble_pt_reset_failure(void) {++ble_resets;}
 bool ble_pt_pop_key(ble_pt_event_t *e) {(void)e;return false;}
 bool ble_pt_pop_raw(ble_pt_raw_t *e) {(void)e;return false;}
-void read_pico_transfer_get_status(read_pico_transfer_status_t *s) {if(network_ready_step>=0&&step>=network_ready_step)transfer_status.network_ready=true;if(wifi_stop_step>=0&&step>=wifi_stop_step)transfer_status.state=READ_PICO_TRANSFER_STOPPED;*s=transfer_status;}
+void read_pico_transfer_get_status(read_pico_transfer_status_t *s) {*s=transfer_status;}
 int read_pico_transfer_get_saved_wifi(char *ssid,bool *configured) {strcpy(ssid,"saved");*configured=saved_wifi;return ESP_OK;}
 int read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {assert(cfg->mode==READ_PICO_TRANSFER_MODE_STA&&cfg->network_only);++wifi_starts;transfer_status.mode=cfg->mode;transfer_status.state=1;return ESP_OK;}
 bool read_pico_transfer_try_stop_if_idle(void) {if(upload_busy)return false;++wifi_stops;transfer_status.state=0;return true;}
@@ -173,8 +162,8 @@ void vTaskDelay(int ms) {(void)ms;if (++step>=sample_count) longjmp(done,1);}
 bool continuous_du_init(void) {return true;}
 void display_request_full_refresh(void) {++wake_clean_requests;}
 void guard_draw_result(EpdiyHighlevelState* h,enum EpdDrawError e) {(void)h;assert(e==0);}
-enum EpdDrawError update_display_area_with(EpdiyHighlevelState*h,const void*w,int m,EpdRect a) {(void)h;(void)w;(void)a;nav_area_draws+=nav_armed!=NULL;nav_armed=NULL;if(m==MODE_DU)du_areas++;else if(m==MODE_GL16)gl_areas++;return 0;}
-enum EpdDrawError update_display_full(EpdiyHighlevelState*h) {(void)h;fulls++;nav_full_arms+=nav_armed!=NULL;nav_armed=NULL;return 0;}
+enum EpdDrawError update_display_area_with(EpdiyHighlevelState*h,const void*w,int m,EpdRect a) {(void)h;(void)w;(void)a;panel_marker=frame[0];nav_area_draws+=nav_armed!=NULL;nav_armed=NULL;if(m==MODE_DU)du_areas++;else if(m==MODE_GL16)gl_areas++;return 0;}
+enum EpdDrawError update_display_full(EpdiyHighlevelState*h) {(void)h;if(check_clean_action&&fulls){assert(frame[0]==0x11);++clean_action_fulls;}panel_marker=frame[0];fulls++;nav_full_arms+=nav_armed!=NULL;nav_armed=NULL;return 0;}
 enum EpdDrawError update_display_mode(EpdiyHighlevelState*h,int m) {(void)h;(void)m;mode++;return 0;}
 enum EpdDrawError update_display_mode_diff(EpdiyHighlevelState*h,int m) {(void)h;(void)m;mode++;return 0;}
 enum EpdDrawError update_display_fast_page(EpdiyHighlevelState*h) {(void)h;mode++;nav_draws+=nav_armed!=NULL;nav_armed=NULL;return 0;}
@@ -185,16 +174,8 @@ void display_main_transition_arm(const void* owner, bool shelf_exit, bool changi
 void display_main_transition_disarm(void) {nav_armed=NULL;}
 void rails_idle_check(int64_t n) {(void)n;}
 bool read_pico_pmu_ready(void) {return lock_due||step==power_trigger_step;}
-esp_err_t read_pico_pmu_poll(void) {return ESP_OK;}
-bool ui_nav_refresh_power(uint8_t *fb) {
-    (void)fb;
-    if(power_change_step<0||step<power_change_step||power_reported)return false;
-    power_reported=true;return true;
-}
-EpdRect ui_nav_status_area(void) {return (EpdRect){0,12,684,56};}
 read_pico_pmu_key_action_t read_pico_pmu_take_key_action(void) {return step==power_trigger_step?READ_PICO_PMU_KEY_LONG:READ_PICO_PMU_KEY_SHORT;}
-void enter_lock_and_sleep(EpdiyHighlevelState*h,int64_t*t,void*a,void*tp,bool reader) {(void)tp;(void)h;(void)t;(void)a;(void)reader;assert(!nav_armed);++idle_locks;lock_due=false;time_offset+=1000000;}
-void app_lock_set_resume_ready(bool ready) {(void)ready;}
+void enter_lock_and_sleep(EpdiyHighlevelState*h,int64_t*t,void*a,void*tp,bool reader) {(void)tp;(void)h;(void)t;(void)a;(void)reader;assert(!nav_armed);if(check_clean_action)assert(frame[0]==0x11&&panel_marker==0x11);++idle_locks;lock_due=false;time_offset+=1000000;}
 void app_lock_feedback(EpdiyHighlevelState*h) {(void)h;++lock_feedback_calls;if(feedback_enabled){assert(!before_locks&&!idle_locks);++lock_badges;}}
 void app_lock_wait_key_idle(int ms) {(void)ms;}
 esp_err_t app_enter_host_sleep(app_sleep_mode_t mode) {assert(mode==APP_SLEEP_OFF);++shutdowns;longjmp(done,1);}
@@ -227,7 +208,7 @@ bool ui_menu_row_rect(int l,int r,EpdRect*out) {(void)l;*out=(EpdRect){0,r*100+1
 void ui_draw_menu_row_pressed(uint8_t*f,const app_desc_t*a,int l,int r,bool p) {(void)f;(void)a;(void)l;(void)r;if(p)highlights++;else restores++;}
 static void enter(app_ctx_t*c) {(void)c;enters++;}
 static void leave(app_ctx_t*c) {(void)c;exits++;}
-static void render(app_ctx_t*c,uint8_t*f) {(void)c;(void)f;}
+static void render(app_ctx_t*c,uint8_t*f) {(void)c;f[0]=0x11;++base_renders;}
 static void home_enter(app_ctx_t*c) {c->leaf=0;enters++;home_enters++;}
 static void home_render(app_ctx_t*c,uint8_t*f) {(void)f;rendered_leaf=c->leaf;home_renders++;}
 static app_redraw_t touch(app_ctx_t*c,const cst836u_touch_t*t) {
@@ -255,18 +236,15 @@ static app_redraw_t tick(app_ctx_t*c) {
 }
 static app_redraw_t consume_power(app_ctx_t*c) {(void)c;lock_due=false;return APP_REDRAW_DONE;}
 static void reset(void) {
-    anti_fade_set_minutes(0);
-    download_session=false;
-    light_brightness=last_on=30;light_warmth=50;light_dirty=false;light_enabled=true;light_saves=light_previews=haptics=slider_draws=0;
-    slider_partial_draws=slider_forced_draws=0;
-    power_change_step=-1;power_header_draws=0;power_reported=false;
-    button_draws=button_partial_draws=0;network_ready_step=wifi_stop_step=-1;
-    light_brightness_position=72;light_warmth_position=120;
+    edge_enabled=edge_blocked=power_reported=false;edge_returns=back_ripples=power_header_draws=0;power_change_step=-1;
+    memset(frame,0,sizeof(frame));panel_marker=0;check_clean_action=false;clean_action_fulls=0;
     pulse_tab=-1;pulse_requests=pulse_draws=0;
+    quick_restore_failure=false;
+    quick_button_draws=quick_status_draws=quick_press_draws=quick_recent_requests=base_renders=0;
     power_open_draws=power_controls_draws=power_final_draws=shutdowns=restarts=0;power_trigger_step=-1;staged_shutdown=false;
     ble_enabled=saved_wifi=upload_busy=click_enabled=click_active=false;
     transfer_status=(read_pico_transfer_status_t){0};
-    recent_requests=quick_draws=quick_opens=quick_du=wifi_starts=wifi_stops=ble_resets=click_presses=click_restores=0;
+    quick_draws=quick_gl=quick_du=wifi_starts=wifi_stops=ble_resets=click_presses=click_restores=0;
     main_fast=main_water=false;shelf_exit_arms=0;idle_minutes=0;idle_locks=before_locks=lock_feedback_calls=lock_badges=wake_clean_requests=0;feedback_enabled=false;online_busy=false;
     nav_arms=nav_draws=nav_full_arms=nav_area_draws=0;nav_armed=NULL;
     main_source_visible=main_target_visible=true;
@@ -283,7 +261,7 @@ static void reset(void) {
     second=(app_desc_t){.title="second",.render=render,.on_enter=enter};
 }
 static void add(int x,int y,int count,int error) {samples[sample_count++]=(sample_t){x,y,count,error};}
-static void run(void) {app_loop_config_t cfg={.first_app=start_second?&second:&first};if(!setjmp(done))app_loop_run(&cfg);}
+static void run(void) {app_loop_config_t cfg={.fb=frame,.first_app=start_second?&second:&first};if(!setjmp(done))app_loop_run(&cfg);}
 static app_redraw_t consumed_return_tick(app_ctx_t*c) { if(step==0){c->leaf=7;c->request_app=&second;}else c->request_return=true;return APP_REDRAW_NONE; }
 static app_redraw_t return_tick(app_ctx_t*c) { c->request_return=true; return APP_REDRAW_NONE; }
 static app_redraw_t origin_tick(app_ctx_t*c) { c->leaf=7; if(step==0 && request_on_tick)c->request_app=&second; return APP_REDRAW_NONE; }
@@ -293,7 +271,7 @@ static void home_case(void) {
     first.on_enter=home_enter;first.render=home_render;first.on_tick=NULL;first.on_touch=NULL;
 }
 static bool product_menu_disabled(app_ctx_t *ctx) {(void)ctx;return false;}
-static void before_lock(app_ctx_t *ctx) {(void)ctx;++before_locks;}
+static void before_lock(app_ctx_t *ctx) {(void)ctx;if(check_clean_action)assert(frame[0]==0x11&&panel_marker==0x11);++before_locks;}
 static bool main_first(app_ctx_t* ctx) {(void)ctx;return main_source_visible;}
 static bool main_second(app_ctx_t* ctx) {(void)ctx;return main_target_visible;}
 static void enter_subview(app_ctx_t* ctx) {enter(ctx);main_target_visible=false;}
@@ -492,9 +470,6 @@ int main(void) {
     add(0,0,0,0);add(0,0,0,0);run();assert(!idle_locks);
     reset();idle_minutes=1;time_step=600000000;online_busy=true;
     add(0,0,0,0);add(0,0,0,0);run();assert(!idle_locks);
-    reset();idle_minutes=1;time_step=600000000;download_session=true;
-    add(0,0,0,0);add(0,0,0,0);run();assert(!idle_locks);
-    puts("PASS: real scheduler keeps host-download waiting session awake without a USB connection");
     reset();idle_minutes=1;time_step=600000000;first.holds_pmu=true;
     add(0,0,0,0);add(0,0,0,0);run();assert(!idle_locks);
     reset();idle_minutes=1;time_step=30000000;
@@ -502,6 +477,21 @@ int main(void) {
     reset();first.owns_keys=true;first.on_gesture=gesture;first.menu_handle_enabled=product_menu_disabled;
     add(636,1150,1,0);add(0,0,0,0);run();
     assert(!menus&&events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_TAP]==1);
+    // 二级页常驻底栏在按下即切换；阻塞任务拒绝切页，根按键语义不受影响。
+    // Persistent child tabs navigate on contact, reject noninterruptible jobs and retain root-key semantics.
+    reset();enable_main_tabs();main_source_visible=false;first.persistent_navigation=true;
+    add(0,0,0,0);add(200,1141,1,0);add(0,0,0,0);run();assert(exits==1);
+    reset();enable_main_tabs();main_source_visible=false;first.persistent_navigation=true;
+    add(0,0,0,0);add(60,1141,1,0);add(0,0,0,0);run();assert(exits==1);
+    reset();enable_main_tabs();main_source_visible=false;first.persistent_navigation=true;first.navigation_enabled=navigation_blocked;
+    add(0,0,0,0);add(200,1141,1,0);add(0,0,0,0);run();assert(!exits);
+    for(int policy=0;policy<3;++policy){
+        reset();main_fast=policy==1;main_water=policy==2;first.persistent_navigation=true;
+        first.on_gesture=gesture;first.on_key=edge_back_key;first.edge_back_enabled=edge_allowed;edge_enabled=true;
+        add(12,400,1,0);add(150,410,1,0);add(0,0,0,0);run();
+        assert(back_ripples==1&&persistent_ripple_height==UI_NAV_MARKER_SCAN_END&&fulls==1);
+    }
+
     // 首帧保持全刷；切页一次完成，按住、松开、空闲都不安排第二次刷新。
     // Retain the initial full update; finish navigation once without another draw on hold, release or idle.
     reset();enable_main_tabs();add(0,0,0,0);run();assert(!nav_arms&&!nav_draws&&!nav_full_arms);
@@ -538,59 +528,39 @@ int main(void) {
     reset();first.on_gesture=gesture;
     add(300,20,1,0);add(300,110,1,0);add(300,120,1,0);add(0,0,0,0);
     add(300,500,1,0);add(0,0,0,0);add(100,400,1,0);add(0,0,0,0);run();
-    assert(quick_draws==1&&quick_opens==2&&!quick_du);
+    assert(quick_draws==1&&quick_gl==2&&!quick_du);
     assert(events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_TAP]==1);
+    // 顶部缓存申请失败时，收起仍重绘可靠底页；正常展开不再重画整页。
+    // A failed top snapshot falls back to a reliable page repaint on close; normal opening never repaints the page.
+    reset();quick_restore_failure=true;
+    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
+    add(300,500,1,0);add(0,0,0,0);run();
+    assert(quick_draws==1&&quick_gl==2&&base_renders==2&&frame[0]==0x11);
     reset();main_fast=true;saved_wifi=true;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    add(100,152,1,0);add(100,152,1,0);add(0,0,0,0);
-    add(100,152,1,0);add(0,0,0,0);run();
-    assert(wifi_starts==1&&wifi_stops==1&&quick_opens==1&&quick_draws==1&&button_draws==4&&button_partial_draws==4&&!quick_du&&!touch_calls);
+    add(85,156,1,0);add(85,156,1,0);add(0,0,0,0);
+    add(85,156,1,0);add(0,0,0,0);run();
+    assert(wifi_starts==1&&wifi_stops==1&&quick_gl==1&&quick_du==4&&quick_draws==1&&base_renders==1&&quick_press_draws==2&&!touch_calls);
     reset();upload_busy=true;transfer_status=(read_pico_transfer_status_t){.state=1,.mode=READ_PICO_TRANSFER_MODE_STA};
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(100,152,1,0);add(0,0,0,0);run();
+    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(85,156,1,0);add(0,0,0,0);run();
     assert(!wifi_starts&&!wifi_stops&&transfer_status.state==1);
-    assert(quick_opens==1&&button_partial_draws==2&&quick_draws==1);
-    reset();add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(100,152,1,0);add(0,0,0,0);run();
+    reset();add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(85,156,1,0);add(0,0,0,0);run();
     assert(!wifi_starts&&!wifi_stops&&!touch_calls);
-    assert(quick_opens==1&&button_partial_draws==2&&quick_draws==1);
     reset();add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    add(244,152,1,0);add(0,0,0,0);add(244,152,1,0);add(0,0,0,0);run();
-    assert(ble_enabled&&!ble_resets&&recent_requests==2&&!touch_calls);
-    assert(quick_opens==1&&quick_draws==1&&button_partial_draws==4&&button_draws==4);
-    reset();first.on_before_lock=before_lock;
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    add(100,284,1,0);add(0,0,0,0);add(244,284,1,0);add(0,0,0,0);run();
-    assert(!idle_locks&&!before_locks&&fulls>=2&&!touch_calls&&!light_enabled&&light_brightness==30&&light_saves==1&&haptics==1);
-    assert(quick_opens==1&&button_partial_draws==4&&button_draws==4);
-    // 网络ready只改变内部状态，不重画菜单；异步WiFi停止只刷WiFi圆钮。
-    // Network readiness is nonvisual; an asynchronous stop refreshes only its WiFi control.
-    reset();network_ready_step=4;transfer_status=(read_pico_transfer_status_t){.state=1,.mode=READ_PICO_TRANSFER_MODE_STA};
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
-    assert(quick_opens==1&&quick_draws==1&&!button_draws&&!button_partial_draws);
-    reset();wifi_stop_step=4;transfer_status=(read_pico_transfer_status_t){.state=1,.mode=READ_PICO_TRANSFER_MODE_STA};
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
-    assert(quick_opens==1&&quick_draws==1&&button_draws==1&&button_partial_draws==1);
-    reset();light_enabled=false;light_brightness=light_brightness_position=0;
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(244,284,1,0);add(0,0,0,0);run();
-    assert(light_enabled&&light_brightness_position==72&&button_draws==2&&slider_draws==1&&quick_opens==1&&!slider_forced_draws);
-    reset();time_step=100000;
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    add(426,296,1,0);add(426,224,1,0);add(0,0,1,0);add(0,0,0,0);run();
-    assert(light_brightness==100&&light_warmth==50&&light_previews==3&&light_saves==1&&slider_draws>=2&&!touch_calls&&quick_opens==1);
-    assert(slider_partial_draws==slider_draws&&!slider_forced_draws);
-    reset();add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    add(572,104,1,0);add(0,0,0,9);add(0,0,0,0);run();
-    assert(light_warmth==100&&light_saves==1&&!touch_calls);
-    reset();light_enabled=false;time_step=100000;
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    add(426,104,1,0);add(0,0,0,0);add(572,104,1,0);add(0,0,0,0);run();
-    assert(!light_enabled&&light_brightness==100&&light_warmth==100&&light_saves==2&&!touch_calls);
-    assert(slider_partial_draws==2&&!slider_forced_draws);
-    reset();time_step=100000;
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    // 当前50%色温不变：按下/抬起不重复绘制，更不产生GL定稿黑框。
-    // Tapping unchanged warmth must not redraw or force a GL capsule settle.
-    add(572,224,1,0);add(0,0,0,0);run();
-    assert(!slider_partial_draws&&!slider_forced_draws&&!slider_draws&&!light_saves);
+    add(256,156,1,0);add(0,0,0,0);add(256,156,1,0);add(0,0,0,0);run();
+    assert(!ble_enabled&&quick_recent_requests==1&&!ble_resets&&quick_gl==1&&quick_draws==1&&quick_status_draws==2&&quick_press_draws==2&&base_renders==1&&!touch_calls);
+    // 全刷先收起，后续点按归底页；锁屏保存/合成前菜单已从面板消失。
+    // Full refresh dismisses before output and returns taps to the page; lock checkpoints see an already restored panel.
+    for(int policy=0;policy<3;++policy){
+        reset();main_fast=policy==1;main_water=policy==2;check_clean_action=true;
+        add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
+        add(427,156,1,0);add(0,0,0,0);add(100,400,1,0);add(0,0,0,0);run();
+        assert(fulls==2&&clean_action_fulls==1&&base_renders==1&&quick_draws==1&&quick_du==1&&quick_press_draws==1&&touch_calls==1);
+        reset();main_fast=policy==1;main_water=policy==2;check_clean_action=true;first.on_before_lock=before_lock;
+        add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
+        add(598,156,1,0);add(0,0,0,0);run();
+        assert(idle_locks==1&&before_locks==1&&quick_gl==2&&!touch_calls);
+    }
     for(int policy=0;policy<3;++policy){
         reset();main_fast=policy==1;main_water=policy==2;first.on_gesture=gesture;click_enabled=true;
         add(85,1141,1,0);add(85,1141,1,0);add(0,0,0,0);run();
@@ -603,20 +573,20 @@ int main(void) {
     assert(click_presses==1&&click_restores==1&&!click_active);
     reset();click_enabled=true;add(85,1141,1,0);add(0,0,0,1);add(0,0,0,0);run();
     assert(click_presses==1&&click_restores==1&&!click_active);
-    reset();power_change_step=1;add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
-    assert(power_header_draws==1&&du_areas==1&&fulls==1&&!mode);
-    reset();power_change_step=0;first.holds_pmu=true;add(0,0,0,0);add(0,0,0,0);run();
-    assert(!power_header_draws&&!power_reported);
-    reset();power_change_step=0;add(100,400,1,0);add(100,400,1,0);add(0,0,0,0);run();
-    assert(power_header_draws==1&&fulls==1);
-    reset();power_change_step=2;add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(0,0,0,0);run();
-    assert(!power_header_draws&&!power_reported&&quick_draws==1);
-    reset();power_change_step=1;menu_on_tick=true;add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
-    assert(!power_header_draws&&!power_reported&&menus);
-    puts("charging scheduler: one header-only update without full-page refresh; held touch defers; quick/menu/PMU-owner overlays suppress power redraw");
-    puts("quick layer/click scheduler: modal ownership, local BW/gray, one saved-network connect/disconnect, upload/no-credential guards, BLE toggle, full/frontlight, slider save-on-release/error and release/multitouch/read-error restoration passed");
-    puts("app_loop: scheduler scenarios passed, including changed-band-only sliders, no forced release settle, unchanged-value skip, automatic lock, save callback, input reset and busy guards");
-    puts("quick layer/click scheduler: modal ownership, local BW/gray, one saved-network connect/disconnect, upload/no-credential guards, BLE toggle, full/lock and release/multitouch/read-error restoration passed");
+    for(int policy=0;policy<3;++policy){
+        reset();main_fast=policy==1;main_water=policy==2;saved_wifi=true;
+        add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(85,156,1,0);run();
+        assert(quick_press_draws==1&&quick_du==1&&quick_gl==1&&quick_draws==1&&base_renders==1&&!wifi_starts);
+        reset();first.on_gesture=gesture;
+        add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(85,156,1,0);
+        add(85,156,2,0);add(0,0,0,0);run();
+        assert(quick_press_draws==1&&quick_du==2&&quick_gl==1&&quick_draws==1&&!wifi_starts&&!touch_calls);
+        reset();first.on_gesture=gesture;
+        add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(85,156,1,0);
+        add(85,156,0,1);add(0,0,0,0);run();
+        assert(quick_press_draws==1&&quick_du==2&&quick_gl==1&&!wifi_starts&&!touch_calls);
+    }
+    puts("quick layer/click scheduler: modal ownership, local BW/gray, immediate local presses without underlay re-render/glass regeneration, one saved-network connect/disconnect, upload/no-credential guards, BLE on/recent request and off before connection, full/lock and release/multitouch/read-error restoration passed");
     // 反馈必须早于页面保存/后台收尾；下一页与自动休眠不显示主动锁屏徽标。
     // Acknowledgement precedes saves/joins; consumed page turns and idle sleep omit it.
     for(int policy=0;policy<3;++policy){
@@ -631,10 +601,10 @@ int main(void) {
     }
     puts("PASS: manual lock acknowledgement precedes page save/reader joins in all three modes; consumed power turns and auto sleep omit the badge");
     reset();power_trigger_step=1;time_step=3000000;
-    add(0,0,0,0);add(0,0,0,0);add(128,374,1,0);add(240,374,1,0);add(556,374,1,0);add(0,0,0,0);run();
+    add(0,0,0,0);add(0,0,0,0);add(UI_POWER_THUMB_X,UI_POWER_THUMB_Y,1,0);add(UI_POWER_THUMB_X+112,UI_POWER_THUMB_Y,1,0);add(UI_POWER_THUMB_X+UI_POWER_SLIDE_RANGE,UI_POWER_THUMB_Y,1,0);add(0,0,0,0);run();
     assert(power_open_draws==1&&power_controls_draws==2&&shutdowns==1&&!restarts&&power_final_draws==1&&!touch_calls&&ticks==1&&du_areas==2&&gl_areas==1);
     reset();power_trigger_step=1;time_step=3000000;staged_shutdown=true;
-    add(0,0,0,0);add(0,0,0,0);add(128,374,1,0);add(556,374,1,0);add(0,0,0,0);add(0,0,0,0);run();
+    add(0,0,0,0);add(0,0,0,0);add(UI_POWER_THUMB_X,UI_POWER_THUMB_Y,1,0);add(UI_POWER_THUMB_X+UI_POWER_SLIDE_RANGE,UI_POWER_THUMB_Y,1,0);add(0,0,0,0);add(0,0,0,0);run();
     assert(idle_locks==1&&wake_clean_requests==1&&!shutdowns&&!restarts&&!power_final_draws);
     reset();power_trigger_step=1;time_step=3000000;
     add(0,0,0,0);add(0,0,0,0);add(UI_POWER_RESTART_X,UI_POWER_BUTTON_Y,1,0);add(0,0,0,0);run();
@@ -644,11 +614,11 @@ int main(void) {
     assert(!shutdowns&&!restarts&&!power_final_draws&&nav_arms==0&&mode==1);
     for(int fault=0;fault<2;++fault){
         reset();power_trigger_step=1;time_step=3000000;
-        add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);add(128,374,1,0);add(556,374,1,0);add(556,374,fault?2:0,fault?0:1);add(0,0,0,0);run();
+        add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);add(UI_POWER_THUMB_X,UI_POWER_THUMB_Y,1,0);add(UI_POWER_THUMB_X+UI_POWER_SLIDE_RANGE,UI_POWER_THUMB_Y,1,0);add(UI_POWER_THUMB_X+UI_POWER_SLIDE_RANGE,UI_POWER_THUMB_Y,fault?2:0,fault?0:1);add(0,0,0,0);run();
         assert(!shutdowns&&!restarts&&power_controls_draws==2&&!touch_calls);
     }
     reset();power_trigger_step=1;time_step=3000000;
-    add(0,0,0,0);add(128,374,1,0);add(556,374,1,0);add(0,0,0,0);run();
+    add(0,0,0,0);add(UI_POWER_THUMB_X,UI_POWER_THUMB_Y,1,0);add(UI_POWER_THUMB_X+UI_POWER_SLIDE_RANGE,UI_POWER_THUMB_Y,1,0);add(0,0,0,0);run();
     assert(power_open_draws==1&&!power_controls_draws&&!shutdowns&&!restarts);
     puts("PASS: real loop and power recognizer: DU-only contact, release commits off/staged sleep/restart once, cancel restores full navigation, touch/multitouch errors and entry-held suppression");
     reset();enable_main_tabs();first.owns_keys=true;first.on_main_key=root_key_tap;root_key_taps=0;time_step=100000;
@@ -657,16 +627,41 @@ int main(void) {
     add(0,0,0,0);add(240,1500,1,0);add(240,1500,1,0);add(240,1500,1,0);add(0,0,0,0);run();assert(root_key_taps==0&&fulls==2&&!keys[1]);
     reset();enable_main_tabs();first.owns_keys=true;first.on_main_key=root_key_tap;first.on_tick=root_disappears;root_key_taps=0;time_step=100000;
     add(0,0,0,0);add(240,1500,1,0);add(240,1500,1,0);add(0,0,0,0);run();assert(root_key_taps==0&&!keys[1]);
-    reset();time_step=30000000;for(int i=0;i<6;++i)add(0,0,0,0);run();
-    int idle_baseline=wake_clean_requests;
-    reset();anti_fade_set_minutes(1);time_step=30000000;for(int i=0;i<6;++i)add(0,0,0,0);run();
-    assert(wake_clean_requests==idle_baseline+2&&!idle_locks&&!quick_opens);
-    reset();anti_fade_set_minutes(1);download_session=true;time_step=30000000;for(int i=0;i<6;++i)add(0,0,0,0);run();
-    assert(wake_clean_requests==idle_baseline&&!idle_locks);
-    reset();anti_fade_set_minutes(1);first.holds_pmu=true;time_step=30000000;for(int i=0;i<6;++i)add(0,0,0,0);run();
-    assert(wake_clean_requests==idle_baseline&&!idle_locks);
-    puts("PASS: real loop with real anti-fade: idle refresh, no transfer/modal-owner refresh or wake; legacy quick/PIN/sleep gates retained");
-    puts("app_loop: 50 scheduler scenarios passed, including automatic lock, save callback, input reset and busy guards");
+    // 内容区沿用阅读右滑事件；短拖/状态栏/多指/拒绝不播放，点按和控件反馈保持。
+    // Content reuses reading right-swipes; short/status/multitouch/refused input never animates, retaining taps/control feedback.
+    for(int policy=0;policy<3;++policy)for(int trial=0;trial<7;++trial){
+        reset();main_fast=policy==1;main_water=policy==2;
+        first.on_gesture=gesture;first.on_key=edge_back_key;first.edge_back_enabled=edge_allowed;first.binary_ui=true;
+        edge_enabled=trial!=3;edge_blocked=trial==4;
+        add(trial==1?80:12,trial==5?50:400,1,0);
+        if(trial==2)add(40,400,2,0);
+        add(trial==1?210:trial==6?60:150,trial==5?50:410,1,0);add(0,0,0,0);run();
+        assert(edge_returns==(trial==0||trial==1||trial==4?1:0));assert(back_ripples==(trial==0||trial==1?1:0));assert(!system_fast_scope);
+    }
+    for(int policy=0;policy<3;++policy)for(int x=80;x<=560;x+=120)for(int trial=0;trial<7;++trial){
+        reset();main_fast=policy==1;main_water=policy==2;first.persistent_navigation=true;
+        first.on_gesture=gesture;first.on_key=edge_back_key;first.edge_back_enabled=edge_allowed;edge_enabled=true;
+        int dx=trial==0?119:trial==4?(x<120?-x:-120):120,dy=trial==1?119:trial==2?-119:trial==3?120:0;
+        if(trial==6)first.back_swipe_area=keyboard_back_area;
+        int y=trial>=5?650:400;
+        add(x,y,1,0);add(x+dx,y+dy,1,0);add(0,0,0,0);run();
+        bool back=trial==1||trial==2||trial==5;
+        assert(edge_returns==back&&back_ripples==back&&fulls==1);
+        assert(events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_MOVE]>=1);
+        if(trial==6)assert(events[UI_GESTURE_SWIPE_R]==1);
+    }
+    for(int policy=0;policy<3;++policy)for(int back=0;back<2;++back){
+        reset();main_fast=policy==1;main_water=policy==2;first.edge_back_enabled=edge_allowed;
+        first.on_gesture=gesture;edge_enabled=true;response=APP_REDRAW_PAGE;
+        add(back?60:200,back?110:400,1,0);add(0,0,0,0);run();assert(!back_ripples);
+    }
+    reset();first.on_tick=origin_tick;request_on_tick=true;second.on_gesture=gesture;second.on_key=key;
+    second.edge_back_enabled=edge_allowed;edge_enabled=true;home_on_key=true;
+    add(0,0,0,0);add(12,400,1,0);add(150,410,1,0);add(0,0,0,0);run();assert(back_ripples==1);
+    reset();power_change_step=0;add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();assert(power_header_draws==1);
+    reset();power_change_step=0;add(200,400,1,0);add(200,400,1,0);add(0,0,0,0);run();assert(power_header_draws==1);
+    puts("PASS: Pico reading-threshold right-swipe back at5 content origins/all3modes,diagonal120/119,short/equal-axis/left/keyboard guards,one destination output,ordinary taps and power header");
+    puts("app_loop: 51 scheduler scenarios passed, including automatic lock, save callback, input reset and busy guards");
     return 0;
 }
 
@@ -688,10 +683,3 @@ bool book_cover_jobs_quiesce(unsigned timeout){(void)timeout;return true;}
 void book_lock_collage_invalidate(void) {}
 
 bool ble_pt_connected(void) { return false; }
-
-static uint8_t af_store=5;
-int nvs_open(const char* space,int mode,nvs_handle_t* h){(void)space;(void)mode;*h=1;return 0;}
-int nvs_get_u8(nvs_handle_t h,const char* key,uint8_t* v){(void)h;(void)key;*v=af_store;return 0;}
-int nvs_set_u8(nvs_handle_t h,const char* key,uint8_t v){(void)h;(void)key;af_store=v;return 0;}
-int nvs_commit(nvs_handle_t h){(void)h;return 0;}
-void nvs_close(nvs_handle_t h){(void)h;}

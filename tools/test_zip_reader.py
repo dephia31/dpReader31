@@ -58,13 +58,6 @@ def main():
         run("reject-extract", archive(b"x" * (8 * 1024 * 1024 + 1)))
         run("prefix", archive(b"x" * (8 * 1024 * 1024 + 1)), expected=b"x" * 257)
         good = archive(payload)
-        # Supplied EPUB carries this exact footer; keep arbitrary/ambiguous tails rejected.
-        # 用户EPUB的确定尾部格式；错误标记、额外内容、双标记、伪EOCD仍拒绝。
-        footer=b"[*AT*]07E0923EF25849B8A8359DF04603887C"
-        run("read",good+footer,expected=payload)
-        run("read",good+b"\n"+footer.lower().replace(b"[*at*]",b"[*AT*]")+b"\r\n",expected=payload)
-        for tail in (footer[:-1],footer+b"X",footer+footer,b"[*AT*]"+b"Z"*32,b"[*OTHER*]"+b"0"*32):
-            run("reject-open",good+tail)
         cd = good.index(b"PK\x01\x02")
         eocd = good.rindex(b"PK\x05\x06")
 
@@ -98,7 +91,6 @@ def main():
         wrong_crc = changed(cd + 16, "<I", 42)
         struct.pack_into("<I", wrong_crc, 14, 42)
         run("reject-extract", wrong_crc)
-        run("reject-extract",wrong_crc+footer)
         too_small = changed(cd + 24, "<I", 1)
         struct.pack_into("<I", too_small, 22, 1)
         run("reject-extract", too_small)

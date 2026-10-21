@@ -14,6 +14,8 @@ typedef struct {
     unsigned count;
     int pressed, dirty_key;
     bool blocked;
+    /// 设置页为常驻底栏预留空间，锁屏验证默认关闭。/ Reserve persistent navigation in settings; disabled by default for lock authentication.
+    bool navigation;
 } ui_pinpad_t;
 typedef enum { UI_PIN_NONE, UI_PIN_CHANGED, UI_PIN_CANCEL, UI_PIN_COMPLETE } ui_pin_result_t;
 /// 缓存清晰原始锁屏画面；仅圆键做液态玻璃，内存不足保留中性背景。/ Cache sharp lock artwork; glass stays inside keys, with a neutral low-memory fallback.

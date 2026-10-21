@@ -17,7 +17,6 @@ enum EpdDrawError { EPD_DRAW_SUCCESS = 0, EPD_DRAW_EMPTY_LINE_QUEUE = 1,
 void epd_poweron(void);
 void epd_poweroff(void);
 void epd_clear(void);
-enum EpdDrawError epd_clear_checked(void);
 EpdRect epd_full_screen(void);
 void epd_push_pixels(EpdRect area, short time, int color);
 void epd_lcd_set_prefill_lines(int lines);

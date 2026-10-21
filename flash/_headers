@@ -1,0 +1,20 @@
+/manifest.json
+  Cache-Control: no-store
+/update.json
+  Cache-Control: no-store
+/firmware.bin
+  Cache-Control: no-store
+/Pico-update.bin
+  Cache-Control: no-store
+/bootloader.bin
+  Cache-Control: no-store
+/partitions.bin
+  Cache-Control: no-store
+/ota_data_initial.bin
+  Cache-Control: no-store
+/versions.js
+  Cache-Control: no-store
+/flasher-integrity.js
+  Cache-Control: no-store
+/vendor/web/install-button.js
+  Cache-Control: no-store

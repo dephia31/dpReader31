@@ -2,10 +2,12 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 中文：S31的BQ27220/CX25601N/PCF8563/TCA按键适配RC90快照接口。
- * English: S31 gauge, charger, RTC and TCA keys implement the RC90 snapshot API.
- * 本工程没有CW32协议设备；未实现的旧命令返回NOT_SUPPORTED。
- * No CW32 device exists on this board; unsupported legacy commands return NOT_SUPPORTED.
+ * 小纸 Pico CW32L010 PMU 主机侧：I2C 协议、电池、软睡、闹钟、关机。
+ * 总线由调用方注入，不依赖板级 BSP。
+ *
+ * Read Pico CW32L010 PMU host: I2C protocol, battery, soft sleep, alarm,
+ * power-off. The caller injects the bus; this file does not depend on the
+ * board BSP.
  */
 
 #pragma once
@@ -99,6 +101,11 @@ typedef struct {
     uint16_t diag_host_rst;
     uint16_t diag_adc;
 
+#if KIIKO_BOARD_METALIO47
+#else
+    bool display_soc_valid; ///< 主机高段稳定结果有效；原始PMU字段不变 / Host upper-SOC result; raw PMU fields remain intact
+    uint16_t display_soc_permille;
+#endif
     bool quick_ok;
     uint16_t qb_mv;
     uint16_t qb_soc;
@@ -108,6 +115,10 @@ typedef struct {
     pmu_event_t event;
     pmu_config_t config;
     uint32_t unix_sec;
+#if KIIKO_BOARD_METALIO47
+#else
+    uint16_t unix_millis; ///< TIME_GET 毫秒部分 / Millisecond fraction
+#endif
     uint8_t time_synced;
     uint8_t alarm_mode;
     uint32_t alarm_remain;
@@ -135,6 +146,10 @@ static inline int pmu_battery_percent(const pmu_snapshot_t *p) {
         if (!p->status_ok || !(p->flags & PMU_STATUS_BATTERY_VALID)) return -1;
         soc = p->soc_permille;
     }
+#if KIIKO_BOARD_METALIO47
+#else
+    if(soc<=1000 && p->display_soc_valid)soc=p->display_soc_permille;
+#endif
     return soc <= 1000 ? (soc + 5) / 10 : -1;
 }
 static inline bool pmu_battery_charging(const pmu_snapshot_t *p) {
@@ -197,13 +212,16 @@ read_pico_pmu_key_action_t read_pico_pmu_take_key_action(void);
 /// 抽干事件队列；若有电源键短按返回 true。
 /// / Drain the queue; true if a power-key short press was seen.
 bool read_pico_pmu_take_key_short(void);
-/// S31消费后台记录的去抖短按/长按；单独持有按下电平不构成新唤醒。
-/// S31 consumes a queued debounced click/hold; a held level alone is not a new wake.
+/// 抽干队列；两次有效短按释放相距60..600ms才解锁，按下/长按不计入。
+/// / Wake only after two distinct short releases 60..600 ms apart; DOWN/holds do not count.
 bool read_pico_pmu_take_key_wakeup(void);
+#if KIIKO_BOARD_METALIO47
 /// S31改动扩展口方向前暂停采样；有待处理按键时拒绝，恢复后重新同步电平。
 /// Pause S31 sampling before changing expander directions; reject pending keys and resync levels on resume.
 esp_err_t read_pico_pmu_keys_pause(void);
 void read_pico_pmu_keys_resume(void);
+#else
+#endif
 /// 保证 RUNNING 后发 HOST_SOFT_SLEEP，等到 STATUS 为 SOFT_SLEEP（随后 EN=0）。
 /// / After RUNNING, send HOST_SOFT_SLEEP and wait for STATUS SOFT_SLEEP (then EN=0).
 esp_err_t read_pico_pmu_report_sleep(void);

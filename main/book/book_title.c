@@ -16,7 +16,11 @@
 #define TITLE_PATH_MAX 288
 #define TITLE_MAX 120
 #define RECORD_MAX (TITLE_PATH_MAX + TITLE_MAX + 8)
+#if KIIKO_BOARD_METALIO47
 static const char *NS = "mt_titles";
+#else
+static const char *NS = "rp_titles";
+#endif
 
 bool book_title_from_path(const char *path, char *out, size_t cap) {
     if (!path || !out || cap < 2) return false;

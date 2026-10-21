@@ -31,12 +31,15 @@ size_t book_navigation_chapter(size_t position);
 #define UI_GRAY_WHITE 255
 void ui_clear_page(uint8_t *fb);
 void ui_fill_round_rect(uint8_t *fb, EpdRect r, int radius, uint8_t gray);
+void ui_fill_rect_fast(EpdRect rect, uint8_t gray, uint8_t *fb);
 void ui_draw_round_rect(uint8_t *fb, EpdRect r, int radius, uint8_t gray);
 void ui_text_fixed(uint8_t *fb,int x,int y,int px,const char *text,enum EpdFontFlags align,bool inverse);
 int ui_text_fixed_width_px(int px,const char *text);
 int ui_text_effective_px(int px);
 EpdRect ui_inset_rect(EpdRect rect,int d);
 void ui_text_box(uint8_t *fb,EpdRect box,int px,const char *text,enum EpdFontFlags align,bool inverse);
+int ui_text_title_fit(char *text,int px,int width,const char *sample);
+void ui_text_title_background_vc(uint8_t *fb,int x,int y,int px,const char *text,const char *sample,enum EpdFontFlags align,uint8_t background);
 bool ui_rect_hit(EpdRect r,int x,int y);
 void ui_hairline(uint8_t *fb,int y,int x,int width,uint8_t gray);
 """,
@@ -57,7 +60,9 @@ static int labels;
 static int large_titles,skip_labels,jump_summary,borders,pager_labels,jump_labels;
 static size_t nav_shift,seen_sources[8];
 static int seen_count;
+static int title_fits,title_draws,selected_titles,white_titles;
 void epd_fill_rect(EpdRect rect,uint8_t color,uint8_t *fb){(void)rect;(void)color;(void)fb;}
+void ui_fill_rect_fast(EpdRect rect,uint8_t color,uint8_t *fb){epd_fill_rect(rect,color,fb);}
 void epd_fill_circle(int x,int y,int radius,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}
 void epd_draw_circle(int x,int y,int radius,uint8_t color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}
 void ui_clear_page(uint8_t *fb){(void)fb;}
@@ -75,6 +80,17 @@ void ui_text_fixed(uint8_t *fb,int x,int y,int px,const char *text,enum EpdFontF
 }
 int ui_text_fixed_width_px(int px,const char *text){int width=0;for(;*text;text++)if(((unsigned char)*text&0xc0)!=0x80)width+=((unsigned char)*text<128?px/2:px);return width;}
 int ui_text_effective_px(int px){return px;}
+int ui_text_title_fit(char *text,int px,int width,const char *sample){
+    assert(!strcmp(text,sample));++title_fits;
+    while(*text&&ui_text_fixed_width_px(px,text)>width){size_t n=strlen(text)-1;while(n&&((unsigned char)text[n]&0xc0)==0x80)--n;text[n]=0;}
+    return px;
+}
+void ui_text_title_background_vc(uint8_t *fb,int x,int y,int px,const char *text,const char *sample,enum EpdFontFlags align,uint8_t background){
+    assert(title_fits==title_draws+1&&strstr(sample,text)==sample);++title_draws;
+    if(px==30){assert(background==0xc0||background==255);selected_titles+=background==0xc0;white_titles+=background==255;}
+    else assert(background==0xe0);
+    ui_text_fixed(fb,x,y,px,text,align,false);
+}
 EpdRect ui_inset_rect(EpdRect r,int d){return (EpdRect){r.x+d,r.y+d,r.width-2*d,r.height-2*d};}
 void ui_text_box(uint8_t *fb,EpdRect box,int px,const char *text,enum EpdFontFlags align,bool inverse){assert(box.width>0&&box.height>0);ui_text_fixed(fb,box.x,box.y,px,text,align,inverse);}
 bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height;}
@@ -116,11 +132,12 @@ int main(void){
     book_toc_render(&fb,"书名\n下一行",8,1,0,"");
     assert(cards==13 && labels>=17 && large_titles==7 && skip_labels==2);
     assert(borders==26 && pager_labels==2 && jump_labels==1);
+    assert(title_draws==8&&selected_titles==1&&white_titles==6);
     book_toc_render_jump(&fb,168,60);
     assert(jump_summary==1);
     nav_shift=1;seen_count=0;book_toc_render(&fb,"目录",4,1,0,"");
     assert(seen_count==4&&seen_sources[0]==1&&seen_sources[3]==4);
-    puts("book_toc: pages, taps, overflow and single-line rendering passed");
+    puts("book_toc: pages, taps, overflow, single-line titles, stable title font path and selected-row backgrounds passed");
     return 0;
 }
 '''

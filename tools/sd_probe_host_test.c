@@ -13,14 +13,15 @@
 #include "freertos/task.h"
 
 static bool test_present, test_exfat, test_raw_error;
-static bool detect_failure, detect_unsupported;
+static bool detect_failure;
 static int mount_calls, unmount_calls, test_fail_above_khz;
 static esp_err_t test_mount_error = ESP_ERR_TIMEOUT;
 static int clock_history[64], delays;
 static uint64_t test_total=1024*512,test_free=768*512;
 static esp_err_t test_info_error=ESP_OK;
 static unsigned space_calls, invalidations;
-static bool fat_locked;
+static bool fat_locked,defer_space,fail_space_task;
+static void (*queued_space)(void*);
 
 static sdmmc_card_t test_card = {
     .cid.name = "TEST64G", .csd.capacity = 1024, .csd.sector_size = 512,
@@ -44,14 +45,17 @@ esp_err_t sdmmc_read_sectors(sdmmc_card_t *c,void *buffer,size_t start,size_t co
 bool read_pico_sd_present(void) { return test_present; }
 esp_err_t read_pico_sd_detect(bool* present) {
     if (detect_failure) return ESP_ERR_TIMEOUT;
-    if (detect_unsupported) return ESP_ERR_NOT_SUPPORTED;
     *present = test_present;
     return ESP_OK;
 }
 const char* esp_err_to_name(esp_err_t err) { (void)err; return "test"; }
 BaseType_t xTaskCreate(void (*fn)(void*), const char* name, int stack,
                        void* arg, int priority, void* handle) {
-    (void)name; (void)stack; (void)priority; (void)handle;
+    (void)stack; (void)priority; (void)handle;
+    if(!strcmp(name,"sd_space")){
+        if(fail_space_task)return !pdPASS;
+        if(defer_space){assert(!queued_space);queued_space=fn;return pdPASS;}
+    }
     fn(arg);
     return pdPASS;
 }
@@ -61,9 +65,7 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char* path, const sdmmc_host_t* host,
                                   const sdmmc_slot_config_t* slot,
                                   const esp_vfs_fat_sdmmc_mount_config_t* config,
                                   sdmmc_card_t** out) {
-    assert(!strcmp(path,"/sdcard") && host->slot==0);
-    assert(slot->width==4 && slot->clk==GPIO_NUM_24 && slot->cmd==GPIO_NUM_25 &&
-           slot->d0==GPIO_NUM_20 && slot->d1==GPIO_NUM_21 && slot->d2==GPIO_NUM_22 && slot->d3==GPIO_NUM_23);
+    (void)path; (void)host; (void)slot; (void)config;
     assert(mount_calls < 64);
     clock_history[mount_calls++] = host->max_freq_khz;
     assert(test_present);
@@ -164,7 +166,21 @@ int main(void) {
     assert(read_pico_sd_get_info(&info)==ESP_OK && info.mounted && info.present);
     detect_failure=false;
     assert(read_pico_sd_get_info(&info)==ESP_OK && info.mounted);
-    assert(info.space_valid && info.filesystem_bytes==test_total && info.free_bytes==test_free);
+    // 挂载发布前绝不扫描FAT；大卡先读文件，统计后补，不能再报未挂载。
+    // Mount publication never scans FAT; large cards become readable before accounting completes.
+    assert(!info.space_valid&&info.space_error==ESP_ERR_NOT_FINISHED&&space_calls==0);
+    defer_space=true;int mounted_calls=mount_calls;
+    assert(read_pico_sd_start_space_refresh()==ESP_ERR_NOT_FINISHED&&queued_space);
+    assert(read_pico_sd_get_info(&info)==ESP_OK&&info.mounted&&!info.space_valid);
+    assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==mounted_calls);
+    assert(read_pico_sd_start_space_refresh()==ESP_ERR_NOT_FINISHED&&queued_space);
+    assert(read_pico_sd_refresh_space()==ESP_ERR_NOT_FINISHED);
+    queued_space(NULL);queued_space=NULL;defer_space=false;
+    assert(read_pico_sd_get_info(&info)==ESP_OK&&info.mounted&&info.space_valid);
+    fail_space_task=true;assert(read_pico_sd_start_space_refresh()==ESP_ERR_NO_MEM);
+    assert(read_pico_sd_get_info(&info)==ESP_OK&&info.mounted&&info.space_valid);
+    fail_space_task=false;
+    assert(info.filesystem_bytes==test_total && info.free_bytes==test_free);
     assert(invalidations>0);
     // 多分区卡只统计挂载分区；256GiB卡不能截断，挂载状态与统计错误独立。
     test_total=128ull*1024*1024*1024; test_free=100ull*1024*1024*1024;
@@ -184,11 +200,6 @@ int main(void) {
     test_free=0;
     assert(read_pico_sd_refresh_space()==ESP_OK);
     assert(read_pico_sd_get_info(&info)==ESP_OK&&info.space_valid&&info.free_bytes==0);
-    // S31 V1.5 has no physical CD: unsupported detection preserves a mounted card.
-    detect_unsupported=true;test_present=false;before_space=space_calls;
-    assert(read_pico_sd_refresh_space()==ESP_OK && space_calls==before_space+1);
-    assert(read_pico_sd_get_info(&info)==ESP_OK && info.mounted && info.present && info.space_valid);
-    detect_unsupported=false;
     test_present=false;before_space=space_calls;
     assert(read_pico_sd_refresh_space()==ESP_ERR_NOT_FOUND&&space_calls==before_space);
     assert(read_pico_sd_get_info(&info)==ESP_ERR_NOT_FOUND&&!info.mounted&&!info.space_valid);

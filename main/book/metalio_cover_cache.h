@@ -11,6 +11,9 @@ typedef struct { unsigned width,height; bool white_edge; } metalio_cover_meta_t;
 typedef struct { size_t bytes,entries; uint64_t hits,misses,evictions; } metalio_cover_stats_t;
 bool metalio_cover_cache_get(const metalio_cover_key_t *key,void *out,size_t capacity,metalio_cover_meta_t *meta);
 bool metalio_cover_cache_put(const metalio_cover_key_t *key,const void *pixels,size_t bytes,metalio_cover_meta_t meta);
+/// 在同一LRU预算内复制已处理的物理像素行，不借出缓存指针。/ Copy finished physical raster rows within the same LRU budget, without lending pointers.
+bool metalio_cover_cache_get_rows(const metalio_cover_key_t*,void*,size_t stride,size_t span,size_t rows);
+bool metalio_cover_cache_put_rows(const metalio_cover_key_t*,const void*,size_t stride,size_t span,size_t rows);
 void metalio_cover_cache_trim(size_t budget);
 void metalio_cover_cache_clear(void);
 metalio_cover_stats_t metalio_cover_cache_stats(void);

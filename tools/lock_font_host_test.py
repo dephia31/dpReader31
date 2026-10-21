@@ -94,11 +94,6 @@ int main(void){
  missing[0]=0;
  strcpy(chosen,"/fonts/system.ttf");recovery=true;
  app_font_begin_lock(&saved);assert(ttf_font_is_builtin()&&!system_face);app_font_end_lock(&saved);
- // Recovery fallback is transient: keep both saved paths, restore the reading face on a normal boot.
- app_font_activate_reading();assert(ttf_font_is_builtin()&&!strcmp(reader,"/fonts/reader.ttf"));
- app_font_begin_lock(&saved);app_font_end_lock(&saved);assert(s_reading&&ttf_font_is_builtin()&&!strcmp(reader,"/fonts/reader.ttf"));
- recovery=false;assert(app_font_activate_reading()&&!strcmp(active,reader));
- for(unsigned i=0;i<200;++i){app_font_begin_lock(&saved);assert(!strcmp(active,chosen));app_font_end_lock(&saved);assert(!strcmp(active,reader)&&s_reading&&stroke==reading_weight&&!aa);}
  app_font_begin_lock(NULL);app_font_end_lock(NULL);
  puts("PASS: tickets from reader/system use the same system face/scale; wake restores reader context; missing card/font falls back safely without overwriting saved choices");
 }

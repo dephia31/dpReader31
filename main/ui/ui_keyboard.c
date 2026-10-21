@@ -17,7 +17,10 @@
 #include <ui_kit.h>
 #include "read_pico_search.h"
 #include "esp_heap_caps.h"
+#if KIIKO_BOARD_METALIO47
 #include "metalio_hw.h"
+#else
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -116,6 +119,7 @@ static void key_paint(uint8_t *fb, EpdRect r, const char *text, int px, bool dar
             epd_draw_line(cx - 2, cy - 5 + d, cx + 8, cy + 5 + d, UI_GRAY_BLACK, fb);
             epd_draw_line(cx - 2, cy + 5 + d, cx + 8, cy - 5 + d, UI_GRAY_BLACK, fb);
         }
+#if KIIKO_BOARD_METALIO47
     } else if(!strcmp(text,"⇧")) {
         // 标准Shift空心上箭头，不依赖字体包含该符号；大写启用时反白。
         // Standard hollow Shift arrow without a font glyph; enabled uppercase uses white ink.
@@ -123,6 +127,8 @@ static void key_paint(uint8_t *fb, EpdRect r, const char *text, int px, bool dar
         const int points[][2]={{0,-16},{-18,1},{-7,1},{-7,15},{7,15},{7,1},{18,1},{0,-16}};
         for(int d=0;d<2;d++) for(unsigned i=1;i<sizeof(points)/sizeof(points[0]);i++)
             epd_draw_line(cx+points[i-1][0]+d,cy+points[i-1][1],cx+points[i][0]+d,cy+points[i][1],dark?UI_GRAY_WHITE:UI_GRAY_BLACK,fb);
+#else
+#endif
     } else ui_text_fixed_vc(fb, r.x + r.width / 2, r.y + r.height / 2 + (pressed ? 2 : 0), px, text, EPD_DRAW_ALIGN_CENTER, dark);
 }
 static size_t visible(size_t start, EpdRect boxes[5], int top) {
@@ -244,7 +250,11 @@ void ui_keyboard_draw(uint8_t *fb, int top) {
             key_paint(fb, rect(536, 336, 56, 68, top), "重输", 21, false, true);
             key_paint(fb, rect(600, 336, 56, 68, top), "⌫", 28, false, true);
         } else {
+#if KIIKO_BOARD_METALIO47
             key_paint(fb, rect(24, 336, 80, 68, top), "⇧", 30, s_upper, true);
+#else
+            key_paint(fb, rect(24, 336, 80, 68, top), s_upper ? "A" : "a", 30, s_upper, true);
+#endif
             key_paint(fb, rect(578, 336, 82, 68, top), "⌫", 31, false, true);
         }
     } else {
@@ -383,9 +393,12 @@ bool ui_keyboard_press(int x, int y, int top, int64_t now_ms) {
     ui_keyboard_draw(NULL, top); s_probe = false;
     if (!s_key_clip.width) return false;
     s_pressed_area = s_key_clip; s_pressed = true;
+#if KIIKO_BOARD_METALIO47
     // 有效按下只发一次异步马达脉冲，沿用S31触摸振动开关；松手不重复。
     // One asynchronous S31 motor click per valid press, respecting the touch-haptic setting.
     (void)metalio_haptic_click();
+#else
+#endif
     feedback_dirty(s_pressed_area); return true;
 }
 void ui_keyboard_hold_cancel(void) { s_delete_hold = false; }
@@ -412,7 +425,10 @@ ui_keyboard_result_t ui_keyboard_hold_tick(bool held, int x, int y, int64_t now_
     ui_keyboard_result_t result = ui_keyboard_tap(s_delete_area.x + s_delete_area.width / 2,
         s_delete_area.y + s_delete_area.height / 2, s_delete_top, now_ms);
     if (result == UI_KEYBOARD_NONE) ui_keyboard_hold_cancel();
+#if KIIKO_BOARD_METALIO47
     else (void)metalio_haptic_click();
+#else
+#endif
     return result;
 }
 

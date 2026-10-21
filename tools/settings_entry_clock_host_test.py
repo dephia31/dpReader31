@@ -86,6 +86,7 @@ static unsigned s_next_generation=1;
 static unsigned book_layout_generation(void){return 1;}
 static bool reader_prefetch_resume(size_t page){(void)page;return false;}
 static void draw_reader_outer(uint8_t *fb,size_t page){(void)fb;(void)page;}
+
 static EpdRect s_area;
 static int64_t esp_timer_get_time(void){return 1000;}
 static bool ui_reader_background_prepare(const char *p){(void)p;return true;}
@@ -93,14 +94,6 @@ static void prepare_inline_image(void){}
 static bool app_settings_reader_hide_images(void){return false;}
 static int book_layout_page_image_count(int p){(void)p;return 0;}
 static size_t fb_bytes(void){return sizeof(fb);}
-// S31 four-page cache is an external resource boundary for this clock test.
-static const uint8_t* reader_page_cache_find(size_t page,uint32_t generation,size_t bytes){
- assert(bytes==sizeof(fb));return page==(size_t)s_next_page&&generation==s_next_generation?next_fb:NULL;
-}
-static bool reader_page_cache_store(size_t page,uint32_t generation,const uint8_t* pixels,size_t bytes,size_t focus){
- assert(page==focus&&generation==s_next_generation&&pixels==fb&&bytes==sizeof(fb));return true;
-}
-
 static void draw_reader(uint8_t *f,int p){(void)f;(void)p;assert(false);}
 static EpdRect reader_area(void){return (EpdRect){0,160,684,900};}
 '''
@@ -164,7 +157,7 @@ int main(void){
 }
 '''
 # Render may not decode/read NVS, and clock prefix may not prepare/cache whole pages.
-s=function('render',settings)
+s=function('render',settings)+function('render_content',settings)
 assert 'ui_wallpaper_draw_rounded' not in s and 'read_pico_transfer_get_saved_wifi' not in s
 assert 'prepare_inline_image' not in branch and 'kick_prep' not in branch
 with tempfile.TemporaryDirectory(dir=ROOT/'build') as folder:

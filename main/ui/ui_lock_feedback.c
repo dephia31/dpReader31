@@ -6,6 +6,7 @@
  */
 #include "ui_lock_feedback.h"
 #include <stdbool.h>
+#include <string.h>
 
 static bool round_body(int x, int y, int inset) {
     int left = -16 + inset, right = 16 - inset;
@@ -34,4 +35,10 @@ EpdRect ui_lock_feedback_draw(uint8_t *fb) {
         epd_draw_pixel(cx + x, cy + y, ink || body || shackle || upright || keyhole ? 0x00 : 0xff, fb);
     }
     return area;
+}
+
+void ui_lock_fallback_draw(uint8_t *fb) {
+    if(!fb)return;
+    memset(fb,255,(size_t)epd_width()*epd_height()/2);
+    (void)ui_lock_feedback_draw(fb);
 }

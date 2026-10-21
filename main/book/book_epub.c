@@ -1966,10 +1966,13 @@ esp_err_t book_epub_load_anchor(book_epub_t *book, size_t i, const char *anchor,
 esp_err_t book_epub_load(book_epub_t *book, size_t i, html_text_t *out) {
     return book_epub_load_anchor(book, i, NULL, NULL, out);
 }
+#if KIIKO_BOARD_METALIO47
 int book_epub_prefetch_step(book_epub_t *book,size_t chapter) {
     if(!book||chapter>=book->count)return -1;
     return zip_prefetch_step(book->zip,book->chapters[chapter].zip_index);
 }
+#else
+#endif
 esp_err_t book_epub_image(book_epub_t *book, size_t chapter, const char *src,
                           uint8_t **data, size_t *size, bool *png) {
     if (!book || chapter >= book->count || !src || !data || !size || !png) return ESP_ERR_INVALID_ARG;
@@ -2204,6 +2207,7 @@ esp_err_t book_epub_image_dimensions(book_epub_t *book, size_t chapter, const ch
     }
     return err;
 }
+#if KIIKO_BOARD_METALIO47
 
 esp_err_t book_epub_suspend_io(book_epub_t *book) {
     return book && !book->source_path[0] ? ESP_FAIL : zip_suspend_io(book ? book->zip : NULL);
@@ -2211,3 +2215,5 @@ esp_err_t book_epub_suspend_io(book_epub_t *book) {
 esp_err_t book_epub_resume_io(book_epub_t *book) {
     return zip_resume_io(book ? book->zip : NULL, book ? book->source_path : NULL);
 }
+#else
+#endif

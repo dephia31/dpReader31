@@ -16,7 +16,11 @@
 #define HISTORY_RECORD_HEADER 20
 
 static const char *const namespaces[] = {
+#if KIIKO_BOARD_METALIO47
     "mt_books", "mt_ticket", "mt_marks", "mt_favs", "mt_titles", "mt_shelf"
+#else
+    "rp_books", "rp_ticket", "rp_marks", "rp_favs", "rp_titles", "rp_shelf"
+#endif
 };
 
 static uint32_t hash_bytes(uint32_t hash, const void *data, size_t len) {

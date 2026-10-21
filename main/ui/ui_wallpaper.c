@@ -149,8 +149,14 @@ void ui_wallpaper_draw_avatar(uint8_t *fb, const uint8_t *pixels, EpdRect area, 
     }
 }
 
+#if KIIKO_BOARD_METALIO47
 #ifndef UI_WALLPAPER_CACHE_PARENT
 #define UI_WALLPAPER_CACHE_PARENT "/sdcard/.metalio_s31"
+#endif
+#else
+#ifndef UI_WALLPAPER_CACHE_PARENT
+#define UI_WALLPAPER_CACHE_PARENT "/sdcard/.readpico"
+#endif
 #endif
 #define WALL_LOCK_CACHE UI_WALLPAPER_CACHE_PARENT "/locks/wallpaper.bin"
 #define WALL_LOCK_BYTES (684u*1216u/2u)

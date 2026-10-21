@@ -87,6 +87,8 @@ typedef struct {
     /// 返回最近切页来源；菜单来源直接恢复菜单，无历史打开当前所属菜单；优先于其它请求。
     /// Return to the latest page origin and its menu; no history opens the current menu leaf. Overrides other requests.
     bool request_return;
+    /// 右滑返回的一次性动画意图，只有成功切页才消费，各板复用自己的水波纹。/ One-shot right-swipe return, consumed only by accepted navigation through each board's existing ripple.
+    bool request_back_ripple;
 } app_ctx_t;
 
 struct app_desc_s {
@@ -99,6 +101,12 @@ struct app_desc_s {
     /// true = 进页走 APP_REDRAW_FULL（均衡配置下整屏 GC16）。内容和上一页差别大的页面用，避免差分刷留边。
     /// / true = enter with APP_REDRAW_FULL so a differential update does not leave a seam.
     bool enter_full;
+    /// 系统内容采用快刷差分，根页底栏保留灰阶；Pico设置头像也保留灰阶。/ System content uses fast differences, retaining gray root navigation and Pico settings avatars.
+    bool binary_ui;
+    /// 二级系统页也保留底栏；阅读正文不继承。/ Retain navigation in system children without changing reader-body chrome.
+    bool persistent_navigation;
+    /// 可选：保留底栏但在升级写入等不可中断阶段禁止切页。/ Optionally block navigation during noninterruptible stages such as firmware writes.
+    bool (*navigation_enabled)(app_ctx_t* ctx);
     /// 菜单关闭时接管三键，页面必须提供强刷和菜单入口。
     /// Own all three keys outside the menu; provide full refresh and menu exits.
     bool owns_keys;
@@ -109,6 +117,10 @@ struct app_desc_s {
     /// 可选：当前确实显示主页面，允许本地测试优化底栏切页；阅读/子页面返回 false。
     /// Optional: true only for a main-tab view eligible for local transition testing; reader/subviews return false.
     bool (*main_page_visible)(app_ctx_t* ctx);
+    /// 可选：当前二级页允许右滑返回，沿用翻页识别事件和on_key(UI_KEY_1)收尾。/ Optional secondary-view admission; right-swipe back reuses reading gesture events and on_key(UI_KEY_1) cleanup.
+    bool (*edge_back_enabled)(app_ctx_t* ctx);
+    /// 可选：按起点保留键盘等控件自己的滑动；不限制普通内容从边缘起手。/ Optionally reserve control-owned origins such as keyboards, without restricting normal content to screen edges.
+    bool (*back_swipe_area)(app_ctx_t* ctx, const ui_gesture_event_t* event);
     /// 进页/离页。on_enter 里做上电、唤醒传感器、拉一次数据这类副作用。
     /// / Enter/exit. on_enter powers up, wakes sensors, takes a first sample.
     void (*on_enter)(app_ctx_t* ctx);

@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0
  * 中文：四位数字密码采用随机盐及PBKDF2-HMAC-SHA256，单blob提交，不写明文。
  * English: Four-digit credentials use random salts and PBKDF2-HMAC-SHA256, committed as one blob without plaintext.
- * 冻结：损坏/分配/写入失败不得变成免密码；普通配置恢复不覆盖凭据。
- * Frozen: Corruption/allocation/write failures cannot disable authentication; ordinary restore does not replace credentials.
+ * 用户修订：设置读取失败直接进入系统，不拦截启动；只缓存可靠结果，不清空已有密码，修改/关闭仍验证正常读取的原密码。
+ * User revision: unreadable settings do not block startup; cache conclusive reads only, retain stored credentials and verify a readable existing PIN before changing or disabling it.
  */
 #include "lock_pin.h"
+#include "kiiko_board_config.h"
 #include <stdint.h>
 #include <string.h>
 #include "esp_random.h"
@@ -25,17 +26,18 @@ static bool pin_valid(const char pin[5]) {
 }
 static void load(void) {
     if (s_loaded) return;
-    s_loaded=true;s_enabled=true;s_available=false;
+    s_enabled=false;s_available=false;
+    lock_pin_wipe(&s_record,sizeof(s_record));
     nvs_handle_t handle;
-    esp_err_t error=nvs_open("metalio_lock",NVS_READONLY,&handle);
-    if (error==ESP_ERR_NVS_NOT_FOUND) {s_enabled=false;s_available=true;return;}
+    esp_err_t error=nvs_open(KIIKO_BOARD_LOCK_NAMESPACE,NVS_READONLY,&handle);
+    if (error==ESP_ERR_NVS_NOT_FOUND) {s_loaded=true;s_available=true;return;}
     if (error!=ESP_OK) return;
     size_t size=sizeof(s_record);
     error=nvs_get_blob(handle,"credential",&s_record,&size);
     nvs_close(handle);
-    if (error==ESP_ERR_NVS_NOT_FOUND) {s_enabled=false;s_available=true;return;}
+    if (error==ESP_ERR_NVS_NOT_FOUND) {s_loaded=true;s_available=true;return;}
     if (error==ESP_OK && size==sizeof(s_record) && s_record.magic==PIN_MAGIC && s_record.iterations==PIN_ITERATIONS)
-        s_available=true;
+        s_loaded=s_enabled=s_available=true;
     if (!s_available) lock_pin_wipe(&s_record,sizeof(s_record));
 }
 static bool derive(const char pin[5],const pin_record_t *record,uint8_t digest[32]) {
@@ -66,7 +68,7 @@ esp_err_t lock_pin_replace(const char old_pin[5],const char new_pin[5]) {
         esp_fill_random(next.salt,sizeof(next.salt));
         if (!derive(new_pin,&next,next.digest)) {lock_pin_wipe(&next,sizeof(next));return ESP_FAIL;}
     }
-    nvs_handle_t handle;esp_err_t error=nvs_open("metalio_lock",NVS_READWRITE,&handle);
+    nvs_handle_t handle;esp_err_t error=nvs_open(KIIKO_BOARD_LOCK_NAMESPACE,NVS_READWRITE,&handle);
     if (error==ESP_OK) {
         error=new_pin?nvs_set_blob(handle,"credential",&next,sizeof(next)):nvs_erase_key(handle,"credential");
         if (!new_pin&&error==ESP_ERR_NVS_NOT_FOUND) error=ESP_OK;

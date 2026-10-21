@@ -5,6 +5,28 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+#include "esp_cpu.h"
+#include "pie_pixels.h"
+#ifdef KIIKO_LOCAL_LATENCY
+static bool s_pie_enabled;
+void epd_pie_pixels_enable(bool enabled) { __atomic_store_n(&s_pie_enabled,enabled,__ATOMIC_RELAXED); }
+bool epd_pie_pixels_enabled(void) { return __atomic_load_n(&s_pie_enabled,__ATOMIC_RELAXED); }
+#else
+#ifdef KIIKO_S31_PIE_PIXELS
+static const bool s_pie_enabled=true;
+#else
+static const bool s_pie_enabled=false;
+#endif
+#endif
+static inline bool pie_core1(void) {
+#ifdef KIIKO_LOCAL_LATENCY
+    return epd_pie_pixels_enabled()&&esp_cpu_get_core_id()==1;
+#else
+    return s_pie_enabled&&esp_cpu_get_core_id()==1;
+#endif
+}
+#endif
 
 /**
  * @brief 将 to/from 两行 4bpp 交织为差分行，并更新列脏标记
@@ -19,7 +41,7 @@ static inline uint32_t expand_nibbles(uint32_t value) {
     value=(value|(value<<8))&UINT32_C(0x00ff00ff);
     return (value|(value<<4))&UINT32_C(0x0f0f0f0f);
 }
-__attribute__((optimize("O3"))) uint32_t IRAM_ATTR epd_interlace_4bpp_line_VE(
+__attribute__((optimize("O3"))) uint32_t IRAM_ATTR epd_interlace_4bpp_line_c(
     const uint8_t* to,
     const uint8_t* from,
     uint8_t* interlaced,
@@ -72,11 +94,16 @@ __attribute__((optimize("O3"))) uint32_t IRAM_ATTR epd_interlace_4bpp_line_VE(
 }
 
 __attribute__((optimize("O3"))) void IRAM_ATTR
-epd_apply_line_mask_VE(uint8_t* line, const uint8_t* mask, int mask_len) {
+epd_apply_line_mask_c(uint8_t* line, const uint8_t* mask, int mask_len) {
     if (line == NULL || mask == NULL || mask_len <= 0) {
         return;
     }
-    // 与 epd_apply_line_mask 同：按字与；队列/mask 均 16B 对齐
+    // 非对齐调用用逐字节回退；生产队列和mask均16B对齐。
+    // Unaligned callers fall back bytewise; production queues/masks align to16B.
+    if(((uintptr_t)line|(uintptr_t)mask)&3u) {
+        for(int i=0;i<mask_len;++i)line[i]&=mask[i];
+        return;
+    }
     uint32_t* l32 = (uint32_t*)line;
     const uint32_t* m32 = (const uint32_t*)mask;
     const int words = mask_len >> 2;
@@ -95,6 +122,36 @@ epd_apply_line_mask_VE(uint8_t* line, const uint8_t* mask, int mask_len) {
     }
 }
 
+__attribute__((optimize("O3"))) uint32_t IRAM_ATTR epd_interlace_4bpp_line_VE(
+    const uint8_t* to,const uint8_t* from,uint8_t* output,uint8_t* columns,int pixels
+) {
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+    // 不强迁移Core0前台；对齐Core1任务才使用PIE，剩余像素保持C语义。
+    // Never migrate the Core0 foreground; only aligned Core1 tasks use PIE, with C tails.
+    if(pixels>=32&&to&&from&&output&&columns&&
+       !(((uintptr_t)to|(uintptr_t)from|(uintptr_t)output|(uintptr_t)columns)&15u)&&pie_core1()) {
+        unsigned blocks=(unsigned)pixels/32;
+        uint32_t dirty=epd_pie_interlace_blocks(to,from,output,columns,blocks);
+        int bytes=(int)blocks*16;
+        return dirty|epd_interlace_4bpp_line_c(to+bytes,from+bytes,output+2*bytes,columns+bytes,pixels-2*bytes);
+    }
+#endif
+    return epd_interlace_4bpp_line_c(to,from,output,columns,pixels);
+}
+
+__attribute__((optimize("O3"))) void IRAM_ATTR epd_apply_line_mask_VE(uint8_t* line,const uint8_t* mask,int length) {
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+    if(length>=16&&line&&mask&&!(((uintptr_t)line|(uintptr_t)mask)&15u)&&pie_core1()) {
+        unsigned blocks=(unsigned)length/16;
+        epd_pie_mask_blocks(line,mask,blocks);
+        int bytes=(int)blocks*16;
+        epd_apply_line_mask_c(line+bytes,mask+bytes,length-bytes);
+        return;
+    }
+#endif
+    epd_apply_line_mask_c(line,mask,length);
+}
+
 /**
  * @brief 1ppB / 1K VE 格式 LUT 查表（与 lut.c lookup_pixels_in_VE_LUT 一致）
  * @note S31 与 S3 字节内 4px 高低位对调：板级/LCD 沿 X 先吃高位 2bit，非 CPU 端序差异。
@@ -111,6 +168,21 @@ calc_epd_input_1ppB_1k_S3_VE_aligned(
     const uint8_t* lut = conversion_lut;
     const uint32_t n = epd_width >> 2; // 输出字节数 = 像素/4
     uint32_t j = 0;
+
+#if defined(CONFIG_IDF_TARGET_ESP32S31) && defined(ESP_PLATFORM)
+    extern bool epd_pipeline_enabled(void);
+    if(epd_pipeline_enabled()) {
+#define READY4(v) (lut[((v)&255u)*4+3]|lut[(((v)>>8)&255u)*4+2]|lut[(((v)>>16)&255u)*4+1]|lut[((v)>>24)*4])
+        for(;j+4<=n;j+=4) {
+            const uint32_t a=ld[j],b=ld[j+1],c=ld[j+2],d=ld[j+3];
+            epd_input[j]=READY4(a);epd_input[j+1]=READY4(b);
+            epd_input[j+2]=READY4(c);epd_input[j+3]=READY4(d);
+        }
+        for(;j<n;++j)epd_input[j]=READY4(ld[j]);
+#undef READY4
+        return;
+    }
+#endif
 
 #if defined(CONFIG_IDF_TARGET_ESP32S31)
 #define LUT4(in)                                                                                   \
@@ -169,7 +241,7 @@ bool epd_pixel_order_selftest(const EpdWaveform *waveform) {
     uint8_t dirty[8] __attribute__((aligned(16)));
     uint8_t output[4] __attribute__((aligned(16)));
     uint8_t mask[4] __attribute__((aligned(16)));
-    lut[0x0f]=1; lut[0xf0]=2;
+    lut[0x0f]=UINT32_C(0x40100401); lut[0xf0]=UINT32_C(0x80200802);
     for (int direction=0;direction<2;++direction) {
         for (int subset=0;subset<16;++subset) {
             memset(from,direction?0:255,sizeof(from));

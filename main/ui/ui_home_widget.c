@@ -118,8 +118,8 @@ static void hand(uint8_t *fb,EpdRect b,float angle,int length,int width) {
     int half=maximum(0,lroundf(width*scale)/2);
     for (int i=-half;i<=half;++i) epd_draw_line(x+i,y,xx+i,yy,0x20,fb);
 }
-void ui_home_clock_draw(uint8_t *fb,EpdRect b,const struct tm *date,bool binary) {
-    if (b.width<=0||b.height<=0||!date) return;
+void ui_home_clock_body_draw(uint8_t *fb,EpdRect b,bool binary) {
+    if (b.width<=0||b.height<=0) return;
     for(int y=0;y<b.height;++y) {
         int row=(unsigned)y*H/b.height+640-657;
         if(row<0||row>=304) continue;
@@ -141,6 +141,10 @@ void ui_home_clock_draw(uint8_t *fb,EpdRect b,const struct tm *date,bool binary)
         float a=tick*6.2831853f/60;int outer=lroundf(89*scale),inner=lroundf((tick%5?88:84)*scale);
         epd_draw_line(cx+lroundf(sinf(a)*inner),cy-lroundf(cosf(a)*inner),cx+lroundf(sinf(a)*outer),cy-lroundf(cosf(a)*outer),binary?0x20:tick%5?0x90:0x30,fb);
     }
+}
+void ui_home_clock_hands_draw(uint8_t *fb,EpdRect b,const struct tm *date) {
+    if (b.width<=0||b.height<=0||!date) return;
+    int cx=tx(b,177),cy=ty(b,783);float scale=b.width/(float)W;
     for(int h=1;h<=12;++h) {
         float a=h*6.2831853f/12;char value[4];snprintf(value,sizeof(value),"%d",h);
         ui_text_fixed_ink_vc(fb,cx+lroundf(sinf(a)*72*scale),cy-lroundf(cosf(a)*72*scale),lroundf(23*scale),value,EPD_DRAW_ALIGN_CENTER,0x20);
@@ -148,4 +152,9 @@ void ui_home_clock_draw(uint8_t *fb,EpdRect b,const struct tm *date,bool binary)
     hand(fb,b,((date->tm_hour%12)+date->tm_min/60.f)*6.2831853f/12,48,4);
     hand(fb,b,date->tm_min*6.2831853f/60,70,2);
     epd_fill_circle(cx,cy,maximum(2,lroundf(6*scale)),0x10,fb);
+}
+void ui_home_clock_draw(uint8_t *fb,EpdRect b,const struct tm *date,bool binary) {
+    if (!date) return;
+    ui_home_clock_body_draw(fb,b,binary);
+    ui_home_clock_hands_draw(fb,b,date);
 }

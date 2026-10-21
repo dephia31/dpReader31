@@ -26,7 +26,11 @@ extern "C" {
 
 typedef struct cst836u_dev_t* cst836u_handle_t;
 
+#if KIIKO_BOARD_METALIO47
 #define CST836U_ADDR_DEFAULT 0x38
+#else
+#define CST836U_ADDR_DEFAULT 0x15
+#endif
 #define CST836U_MAX_POINTS 2
 #define CST836U_RAW_LEN 15
 #define CST836U_I2C_HZ_DEFAULT 400000

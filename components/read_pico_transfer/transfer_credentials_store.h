@@ -12,7 +12,11 @@
 static esp_err_t load_credentials(transfer_credentials_t *out) {
     memset(out, 0, sizeof(*out));
     nvs_handle_t handle;
+#if KIIKO_BOARD_METALIO47
     esp_err_t err = nvs_open("metalio_wifi", NVS_READONLY, &handle);
+#else
+    esp_err_t err = nvs_open("rp_wifi", NVS_READONLY, &handle);
+#endif
     if (err == ESP_ERR_NVS_NOT_FOUND) return ESP_OK;
     if (err != ESP_OK) return err;
     size_t size = sizeof(*out);
@@ -29,7 +33,11 @@ static esp_err_t load_credentials(transfer_credentials_t *out) {
 static esp_err_t store_credentials(const transfer_credentials_t *next) {
     if (next && !credentials_valid(next)) return ESP_ERR_INVALID_ARG;
     nvs_handle_t handle;
+#if KIIKO_BOARD_METALIO47
     esp_err_t err = nvs_open("metalio_wifi", NVS_READWRITE, &handle);
+#else
+    esp_err_t err = nvs_open("rp_wifi", NVS_READWRITE, &handle);
+#endif
     if (err != ESP_OK) return err;
     err = next ? nvs_set_blob(handle, "credentials", next, sizeof(*next)) : nvs_erase_key(handle, "credentials");
     if (!next && err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;

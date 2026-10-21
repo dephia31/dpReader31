@@ -9,6 +9,7 @@
  * Frozen: never overwrite the running partition or switch boot slots before validation completes.
  */
 #include "ota_update.h"
+#include "kiiko_board_config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +44,7 @@ static esp_err_t read_candidate(FILE *file, esp_image_header_t *header, esp_app_
     if (fseek(file, 0, SEEK_SET) != 0 || fread(header, 1, sizeof(*header), file) != sizeof(*header) ||
         fread(&segment, 1, sizeof(segment), file) != sizeof(segment) ||
         fread(desc, 1, sizeof(*desc), file) != sizeof(*desc)) return ESP_ERR_INVALID_SIZE;
-    if (header->magic != ESP_IMAGE_HEADER_MAGIC || header->chip_id != ESP_CHIP_ID_ESP32S31 || desc->magic_word != ESP_APP_DESC_MAGIC_WORD ||
+    if (header->magic != ESP_IMAGE_HEADER_MAGIC || header->chip_id != KIIKO_BOARD_IMAGE_CHIP_ID || desc->magic_word != ESP_APP_DESC_MAGIC_WORD ||
         segment.data_len < sizeof(*desc)) return ESP_ERR_INVALID_RESPONSE;
     return ESP_OK;
 }
@@ -85,7 +86,11 @@ esp_err_t pico_ota_inspect(const char *path, pico_ota_info_t *info) {
     esp_err_t err = read_candidate(file, &header, &candidate);
     fclose(file);
     if (err != ESP_OK) {
+#if KIIKO_BOARD_METALIO47
         set_message(info->message, sizeof(info->message), "升级包不是有效的 Metalio S31 固件");
+#else
+        set_message(info->message, sizeof(info->message), "升级包不是有效的 kiikoread 固件");
+#endif
         return err;
     }
 
@@ -95,7 +100,11 @@ esp_err_t pico_ota_inspect(const char *path, pico_ota_info_t *info) {
                     sizeof(running_desc->project_name)) ||
         !copy_field(candidate_project, sizeof(candidate_project), candidate.project_name,
                     sizeof(candidate.project_name)) || strcmp(current_project, candidate_project) != 0) {
+#if KIIKO_BOARD_METALIO47
         set_message(info->message, sizeof(info->message), "升级包不属于当前 Metalio S31 固件");
+#else
+        set_message(info->message, sizeof(info->message), "升级包不属于当前 kiikoread 固件");
+#endif
         return ESP_ERR_INVALID_RESPONSE;
     }
     if (!copy_field(info->candidate_version, sizeof(info->candidate_version), candidate.version,

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：S31/PCF8563 离线走时；在线每小时校准，离线每六小时短连已保存 WiFi。
- * English: S31/PCF8563 keeps offline time; calibrate hourly online or briefly every six hours offline.
+ * 中文：S3 RTC 离线走时；在线每小时校准，离线每六小时短连已保存 WiFi。
+ * English: S3 RTC keeps offline time; calibrate hourly online or briefly every six hours offline.
  */
 #include "time_service.h"
 #include <stdatomic.h>
@@ -37,7 +37,11 @@ void app_time_service_poll(bool idle) {
     if (!idle) return;
     if (!s_loaded) {
         nvs_handle_t handle;
+#if KIIKO_BOARD_METALIO47
         if (nvs_open("mt_clock", NVS_READONLY, &handle) == ESP_OK) {
+#else
+        if (nvs_open("kiiko_clock", NVS_READONLY, &handle) == ESP_OK) {
+#endif
             if (nvs_get_u64(handle, "last_ntp", &s_last_sync) != ESP_OK) s_last_sync = 0;
             nvs_close(handle);
         }
@@ -51,7 +55,11 @@ void app_time_service_poll(bool idle) {
         s_last_sync = received;
         (void)app_sync_time_to_pmu();
         nvs_handle_t handle;
+#if KIIKO_BOARD_METALIO47
         if (nvs_open("mt_clock", NVS_READWRITE, &handle) == ESP_OK) {
+#else
+        if (nvs_open("kiiko_clock", NVS_READWRITE, &handle) == ESP_OK) {
+#endif
             if (nvs_set_u64(handle, "last_ntp", s_last_sync) == ESP_OK) (void)nvs_commit(handle);
             nvs_close(handle);
         }

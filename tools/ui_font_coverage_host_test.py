@@ -92,7 +92,7 @@ labels += [ast.literal_eval(literal) for literal in re.findall(r'"(?:\\.|[^"\\])
 labels += ["抗锯齿", "左上一页 · 中工具栏 · 右下一页", "左回首页 · 中全屏 · 右工具栏", "缩进微调", "%+d px · 复位", "−"]
 missing = {}
 for label in labels:
-    absent = "".join(dict.fromkeys(ch for ch in label if ch not in ("⌫", "⇧") and ord(ch) >= 32 and not has_glyph(ord(ch))))
+    absent = "".join(dict.fromkeys(ch for ch in label if ch != "⌫" and ord(ch) >= 32 and not has_glyph(ord(ch))))
     if absent:
         missing[label] = absent
 assert not missing, f"System UI labels fall back to the reading font: {missing}"

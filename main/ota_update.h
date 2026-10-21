@@ -2,8 +2,8 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 中文：检查并安装 TF 卡根目录中的独立 Metalio S31 应用镜像。
- * English: inspect and install an independent Metalio S31 application image from the TF-card root.
+ * 中文：检查并安装 TF 卡根目录中的 Pico OTA 应用镜像。
+ * English: inspect and install a Pico OTA application image from the TF-card root.
  */
 #pragma once
 
@@ -17,7 +17,11 @@
 extern "C" {
 #endif
 
+#if KIIKO_BOARD_METALIO47
 #define PICO_OTA_UPDATE_PATH "/sdcard/Metalio-S31-update.bin"
+#else
+#define PICO_OTA_UPDATE_PATH "/sdcard/Pico-update.bin"
+#endif
 
 typedef struct {
     char current_version[33];

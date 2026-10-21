@@ -46,10 +46,10 @@ static esp_err_t nvs_set_blob(nvs_handle_t h,const char *key,const void *value,s
 static esp_err_t nvs_erase_key(nvs_handle_t h,const char *key){if(h==1)on_disk[key_index(key)]=false;else assert(!strcmp(key,"binding"));return ESP_OK;}
 static esp_err_t nvs_commit(nvs_handle_t h){assert(h==1||h==2);++commits;return ESP_OK;}
 static void nvs_close(nvs_handle_t h){assert(h==1||h==2);--handles;}
-static __attribute__((unused)) const char *bond_key(char *out,size_t cap,const char *addr){assert(addr[0]);snprintf(out,cap,"binding");return out;}
+static const char *bond_key(char *out,size_t cap,const char *addr){assert(addr[0]);snprintf(out,cap,"binding");return out;}
 esp_err_t ble_pt_connect(const char *addr){++connects;snprintf(connected_addr,sizeof(connected_addr),"%s",addr);return connect_error;}
 '''
-for name in ['bonds_load','bonds_save','bond_find','bond_add','ble_pt_reconnect_recent','reconnect_recent_requested','ble_pt_reset_failure']:
+for name in ['bonds_load','bonds_save','bond_find','bond_add','ble_pt_reconnect_recent','ble_pt_cancel_recent','reconnect_recent_requested','ble_pt_reset_failure','ble_pt_forget']:
  unit+=function(name)
 unit+=r'''
 int main(void){
@@ -71,13 +71,14 @@ int main(void){
  // Persist name/type changes without dropping other peers.
  bond_add(b,"B new",0);assert(s_bond_count==3&&!strcmp(s_bonds[2].addr,b)&&!strcmp(s_bonds[2].name,"B new")&&!s_bonds[2].addr_type);
  snprintf(s_reconnect_addr,sizeof(s_reconnect_addr),"%s",b);snprintf(s_pending_addr,sizeof(s_pending_addr),"%s",b);
- ble_pt_reconnect_recent();reconnect_recent_requested();assert(connects==2&&!strcmp(connected_addr,b));
+ ble_pt_forget(b);assert(s_bond_count==2&&!s_reconnect_addr[0]&&!s_pending_addr[0]&&!handles);
+ ble_pt_reconnect_recent();reconnect_recent_requested();assert(connects==2&&!strcmp(connected_addr,a));
  // 主动关闭取消排队；失败只尝试一次，后续重试仍走原4秒退避。
  // Explicit off cancels requests; failures start once and retain the original four-second retry policy.
- ble_pt_reconnect_recent();ble_pt_reset_failure();reconnect_recent_requested();assert(connects==2&&!boot_tries);
- connect_error=ESP_FAIL;ble_pt_reconnect_recent();reconnect_recent_requested();assert(connects==3&&!strcmp(s_reconnect_addr,b));
+ ble_pt_reconnect_recent();boot_tries=2;ble_pt_cancel_recent();reconnect_recent_requested();assert(connects==2&&boot_tries==2);ble_pt_reset_failure();assert(!boot_tries);
+ connect_error=ESP_FAIL;ble_pt_reconnect_recent();reconnect_recent_requested();assert(connects==3&&!strcmp(s_reconnect_addr,a));
  reconnect_recent_requested();assert(connects==3);
- puts("PASS: recent successful peer ordering/reload, no repeated NVS writes, coalesced asynchronous quick-connect, existing-link protection, explicit-off cancellation");
+ puts("PASS: recent successful peer ordering/reload, no repeated NVS writes, coalesced asynchronous quick-connect, existing-link protection, explicit-off cancellation and forgotten-target removal");
 }
 '''
 poll=function('poll_locked');assert poll.index('if (!s_running) return;')<poll.index('reconnect_recent_requested();')

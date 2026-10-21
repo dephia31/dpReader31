@@ -64,7 +64,7 @@ static void reset(void){stage=fail_at=slept=restored_usj=restore_font=restore_bo
 static void settled(void){assert(!parked&&!prepared&&!held&&!cut&&!keys&&!touch_paused);}
 int main(void){bool key;
  reset();assert(lock_light_sleep_once((void*)1,(void*)2,&key)==0&&!key&&slept==1&&restored_usj==1&&restore_font==1&&restore_book==1);settled();
- reset();key_cause=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)==0&&key);settled();
+ reset();key_cause=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!key);settled();
  reset();queued_key=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&key&&!slept);settled();
  for(unsigned i=1;i<=10;i++){reset();fail_at=i;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!key&&!slept);settled();}
  reset();usb=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!slept&&!stage);settled();

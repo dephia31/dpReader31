@@ -76,9 +76,12 @@ typedef struct {
     /// one for each thread.
     LineQueue_t line_queues[NUM_RENDER_THREADS];
     uint8_t* line_threads;
+#if KIIKO_BOARD_METALIO47
     uint8_t* line_ready;
     int underrun_row;
     int underrun_reason;
+#else
+#endif
 
     // Output line mask
     uint8_t* line_mask;

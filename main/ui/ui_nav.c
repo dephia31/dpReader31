@@ -22,7 +22,10 @@
 #include "ui_kit.h"
 #include "settings.h"
 #include "ui_click_feedback.h"
+#if KIIKO_BOARD_METALIO47
 #include "metalio_hw.h"
+#else
+#endif
 #include "ttf_font.h"
 #include "ui_font.h"
 
@@ -233,10 +236,11 @@ void ui_nav_status(uint8_t *fb) {
         if (width > 0) ui_fill_round_rect(fb, (EpdRect){610, status_center_y - 7, width, 14}, 4, UI_GRAY_BLACK);
     }
     if (charging) {
-        // 独立白底闪电可在低电量时辨认，不依赖黑色电量块的宽度。
-        // A separate white well keeps the bolt readable even when the battery fill is almost empty.
-        ui_fill_round_rect(fb,(EpdRect){616,status_center_y-9,22,18},3,UI_GRAY_WHITE);
-        ui_draw_icon(fb, 627, status_center_y, 22, UI_ICON_ZAP, UI_GRAY_BLACK);
+        // 固定黑底与白色闪电描边，0%时也有完整对比，不依赖电量填充宽度。
+        // A fixed black well and white bolt outline retain contrast even at0%, independent of the charge fill.
+        ui_fill_round_rect(fb,(EpdRect){614,status_center_y-10,26,20},3,UI_GRAY_BLACK);
+        ui_draw_icon(fb, 627, status_center_y, 22, UI_ICON_ZAP, UI_GRAY_WHITE);
+
     }
     ui_text_fixed_vc(fb, 595, status_center_y, UI_STATUS_PERCENT_PX, percent, EPD_DRAW_ALIGN_RIGHT, false);
     ui_status_mark_visible(fb);
@@ -250,8 +254,12 @@ int ui_nav_hit(uint16_t x, uint16_t y) {
 }
 
 void ui_nav_request(app_ctx_t *ctx, int index) {
+#if KIIKO_BOARD_METALIO47
     if (index >= 0 && index < 4) {
         (void)metalio_haptic_click();
         ctx->request_app = app_at(index);
     }
+#else
+    if (index >= 0 && index < 4) ctx->request_app = app_at(index);
+#endif
 }

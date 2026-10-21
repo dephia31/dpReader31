@@ -2,18 +2,35 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.22)
 
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/board.cmake")
+set(KIIKO_BOARD "${KIIKO_BOARD}" CACHE STRING "Firmware device: pico or metalio47")
+set_property(CACHE KIIKO_BOARD PROPERTY STRINGS pico metalio47)
+if(DEFINED IDF_TARGET AND NOT IDF_TARGET STREQUAL KIIKO_IDF_TARGET)
+    message(FATAL_ERROR "${KIIKO_BOARD} requires ${KIIKO_IDF_TARGET}; use a separate build/config directory")
+endif()
+if(DEFINED ENV{IDF_TARGET} AND NOT "$ENV{IDF_TARGET}" STREQUAL "${KIIKO_IDF_TARGET}")
+    message(FATAL_ERROR "IDF_TARGET environment conflicts with ${KIIKO_BOARD}")
+endif()
+set(IDF_TARGET "${KIIKO_IDF_TARGET}" CACHE STRING "Selected chip")
+set(ENV{KIIKO_BOARD} "${KIIKO_BOARD}")
+if(NOT DEFINED SDKCONFIG_DEFAULTS)
+    set(SDKCONFIG_DEFAULTS "${KIIKO_BOARD_ROOT}/sdkconfig.defaults")
+endif()
+add_compile_definitions(KIIKO_BOARD_METALIO47=${KIIKO_BOARD_METALIO47})
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # "Trim" the build. Include the minimal set of components, main, and anything it depends on.
 idf_build_set_property(MINIMAL_BUILD ON)
 
 # 本地测试沿用当前正式版号；仅正式发布或明确的 OTA 验证指定新版本。
 # Local tests keep the current release version; override only for publication or explicit OTA validation.
-if(DEFINED ENV{METALIO_PROJECT_VER} AND NOT "$ENV{METALIO_PROJECT_VER}" STREQUAL "")
-    set(PROJECT_VER "$ENV{METALIO_PROJECT_VER}")
+if(DEFINED ENV{KIIKO_PROJECT_VER} AND NOT "$ENV{KIIKO_PROJECT_VER}" STREQUAL "")
+    set(PROJECT_VER "$ENV{KIIKO_PROJECT_VER}")
+elseif(DEFINED ENV{PICO_PROJECT_VER} AND NOT "$ENV{PICO_PROJECT_VER}" STREQUAL "")
+    set(PROJECT_VER "$ENV{PICO_PROJECT_VER}")
 else()
-set(PROJECT_VER "0.3.3-rc90-metalio-test36")
+    set(PROJECT_VER "0.3.3-rc97")
 endif()
-project(Kiikoread_Metalio_S31)
+project(${KIIKO_PROJECT_NAME})
 
 # 固件描述时间统一为 UTC，与概览页标识一致；保留已有编译缓存启动器。
 # Compile app-description timestamps in UTC to match Overview; preserve any compiler-cache launcher.
@@ -27,3 +44,8 @@ if(app_desc_launcher)
     list(APPEND app_desc_utc_launcher ${app_desc_launcher})
 endif()
 set_property(TARGET ${app_desc_lib} PROPERTY C_COMPILER_LAUNCHER "${app_desc_utc_launcher}")
+
+# panic 包装器的链接选项在 main/CMakeLists.txt 里挂到 main 组件上：写在 project() 之后
+# 用 idf_build_set_property 设全局链接选项已经太晚，链接器看不到 --wrap。
+# The panic wrapper's link option hangs off the main component in main/CMakeLists.txt: setting a
+# global link option after project() is too late for the linker to see --wrap.

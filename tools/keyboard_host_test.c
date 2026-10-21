@@ -7,7 +7,6 @@
 #include <time.h>
 #include "../main/ui/ui_ime_phrases.h"
 int html_test_fail_after = -1;
-int metalio_haptic_click(void){return 0;}
 static void draw_rect(EpdRect r) { assert(r.x >= 0 && r.y >= 0 && r.width > 0 && r.height > 0 && r.x + r.width <= 684 && r.y + r.height <= 1102); }
 void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t gray){(void)fb;(void)radius;(void)gray;draw_rect(r);}
 void ui_draw_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t gray){(void)fb;(void)radius;(void)gray;draw_rect(r);}

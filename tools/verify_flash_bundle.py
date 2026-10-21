@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the small, public Read Pico web-flashing bundle."""
+"""Validate the public kiikoread web-flashing bundle."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ EXPECTED = {
 }
 
 
-def check_archived_releases(folder: Path) -> list[dict]:
+def check_archived_releases(folder: Path, current_partitions: Path | None = None) -> list[dict]:
     # 历史版本只引用原正式固件，并核对每个完整刷机部件的大小、地址与校验值。
     # Historical choices use original releases; verify every base part's size, address and hash.
     catalog_path = folder / "releases.json"
@@ -68,7 +68,7 @@ def check_archived_releases(folder: Path) -> list[dict]:
                 assert data[80:112].split(b"\0")[0] == b"Read_Pico"
                 assert b"PICO_HTTPS_OTA_V1" in data
             elif name == "partitions.bin":
-                assert data == (folder / "partitions.bin").read_bytes(), "historical layout incompatible"
+                assert data == (current_partitions or folder / "partitions.bin").read_bytes(), "historical layout incompatible"
         print(f"Historical USB bundle verified: {version} (original bytes, preserve-data default)")
     assert (folder / "versions.js").is_file(), "missing version selector"
     return catalog["releases"]
@@ -91,6 +91,8 @@ def check(folder: Path) -> None:
         assert part.get("offset") == start, f"wrong offset for {name}"
         data = (folder / name).read_bytes()
         assert data and len(data) <= end - start, f"invalid size for {name}"
+        if 'size' in part or 'sha256' in part:
+            assert part.get('size') == len(data) and part.get('sha256') == hashlib.sha256(data).hexdigest(), f"manifest integrity mismatch: {name}"
         print(f"{name}: {len(data)} bytes, SHA256 {hashlib.sha256(data).hexdigest()}")
     assert seen == set(EXPECTED)
     # 升级兼容性门禁：实际双槽分区、应用描述、基础包能力及升级 SHA 必须一致。

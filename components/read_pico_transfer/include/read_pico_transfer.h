@@ -80,6 +80,10 @@ bool read_pico_transfer_pause_for_sleep(void);
 void read_pico_transfer_resume_after_sleep(void);
 /// 跨任务复制一致状态快照。/ Copy a consistent snapshot across tasks.
 void read_pico_transfer_get_status(read_pico_transfer_status_t *out);
+#if KIIKO_BOARD_METALIO47
+/// 包括临时对时/扫描及BLE的射频占用快照，供屏保留余量。/ Include temporary sync/scans and BLE activity when choosing display margins.
+bool read_pico_transfer_radio_busy(void);
+#endif
 /// 控制任务每500ms驱动有界连接重试与15秒超时。/ Owner task polls every 500 ms for bounded retries and a 15 s timeout.
 void read_pico_transfer_service_poll(void);
 /// 只读已保存SSID；未配置仍返回ESP_OK。/ Read only the saved SSID; unconfigured still returns ESP_OK.

@@ -3,6 +3,7 @@
  * English: BQ27220, PCF8563 and the power key adapt RC90 without CW32 access.
  */
 #include "read_pico_pmu.h"
+#include "power_double_click.h"
 #include "metalio_hw.h"
 #include "esp_system.h"
 #include "esp_mac.h"
@@ -18,8 +19,9 @@ static bool keys_paused;
 static uint32_t key_epoch;
 static int64_t candidate_since,down_since,battery_at;
 static bool charger_initialized;
-static int64_t charger_retry_at;
+static int64_t charger_retry_at,charge_valid_at;
 static read_pico_pmu_key_action_t action;
+static power_double_click_t s_wake_click;
 static TaskHandle_t key_task;
 static portMUX_TYPE key_lock=portMUX_INITIALIZER_UNLOCKED;
 static unsigned unbcd(unsigned v) { return (v&15)>9 || (v>>4)>9 ? 255 : (v>>4)*10+(v&15); }
@@ -71,9 +73,9 @@ static void keys(void) {
     if (candidate!=held && now-candidate_since>=25) {
         held=candidate;
         if (held) { down_since=now; long_sent=false; }
-        else if (!long_sent && now-down_since>=25) action=READ_PICO_PMU_KEY_SHORT;
+        else if (!long_sent && now-down_since>=25) {action=READ_PICO_PMU_KEY_SHORT;power_double_click_push(&s_wake_click,(uint32_t)now);}
     }
-    if (held && !long_sent && now-down_since>=700) { action=READ_PICO_PMU_KEY_LONG; long_sent=true; }
+    if (held && !long_sent && now-down_since>=700) { action=READ_PICO_PMU_KEY_LONG; s_wake_click=(power_double_click_t){0}; long_sent=true; }
     state.key_state=held?1:0;
     portEXIT_CRITICAL(&key_lock);
     metalio_volume_sample(inputs,now);
@@ -132,6 +134,7 @@ static void battery(void) {
     if (!charger_initialized && now>=charger_retry_at) {
         (void)charger_init(); charger_retry_at=now+30000000;
     }
+    const bool was_charging=(state.flags&PMU_STATUS_CHARGING_ACTIVE)!=0;
     uint8_t r[2]; state.flags &= ~(PMU_STATUS_BATTERY_VALID|PMU_STATUS_CHARGING_ACTIVE); state.quick_ok=false;
     if (metalio_read(0x55,0x08,r,2)==ESP_OK) {
         unsigned mv=r[0]|r[1]<<8;
@@ -141,23 +144,38 @@ static void battery(void) {
             else state.flags &= ~PMU_STATUS_BATTERY_VALID;
         }
     }
-    uint8_t charger=0,control=0,otg=0; state.charge_state=PMU_CHARGE_UNKNOWN;
-    const bool charger_ok=metalio_read(0x6b,0x1e,&charger,1)==ESP_OK &&
-        metalio_read(0x6b,0x16,&control,1)==ESP_OK && metalio_read(0x6b,0x18,&otg,1)==ESP_OK;
-    if (charger_ok) {
-        // CX25601N三个非零阶段均含Top-off；同时核对EN_CHG和EN_OTG，遵循S31参考。
-        // All nonzero CX25601N stages charge, including top-off; also check enable/OTG as S31 reference does.
-        const bool charging=((charger>>3)&3)!=0 && (control&0x20)!=0 && (otg&0x40)==0;
-        state.charge_state=charging?PMU_CHARGE_CHARGING:PMU_CHARGE_NOT_CHARGING;
-        if (charging) state.flags|=PMU_STATUS_CHARGING_ACTIVE;
-    }
-    state.status_ok=(state.flags&PMU_STATUS_BATTERY_VALID)!=0 || charger_ok;
-    static int previous=-1;
-    const int status=charger_ok?charger|(control<<8)|(otg<<16):-1;
-    if (status!=previous) {
+    // 官方BQ27220说明：0x0C为有符号mA，±5mA死区；VBUS_STAT因关闭DPDM不能判断插电。
+    // Vendor BQ27220 guidance:0x0C is signed mA with a±5mA deadband; disabled DPDM makes VBUS_STAT unsuitable for detecting input.
+    const bool current_ok=metalio_read(0x55,0x0c,r,2)==ESP_OK;
+    const int current_ma=current_ok?(int16_t)((unsigned)r[0]|(unsigned)r[1]<<8):0;
+    uint8_t charger=0,control=0,otg=0;
+    const bool status_ok=metalio_read(0x6b,0x1e,&charger,1)==ESP_OK;
+    const bool control_ok=metalio_read(0x6b,0x16,&control,1)==ESP_OK;
+    const bool otg_ok=metalio_read(0x6b,0x18,&otg,1)==ESP_OK;
+    const bool charger_ok=status_ok&&control_ok&&otg_ok;
+    const bool disabled=(control_ok&&!(control&0x20))||(otg_ok&&(otg&0x40));
+    bool known=true,charging=false;
+    if(disabled)charging=false;
+    else if(charger_ok&&((charger>>3)&3)!=0)charging=true;
+    else if(current_ok&&current_ma>5)charging=true;
+    else if(current_ok&&current_ma< -5)charging=false;
+    else if(charger_ok)charging=((charger>>3)&3)!=0;
+    else if(!current_ok)known=false;
+    if(known)charge_valid_at=now;
+    else charging=was_charging&&charge_valid_at&&now-charge_valid_at<6000000;
+    state.charge_state=known?(charging?PMU_CHARGE_CHARGING:PMU_CHARGE_NOT_CHARGING):PMU_CHARGE_UNKNOWN;
+    if(charging)state.flags|=PMU_STATUS_CHARGING_ACTIVE;
+    state.status_ok=(state.flags&PMU_STATUS_BATTERY_VALID)!=0 || charger_ok || current_ok || (!known&&charging);
+    // 单次I2C失败仅短暂保留已确认图标；明确拔电/停止/OTG立即清除，六秒内无有效依据则过期。
+    // Briefly retain a confirmed icon through an I2C fault; explicit discharge/disable/OTG clears it immediately, and evidence expires within six seconds.
+    static uint32_t previous=UINT32_MAX;
+    const uint32_t status=(charger_ok?(uint32_t)charger|((uint32_t)control<<8)|((uint32_t)otg<<16):0x00ffffffu)|
+        (charging?0x01000000u:0)|(current_ok?0x02000000u:0);
+    if(status!=previous){
         previous=status;
-        ESP_LOGI("metalio_power","battery valid=%u mv=%u soc=%u charger=%s status=%02x control=%02x otg=%02x",
+        ESP_LOGI("metalio_power","battery valid=%u mv=%u soc=%u current=%s/%d mA charging=%u charger=%s status=%02x control=%02x otg=%02x",
             (unsigned)((state.flags&PMU_STATUS_BATTERY_VALID)!=0),state.battery_mv,state.soc_permille,
+            current_ok?"valid":"unavailable",current_ma,(unsigned)charging,
             charger_ok?"online":"unavailable",charger,control,otg);
     }
 }
@@ -188,10 +206,10 @@ esp_err_t read_pico_pmu_uid_get(uint8_t out[PMU_CHIP_UID_LEN]) {
 }
 esp_err_t read_pico_pmu_event_ack(uint16_t id) { (void)id; return ESP_OK; }
 esp_err_t read_pico_pmu_action(uint8_t a,uint16_t delay,uint16_t reason) { (void)a;(void)delay;(void)reason; return ESP_ERR_NOT_SUPPORTED; }
-void read_pico_pmu_drain_events(void) { metalio_volume_clear(); portENTER_CRITICAL(&key_lock); action=READ_PICO_PMU_KEY_NONE; portEXIT_CRITICAL(&key_lock); }
+void read_pico_pmu_drain_events(void) { metalio_volume_clear(); portENTER_CRITICAL(&key_lock); action=READ_PICO_PMU_KEY_NONE; s_wake_click=(power_double_click_t){0}; portEXIT_CRITICAL(&key_lock); }
 read_pico_pmu_key_action_t read_pico_pmu_take_key_action(void) {
     portENTER_CRITICAL(&key_lock);
-    read_pico_pmu_key_action_t a=action; action=READ_PICO_PMU_KEY_NONE;
+    read_pico_pmu_key_action_t a=action; action=READ_PICO_PMU_KEY_NONE;s_wake_click=(power_double_click_t){0};
     portEXIT_CRITICAL(&key_lock); return a;
 }
 bool read_pico_pmu_take_key_short(void) { return read_pico_pmu_take_key_action()==READ_PICO_PMU_KEY_SHORT; }
@@ -199,7 +217,7 @@ bool read_pico_pmu_take_key_wakeup(void) {
     portENTER_CRITICAL(&key_lock);
     // S31后台已记录去抖短按/长按；持有电平不是新动作，否则锁屏长按会再次唤醒。
     // The S31 sampler queues debounced clicks/holds; a held level is not a new wake action.
-    bool wake=action!=READ_PICO_PMU_KEY_NONE; action=READ_PICO_PMU_KEY_NONE;
+    bool wake=power_double_click_take(&s_wake_click); action=READ_PICO_PMU_KEY_NONE;
     portEXIT_CRITICAL(&key_lock); return wake;
 }
 esp_err_t read_pico_pmu_report_sleep(void) { return ESP_ERR_NOT_SUPPORTED; }

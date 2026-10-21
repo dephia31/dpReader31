@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "tag": "v0.3.3-rc97",
+  "files": {
+    "firmware.bin": {
+      "asset": "kiikoread-0.3.3-rc97.bin",
+      "size": 4173744,
+      "sha256": "163ef3e8b4138fc6b9641aef2f84b112b5b025cf0929a1554cbaa04bde785fca"
+    },
+    "bootloader.bin": {
+      "asset": "bootloader-0.3.3-rc97.bin",
+      "size": 21232,
+      "sha256": "856fb19103088cf4aad7ada0f54a96c50e34969318f435b3753159b94b727324"
+    },
+    "partitions.bin": {
+      "asset": "partitions-0.3.3-rc97.bin",
+      "size": 3072,
+      "sha256": "edba9d92e5fc51c706c12f4b4a5d5d23728ba8fb0fbc00be654f1eccef404bda"
+    },
+    "ota_data_initial.bin": {
+      "asset": "ota-data-0.3.3-rc97.bin",
+      "size": 8192,
+      "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+    },
+    "Pico-update.bin": {
+      "asset": "kiikoread-0.3.3-rc97.bin",
+      "size": 4173744,
+      "sha256": "163ef3e8b4138fc6b9641aef2f84b112b5b025cf0929a1554cbaa04bde785fca"
+    },
+    "Pico-update-0.3.3-rc97.bin": {
+      "asset": "kiikoread-0.3.3-rc97.bin",
+      "size": 4173744,
+      "sha256": "163ef3e8b4138fc6b9641aef2f84b112b5b025cf0929a1554cbaa04bde785fca"
+    }
+  },
+  "historical": [
+    {
+      "tag": "v0.3.3-rc90",
+      "files": {
+        "Pico-update-0.3.3-rc90.bin": {
+          "asset": "kiikoread-0.3.3-rc90.bin",
+          "size": 3950864,
+          "sha256": "805c1dac67d15fc413b1f6425e66d4ac6f18cfb6792b2e85bb5b6f0099222809"
+        }
+      }
+    },
+    {
+      "tag": "v0.3.3-rc91",
+      "files": {
+        "Pico-update-0.3.3-rc91.bin": {
+          "asset": "kiikoread-0.3.3-rc91.bin",
+          "size": 3987472,
+          "sha256": "42754be8bdecbd052ee8fb48a49bd2606693814963dac202a78a88c66dbc01de"
+        }
+      }
+    },
+    {
+      "tag": "v0.3.3-rc92",
+      "files": {
+        "Pico-update-0.3.3-rc92.bin": {
+          "asset": "kiikoread-0.3.3-rc92.bin",
+          "size": 4132368,
+          "sha256": "d67d985eb15deeb20af16277455016b130cc8fa07868be419ca5c57fae1b709c"
+        }
+      }
+    },
+    {
+      "tag": "v0.3.3-rc93",
+      "files": {
+        "Pico-update-0.3.3-rc93.bin": {
+          "asset": "kiikoread-0.3.3-rc93.bin",
+          "size": 4143424,
+          "sha256": "4d3ad88bc6ac515d565848f8f2029cbbca43c18ad1ca869be8bdefc011ae816b"
+        }
+      }
+    },
+    {
+      "tag": "v0.3.3-rc94",
+      "files": {
+        "Pico-update-0.3.3-rc94.bin": {
+          "asset": "kiikoread-0.3.3-rc94.bin",
+          "size": 4144448,
+          "sha256": "8a10071cf284e664624d89b0bf91d918d924e71ae182d070b5f184c3b2ca41ab"
+        }
+      }
+    },
+    {
+      "tag": "v0.3.3-rc95",
+      "files": {
+        "Pico-update-0.3.3-rc95.bin": {
+          "asset": "kiikoread-0.3.3-rc95.bin",
+          "size": 4144272,
+          "sha256": "2ba3223f8f1e0511188568a11002f5e2e17cf842197e93362a9ae52420c60bfe"
+        }
+      }
+    },
+    {
+      "tag": "v0.3.3-rc96",
+      "files": {
+        "Pico-update-0.3.3-rc96.bin": {
+          "asset": "kiikoread-0.3.3-rc96.bin",
+          "size": 4173392,
+          "sha256": "e0eaa966bd3cea3a03ee83fa6f310febf2a96186758dbba9367468714c1c1e0a"
+        }
+      }
+    }
+  ]
+}

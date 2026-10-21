@@ -11,43 +11,59 @@
 #include <string.h>
 #include <stdlib.h>
 #define TAU 6.28318530718f
-typedef struct {uint8_t *fb;EpdRect bounds,clip;bool binary;unsigned phase,trail_start,trail_steps;} clock_canvas_t;
-typedef struct {EpdRect bounds,clip;int hour,minute,rotation;bool binary,valid;unsigned age;} clock_base_key_t;
+typedef struct {uint8_t *fb;EpdRect bounds,clip;bool binary;unsigned phase,trail_start,trail_steps;ui_home_clock_style_t style;} clock_canvas_t;
+typedef struct {EpdRect bounds,clip;int year,month,day,hour,minute,rotation;bool binary,valid;unsigned age;ui_home_clock_style_t style;} clock_base_key_t;
 static uint8_t *s_base_cache;
 static clock_base_key_t s_base_keys[2];
 static unsigned s_base_age;
+static bool inside(EpdRect inner,EpdRect outer){return inner.x>=outer.x&&inner.y>=outer.y&&
+    inner.x+inner.width<=outer.x+outer.width&&inner.y+inner.height<=outer.y+outer.height;}
+static EpdRect packed_bounds(EpdRect clip){
+    EpdRect p=ui_rotate_rect_to_fb(clip);int end=(p.x+p.width+1)&~1;p.x&=~1;p.width=end-p.x;return p;
+}
 void ui_home_clock_bind_base_cache(uint8_t *memory,size_t bytes){
     if(bytes<UI_HOME_CLOCK_BASE_CACHE_BYTES)memory=NULL;
     if(memory!=s_base_cache){s_base_cache=memory;memset(s_base_keys,0,sizeof(s_base_keys));}
 }
 static bool base_candidate(const clock_canvas_t *c,EpdRect *physical){
-    if(!s_base_cache||c->trail_steps||c->clip.width!=c->bounds.width||c->clip.height<c->bounds.height*9/10)return false;
-    *physical=ui_rotate_rect_to_fb(c->clip);
-    return !(physical->x&1)&&!(physical->width&1)&&
-        (size_t)physical->width*physical->height/2<=UI_HOME_CLOCK_BASE_CACHE_BYTES/2;
+    if(!s_base_cache||c->clip.width!=c->bounds.width||c->clip.height<c->bounds.height*9/10)return false;
+    *physical=packed_bounds(c->clip);
+    return (size_t)physical->width*physical->height/2<=UI_HOME_CLOCK_BASE_SLOT_BYTES;
 }
 static bool base_key_matches(const clock_base_key_t *k,const clock_canvas_t *c,const struct tm *date){
-    return k->valid&&k->hour==date->tm_hour&&k->minute==date->tm_min&&k->binary==c->binary&&
-        k->rotation==epd_get_rotation()&&!memcmp(&k->bounds,&c->bounds,sizeof(EpdRect))&&!memcmp(&k->clip,&c->clip,sizeof(EpdRect));
+    return k->valid&&k->style==c->style&&((c->style==UI_HOME_CLOCK_HOUSE||c->style==UI_HOME_CLOCK_PS1995)||(k->year==date->tm_year&&k->month==date->tm_mon&&k->day==date->tm_mday&&k->hour==date->tm_hour&&k->minute==date->tm_min))&&k->binary==c->binary&&
+        k->rotation==epd_get_rotation()&&!memcmp(&k->bounds,&c->bounds,sizeof(EpdRect))&&inside(c->clip,k->clip);
 }
 static void base_copy(clock_canvas_t *c,EpdRect p,unsigned slot,bool restore){
-    uint8_t *cache=s_base_cache+slot*(UI_HOME_CLOCK_BASE_CACHE_BYTES/2);
+    uint8_t *cache=s_base_cache+slot*UI_HOME_CLOCK_BASE_SLOT_BYTES;
     size_t stride=(size_t)epd_width()/2,span=(size_t)p.width/2;
     for(int y=p.y;y<p.y+p.height;++y){uint8_t *row=c->fb+(size_t)y*stride+p.x/2;
         if(restore)memcpy(row,cache,span);else memcpy(cache,row,span);cache+=span;}
 }
 static bool base_restore(clock_canvas_t *c,const struct tm *date){
-    EpdRect p;if(!base_candidate(c,&p))return false;
+    if(!s_base_cache)return false;
     for(unsigned i=0;i<2;++i)if(base_key_matches(&s_base_keys[i],c,date)){
-        base_copy(c,p,i,true);s_base_keys[i].age=++s_base_age;return true;}
+        // 只恢复请求区域，奇数列边界保留相邻半字节，不碰表盘外的文字。
+        // Restore only the requested crop; odd boundaries preserve neighboring nibbles and labels.
+        EpdRect full=packed_bounds(s_base_keys[i].clip),part=ui_rotate_rect_to_fb(c->clip);
+        size_t stride=epd_width()/2,span=full.width/2;
+        for(int y=part.y;y<part.y+part.height;++y){
+            uint8_t *dst=c->fb+(size_t)y*stride;
+            const uint8_t *src=s_base_cache+i*UI_HOME_CLOCK_BASE_SLOT_BYTES+(size_t)(y-full.y)*span;
+            int left=part.x,right=part.x+part.width;
+            if(left&1){dst[left/2]=(dst[left/2]&15)|(src[(left-full.x)/2]&240);++left;}
+            if(right&1){dst[right/2]=(dst[right/2]&240)|(src[(right-full.x)/2]&15);--right;}
+            if(right>left)memcpy(dst+left/2,src+(left-full.x)/2,(right-left)/2);
+        }
+        s_base_keys[i].age=++s_base_age;return true;}
     return false;
 }
 static void base_store(clock_canvas_t *c,const struct tm *date){
     EpdRect p;if(!base_candidate(c,&p))return;
     unsigned i=!s_base_keys[0].valid?0:!s_base_keys[1].valid?1:s_base_keys[0].age<s_base_keys[1].age?0:1;
     base_copy(c,p,i,false);
-    s_base_keys[i]=(clock_base_key_t){.bounds=c->bounds,.clip=c->clip,.hour=date->tm_hour,.minute=date->tm_min,
-        .rotation=epd_get_rotation(),.binary=c->binary,.valid=true,.age=++s_base_age};
+    s_base_keys[i]=(clock_base_key_t){.bounds=c->bounds,.clip=c->clip,.year=date->tm_year,.month=date->tm_mon,.day=date->tm_mday,.hour=date->tm_hour,.minute=date->tm_min,
+        .rotation=epd_get_rotation(),.binary=c->binary,.valid=true,.age=++s_base_age,.style=c->style};
 }
 static float clamp(float x,float lo,float hi){return fminf(hi,fmaxf(lo,x));}
 static EpdRect intersect(EpdRect a,EpdRect b){
@@ -99,12 +115,20 @@ static void polygon(clock_canvas_t *c,const float *xs,const float *ys,int count,
     for(int i=0;i<count;++i){xx[i]=cx(c,xs[i]);yy[i]=cy(c,ys[i]);xmin=fminf(xmin,xx[i]);xmax=fmaxf(xmax,xx[i]);ymin=fminf(ymin,yy[i]);ymax=fmaxf(ymax,yy[i]);}
     float ink=c->bounds.width/320.f*1.2f;
     EpdRect area={(int)floorf(xmin-ink-1),(int)floorf(ymin-ink-1),(int)ceilf(xmax-xmin+ink*2+3),(int)ceilf(ymax-ymin+ink*2+3)};area=intersect(area,c->clip);
-    for(int y=area.y;y<area.y+area.height;++y)for(int x=area.x;x<area.x+area.width;++x){
-        float alpha=0;
-        for(int sy=0;sy<3;++sy)for(int sx=0;sx<3;++sx){float px=x+(sx+.5f)/3,py=y+(sy+.5f)/3;bool inside=false;
-            for(int i=0,j=count-1;i<count;j=i++)if((yy[i]>py)!=(yy[j]>py)&&px<(xx[j]-xx[i])*(py-yy[i])/(yy[j]-yy[i])+xx[i])inside=!inside;
-            if(inside)alpha+=1.f/9;
+    // 每个采样行只求一次边交点；保持原3×3覆盖率、交点顺序及严格比较。
+    // Compute edge crossings once per sample row, retaining 3x3 coverage, edge order and strict comparisons.
+    for(int y=area.y;y<area.y+area.height;++y){
+        float crossings[3][32];unsigned counts[3]={0};
+        for(int sy=0;sy<3;++sy){float py=y+(sy+.5f)/3;
+            for(int i=0,j=count-1;i<count;j=i++)if((yy[i]>py)!=(yy[j]>py))
+                crossings[sy][counts[sy]++]=(xx[j]-xx[i])*(py-yy[i])/(yy[j]-yy[i])+xx[i];
         }
+        for(int x=area.x;x<area.x+area.width;++x){
+            float alpha=0;
+            for(int sy=0;sy<3;++sy)for(int sx=0;sx<3;++sx){float px=x+(sx+.5f)/3;bool inside=false;
+                for(unsigned i=0;i<counts[sy];++i)if(px<crossings[sy][i])inside=!inside;
+                if(inside)alpha+=1.f/9;
+            }
         pixel(c,x,y,gray,alpha);
         if(outlined){float distance=10000;
             for(int i=0,j=count-1;i<count;j=i++){float vx=xx[i]-xx[j],vy=yy[i]-yy[j],square=vx*vx+vy*vy;
@@ -112,6 +136,7 @@ static void polygon(clock_canvas_t *c,const float *xs,const float *ys,int count,
                 distance=fminf(distance,hypotf(x+.5f-xx[j]-t*vx,y+.5f-yy[j]-t*vy));}
             pixel(c,x,y,25,clamp(ink-distance,0,1));
         }
+    }
     }
 }
 static void shape(clock_canvas_t *c,const float points[][2],int count,float angle,float gray,bool outlined){
@@ -163,7 +188,7 @@ static void cat_pupil(clock_canvas_t *c,float x,float y,float rx,float ry,uint8_
     EpdRect r={(int)floorf(mx-rx),(int)floorf(my-ry),(int)ceilf(rx*2+1),(int)ceilf(ry*2+1)};r=intersect(r,c->clip);
     for(int yy=r.y;yy<r.y+r.height;++yy)for(int xx=r.x;xx<r.x+r.width;++xx){float dx=(xx+.5f-mx)/rx,dy=(yy+.5f-my)/ry;if(dx*dx+dy*dy<=1)epd_draw_pixel(xx,yy,ink,c->fb);}
 }
-static void cat_hands(clock_canvas_t *c,const struct tm *date){
+static void cat_eyes(clock_canvas_t *c){
     // 猫眼只恢复旧瞳孔和画新位置，不重绘外框或文字。/ Restore old pupils and draw their new positions without changing the frame or labels.
     float gaze=sinf((c->phase%40)*TAU/40);
     for(unsigned eye=0;eye<2;++eye){float x=eye?213:141;
@@ -172,6 +197,8 @@ static void cat_hands(clock_canvas_t *c,const struct tm *date){
         art_ellipse(c,1,x,716,24,33,255,255);
         cat_pupil(c,x+8*gaze,716,7.8f,27,0);cat_pupil(c,x+8*gaze-2,705,1.6f,6,255);
     }
+}
+static void cat_hands(clock_canvas_t *c,const struct tm *date){
     float angles[]={((date->tm_hour%12)+date->tm_min/60.f)*TAU/12,date->tm_min*TAU/60};
     for(int hand=0;hand<2;++hand){float a=angles[hand],sn=sinf(a),co=cosf(a),w=hand?1.9f:2.9f,len=hand?38:27;
         float xs[]={177-sn*4-co*w,177-sn*4+co*w,177+sn*len+co*w,177+sn*len-co*w};
@@ -210,8 +237,6 @@ static void hands(clock_canvas_t *c,const struct tm *date,ui_home_clock_style_t 
         // Settle the minute hand on minute boundaries; second crops move only the dot, preserving the target outside the crop.
         minute=date->tm_min*TAU/60;
         float hs=sinf(hour),hc=cosf(hour),ms=sinf(minute),mc=cosf(minute);
-        float start=(c->trail_start%600)*TAU/600,end=((c->trail_start+c->trail_steps)%600)*TAU/600;
-        float ax=91*sinf(start),ay=-91*cosf(start),zx=91*sinf(end),zy=-91*cosf(end);
         EpdRect area={(int)floorf(cx(c,48)),(int)floorf(cy(c,669)),(int)ceilf(259*c->bounds.width/320.f),(int)ceilf(259*c->bounds.height/350.f)};area=intersect(area,c->clip);
         for(int y=area.y;y<area.y+area.height;++y)for(int x=area.x;x<area.x+area.width;++x){
             float xx=(x+.5f-c->bounds.x)*320/c->bounds.width+24-177,yy=(y+.5f-c->bounds.y)*350/c->bounds.height+640-798,r=hypotf(xx,yy);
@@ -219,19 +244,34 @@ static void hands(clock_canvas_t *c,const struct tm *date,ui_home_clock_style_t 
             float gray=232-yy*.055f,sd=capsule(xx,yy,hs,hc,35,65),ld=capsule(xx,yy,ms,mc,12,94);
             float a=.65f*frosted_alpha(sd),b=.70f*frosted_alpha(ld);
             gray+=(111-gray)*a;gray+=(92-gray)*b;
-            // 走过的位置保留浅灰轨迹；一圈后固定，不叠加黑度或执行擦环刷新。
-            // Retain a light-gray trail, bounded to one lap without darkening or an erase-ring refresh.
-            if(c->trail_steps){
-                float angle=atan2f(xx,-yy);if(angle<0)angle+=TAU;
-                float delta=fmodf(angle-start+TAU,TAU)*600/TAU;
-                float distance=c->trail_steps>=600||delta<=c->trail_steps?fabsf(r-91):fminf(hypotf(xx-ax,yy-ay),hypotf(xx-zx,yy-zy));
-                gray+=(102-gray)*(.30f*clamp(15.5f-distance,0,1));
-            }
             pixel(c,x,y,gray,clamp(128.5f-r,0,1));
         }
-        base_store(c,date);
-        float second=(c->phase%600)*TAU/600;disc(c,177+91*sinf(second),798-91*cosf(second),15,69,88);
     }
+}
+static void kehai_motion(clock_canvas_t *c,const struct tm *date){
+    // 缓存不含圆环或圆点；只在圆环覆盖处按原浮点公式重算，避免量化后叠加变色。
+    // The base excludes trail/dot; recompute the original float target only under the ring to avoid quantized reblending.
+    if(c->trail_steps){
+        float hour=((date->tm_hour%12)+date->tm_min/60.f)*TAU/12,minute=date->tm_min*TAU/60;
+        float hs=sinf(hour),hc=cosf(hour),ms=sinf(minute),mc=cosf(minute);
+        float start=(c->trail_start%600)*TAU/600,end=((c->trail_start+c->trail_steps)%600)*TAU/600;
+        float ax=91*sinf(start),ay=-91*cosf(start),zx=91*sinf(end),zy=-91*cosf(end);
+        EpdRect area={(int)floorf(cx(c,70)),(int)floorf(cy(c,691)),(int)ceilf(215*c->bounds.width/320.f),(int)ceilf(215*c->bounds.height/350.f)};
+        area=intersect(area,c->clip);
+        for(int y=area.y;y<area.y+area.height;++y)for(int x=area.x;x<area.x+area.width;++x){
+            float xx=(x+.5f-c->bounds.x)*320/c->bounds.width+24-177,yy=(y+.5f-c->bounds.y)*350/c->bounds.height+640-798,r=hypotf(xx,yy);
+            if(fabsf(r-91)>=15.5f)continue;
+            float angle=atan2f(xx,-yy);if(angle<0)angle+=TAU;
+            float delta=fmodf(angle-start+TAU,TAU)*600/TAU;
+            float distance=c->trail_steps>=600||delta<=c->trail_steps?fabsf(r-91):fminf(hypotf(xx-ax,yy-ay),hypotf(xx-zx,yy-zy));
+            float alpha=.30f*clamp(15.5f-distance,0,1);if(alpha<=0)continue;
+            float gray=232-yy*.055f,sd=capsule(xx,yy,hs,hc,35,65),ld=capsule(xx,yy,ms,mc,12,94);
+            float a=.65f*frosted_alpha(sd),b=.70f*frosted_alpha(ld);
+            gray+=(111-gray)*a;gray+=(92-gray)*b;gray+=(102-gray)*alpha;
+            pixel(c,x,y,gray,1);
+        }
+    }
+    float second=(c->phase%600)*TAU/600;disc(c,177+91*sinf(second),798-91*cosf(second),15,69,88);
 }
 // 小屋按已确认前立面等比缩放，数字使用活动系统字形，不缓存另一份字库。
 // Scale the approved house elevation proportionally; numerals use the active system face, without another font cache.
@@ -242,19 +282,28 @@ static void house_poly(clock_canvas_t *c,const float *x,const float *y,int count
     polygon(c,xx,yy,count,gray,outline);
 }
 static void house_disc(clock_canvas_t *c,float x,float y,float radius,float center,float edge){disc(c,house_x(x),house_y(y),radius*.8f,center,edge);}
-static void house(clock_canvas_t *c,const struct tm *date){
+static void house_base(clock_canvas_t *c){
     epd_fill_rect(c->clip,255,c->fb);
     const float x[]={177,269,269,85,85},y[]={650,735,1007,1007,735};float sx[5],sy[5];
     for(int i=0;i<5;++i){sx[i]=x[i]+3;sy[i]=y[i]+4;}
     house_poly(c,sx,sy,5,225,false);house_poly(c,x,y,5,241,false);
     // 单像素柔和外缘，保持房体浅灰，不压成黑框。/ A soft one-pixel edge retains the pale body instead of forming a black frame.
     float xx[5],yy[5];for(int i=0;i<5;++i){xx[i]=cx(c,house_x(x[i]));yy[i]=cy(c,house_y(y[i]));}
+    const float reach=.8f*c->bounds.width/320.f+.5f;
+    float lo_x[5],hi_x[5],lo_y[5],hi_y[5];
+    for(int i=0,j=4;i<5;j=i++){
+        lo_x[i]=fminf(xx[i],xx[j])-reach;hi_x[i]=fmaxf(xx[i],xx[j])+reach;
+        lo_y[i]=fminf(yy[i],yy[j])-reach;hi_y[i]=fmaxf(yy[i],yy[j])+reach;
+    }
     for(int py=c->clip.y;py<c->clip.y+c->clip.height;++py)for(int px=c->clip.x;px<c->clip.x+c->clip.width;++px){
         float distance=10000;
-        for(int i=0,j=4;i<5;j=i++){float vx=xx[i]-xx[j],vy=yy[i]-yy[j],square=vx*vx+vy*vy;
+        for(int i=0,j=4;i<5;j=i++){
+            if(px+.5f<lo_x[i]||px+.5f>hi_x[i]||py+.5f<lo_y[i]||py+.5f>hi_y[i])continue;
+            float vx=xx[i]-xx[j],vy=yy[i]-yy[j],square=vx*vx+vy*vy;
             float t=clamp(((px+.5f-xx[j])*vx+(py+.5f-yy[j])*vy)/square,0,1);
-            distance=fminf(distance,hypotf(px+.5f-xx[j]-t*vx,py+.5f-yy[j]-t*vy));}
-        pixel(c,px,py,153,clamp(.8f*c->bounds.width/320.f+.5f-distance,0,1));
+            distance=fminf(distance,hypotf(px+.5f-xx[j]-t*vx,py+.5f-yy[j]-t*vy));
+        }
+        pixel(c,px,py,153,clamp(reach-distance,0,1));
     }
     const float lipx[]={87,268,268,87},lipy[]={1004,1004,1007,1007};house_poly(c,lipx,lipy,4,208,false);
     house_disc(c,177,742,35,105,153);house_disc(c,177,744,32,30,65);
@@ -265,6 +314,8 @@ static void house(clock_canvas_t *c,const struct tm *date){
         float tx[]={177+dx*55-nx*1.6f,177+dx*55+nx*1.6f,177+dx*68+nx*1.6f,177+dx*68-nx*1.6f};
         float ty[]={913+dy*55-ny*1.6f,913+dy*55+ny*1.6f,913+dy*68+ny*1.6f,913+dy*68-ny*1.6f};house_poly(c,tx,ty,4,51,false);
     }
+}
+static void house_hands(clock_canvas_t *c,const struct tm *date){
     const float digitx[]={177,244,177,110},digity[]={845,913,982,913};const char *digits[]={"12","3","6","9"};
     for(int i=0;i<4;++i)ui_text_fixed_ink_vc(c->fb,lroundf(cx(c,house_x(digitx[i]))),lroundf(cy(c,house_y(digity[i]))),lroundf(26*.8f*c->bounds.width/320.f),digits[i],EPD_DRAW_ALIGN_CENTER,0x30);
     float angles[]={((date->tm_hour%12)+date->tm_min/60.f)*TAU/12,date->tm_min*TAU/60};
@@ -280,15 +331,34 @@ const char *ui_home_clock_name(ui_home_clock_style_t style){
 }
 void ui_home_clock_trail_draw_region(uint8_t *fb,EpdRect b,const struct tm *date,bool binary,ui_home_clock_style_t style,EpdRect clip,unsigned phase,unsigned trail_start,unsigned trail_steps){
     if(!fb||!date||b.width<=0||b.height<=0||(unsigned)style>=UI_HOME_CLOCK_COUNT)return;
-    if(style==UI_HOME_CLOCK_PS1995){ui_home_clock_draw(fb,b,date,binary);return;}
-    clock_canvas_t c={fb,b,intersect(intersect(b,clip),(EpdRect){0,0,epd_rotated_display_width(),epd_rotated_display_height()}),binary,phase,trail_start,trail_steps>600?600:trail_steps};
+    clock_canvas_t c={fb,b,intersect(intersect(b,clip),(EpdRect){0,0,epd_rotated_display_width(),epd_rotated_display_height()}),binary,phase,trail_start,trail_steps>600?600:trail_steps,style};
     if(c.clip.width<=0||c.clip.height<=0)return;
-    if(style==UI_HOME_CLOCK_KEHAI&&base_restore(&c,date)){
-        float second=(phase%600)*TAU/600;disc(&c,177+91*sinf(second),798-91*cosf(second),15,69,88);return;
+    // 活动字形不进缓存；秒级裁剪可从同一分钟的完整底图恢复，扩大时间页也复用。
+    // Keep live glyphs out of snapshots; second crops restore from the full minute base, including enlarged time views.
+    const bool static_face=style==UI_HOME_CLOCK_MOON||style==UI_HOME_CLOCK_ASTERISK||style==UI_HOME_CLOCK_DALI;
+    if(static_face&&base_restore(&c,date))return;
+    if(style==UI_HOME_CLOCK_PS1995){
+        if(!base_restore(&c,date)){
+            if(c.clip.width!=b.width||c.clip.height<b.height*9/10){ui_home_clock_draw(fb,b,date,binary);return;}
+            epd_fill_rect(c.clip,255,fb);ui_home_clock_body_draw(fb,b,binary);base_store(&c,date);
+        }
+        ui_home_clock_hands_draw(fb,b,date);return;
     }
-    if(style==UI_HOME_CLOCK_HOUSE)house(&c,date);
-    else if(style==UI_HOME_CLOCK_DALI||style==UI_HOME_CLOCK_CAT){new_background(&c,style==UI_HOME_CLOCK_CAT);if(style==UI_HOME_CLOCK_CAT)cat_hands(&c,date);else dali_hands(&c,date);}
+    if(style==UI_HOME_CLOCK_HOUSE){
+        if(!base_restore(&c,date)){house_base(&c);base_store(&c,date);}
+        house_hands(&c,date);
+    }
+    else if(style==UI_HOME_CLOCK_CAT){
+        if(!base_restore(&c,date)){new_background(&c,1);cat_hands(&c,date);base_store(&c,date);}
+        cat_eyes(&c);
+    }
+    else if(style==UI_HOME_CLOCK_KEHAI){
+        if(!base_restore(&c,date)){background(&c,2);hands(&c,date,style);base_store(&c,date);}
+        kehai_motion(&c,date);
+    }
+    else if(style==UI_HOME_CLOCK_DALI){new_background(&c,0);dali_hands(&c,date);}
     else {background(&c,style-1);hands(&c,date,style);}
+    if(static_face)base_store(&c,date);
 }
 void ui_home_clock_phase_draw_region(uint8_t *fb,EpdRect b,const struct tm *date,bool binary,ui_home_clock_style_t style,EpdRect clip,unsigned phase){ui_home_clock_trail_draw_region(fb,b,date,binary,style,clip,phase,0,0);}
 void ui_home_clock_style_draw_region(uint8_t *fb,EpdRect b,const struct tm *date,bool binary,ui_home_clock_style_t style,EpdRect clip){ui_home_clock_phase_draw_region(fb,b,date,binary,style,clip,date?(unsigned)date->tm_sec*10:0);}

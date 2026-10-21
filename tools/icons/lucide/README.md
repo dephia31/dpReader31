@@ -1,9 +1,9 @@
 # Vendored Lucide sources / Lucide 原图
 
-中文：这里是固件全部界面图标的唯一来源。图标取自上游 Lucide 仓库，按文件逐字保存，
+中文：这里是固件主要界面图标的来源。图标取自上游 Lucide 仓库，按文件逐字保存，
 `tools/gen_ui_icons.py` 把它们描边光栅化成 `main/assets/ui_icons.h`。
 
-English: The single source for every UI icon in the firmware. The SVG files are
+English: The primary source for UI icons in the firmware. The SVG files are
 verbatim copies from the upstream Lucide repository; `tools/gen_ui_icons.py`
 strokes and rasterizes them into `main/assets/ui_icons.h`.
 
@@ -35,6 +35,9 @@ strokes and rasterizes them into `main/assets/ui_icons.h`.
 The generator fails loudly when a listed icon has no vendored SVG.
 
 不要手改 `main/assets/ui_icons.h`，也不要在别处新增手绘图标：风格统一靠的是
-「所有图标都来自这里」这一条。
+统一生成管线。
 Do not hand-edit `main/assets/ui_icons.h` and do not add hand-drawn icons anywhere
-else; the consistent look depends on every icon coming from this directory.
+else; the consistent look depends on the shared generation pipeline.
+
+用户批准的分页与动效来源见 [AnimateIcons adapter](../animateicons/README.md)。
+See the approved [AnimateIcons adapter](../animateicons/README.md) for pagination and footer motion.

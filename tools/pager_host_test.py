@@ -3,7 +3,7 @@
 # 中文：真实共用分页栏像素、四键跳转与文件列表按压/取消，防止越入列表或主导航。
 # English: Real shared-pager pixels, four-way targets and file press/cancel routing, bounded away from list rows and navigation.
 from pathlib import Path
-import re, subprocess, tempfile
+import re, subprocess, tempfile, json
 from home_cover_cache_host_test import function
 
 root=Path(__file__).resolve().parents[1]
@@ -18,6 +18,7 @@ unit=r'''
 #include <string.h>
 #include "assets/ui_icons.h"
 #define FILE_ROWS 9
+#define UI_LOCK_HEIGHT 1216
 typedef struct {int x,y,width,height;} EpdRect;
 enum {EPD_DRAW_ALIGN_CENTER,UI_GRAY_WHITE=255};
 enum {APP_REDRAW_NONE,APP_REDRAW_AREA,APP_REDRAW_PAGE};
@@ -28,27 +29,28 @@ enum {UI_GESTURE_PRESS,UI_GESTURE_MOVE,UI_GESTURE_TAP,UI_GESTURE_CANCEL,UI_GESTU
 typedef struct {int type;uint16_t x0,y0,x,y;} ui_gesture_event_t;
 static uint8_t pixels[684*1216];
 static char drawn_label[96];
+static int active_top=1006;
 static int s_count,s_folder,s_page,s_view,s_pager_pressed=-1;
 static bool s_scan_pending,s_pager_paint_pending;
 static uint8_t ui_read_pixel(const uint8_t *fb,int x,int y){assert(x>=0&&x<684&&y>=0&&y<1216);return fb[y*684+x]>>4;}
 static uint8_t ui_contrast_gray(uint8_t gray){return gray&240;}
-static void epd_draw_pixel(int x,int y,uint8_t c,uint8_t *fb){assert(x>=36&&x<648&&y>=1006&&y<1056);fb[y*684+x]=c;}
+static void epd_draw_pixel(int x,int y,uint8_t c,uint8_t *fb){assert(x>=36&&x<648&&y>=active_top&&y<active_top+50);fb[y*684+x]=c;}
 static void ui_text_box(uint8_t *fb,EpdRect r,int px,const char *text,int align,bool inv){
- (void)fb;assert(r.x==212&&r.y==1006&&r.width==260&&r.height==50&&px==21&&align==EPD_DRAW_ALIGN_CENTER&&!inv);
+ (void)fb;assert(r.x==212&&r.y==active_top&&r.width==260&&r.height==50&&px==21&&align==EPD_DRAW_ALIGN_CENTER&&!inv);
  snprintf(drawn_label,sizeof(drawn_label),"%s",text);
 }
-static void ui_fill_rect_fast(EpdRect r,int c,uint8_t *fb){assert(r.y>=1006&&r.y+r.height<=1056);for(int y=r.y;y<r.y+r.height;++y)for(int x=r.x;x<r.x+r.width;++x)fb[y*684+x]=c;}
+static void ui_fill_rect_fast(EpdRect r,int c,uint8_t *fb){assert(r.y==active_top&&r.height==50);for(int y=r.y;y<r.y+r.height;++y)for(int x=r.x;x<r.x+r.width;++x)fb[y*684+x]=c;}
 '''
 header=(root/'main/ui/ui_kit.h').read_text()
 unit+=re.search(r'enum \{ UI_PAGER_NONE=[^}]+\};',header)[0]+'\n'
-for name in ('ui_rect_hit','icon_nibble','ui_draw_icon','ui_pager_area','ui_pager_rect','ui_pager_hit','ui_pager_target','ui_pager_draw'):
+for name in ('ui_rect_hit','icon_nibble','ui_draw_icon','ui_pager_area_at','ui_pager_rect_at','ui_pager_hit_at','ui_pager_target','ui_pager_draw_at','ui_pager_area','ui_pager_rect','ui_pager_hit','ui_pager_draw'):
     unit+=function(name,kit)+'\n'
-for name in ('visible_rows','root_rows','file_pager_pages','draw_file_pager','file_pager_paint','file_pager_event'):
+for name in ('file_pager_top','file_action_rect','visible_rows','root_rows','file_pager_pages','draw_file_pager','file_pager_paint','file_pager_event'):
     unit+=function(name,files)+'\n'
 unit+=r'''
 static unsigned ink_in(EpdRect r){unsigned n=0;for(int y=r.y;y<r.y+r.height;++y)for(int x=r.x;x<r.x+r.width;++x)n+=pixels[y*684+x]<128;return n;}
-static void check_outside(void){for(int y=0;y<1216;++y)if(y<1006||y>=1056)for(int x=0;x<684;++x)assert(pixels[y*684+x]==240);}
-static ui_gesture_event_t event(int type,int action){EpdRect r=ui_pager_rect(action);int x=r.x+r.width/2,y=r.y+r.height/2;return(ui_gesture_event_t){type,x,y,x,y};}
+static void check_outside(void){for(int y=0;y<1216;++y)if(y<active_top||y>=active_top+50)for(int x=0;x<684;++x)assert(pixels[y*684+x]==240);}
+static ui_gesture_event_t event(int type,int action){active_top=file_pager_top();EpdRect r=ui_pager_rect_at(action,active_top);int x=r.x+r.width/2,y=r.y+r.height/2;return(ui_gesture_event_t){type,x,y,x,y};}
 static void tap(app_ctx_t *ctx,int action,int expected){
  app_redraw_t redraw=-1;ui_gesture_event_t e=event(UI_GESTURE_PRESS,action);
  assert(file_pager_event(ctx,&e,&redraw)&&redraw==APP_REDRAW_AREA&&s_pager_pressed==action&&s_pager_paint_pending);
@@ -82,8 +84,22 @@ int main(void){
  memset(pixels,240,sizeof(pixels));ui_pager_draw(pixels,"0本书 · 01/01",0,1,true,-1);for(int a=0;a<4;++a)assert(!ink_in(ui_pager_rect(a)));check_outside();
  app_ctx_t ctx={pixels,NULL};s_view=FILE_VIEW_LIST;s_folder=-1;s_count=96;s_page=5;
  assert(file_pager_pages()==20);tap(&ctx,UI_PAGER_FIRST,0);tap(&ctx,UI_PAGER_PREVIOUS,0);tap(&ctx,UI_PAGER_NEXT,1);tap(&ctx,UI_PAGER_LAST,19);tap(&ctx,UI_PAGER_NEXT,19);tap(&ctx,UI_PAGER_PREVIOUS,18);
- assert(strstr(drawn_label,"共 20 页"));s_folder=3;assert(visible_rows()==9);s_folder=0;s_page=2;assert(file_pager_pages()==11);tap(&ctx,UI_PAGER_LAST,10);
- s_folder=3;s_view=FILE_VIEW_MOVE;s_page=1;assert(file_pager_pages()==14);tap(&ctx,UI_PAGER_LAST,13);tap(&ctx,UI_PAGER_FIRST,0);
+ assert(strstr(drawn_label,"共 20 页"));s_folder=3;assert(visible_rows()==8);
+ s_folder=0;s_page=2;assert(file_pager_pages()==10);tap(&ctx,UI_PAGER_LAST,9);
+ s_folder=3;s_view=FILE_VIEW_MOVE;s_page=1;assert(file_pager_pages()==12);tap(&ctx,UI_PAGER_LAST,11);tap(&ctx,UI_PAGER_FIRST,0);
+ {
+  assert(file_pager_top()==1140&&file_action_rect(0).y==1000);
+  assert(214+visible_rows()*88+16<=file_action_rect(0).y);
+  assert(file_action_rect(0).y+76<file_pager_top());
+  assert(!ui_rect_hit(file_action_rect(0),342,1020)&&!ui_rect_hit(file_action_rect(1),342,1020));
+  for(int a=0;a<4;++a){EpdRect r=ui_pager_rect_at(a,1140);
+   assert(ui_pager_hit_at(r.x,1140,1140)==a&&ui_pager_hit_at(r.x,1189,1140)==a);
+   assert(ui_pager_hit_at(r.x,1139,1140)<0&&ui_pager_hit_at(r.x,1190,1140)<0);
+   assert(ui_pager_hit_at(r.x,1031,1140)<0);
+  }
+  active_top=1140;memset(pixels,240,sizeof(pixels));
+  ui_pager_draw_at(pixels,"底部分页",0,12,false,-1,1140);check_outside();
+ }
  app_redraw_t redraw;ui_gesture_event_t e=event(UI_GESTURE_PRESS,UI_PAGER_NEXT);file_pager_event(&ctx,&e,&redraw);
  e.type=UI_GESTURE_CANCEL;assert(file_pager_event(&ctx,&e,&redraw)&&redraw==APP_REDRAW_AREA&&!s_page&&s_pager_pressed<0);
  e=event(UI_GESTURE_PRESS,UI_PAGER_NEXT);file_pager_event(&ctx,&e,&redraw);e.type=UI_GESTURE_MOVE;e.x=340;
@@ -95,11 +111,12 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as folder:
     path=Path(folder)/'test.c';path.write_text(unit);exe=path.with_suffix('')
-    subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(root/'main'),str(path),'-o',str(exe)],check=True)
+    subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(root/'main'),str(path),'-o',str(exe),'-DKIIKO_BOARD_METALIO47='+str(int(json.loads((root/'.kiiko-source-view.json').read_text())['board']=='metalio47'))],check=True)
     subprocess.run([str(exe)],check=True)
 
 file_source=files.read_text()
-assert '设为书籍目录' not in file_source and '设为字体目录' not in file_source
-assert 'app_settings_set_books_dir' not in file_source and 'app_settings_set_fonts_dir' not in file_source
+assert '设为书籍目录' in file_source and '设为字体目录' in file_source
+assert 'app_settings_set_books_dir' in file_source and 'app_settings_set_fonts_dir' in file_source
+assert 'return (end-214)/88;' in file_source
 assert '214 + row * 88' in file_source and file_source.count('(ev->y0 - 214) / 88')==2
 assert 214+8*88+82 < 1006

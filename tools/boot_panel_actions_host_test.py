@@ -4,6 +4,7 @@ English: Execute real RTC marks and Settings repair actions for boot cutoff, can
 SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
 """
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 from home_cover_cache_host_test import function
@@ -56,7 +57,9 @@ tick = tick[tick.index('    if (s_panel_repair_pending)'):tick.index('    if (s_
 gesture = function('on_gesture', SETTINGS)
 gesture = gesture[gesture.index('    if(y>=SETTINGS_MAINTENANCE_Y'):gesture.rindex('    return APP_REDRAW_NONE;')]
 render = function('render', SETTINGS)
-assert render.index('if (s_notice[0])', render.index('const char *maintenance_labels')) > render.index('ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, 160}')
+root_render = re.sub(r'\s+', '', render[render.index('const char *maintenance_labels'):])
+assert root_render.index('if(s_notice[0])') > root_render.index(
+    'ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,160},UI_GRAY_WHITE,fb);')
 
 ACTIONS = r'''
 #include <assert.h>
@@ -73,7 +76,7 @@ enum EpdDrawError { EPD_DRAW_SUCCESS, EPD_DRAW_ERROR };
 #define SETTINGS_ROW_H 68
 static int s_page, repairs, paints, upgrades;
 static bool s_panel_repair_pending, s_scroll_present_pending, s_boot_pending, s_config_confirm;
-static char s_notice[96],s_boot_notice[96];
+static char s_notice[96];
 static enum EpdDrawError result;
 static void upgrade_open(void) { ++upgrades; }
 static void render(app_ctx_t *ctx, uint8_t *fb) {

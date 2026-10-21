@@ -48,7 +48,7 @@ static transfer_credentials_t committed, staged;
 static bool present, pending_present;
 static int fail_open, fail_write, fail_commit, handles;
 static esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *handle) {
-    assert(!strcmp(name, "metalio_wifi")); (void)mode;
+    assert(!strcmp(name, "rp_wifi")); (void)mode;
     if (fail_open) return ESP_FAIL;
     ++handles; *handle = 1; staged = committed; pending_present = present; return ESP_OK;
 }

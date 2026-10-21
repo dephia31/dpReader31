@@ -28,15 +28,27 @@ typedef enum {
     APP_WAKE_TIMEOUT,
 } app_wake_source_t;
 
+#if KIIKO_BOARD_METALIO47
 /// 主动拼贴锁屏先灭灯并显示圆锁，保留后续短按。/ Manual collage feedback retains later wake clicks.
 void app_lock_feedback(EpdiyHighlevelState *hl);
 /// 深睡必须已有成功保存的恢复点。/ Require a persisted resume checkpoint before lock deep sleep.
 void app_lock_set_resume_ready(bool ready);
+#else
+/// 登记常开供电的触摸与加速度计，并准备 CPU 浅睡保持区。/ Bind always-on touch/accelerometer and prepare CPU light-sleep retention.
+void app_sleep_bind(cst836u_handle_t tp, sc7a20h_handle_t acc);
+#endif
 
 void enter_lock_and_sleep(
     EpdiyHighlevelState* hl, int64_t* ignore_until_ms, sc7a20h_handle_t acc, cst836u_handle_t touch,
     bool reader_background
 );
+#if KIIKO_BOARD_METALIO47
+#else
+
+/// 主动拼贴锁屏在保存进度/切字体前清白并显示圆锁；不适用于自动休眠、直接关机或升级/上传中。
+/// Show white and a lock badge before manual-lock saves/font changes; not for idle sleep, direct shutdown or active OTA/uploads.
+void app_lock_feedback(EpdiyHighlevelState *hl);
+#endif
 
 /// 在消费恢复/开书前进行冷启动与深睡密码验证。/ Gate cold/deep starts before consuming resume or opening books.
 void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h_handle_t acc);
@@ -44,18 +56,23 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
 /// 等电源键松开，避免进睡瞬间被同一下按住立刻唤醒。
 /// Wait for the power key to release so the same press does not wake immediately.
 void app_lock_wait_key_idle(int timeout_ms);
+#if KIIKO_BOARD_METALIO47
 // 中文：test21暂停自动深睡；0表示保留书籍/字体/PIN内存等待真实唤醒。
 // English: test21 suspends automatic deep sleep; zero retains book/font/PIN context until real input.
 #define APP_LOCK_IDLE_TIMEOUT_MS 0U
 /// 按所选省电方式等待按键；拿起/USB保留待机；acc为空则仅按键。
 /// Use the selected lock policy; pickup/USB retain standby, NULL acc accepts keys only.
+#else
+/// ESP 浅睡，按键或拿起唤醒。acc 为空则只等按键。
+/// ESP light sleep; wake on key or pickup. Key only when acc is NULL.
+#endif
 app_wake_source_t app_light_sleep_wait(sc7a20h_handle_t acc);
-/// 等待按键、拿起或超时；0不限。默认保留TF；显式浅睡临时暂停/恢复句柄。
-/// Zero means no deadline. Default retains TF; explicit light sleep pauses/reopens its handles.
+/// ESP 浅睡至按键、拿起或超时；超时以毫秒计，0 表示不设期限。
+/// ESP light sleep until key, pickup, or timeout; 0 means no deadline.
 app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc, uint32_t timeout_ms);
 app_wake_source_t app_last_wake_source(void);
-/// S31深睡准入失败时返回，调用方必须继续锁屏；成功深睡或关机不会返回。
-/// S31 deep-sleep refusal returns and callers must remain locked; admitted sleep/off does not return.
+/// 软睡/关机前停用外设并落盘；成功不返回，交接失败恢复外设并返回错误。保留调用方的阅读/密码上下文。
+/// Park peripherals and sync before host sleep/off; success does not return, failure restores peripherals and returns an error with reader/PIN context intact.
 esp_err_t app_enter_host_sleep(app_sleep_mode_t mode);
 /// 将当前系统时间写入常供电 PMU RTC；主控断电后由 PMU 继续走时。
 /// Sync system time to the always-on PMU RTC so it keeps ticking while the host is off.
@@ -63,11 +80,14 @@ esp_err_t app_sync_time_to_pmu(void);
 /// 让 PMU 正常重启主控；先保存 RTC，调用后不会返回。
 /// Ask the PMU for a normal host restart after preserving RTC; does not return.
 void app_restart_host(void);
+#if KIIKO_BOARD_METALIO47
 /// 准备S31下载口，等待电脑发起USJ硬件复位；不关闭字体/TF/显示。
 /// Prepare the S31 download port for host-triggered USJ reset; retain fonts/TF/display.
 esp_err_t app_enter_download(void);
 bool app_download_active(void);
 void app_cancel_download(void);
+#else
+#endif
 
 #ifdef __cplusplus
 }

@@ -26,7 +26,11 @@
 #define HEADER_SIZE 24
 #define RECORD_CAP (HEADER_SIZE + PATH_CAP)
 static const char* TAG = "book_progress";
+#if KIIKO_BOARD_METALIO47
 static const char* NS = "mt_books";
+#else
+static const char* NS = "rp_books";
+#endif
 
 // 列表拓扑仅在 HTTP 停止并 join 后修改；HTTP 只原子标记已有节点。
 // Mutate list topology only after HTTP stops and joins; HTTP only atomically marks existing nodes.
