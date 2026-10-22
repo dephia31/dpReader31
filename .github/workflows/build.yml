@@ -8,6 +8,8 @@ on:
 
 jobs:
   display-host-tests:
+    env:
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -94,6 +96,8 @@ jobs:
           path: build/boards/packages/
 
   board-reader-tests:
+    env:
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

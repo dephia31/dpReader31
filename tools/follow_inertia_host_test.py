@@ -60,7 +60,7 @@ int main(void){
  puts("PASS: inertia decay independent of cadence, monotonic bounds, single delayed settle, immediate stop taps/resumed drags/navigation, stale/slow/held input, reversal, faults and page reset");
 }
 '''
-with tempfile.TemporaryDirectory(prefix="kiikoread-inertia-", dir="/private/tmp") as folder:
+with tempfile.TemporaryDirectory(prefix="kiikoread-inertia-") as folder:
     c = Path(folder) / "test.c"
     binary = Path(folder) / "test"
     c.write_text(CODE)

@@ -95,7 +95,7 @@ int main(void){
  puts("PASS: real bounded cover worker has no UI IO on queue/poll, packed hits skip gray/decode, stale generations and media cancellation discard results, UI-only auto glyphs, transient fallback not cached, all9 slots and OOM/task failures release resources");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='kiiko-cover-jobs-',dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='kiiko-cover-jobs-') as folder:
  c=Path(folder)/'test.c';binary=Path(folder)/'test';c.write_text(unit)
  subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined','-I'+str(root/'main/book'),'-I'+str(root/'main/ui'),str(c),str(root/'main/ui/ui_image_dither.c'),'-o',str(binary)],check=True)
  subprocess.run([str(binary)],check=True)

@@ -170,7 +170,7 @@ int main(void){
  puts("PASS: body22 ordinary1-band/ripple8-band;panels always full vendorGL48 across all3reader effects,exactDU20 isolation,real192-row prefill mapping,TPS leases,missing/OOM/underrun recovery and boot-local full48 fallback");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='text-ripple-routes-',dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='text-ripple-routes-') as folder:
  for name,code in [('eligibility',turn),('outlet',outlet)]:
   c=Path(folder)/(name+'.c');binary=c.with_suffix('');c.write_text(code)
   subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',

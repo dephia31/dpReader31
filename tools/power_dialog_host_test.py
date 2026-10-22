@@ -166,7 +166,7 @@ int main(int argc,char **argv){
 
 }
 '''
-with tempfile.TemporaryDirectory(prefix='kiikoread-power-',dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='kiikoread-power-') as folder:
     c,binary=Path(folder)/'test.c',Path(folder)/'test';c.write_text(code)
     subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
         '-I'+str(ROOT/'tools/ui_gesture_stubs'),'-I'+str(ROOT/'main/ui'),str(c),'-lm','-o',str(binary)],check=True)

@@ -139,7 +139,7 @@ int main(void){
  puts("PASS: vendor GL37 text/body and fused footer, single GC48 periodic cleanup, manual full, chrome redraw, ripple, image, minute clock and cancellation routes; failed frames stay uncommitted");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='kiikoread-reader-release-',dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='kiikoread-reader-release-') as folder:
  c=Path(folder)/'test.c';c.write_text(unit)
  for enabled in (0,1):
   binary=Path(folder)/f'test-{enabled}'

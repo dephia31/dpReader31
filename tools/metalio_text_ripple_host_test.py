@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
-with tempfile.TemporaryDirectory(prefix='s31-text-ripple-', dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='s31-text-ripple-') as folder:
     temp = Path(folder)
     (temp/'esp_log.h').write_text('#pragma once\n#include <stdio.h>\n#undef ESP_LOGI\n'
         '#define ESP_LOGI(tag,fmt,...) do { char buf[256]; (void)(tag); '

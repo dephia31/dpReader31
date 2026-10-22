@@ -66,7 +66,7 @@ int main(int argc,char **argv){
  puts("PASS: uncropped wide/tall/square covers, exact cache dimensions, 30 warm reads, corrupt metadata, 1.5MiB reserve, OOM/decode failure retry and generated fallback bounds");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='plc-', dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='plc-') as folder:
     p = Path(folder)
     unit = unit.replace('/sdcard/.readpico', str(p/'card'))
     (p/'test.c').write_text(unit)

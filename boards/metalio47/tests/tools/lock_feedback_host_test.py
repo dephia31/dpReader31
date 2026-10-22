@@ -106,7 +106,7 @@ int main(int argc,char **argv){
  return 0;
 }
 '''
-with tempfile.TemporaryDirectory(prefix='kiikoread-lock-feedback-', dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='kiikoread-lock-feedback-') as folder:
     work = Path(folder)
     (work/'test.c').write_text(unit)
     subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
