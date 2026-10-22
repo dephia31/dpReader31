@@ -20,6 +20,10 @@ bool app_image_request_open(const char *path);
 void app_files_request_folder(int folder);
 void app_book_request_manage(void);
 bool app_book_reader_body_visible(void);
+#if KIIKO_BOARD_METALIO47
+/// 仅当前正文允许AI书签，复用原书签保存/提示。/ AI bookmark only on the visible reader body, using existing persistence/notices.
+bool app_book_ai_bookmark(void);
+#endif
 /// 模式/对比度变化时释放旧格式封面；绘制前由主循环一次调用。/ Drop obsolete cover formats once on mode/contrast changes, before drawing.
 void app_book_cover_mode_changed(void);
 void app_home_cover_mode_changed(void);

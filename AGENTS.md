@@ -18,8 +18,8 @@ Use tools/build_firmware.py with --board pico|metalio47|all and separate SDK/con
 
 ## 构建 / Build
 
-双板型统一入口是 `tools/build_firmware.py --board pico|metalio47|all`，先读 [docs/BOARDS.md](docs/BOARDS.md)。必须使用独立SDK/配置/依赖锁和产物目录；共享功能修改主源码，生成的设备视图不可作为维护源码。已有主机测试用 `board_source_view.py --tests` 生成指定设备视图后运行；CI明确选择Pico，S31另用其匹配SDK编译。
-Use the board build driver and isolated SDK/config/lock/artifact directories. Edit maintained sources, not generated device views. Legacy host tests run in the board test view. CI selects Pico; S31 needs its matching SDK.
+双板型统一入口是 `tools/build_firmware.py --board pico|metalio47|all`，先读 [docs/BOARDS.md](docs/BOARDS.md)。必须使用独立SDK/配置/依赖锁和产物目录；共享功能修改主源码，生成的设备视图不可作为维护源码。已有主机测试用 `board_source_view.py --tests` 生成指定设备视图后运行；CI分别选择Pico和S31，使用匹配SDK并隔离构建。
+Use the board build driver and isolated SDK/config/lock/artifact directories. Edit maintained sources, not generated device views. Legacy host tests run in the board test view. CI separately builds Pico and S31 with matching SDKs and isolated outputs.
 
 Pico需要 ESP-IDF v6.1。`components/read_pico/read_pico_flash_hpm.c` 依赖 v6 才有的 `esp_flash_chips/spi_flash_override.h`。
 
@@ -51,7 +51,13 @@ Per the user's 2026-10-09 decision, publish every future official firmware versi
 GitHub Release 与官网刷机、TF 下载和联网 OTA 同步发布。保留官网现有刷机清单、固件及版本下载地址；OTA 清单继续使用固件允许的官方 HTTPS 域名。核对三种交付的版本、大小、校验值和基础包兼容性，避免影响正在刷机或升级的用户。本地测试仍只生成本地包，不创建正式 Release。
 Publish GitHub Releases alongside the web flasher, TF downloads and online OTA. Preserve existing website manifests, firmware and versioned download URLs; keep OTA URLs on the official HTTPS origin accepted by the firmware. Verify matching versions, sizes, checksums and base-layout compatibility across the deliveries so ongoing flashes and updates remain valid. Local tests remain local bundles without official Releases.
 
+用户2026-10-21要求每次保留上一正式版的官网刷机与TF下载入口。替换正式清单前，使用tools/archive_current_release.py归档原Release的四件套和校验值；releases.json保留历次归档，manifest.previous_version指向上一版，发布工具校验该入口存在。不得以本地同号测试包代替原正式字节。TF包是完整应用镜像；引导程序、分区表及用户存储不由TF升级写入，整机四件套继续通过USB安装。
+The user requires a previous-release web/TF entry for every publication. Archive the original Release parts with tools/archive_current_release.py before replacing metadata; retain earlier releases.json entries and verify manifest.previous_version. Never substitute a same-version local test. TF updates use a complete application image; bootloader, partition table and user storage remain untouched, with full base installation through USB.
+
 ## 目录职责 / Layout
+
+用户2026-10-21明确指定GitHub Pages为默认OTA清单及应用来源，rc97真机已下载并校验原rc98成功。新固件优先GitHub清单、官网清单备用；原已发布rc97/98仍依照其原内置顺序请求。官网网页刷机独立保持，正式Bin及历史包继续归档GitHub Release；旧OTA不能直接使用会重定向的Release附件URL。保留双槽、HTTPS与完整SHA校验；不得因官网证书问题重现而自动改回官网应用地址，也不得外推为任意镜像或关闭TLS校验。后续更改默认来源先获得用户指示并验证旧信任库与实际下载。
+The user selected GitHub Pages as the default OTA metadata/image source on 2026-10-21; a real rc97 device downloaded and verified original rc98. New builds prefer Pages metadata and retain the website fallback; released clients keep their baked-in order. Keep web flashing separate and archive original binaries/packages in Releases; legacy OTA cannot follow Release redirects. Retain dual slots, HTTPS and full SHA checks. Do not silently restore the incompatible site image origin or allow arbitrary mirrors; future default-source changes require user direction and legacy/device validation.
 
 | 路径 / Path | 职责 / Role |
 | --- | --- |
@@ -222,3 +228,12 @@ Every comment is bilingual. Comments only; no logic changes.
 - `enum` 成员短尾注：`///< 中文 / English`
 - 大 `.c` 用 `/* ---- 区块名 / Section ---- */` 分区。/ Large `.c` files use section banners.
 - 术语见表，不在注释里重复解释。/ Use the glossary; do not redefine terms.
+
+每个正式版本同时保留USB全量包与TF升级包，官网按所选版本分别提供下载入口。TF应用Bin保留兼容文件名Pico-update.bin，ZIP可附说明与校验值；不得将USB全量包当作TF升级镜像。
+Retain both USB full base packages and TF application upgrades for each official release, with separate version-matched website downloads. Keep Pico-update.bin for TF compatibility; ZIPs may include instructions/checksums. Never present a USB base bundle as a TF upgrade image.
+
+用户2026-10-21明确要求修复官网OTA，不切换GitHub固件镜像。OTA固件URL保持https://kiikoread.com/；备用清单不能自行更换固件下载源，证书链问题须在官网或经确认的兼容固件中修复，保持TLS/SHA校验。
+The user explicitly requires the official OTA origin, not a GitHub firmware mirror. Keep firmware URLs on https://kiikoread.com/; do not change the download origin through fallback metadata. Repair certificate compatibility on the site or in approved firmware while retaining TLS and SHA checks.
+
+发布前及证书续期后按 `docs/OTA_MAINTENANCE.md` 运行原正式固件信任链、完整下载和Range检查，并用已发布设备验收；浏览器可用不能代替设备校验。临时Cloudflare令牌不入仓库。
+Before publication and after certificate renewal, run the released-trust-store, download and Range checks in `docs/OTA_MAINTENANCE.md`, plus a released-device acceptance test. Browser success is insufficient; never commit temporary Cloudflare credentials.

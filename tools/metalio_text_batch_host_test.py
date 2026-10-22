@@ -241,7 +241,7 @@ int main(void){
  puts("PASS: real text engine + renderer + internal1KiB LUT: all256 transitions use one batch, every active/tail phase retained with one setup hold, four rotations/odd crops, every phase failure preserves back, no64KiB allocation, default entry and invalid-phase guards");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='s31-text-batch-',dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='s31-text-batch-') as folder:
  temp=Path(folder);c=temp/'test.c';c.write_text(unit);binary=temp/'test'
  (temp/'esp_log.h').write_text('#pragma once\n#include <stdio.h>\n#undef ESP_LOGI\n#define ESP_LOGI(tag,fmt,...) do{char msg[256];(void)(tag);(void)snprintf(msg,sizeof(msg),fmt,__VA_ARGS__);}while(0)\n')
  subprocess.run(['cc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-Wno-unknown-attributes','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47=1','-DKIIKO_S31_TEXT_RIPPLE=1','-I'+str(temp),

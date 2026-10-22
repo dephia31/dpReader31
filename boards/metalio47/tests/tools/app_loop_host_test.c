@@ -20,6 +20,8 @@ bool app_book_resume_context(char *p,size_t c,bool *f) { (void)p;(void)c;(void)f
 #include "read_pico_transfer.h"
 #include "ble_page_turner.h"
 #include "ui_nav_layout.h"
+#include "ui_ai_menu.h"
+#include "metalio_hw.h"
 #include <assert.h>
 #include <setjmp.h>
 #include <stdio.h>
@@ -28,7 +30,7 @@ bool app_book_resume_context(char *p,size_t c,bool *f) { (void)p;(void)c;(void)f
 const app_desc_t app_book = {.title="book"};
 const app_desc_t app_transfer = {.title="transfer"};
 static int power_open_draws, power_controls_draws, power_final_draws;
-static int power_trigger_step = -1, shutdowns, restarts;
+static int power_trigger_step = -1, power_tap_step=-1, shutdowns, restarts;
 static bool staged_shutdown;
 EpdRect ui_power_dialog_rect(void) {return (EpdRect){0,0,684,1216};}
 void ui_power_dialog_draw(uint8_t* fb,const ui_power_dialog_t *dialog) {(void)fb;(void)dialog;++power_open_draws;}
@@ -70,6 +72,7 @@ int epd_rotated_display_height(void){return 1216;}
 int epd_rotated_display_width(void){return 684;}
 static int binary_outputs;
 static int fake_root_index=-1,fake_target_index=-1;
+static int volume_step=-1,volume_value,volume_tab=-1;
 bool display_system_binary_set(bool enabled){bool previous=binary_scope;binary_scope=enabled;return previous;}
 const void* display_main_bw_waveform(void){static int wave;return &wave;}
 
@@ -90,7 +93,7 @@ static int home_enters, home_renders, last_menu_leaf, rendered_leaf;
 static const app_desc_t* menu_background;
 static app_desc_t first, second;
 int ui_nav_hit(uint16_t x,uint16_t y){return y>=UI_NAV_TOUCH_TOP&&y<1216&&x<684?x/171:-1;}
-void ui_nav_request(app_ctx_t *ctx,int index){ctx->request_app=index==0?&first:&second;}
+void ui_nav_request(app_ctx_t *ctx,int index){volume_tab=index;ctx->request_app=index==0?&first:&second;}
 static bool full_tick, lock_due, font_due, shake_activity;
 static int64_t time_offset, time_step;
 static int du_areas, gl_areas;
@@ -147,7 +150,28 @@ void metalio_frontlight_preview_position(unsigned b,unsigned w) {assert(b<=240&&
 void metalio_frontlight_commit(void) {if(light_dirty){++light_saves;light_dirty=false;}}
 void metalio_frontlight_toggle(void) {light_enabled=!light_enabled;if(light_enabled&&!light_brightness){light_brightness=last_on;light_brightness_position=last_on*240/100;}light_dirty=true;metalio_frontlight_commit();}
 esp_err_t metalio_haptic_click(void) {++haptics;return ESP_OK;}
-int metalio_take_volume(void) {return 0;}
+static int ai_second_step=-1,ai_second_event;
+static int ai_step=-1,ai_event,ai_saved,ai_saved_error,ai_open_calls,ai_restore_calls,ai_action_toggles;
+static bool ai_oom,ai_reader;
+int metalio_take_ai(void){if(step==ai_second_step){ai_second_step=-1;return ai_second_event;}if(step!=ai_step)return 0;ai_step=-1;return ai_event;}
+void metalio_ai_clear(void){if(ai_step>=0&&ai_step<=step)ai_step=-1;if(ai_second_step>=0&&ai_second_step<=step)ai_second_step=-1;}
+app_ai_action_t app_settings_ai_short(void){return ai_saved;}
+esp_err_t app_settings_set_ai_short(app_ai_action_t action){if(ai_saved_error)return ai_saved_error;ai_saved=action;return ESP_OK;}
+bool app_book_ai_bookmark(void){assert(ai_reader);++ai_action_toggles;return true;}
+bool ui_ai_menu_begin(ui_ai_menu_t*m,uint8_t*fb,app_ai_action_t selected,bool reader){
+    (void)reader;if(ai_oom)return false;
+    *m=(ui_ai_menu_t){.open=true,.frame=fb,.rect={18,96,648,252},.selected=selected};++ai_open_calls;return true;
+}
+bool ui_ai_menu_restore(ui_ai_menu_t*m,uint8_t*fb){assert(m->open&&m->frame==fb);++ai_restore_calls;return true;}
+void ui_ai_menu_end(ui_ai_menu_t*m){memset(m,0,sizeof(*m));}
+int ui_ai_menu_feed(ui_ai_menu_t*m,const app_ctx_t*c,bool valid){
+    (void)m;if(!valid||c->touch->count>1)return UI_AI_NO_ACTION;
+    if(c->released)return c->touch->x==600?APP_AI_FRONTLIGHT:UI_AI_CLOSE;
+    return UI_AI_NO_ACTION;
+}
+EpdRect ui_ai_menu_save_error(ui_ai_menu_t*m,uint8_t*f){(void)f;return m->rect;}
+const void *display_main_gray_waveform(void){return &E0470_WAVEFORM;}
+int metalio_take_volume(void) {if(step!=volume_step)return 0;volume_step=-1;return volume_value;}
 void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool enabled,unsigned b,unsigned w,bool soften_text) {assert(!soften_text);(void)fb;(void)wifi;(void)bluetooth;assert(enabled==light_enabled&&b==light_brightness_position&&w==light_warmth_position);fb[0]=0xaa;++quick_draws;}
 void ui_quick_menu_draw_slider(uint8_t *fb,bool warmth,unsigned value) {(void)fb;assert(value==metalio_frontlight_position(warmth));++slider_draws;}
 static int recent_requests,recent_cancels,status_draws;
@@ -214,7 +238,7 @@ void display_main_transition_disarm(void) {nav_armed=NULL;}
 void display_main_transition_monochrome(void) {++monochrome_calls;}
 void display_monochrome_content(uint8_t* fb) {(void)fb;}
 void rails_idle_check(int64_t n) {(void)n;}
-bool read_pico_pmu_ready(void) {return lock_due||step==power_trigger_step;}
+bool read_pico_pmu_ready(void) {return lock_due||step==power_trigger_step||step==power_tap_step;}
 esp_err_t read_pico_pmu_poll(void) {return ESP_OK;}
 bool ui_nav_refresh_power(uint8_t *fb) {
     (void)fb;
@@ -292,6 +316,8 @@ static app_redraw_t tick(app_ctx_t*c) {
 }
 static app_redraw_t consume_power(app_ctx_t*c) {(void)c;lock_due=false;return APP_REDRAW_DONE;}
 static void reset(void) {
+    volume_step=volume_tab=-1;volume_value=0;
+    ai_second_step=-1;ai_second_event=0;ai_step=-1;ai_event=ai_saved=ai_saved_error=ai_open_calls=ai_restore_calls=ai_action_toggles=0;ai_oom=ai_reader=false;
     binary_scope=navigation_scope=false;binary_outputs=0;
     edge_returns=back_ripples=monochrome_calls=0;fake_root_index=fake_target_index=-1;edge_enabled=edge_blocked=false;
     memset(frame,0,sizeof(frame));panel_marker=0;check_clean_action=false;clean_action_fulls=0;
@@ -303,7 +329,7 @@ static void reset(void) {
     button_draws=button_partial_draws=0;network_ready_step=wifi_stop_step=-1;
     light_brightness_position=72;light_warmth_position=120;
     pulse_tab=-1;pulse_requests=pulse_draws=0;
-    power_open_draws=power_controls_draws=power_final_draws=shutdowns=restarts=0;power_trigger_step=-1;staged_shutdown=false;
+    power_open_draws=power_controls_draws=power_final_draws=shutdowns=restarts=0;power_trigger_step=power_tap_step=-1;staged_shutdown=false;
     ble_enabled=saved_wifi=upload_busy=click_enabled=click_active=false;
     transfer_status=(read_pico_transfer_status_t){0};
     recent_cancels=status_draws=status_partial_draws=0;
@@ -793,6 +819,66 @@ int main(void) {
     puts("PASS: system roots honor Water, child taps/top-left stay ordinary, edge returns use logical portrait LTR, scoped navigation restored");
     puts("PASS: S31 edge/central right-swipe return admission,one output,short/status/multitouch/refused boundaries");
     puts("PASS: real loop with real anti-fade: idle refresh, no transfer/modal-owner refresh or wake; legacy quick/PIN/sleep gates retained");
+    // 实际音量事件经过主键派发：四页循环、子页映射和覆盖层/升级保护。
+    // Actual volume events share root keys while retaining child mappings and overlay/update guards.
+    for(int tab=0;tab<4;++tab)for(int dir=-1;dir<=1;dir+=2){
+        reset();enable_main_tabs();fake_root_index=tab;volume_step=0;volume_value=dir;
+        add(0,0,0,0);add(0,0,0,0);run();
+        assert(volume_tab==(tab+(dir<0?3:1))%4&&!keys[0]&&!keys[2]);
+    }
+    for(int dir=-1;dir<=1;dir+=2){
+        reset();first.owns_keys=true;volume_step=0;volume_value=dir;
+        add(0,0,0,0);run();assert(keys[dir<0?0:2]==1&&volume_tab==-1);
+    }
+    reset();enable_main_tabs();online_busy=true;volume_step=0;volume_value=1;
+    add(0,0,0,0);run();assert(volume_tab==-1&&!keys[2]);
+    reset();enable_main_tabs();power_trigger_step=1;time_step=3000000;volume_step=2;volume_value=1;
+    add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();assert(power_open_draws==1&&volume_tab==-1&&!keys[2]);
+    reset();enable_main_tabs();menu_on_tick=true;volume_step=1;volume_value=1;
+    add(0,0,0,0);add(0,0,0,0);run();assert(volume_tab==-1&&!keys[2]);
+    // 每次展开/收起仅一次区域推屏；选择只保存不执行，不穿透底页。
+    // One bounded presentation per open/close; selection only persists and never leaks to the page.
+    reset();ai_step=1;ai_event=METALIO_AI_LONG;
+    add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
+    assert(ai_open_calls==1&&!ai_restore_calls&&gl_areas==1&&fulls==1&&ticks==1);
+    reset();ai_step=1;ai_event=METALIO_AI_LONG;
+    add(0,0,0,0);add(0,0,0,0);add(600,500,1,0);add(0,0,0,0);run();
+    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==2&&ai_saved==APP_AI_FRONTLIGHT&&!light_saves&&!touch_calls&&!keys[0]&&fulls==1);
+    reset();ai_step=1;ai_event=METALIO_AI_LONG;ai_saved_error=1;
+    add(0,0,0,0);add(0,0,0,0);add(600,500,1,0);add(0,0,0,0);run();
+    assert(ai_open_calls==1&&!ai_restore_calls&&gl_areas==2&&ai_saved==APP_AI_REFRESH&&!touch_calls);
+    reset();ai_step=1;ai_event=METALIO_AI_LONG;ai_oom=true;
+    add(0,0,0,0);add(0,0,0,0);run();assert(!ai_open_calls&&!gl_areas&&fulls==1);
+    reset();ai_step=1;ai_event=METALIO_AI_SHORT;
+    add(0,0,0,0);add(0,0,0,0);run();assert(!ai_open_calls&&fulls==2);
+    reset();ai_step=1;ai_event=METALIO_AI_SHORT;ai_saved=APP_AI_FRONTLIGHT;
+    add(0,0,0,0);add(0,0,0,0);run();assert(!ai_open_calls&&light_saves==1&&fulls==1&&!light_enabled);
+    for(int trial=0;trial<4;++trial){
+        reset();ai_step=1;ai_event=METALIO_AI_LONG;
+        if(trial==0)online_busy=true;
+        if(trial==1)download_session=true;
+        if(trial==2)first.holds_pmu=true;
+        if(trial==3)transfer_status.state=READ_PICO_TRANSFER_UPLOADING;
+        add(0,0,0,0);add(0,0,0,0);run();assert(!ai_open_calls&&!gl_areas&&fulls==1);
+    }
+    for(int held=0;held<2;++held){
+        reset();ai_step=1;ai_event=METALIO_AI_LONG;ai_second_step=3;ai_second_event=held?METALIO_AI_LONG:METALIO_AI_SHORT;
+        for(int i=0;i<5;++i)add(0,0,0,0);run();
+        assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==2&&fulls==1);
+    }
+    reset();time_step=3000000;power_trigger_step=3;
+    for(int i=0;i<5;++i)add(0,0,0,0);run();int power_only_updates=gl_areas;
+    reset();ai_step=1;ai_event=METALIO_AI_LONG;time_step=3000000;power_trigger_step=3;
+    for(int i=0;i<5;++i)add(0,0,0,0);run();
+    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==power_only_updates+1&&power_open_draws==1);
+    reset();ai_step=1;ai_event=METALIO_AI_LONG;time_step=3000000;power_tap_step=3;
+    for(int i=0;i<5;++i)add(0,0,0,0);run();
+    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==2&&idle_locks==1&&!power_open_draws);
+    reset();ai_step=1;ai_event=METALIO_AI_LONG;time_step=30000000;idle_minutes=1;
+    for(int i=0;i<5;++i)add(0,0,0,0);run();
+    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==2&&idle_locks==1);
+    puts("PASS: actual AI scheduler one open/close scan,underlay frozen,selection persists without executing,save/OOM fallback,short full/light actions and upload/update/PMU/online guards");
+    puts("PASS: actual S31 volume events cycle all four roots, retain page-owned reader/child keys and reject online/power/menu input");
     puts("app_loop: 50 scheduler scenarios passed, including automatic lock, save callback, input reset and busy guards");
     return 0;
 }

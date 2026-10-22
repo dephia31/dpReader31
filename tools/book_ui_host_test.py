@@ -218,6 +218,7 @@ static int book_progress_save(const char* p,const book_progress_t* value){(void)
 static int book_progress_set_last_path(const char* p){test_last_calls++;if(!test_last_error)snprintf(test_last_path,sizeof(test_last_path),"%s",p);return test_last_error;}
 static void save_progress(void);
 static void invalidate_prep(void){}
+static void pause_reader_prep(void){invalidate_prep();}
 static void invalidate_covers(void){}
 static shelf_entry_t s_managed;
 static bool s_delete_confirm,s_file_removed,s_clear_confirm;

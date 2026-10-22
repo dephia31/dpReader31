@@ -16,11 +16,13 @@
 
 #include "settings.h"
 #include "kiiko_board_config.h"
+#define READER_TURN_EFFECT_MAX KIIKO_BOARD_READER_TURN_EFFECT_MAX
+static bool reader_full_pages_valid(uint8_t pages) {
 #if KIIKO_BOARD_METALIO47
-#define READER_TURN_EFFECT_MAX 2
-#else
-#define READER_TURN_EFFECT_MAX 1
+    if (pages == 20) return true;
 #endif
+    return pages == 0 || pages == 5 || pages == 10 || pages == 15 || pages == 30;
+}
 #include "book/book_font_size.h"
 
 #include <stdio.h>
@@ -42,6 +44,7 @@
 #define NVS_NS KIIKO_BOARD_SETTINGS_NAMESPACE
 #define NVS_KEY_SLEEP "sleep"
 #define NVS_KEY_SHUTDOWN_MODE "shutdown"
+#define NVS_KEY_WAKE_PRESSES "wake_press"
 #define NVS_KEY_HOME_FULL "home_full"
 #define NVS_KEY_HOME_COMPONENT "home_widget"
 #define NVS_KEY_HOME_GOAL "home_goal"
@@ -95,6 +98,7 @@
 
 static app_sleep_mode_t s_sleep = APP_SLEEP_DEEP;
 static bool s_staged_shutdown;
+static uint8_t s_wake_presses = 2;
 #if KIIKO_BOARD_METALIO47
 static uint8_t s_lock_sleep;
 #else
@@ -137,6 +141,9 @@ static uint8_t s_reader_hold_action = APP_READER_KEY_HOME;
 static uint8_t s_reader_keys[3] = {APP_READER_KEY_PREV, APP_READER_KEY_TOOLS, APP_READER_KEY_NEXT};
 static bool s_reader_vertical_turn;
 static bool s_ble_turner;
+#if KIIKO_BOARD_METALIO47
+static app_ai_action_t s_ai_short=APP_AI_REFRESH;
+#endif
 static bool s_shelf_recent_sort;
 // 书内自带字体默认开启：多数带字体的书排版就是靠它才对得上版。
 // Embedded book faces are on by default: most books that ship a face only typeset correctly
@@ -212,6 +219,9 @@ void app_settings_init(void) {
 #endif
     if (nvs_get_u8(h, NVS_KEY_SHUTDOWN_MODE, &raw) == ESP_OK)
         s_staged_shutdown = raw == 1;
+    raw = 2;
+    if (nvs_get_u8(h, NVS_KEY_WAKE_PRESSES, &raw) != ESP_OK || (raw != 1 && raw != 2)) raw = 2;
+    s_wake_presses = raw;
     raw = 0;
     if (nvs_get_u8(h, NVS_KEY_HOME_FULL, &raw) == ESP_OK) s_home_full_refresh = raw == 1;
     raw = 0;
@@ -295,8 +305,7 @@ void app_settings_init(void) {
         (s_book_background[0] && strncmp(s_book_background, "/sdcard/pictures/", 17))) s_book_background[0] = 0;
     uint8_t reader_full_pages = 15;
     if (nvs_get_u8(h, NVS_KEY_READER_FULL, &reader_full_pages) == ESP_OK &&
-        (reader_full_pages == 0 || reader_full_pages == 5 || reader_full_pages == 10 ||
-         reader_full_pages == 15 || reader_full_pages == 30))
+        reader_full_pages_valid(reader_full_pages))
         s_reader_full_pages = reader_full_pages;
     uint8_t reader_turn_effect = 0;
     if (nvs_get_u8(h, NVS_KEY_READER_TURN, &reader_turn_effect) == ESP_OK && reader_turn_effect <= READER_TURN_EFFECT_MAX)
@@ -325,6 +334,10 @@ void app_settings_init(void) {
     uint8_t hide_images = 0, recent_sort = 0, ble_turner = 0, book_fonts = 1, book_vertical = 0;
     if (nvs_get_u8(h, NVS_KEY_HIDE_IMAGES, &hide_images) == ESP_OK) s_reader_hide_images = hide_images == 1;
     if (nvs_get_u8(h, NVS_KEY_BLE_TURNER, &ble_turner) == ESP_OK) s_ble_turner = ble_turner == 1;
+#if KIIKO_BOARD_METALIO47
+    uint8_t ai_short=APP_AI_REFRESH;
+    s_ai_short=nvs_get_u8(h,"ai_short",&ai_short)==ESP_OK&&ai_short<APP_AI_ACTION_COUNT?(app_ai_action_t)ai_short:APP_AI_REFRESH;
+#endif
     if (nvs_get_u8(h, NVS_KEY_SHELF_RECENT, &recent_sort) == ESP_OK) s_shelf_recent_sort = recent_sort == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_FONTS, &book_fonts) == ESP_OK) s_book_fonts = book_fonts == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_VERTICAL, &book_vertical) == ESP_OK) s_book_vertical = book_vertical == 1;
@@ -424,6 +437,13 @@ void app_settings_set_staged_shutdown(bool staged) {
     if (staged == s_staged_shutdown) return;
     s_staged_shutdown = staged;
     nvs_put_u8(NVS_KEY_SHUTDOWN_MODE, staged ? 1 : 0);
+}
+uint8_t app_settings_wake_presses(void) { return s_wake_presses; }
+void app_settings_set_wake_presses(uint8_t presses) {
+    if (presses != 1) presses = 2;
+    if (presses == s_wake_presses) return;
+    s_wake_presses = presses;
+    nvs_put_u8(NVS_KEY_WAKE_PRESSES, presses);
 }
 
 app_home_component_t app_settings_home_component(void) { return s_home_component; }
@@ -659,8 +679,7 @@ bool app_settings_set_book_background_path(const char *path) {
 
 uint8_t app_settings_reader_full_pages(void) { return s_reader_full_pages; }
 void app_settings_set_reader_full_pages(uint8_t pages) {
-    if ((pages != 0 && pages != 5 && pages != 10 && pages != 15 && pages != 30) ||
-        pages == s_reader_full_pages) return;
+    if (!reader_full_pages_valid(pages) || pages == s_reader_full_pages) return;
     s_reader_full_pages = pages;
     nvs_put_u8(NVS_KEY_READER_FULL, pages);
 }
@@ -700,6 +719,18 @@ void app_settings_set_book_vertical(bool on) {
     s_book_vertical = on;
     nvs_put_u8(NVS_KEY_BOOK_VERTICAL, on ? 1 : 0);
 }
+#if KIIKO_BOARD_METALIO47
+app_ai_action_t app_settings_ai_short(void){return s_ai_short;}
+esp_err_t app_settings_set_ai_short(app_ai_action_t action){
+    if((unsigned)action>=APP_AI_ACTION_COUNT)return ESP_ERR_INVALID_ARG;
+    if(action==s_ai_short)return ESP_OK;
+    nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
+    if(err!=ESP_OK)return err;
+    err=nvs_set_u8(h,"ai_short",(uint8_t)action);
+    if(err==ESP_OK)err=nvs_commit(h);
+    nvs_close(h);if(err==ESP_OK)s_ai_short=action;return err;
+}
+#endif
 bool app_settings_ble_turner(void) { return s_ble_turner; }
 app_reader_key_action_t app_settings_reader_key_action(unsigned key) {
     return key < 3 ? (app_reader_key_action_t)s_reader_keys[key] : APP_READER_KEY_NONE;
@@ -1173,9 +1204,7 @@ static bool backup_valid(const settings_backup_v1_t *backup) {
         f[BK_SYS_SIZE] < 100 || f[BK_SYS_SIZE] > 200 || f[BK_SYS_SIZE] % 10 ||
         f[BK_SYS_CONTRAST] < 100 || f[BK_SYS_CONTRAST] > 140 || f[BK_SYS_CONTRAST] % 10 ||
         f[BK_LOCK] > 3 || f[BK_BOOK_PX] < BOOK_READER_PX_MIN || f[BK_BOOK_PX] > BOOK_READER_PX_MAX ||
-        f[BK_SHAKE] > 1 || (f[BK_FULL_PAGES] != 0 && f[BK_FULL_PAGES] != 5 &&
-                            f[BK_FULL_PAGES] != 10 && f[BK_FULL_PAGES] != 15 &&
-                            f[BK_FULL_PAGES] != 30) ||
+        f[BK_SHAKE] > 1 || !reader_full_pages_valid(f[BK_FULL_PAGES]) ||
         f[BK_TURN] > READER_TURN_EFFECT_MAX || f[BK_POWER_TURN] > 1 || f[BK_IMMERSIVE] > 1 ||
         f[BK_TRACKING] > (backup_version(backup)>=20 ? APP_BOOK_TRACK_COUNT-1 : backup_version(backup)==19 ? 20 : 4) || f[BK_READING_LINE] > 2 ||
         f[BK_LINE_SPACING] < 110 || f[BK_LINE_SPACING] > 150 ||

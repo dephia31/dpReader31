@@ -15,6 +15,7 @@ unit = r'''
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
+#include "book/book_file_path.h"
 typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {int64_t now_ms;int leaf;} app_ctx_t;
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_AREA,APP_REDRAW_PAGE} app_redraw_t;
@@ -100,7 +101,7 @@ int main(void){
  failed_reflows=1;
  assert(apply_reader_indent(&ctx,3,12)==APP_REDRAW_NONE&&indent==2&&adjustment==-7&&layout_indent==2&&layout_adjustment==-7&&saves==1);
  assert(book_layout_page_start_offset(s_page)==anchor&&!draw_locked);
- assert(apply_reader_indent(&ctx,2,21)==APP_REDRAW_NONE&&saves==1);
+ assert(apply_reader_indent(&ctx,2,101)==APP_REDRAW_NONE&&saves==1);
 
  assert(app_book_request_open("/sdcard/book.epub")&&s_requested_fullscreen&&!s_requested_open_home);
  assert(app_book_request_resume("/sdcard/book.epub",false)&&!s_requested_fullscreen&&s_requested_open_home);
@@ -147,6 +148,6 @@ int main(void){
 with tempfile.TemporaryDirectory(dir=ROOT / 'build') as folder:
     c, exe = Path(folder) / 'test.c', Path(folder) / 'test'
     c.write_text(unit)
-    subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
+    subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined','-I'+str(ROOT/'main'),
                     str(c), '-o', str(exe)], check=True)
     subprocess.run([str(exe)], check=True)

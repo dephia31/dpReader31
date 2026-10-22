@@ -26,7 +26,8 @@ static unsigned seed=0x7e3e17;
 static unsigned next(void){seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;return seed;}
 int main(void){
  uint8_t phases[64*64],lut[1024];_Alignas(16) uint8_t input[1216],output[320],expected[320];unsigned checks=0;
- for(unsigned i=0;i<sizeof(phases);++i)phases[i]=next();EpdWaveformPhases p={phases};
+ for(unsigned i=0;i<sizeof(phases);++i){phases[i]=next();}
+ EpdWaveformPhases p={phases};
  for(int frame=0;frame<64;++frame){
   epd_build_1ppB_lut_1k(lut,&p,frame);
   for(unsigned v=0;v<256;++v){unsigned action=(phases[frame*64+(v>>4)*4+(v&15)/4]>>(6-2*(v&3)))&3;

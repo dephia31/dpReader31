@@ -20,7 +20,7 @@ enum {APP_REDRAW_NONE,APP_REDRAW_PAGE,UI_GESTURE_TAP,SETTINGS_MAIN,SETTINGS_FACT
 static bool s_reset_confirm,s_reset_pending,ota,covers=true,avatar=true;
 static char s_reset_notice[96];static int s_page=SETTINGS_FACTORY_RESET,nav=-1,requested=-1,ble_error,reset_error,resets,restarts,stops,upload;
 static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&y>=r.y&&x<r.x+r.width&&y<r.y+r.height;}
-static int ui_nav_hit(int x,int y){(void)x;(void)y;return nav;}
+static int settings_nav_hit(int x,int y){(void)x;(void)y;return nav;}
 static void ui_nav_request(app_ctx_t *ctx,int tab){(void)ctx;requested=tab;}
 static void read_pico_transfer_get_status(read_pico_transfer_status_t *s){s->state=upload;}
 static bool pico_online_busy(void){return ota;}

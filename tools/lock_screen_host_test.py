@@ -20,6 +20,7 @@ with tempfile.TemporaryDirectory() as folder:
 #include <string.h>
 #include <sys/stat.h>
 #include <setjmp.h>
+#include <errno.h>
 #include "ui_pinpad.h"
 #define FRAME_BYTES (684u*1216u/2u)
 #define PAD_W 684
@@ -27,7 +28,7 @@ with tempfile.TemporaryDirectory() as folder:
 #define LOW_W 76
 #define LOW_H 136
 #define RADIUS 72
-#define ART_MAGIC UINT32_C(0x50414433)
+#define ART_MAGIC UINT32_C(0x50414434)
 #define LOCK_SCREEN_CACHE_PARENT "FOLDER"
 #define LOCK_ART_PATH LOCK_SCREEN_CACHE_PARENT "/locks/pin-background.bin"
 #define MALLOC_CAP_SPIRAM 1
@@ -54,6 +55,12 @@ uint8_t app_settings_lock_style(void){return selected_style;}
 const char *app_settings_wallpaper_path(void){return wallpaper;}
 const char *app_settings_bookmark_path(void){return wallpaper;}
 
+static bool fat_semantics;static int rename_calls,rename_fail_at;
+static int fat_rename(const char *a,const char *b){
+ ++rename_calls;if(rename_fail_at==rename_calls){errno=EIO;return -1;}
+ struct stat st;if(fat_semantics && !stat(b,&st)){errno=EEXIST;return -1;}return rename(a,b);
+}
+#define rename fat_rename
 static unsigned stage,idx,waits,verified,ready,held,pushes,fulls,wiped,stops,entries,settles;
 static bool enabled_storage=true,valid_storage=true,low_memory,boot_scenario,timeout_scenario,display_failure;
 static uint64_t now;
@@ -104,9 +111,18 @@ static void guard_draw_result(void *h,enum EpdDrawError result){(void)h;(void)re
  for n in ('checksum','wallpaper_key','lock_screen_restore','lock_screen_save','restore_art','present','present_input','lock_screen_authenticate'):
   unit+=function(n,ROOT/'main/lock_screen.c')+'\n'
  unit+=r'''
-static void start(void){idx=sample_count=waits=verified=ready=held=pushes=fulls=entries=settles=0;now=0;power_pending=0;memset(framebuffer,0x37,sizeof(framebuffer));add(0,0,0,0);}
+static void start(void){idx=sample_count=waits=verified=ready=held=pushes=fulls=entries=settles=0;now=0;power_pending=0;memset(framebuffer,0x37,sizeof(framebuffer));add(0,0,0,0);lock_screen_save(framebuffer);}
 int main(void){
  EpdiyHighlevelState hl={0};
+ // FAT覆盖与提交失败必须保持有效旧图。/ FAT replacement and failed commits must preserve valid old art.
+ fat_semantics=true;
+ for(selected_style=0;selected_style<4;++selected_style){
+  memset(framebuffer,0x11+selected_style,sizeof(framebuffer));assert(lock_screen_save(framebuffer));
+  memset(framebuffer,0,sizeof(framebuffer));assert(lock_screen_restore(framebuffer)&&framebuffer[0]==0x11+selected_style);
+  rename_calls=0;rename_fail_at=3;memset(framebuffer,0x55,sizeof(framebuffer));assert(!lock_screen_save(framebuffer));
+  rename_fail_at=0;memset(framebuffer,0,sizeof(framebuffer));assert(lock_screen_restore(framebuffer)&&framebuffer[0]==0x11+selected_style);
+ }
+ fat_semantics=false;selected_style=0;
  // 未开启和读取失败均不绘制密码、等待触摸或停蓝牙；读取恢复后已设密码正常验证。
  // Disabled/unreadable settings neither paint a PIN nor wait/stop BLE; a recovered enabled PIN requires verification.
  start();enabled_storage=false;

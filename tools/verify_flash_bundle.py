@@ -19,7 +19,8 @@ EXPECTED = {
 }
 
 
-def check_archived_releases(folder: Path, current_partitions: Path | None = None) -> list[dict]:
+def check_archived_releases(folder: Path, current_partitions: Path | None = None,
+                            payload_folder: Path | None = None) -> list[dict]:
     # 历史版本只引用原正式固件，并核对每个完整刷机部件的大小、地址与校验值。
     # Historical choices use original releases; verify every base part's size, address and hash.
     catalog_path = folder / "releases.json"
@@ -56,6 +57,11 @@ def check_archived_releases(folder: Path, current_partitions: Path | None = None
             assert part["offset"] == start, "wrong historical flash address"
             target = (manifest_path.parent / part["path"]).resolve()
             assert target.is_relative_to(folder.resolve()), "historical file escapes public bundle"
+            # 中文：干净检出不保存Release大文件，应用从已校验下载的暂存区取原字节。
+            # English: Clean checkouts keep large binaries in Releases; use original bytes hydrated into staging.
+            if name == "firmware.bin" and payload_folder is not None:
+                target = (payload_folder / release["bin"]).resolve()
+                assert target.is_relative_to(payload_folder.resolve()), "historical payload escapes staging"
             data = target.read_bytes()
             assert data and len(data) <= end - start
             expected = release["files"][name]

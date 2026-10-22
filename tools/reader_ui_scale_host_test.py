@@ -2,7 +2,7 @@
 SPDX-License-Identifier: Apache-2.0
 """
 from pathlib import Path
-import re,subprocess,tempfile
+import json,re,subprocess,tempfile
 def function(name,path):
     text=path.read_text()
     scan=re.sub(r'//[^\n]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"',lambda m:' '*len(m[0]),text)
@@ -45,10 +45,11 @@ static int ttf_text_width_px(int px,const char *text);
 
 static bool scaling=true,s_system_ttf;
 static unsigned glyphs;
-static EpdRect last_box;
+static EpdRect last_box, image_text_boxes[2];
+static bool image_probe;static unsigned image_text_count,image_switches;
 static int s_reader_slider=-1,s_reader_preview_px=32,s_px=32;
 static unsigned app_settings_system_font_size(void){return scale;}
-static int ui_text_effective_px(int px){return scaling?(px+2)*scale/100:px+2;}
+static int ui_text_effective_px(int px){return scaling?(px+2)*(int)scale/100:px+2;}
 static bool ttf_font_is_builtin(void){return face==0;}
 static bool ui_font_has_text(const char *text){(void)text;return true;}
 static int chars(const char *s){int n=0;for(;*s;s++)if(((unsigned char)*s&0xc0)!=0x80)++n;return n;}
@@ -74,7 +75,9 @@ static void epd_fill_rect(EpdRect r,int color,uint8_t *fb){(void)r;(void)color;(
 static void ui_fill_rect_fast(EpdRect r,int color,uint8_t *fb){epd_fill_rect(r,color,fb);}
 static void epd_fill_circle(int x,int y,int radius,int color,uint8_t *fb){(void)x;(void)y;(void)radius;(void)color;(void)fb;}
 static void epd_draw_circle(int x,int y,int radius,int color,uint8_t *fb){epd_fill_circle(x,y,radius,color,fb);}
-static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,int color){(void)fb;(void)radius;(void)color;assert(r.x>=0&&r.x+r.width<=684&&r.y>=0);}
+static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,int color){(void)fb;(void)radius;(void)color;assert(r.x>=0&&r.x+r.width<=684&&r.y>=0);
+ if(image_probe&&r.width==69&&r.height==39){assert(image_text_count==2);for(unsigned i=0;i<2;++i)assert(image_text_boxes[i].x+image_text_boxes[i].width+12<=r.x);++image_switches;}
+}
 static void ui_draw_control_frame(uint8_t *fb,EpdRect r,int radius,int color){ui_fill_round_rect(fb,r,radius,color);}
 static void ui_draw_icon(uint8_t *fb,int x,int y,int px,int icon,int color){(void)fb;(void)x;(void)y;(void)px;(void)icon;(void)color;}
 static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s",from);}
@@ -96,6 +99,7 @@ unit+=function('ui_text_box',kit).replace('void ui_text_box(', 'static void actu
 unit+=r'''
 static void ui_text_box(uint8_t *fb,EpdRect box,int px,const char *text,enum EpdFontFlags align,bool inv){
  assert(box.x>=0&&box.y>=0&&box.x+box.width<=684&&box.y+box.height<=1216);
+ if(image_probe){assert(image_text_count<2);image_text_boxes[image_text_count++]=box;}
  assert(box.width>0&&box.height>0);last_box=box;actual_text_box(fb,box,px,text,align,inv);
 }
 '''
@@ -122,6 +126,7 @@ unit+=r'''
 static bool overlap(EpdRect a,EpdRect b){return a.x<b.x+b.width&&b.x<a.x+a.width&&a.y<b.y+b.height&&b.y<a.y+a.height;}
 int main(void){uint8_t fb[1]={0};
  for(face=0;face<3;++face)for(scale=100;scale<=200;scale+=10){
+   image_probe=KIIKO_BOARD_METALIO47;image_text_count=0;draw_reading_toggle(fb,2,"关闭书内图片","跳过正文插图，保留原书文件",true);image_probe=false;
    draw_font_settings(fb);assert(!antialias&&selected_slot==2);draw_reading_settings(fb);
    for(int i=0;i<6;++i){EpdRect a=reader_font_card(i);assert(a.y>=reader_font_top()+100&&a.y+a.height<1141);for(int j=0;j<i;++j)assert(!overlap(a,reader_font_card(j)));}
    EpdRect slider=reader_slider_rect(0);assert(slider.y>reader_font_top()+100&&slider.y+slider.height<reader_font_card(0).y);
@@ -129,7 +134,7 @@ int main(void){uint8_t fb[1]={0};
    for(int i=0;i<9;++i){EpdRect a=reader_font_pick_rect(i);assert(a.y>reader_font_picker_top()+120&&a.y+a.height<1141);for(int j=0;j<i;++j)assert(!overlap(a,reader_font_pick_rect(j)));}
    for(int edit=0;edit<2;++edit){s_bookmark_edit=edit;assert(bookmark_rows()>=3);for(int row=0;row<bookmark_rows();++row){EpdRect a=bookmark_row_rect(row);assert(a.y+a.height<=560+(edit?520:600));if(row)assert(!overlap(a,bookmark_row_rect(row-1)));}}
  }
- assert(glyphs>500);
+ assert(glyphs>500&&image_switches==(KIIKO_BOARD_METALIO47?33u:0u));
  scaling=false;scale=200;assert(ui_text_effective_px(30)==32);
  puts("PASS: 100–200% native glyph bounds for 3 font metrics, paired sheet/sliders/switches and shared hits, expanded font grid and bookmark rows; body scaling isolated");
 }
@@ -137,5 +142,8 @@ int main(void){uint8_t fb[1]={0};
 with tempfile.TemporaryDirectory(dir=ROOT/'build') as folder:
     c,b=Path(folder)/'test.c',Path(folder)/'test'
     c.write_text(unit)
-    subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(b)],check=True)
-    subprocess.run([str(b)],check=True)
+    view=ROOT/".kiiko-source-view.json"
+    boards=(int(json.loads(view.read_text())["board"]=="metalio47"),) if view.exists() else (0,1)
+    for board in boards:
+        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',f'-DKIIKO_BOARD_METALIO47={board}',str(c),'-o',str(b)],check=True)
+        subprocess.run([str(b)],check=True)

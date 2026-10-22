@@ -134,7 +134,7 @@ int main(void){uint32_t utc;
  puts("PASS: SNTP/config share one admission lock; active operations cannot be reentered, failed work publishes no success, stopped network can calibrate");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='kiiko-clock-test-',dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='kiiko-clock-test-') as folder:
  for name,unit in [('restore',restore),('scheduler',scheduler),('lease',lease)]:
   c=Path(folder)/(name+'.c');binary=Path(folder)/name;c.write_text(unit)
   subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined',str(c),'-o',str(binary)],check=True)

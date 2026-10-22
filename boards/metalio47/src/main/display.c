@@ -1089,3 +1089,19 @@ void guard_draw_result(EpdiyHighlevelState* hl, enum EpdDrawError result) {
     pico_online_display_end(held);
     LATENCY_DISPLAY_END();
 }
+
+// 图形面板恢复原厂完整灰阶，不量化、不借文字短表；每次区域定稿修正中灰历史。
+// Graphical panels retain complete vendor grays without text quantization; settle the region each time to correct midgray history.
+enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect area) {
+    LATENCY_DISPLAY_BEGIN();
+    bool held=pico_online_display_begin();
+    const bool binary=s_system_binary;
+    s_system_binary=false;
+    enum EpdDrawError result=display_needs_full()?update_display_full_unlocked(hl):
+        update_display_area_full_with_unlocked(hl,&E0470_WAVEFORM,MODE_GL16,area);
+    s_system_binary=binary;
+    s_main_fault=result!=EPD_DRAW_SUCCESS;
+    pico_online_display_end(held);
+    LATENCY_DISPLAY_END();
+    return result;
+}

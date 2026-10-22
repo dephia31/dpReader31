@@ -33,9 +33,15 @@ typedef enum {
 void app_lock_feedback(EpdiyHighlevelState *hl);
 /// 深睡必须已有成功保存的恢复点。/ Require a persisted resume checkpoint before lock deep sleep.
 void app_lock_set_resume_ready(bool ready);
+/// 深睡保留物理锁图，卡就绪后恢复真实参考；NULL在解锁绘制前取消。
+/// Retain physical lock art across deep boot and restore references when media is ready; NULL cancels before unlock drawing.
+bool app_lock_resume_frame(EpdiyHighlevelState *hl);
 #else
 /// 登记常开供电的触摸与加速度计，并准备 CPU 浅睡保持区。/ Bind always-on touch/accelerometer and prepare CPU light-sleep retention.
 void app_sleep_bind(cst836u_handle_t tp, sc7a20h_handle_t acc);
+/// 深睡保持原面板画面，TF就绪后恢复真实参考；不等待挂载、不改解锁规则。
+/// Retain deep-boot panel art and restore true references when media is ready; NULL cancels before application rendering.
+bool app_lock_resume_frame(EpdiyHighlevelState *hl);
 #endif
 
 void enter_lock_and_sleep(

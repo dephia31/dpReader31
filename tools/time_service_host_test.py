@@ -156,7 +156,7 @@ int main(void){uint32_t utc=0;
  puts("PASS: actual SNTP helper has one init/deinit, valid UTC only,100ms cancellation checkpoints and12s bounded timeout; failed init never tears down an unowned singleton");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='kiiko-clock-test-',dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='kiiko-clock-test-') as folder:
  for name,unit in [('restore',restore),('scheduler',scheduler),('lease',lease),('ntp',ntp)]:
   c=Path(folder)/(name+'.c');binary=Path(folder)/name;c.write_text(unit)
   subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined',str(c),'-o',str(binary)],check=True)

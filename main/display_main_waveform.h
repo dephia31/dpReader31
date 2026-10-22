@@ -44,6 +44,9 @@ const EpdWaveform* display_main_page_bw_waveform(void);
 
 #if KIIKO_BOARD_METALIO47
 #else
+/// 设置滚动使用已有八相灰阶差分，只向目标推动；不二值化字缘，不申请额外波形内存。
+/// Settings scrolling uses existing eight-phase directional gray differences, without thresholding glyph edges or allocating another waveform.
+const EpdWaveform* display_settings_scroll_waveform(void);
 /// 系统底色恢复原完整柔和灰阶，白底同向擦除；底栏由调用方裁剪保护，不改原始波形。
 /// Restore complete original soft system grays with directional white erasure; callers crop navigation and vendor tables remain intact.
 const EpdWaveform* display_main_ui_waveform(void);

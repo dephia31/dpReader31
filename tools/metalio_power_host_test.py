@@ -71,6 +71,13 @@ int main(void){
  battery_at=clock_us=0;ctrl=0x20;otg=0;
  sample();assert(state.status_ok&&state.battery_mv==4000&&state.soc_permille==650);
  assert((state.flags&PMU_STATUS_BATTERY_VALID)&&(state.flags&PMU_STATUS_CHARGING_ACTIVE));
+ // 相同电压可有任意有效SOC，电压变化也不改变百分比；I2C失败不得以电压补算。
+ // Valid SOC is independent of voltage; failed gauge reads never fall back to a voltage curve.
+ for(unsigned value=0;value<=100;value++){
+  soc=value;mv=4000;sample();assert((state.flags&PMU_STATUS_BATTERY_VALID)&&state.soc_permille==value*10);
+ }
+ soc=37;for(mv=2500;mv<=5000;mv+=100){sample();assert((state.flags&PMU_STATUS_BATTERY_VALID)&&state.soc_permille==370);}
+ mv=4000;fail_reg=0x2c;sample();assert(!(state.flags&PMU_STATUS_BATTERY_VALID));fail_reg=-1;soc=65;sample();
  int before=reads;clock_us+=1999999;battery();assert(reads==before);clock_us++;battery();assert(reads>before);
  for(unsigned stage=0;stage<4;stage++){
   raw=stage<<3;ctrl=0x20;otg=0;sample();assert(!!(state.flags&PMU_STATUS_CHARGING_ACTIVE)==(stage!=0));

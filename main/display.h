@@ -77,12 +77,6 @@ bool display_system_binary_set(bool enabled);
 /// 常驻底栏的根页/子页保留灰阶，只二值化内容，返回旧值供恢复。/ Persistent root/child navigation retains gray; binarize content only and return the prior scope.
 bool display_system_navigation_set(bool visible);
 #else
-/// Pico文件/设置推屏复用快刷差分，返回旧作用域；不影响阅读、手动全刷或故障恢复。
-/// Scope Pico Files/Settings to fast differences; return the old scope without affecting reading, explicit full output or recovery.
-bool display_system_fast_set(bool enabled);
-/// 二值化系统内容，保留指定头像矩形及根页灰底栏；不改后缓冲。
-/// Binarize system content, retaining the avatar rectangle and gray root navigation without editing back history.
-void display_system_content(uint8_t* fb, bool navigation, EpdRect gray);
 /// 系统侧滑用主页灰阶水波纹，独立于阅读文字序列；区域必须是逻辑坐标。
 /// System edge returns use main-gray ripple independently of reader text; the area uses logical coordinates.
 enum EpdDrawError update_display_main_turn(EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir);
@@ -147,6 +141,11 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
                                              e0470_turn_dir_t dir);
 /// 同步普通文字翻页沿用水波纹的全部灰阶相位，单带同时输出并恢复原节拍。/ Ordinary text uses all ripple gray phases in one synchronous band and restores pacing.
 enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir);
+#if KIIKO_BOARD_METALIO47
+/// 已验证未变正文上的面板：保留原厂GL48及完整目标灰阶，一次区域定稿；不借文字22相或速读黑白。
+/// Panels over verified unchanged text retain vendorGL48/full target grays in one regional settle, independent of text22-phase/FastBW.
+enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect area);
+#endif
 /// 动画中间帧使用灰阶波形，但不累计周期清屏计数；动画最终帧走普通刷新出口。
 /// Use grayscale for animation strips without advancing periodic cleanup; the final frame uses the normal path.
 

@@ -17,8 +17,10 @@ typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {void *hl;uint8_t *fb;bool request_app;} app_ctx_t;
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_AREA,APP_REDRAW_PAGE,APP_REDRAW_FULL,APP_REDRAW_DONE} app_redraw_t;
 enum EpdDrawError {EPD_DRAW_SUCCESS,EPD_DRAW_OTHER_ERROR};
-enum {READING,SHELF,MANAGE,EDIT,SEARCH,READER_PANEL_NONE,READER_PANEL_BACKGROUND_PREVIEW};
+enum {READING,SHELF,MANAGE,EDIT,SEARCH,READER_PANEL_NONE,READER_PANEL_BACKGROUND_PREVIEW,READER_PANEL_FONT_SETTINGS};
 enum {MODE_DU,MODE_GL16,MODE_GC16,APP_PAGE_REFRESH_MODE=MODE_GL16};
+#define UI_LOCK_WIDTH 684
+#define UI_LOCK_HEIGHT 1216
 #define TAG "test"
 #define ESP_LOGI(...) ((void)0)
 #define portMAX_DELAY 0
@@ -26,7 +28,7 @@ enum {MODE_DU,MODE_GL16,MODE_GC16,APP_PAGE_REFRESH_MODE=MODE_GL16};
 static int E0470_WAVEFORM,E0470_FULL_WAVEFORM,E0470_FOLLOW_WAVEFORM;
 static bool s_reader_clock_pending,s_input_settle,s_shelf_feedback_pending,s_cover_batch_present_pending,s_shelf_page_pending;
 static bool s_reader_image_refresh_pending,s_reader_cleanup,s_reader_turn_pending,s_water_turn_pending,s_clear_confirm,s_reader_fullscreen,s_reader_footer_pending,s_reader_text_frame;
-static bool s_toolbar,s_shelf_key_paint_pending;
+static bool s_toolbar,s_shelf_key_paint_pending,test_panel_short;
 static bool reader_indent_present(app_ctx_t*c,app_redraw_t d){(void)c;(void)d;return false;}
 static int s_view=READING,s_reader_panel,s_mode=MODE_GL16,s_presented_view=READING,s_water_turn_dir,s_page,s_du_count;
 static unsigned s_cover_dirty_mask,s_cover_present_mask;
@@ -34,7 +36,7 @@ static int64_t s_reader_clock_minute,s_reader_clock_painted_minute,s_du_ms;
 static const char *s_text="text";
 static EpdRect s_area={0,0,684,1216},s_du_area;
 static void reader_prefetch_end(bool started){assert(!started);}
-static int calls,selected,fail,rendered,prepares,images,tick;
+static int calls,selected,fail,rendered,prepares,images,tick;static unsigned s_turns;
 static bool background;
 static EpdRect last_water_area;
 static enum EpdDrawError push(int tag){++calls;selected=tag;return fail?EPD_DRAW_OTHER_ERROR:EPD_DRAW_SUCCESS;}
@@ -72,18 +74,28 @@ static void e0470_page_turn_set_tick_us(int t){assert(t==11090);}
 static enum EpdDrawError update_display_water_turn(void*hl,EpdRect area,int dir){(void)hl;(void)dir;last_water_area=area;return push(18);}
 #define E0470_TURN_RTL 0
 #define update_display_text_turn(...) push(20)
+#define update_display_reader_panel(...) push(21)
 #define update_display_fast_page(...) push(19)
 '''
+unit+='static bool reader_panel_short_ready(app_redraw_t r){return test_panel_short&&r==APP_REDRAW_PAGE;}\nstatic bool reader_panel_fast_present(app_ctx_t *ctx,app_redraw_t redraw){(void)ctx;(void)redraw;return false;}\nstatic void reader_panel_record(enum EpdDrawError err){(void)err;}\nstatic bool display_page_prepare_begin(void){return false;}\nstatic void display_page_prepare_end(bool held){(void)held;}\n'
 unit+=function('present',root/'main/apps/app_book.c')
 unit+=r'''
 static void reset(void){
- calls=selected=rendered=prepares=fail=images=0;background=false;s_view=s_presented_view=READING;
+ calls=selected=rendered=prepares=fail=images=0;background=test_panel_short=false;s_view=s_presented_view=READING;
  s_reader_panel=READER_PANEL_NONE;s_mode=MODE_GL16;s_reader_fullscreen=true;
  s_reader_footer_pending=true;s_reader_cleanup=false;s_water_turn_pending=false;s_reader_turn_pending=true;
  s_toolbar=s_clear_confirm=s_reader_image_refresh_pending=s_reader_clock_pending=false;s_reader_text_frame=false;
 }
 int main(void){
  app_ctx_t ctx={0};
+ for(unsigned entry=0;entry<2;++entry)for(unsigned img=0;img<2;++img){
+  reset();s_presented_view=entry?SEARCH:SHELF;images=img;background=img;s_turns=9;
+  present(&ctx,APP_REDRAW_PAGE);assert(calls==1&&selected==14&&s_turns==0&&s_presented_view==READING);
+ }
+ reset();s_presented_view=SEARCH;fail=1;s_turns=9;
+ present(&ctx,APP_REDRAW_PAGE);assert(calls==1&&selected==14&&s_presented_view==SEARCH&&s_turns==9);
+ fail=0;calls=0;present(&ctx,APP_REDRAW_PAGE);assert(calls==1&&selected==14&&s_presented_view==READING);
+
  for(int full=0;full<2;++full){
   reset();s_reader_fullscreen=full;s_reader_footer_pending=!full;
   assert(present(&ctx,APP_REDRAW_AREA));
@@ -97,6 +109,12 @@ int main(void){
  }
  reset();s_reader_turn_pending=false;present(&ctx,APP_REDRAW_FULL);assert(calls==1&&selected==12&&rendered==1);
  reset();s_reader_turn_pending=false;present(&ctx,APP_REDRAW_PAGE);assert(calls==1&&selected==17&&rendered==1);
+ reset();s_reader_panel=READER_PANEL_BACKGROUND_PREVIEW;s_reader_turn_pending=s_reader_footer_pending=false;
+ present(&ctx,APP_REDRAW_PAGE);assert(calls==1&&selected==13&&rendered==1); // UI does not count as whole-body cleanup
+ reset();s_reader_panel=READER_PANEL_FONT_SETTINGS;s_reader_turn_pending=s_reader_footer_pending=false;test_panel_short=true;
+ present(&ctx,APP_REDRAW_PAGE);assert(calls==1&&selected==21&&rendered==1);
+ reset();s_reader_panel=READER_PANEL_FONT_SETTINGS;s_reader_turn_pending=s_reader_footer_pending=false;test_panel_short=true;
+ present(&ctx,APP_REDRAW_AREA);assert(calls==1&&selected==21&&rendered==0); // local UI: no footer replay
  reset();fail=1;s_reader_footer_pending=false;
  present(&ctx,APP_REDRAW_AREA);assert(calls==1&&selected==20&&!s_reader_text_frame);
  reset();s_water_turn_pending=true;s_reader_footer_pending=false;
@@ -121,7 +139,7 @@ int main(void){
  puts("PASS: vendor GL37 text/body and fused footer, single GC48 periodic cleanup, manual full, chrome redraw, ripple, image, minute clock and cancellation routes; failed frames stay uncommitted");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='kiikoread-reader-release-',dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='kiikoread-reader-release-') as folder:
  c=Path(folder)/'test.c';c.write_text(unit)
  for enabled in (0,1):
   binary=Path(folder)/f'test-{enabled}'

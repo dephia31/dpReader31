@@ -28,3 +28,5 @@ cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
     components/e0470_epaper_waveform/e0470_epaper_waveform.c \
     components/e0470_epaper_waveform/e0470_waveform_trim.c -o build/book-tests/reader-waveform
 build/book-tests/reader-waveform
+
+python3 tools/pico_fast_text_host_test.py

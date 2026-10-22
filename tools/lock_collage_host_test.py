@@ -14,8 +14,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--font', type=Path, default=ROOT/'main/assets/builtin.ttf')
 parser.add_argument('--covers', type=Path)
 parser.add_argument('--output', type=Path)
+parser.add_argument('--raw-output', type=Path)
+parser.add_argument('--reference', type=Path)
 args = parser.parse_args()
-with tempfile.TemporaryDirectory(prefix='pico-lock-', dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='pico-lock-') as folder:
     work = Path(folder)
     (work/'books/nested').mkdir(parents=True)
     (work/'images').mkdir()
@@ -36,6 +38,7 @@ with tempfile.TemporaryDirectory(prefix='pico-lock-', dir='/private/tmp') as fol
         dimensions.append((sw, sh))
         (work/f'images/{i:02}.raw').write_bytes(struct.pack('<4I', sw, sh, rw, rh)+gray)
         (work/f'books/nested/{i:02}.epub').write_bytes(bytes([i]))
+    (work/'foreign.wread').write_bytes(b'0')
     (work/'books/font.ttf').write_bytes(b'not a book')
     (work/'books/.hidden.epub').write_bytes(b'\0')
     (work/'books/link').symlink_to(work/'books', target_is_directory=True)
@@ -87,6 +90,7 @@ void nvs_close(nvs_handle_t);
 #include "ttf_font.h"
 #include "epdiy.h"
 #include <sys/stat.h>
+#include <errno.h>
 static struct {void *p;size_t size;} allocations[8192];
 static size_t live,peak,capacity=8*1024*1024;
 static int fail_after=-1;
@@ -105,7 +109,7 @@ size_t heap_caps_get_free_size(int caps){(void)caps;return capacity-live;}
 size_t heap_caps_get_largest_free_block(int caps){(void)caps;return capacity-live;}
 static unsigned font_stats,book_stats;
 static size_t cache_payload_read;
-static unsigned directory_scans;
+static unsigned directory_scans;static bool foreign_records;
 #include <dirent.h>
 static DIR *counted_opendir(const char *p){++directory_scans;return opendir(p);}
 static int host_stat(const char *p,struct stat *s){if(!strcmp(p,ttf_font_path()))++font_stats;else ++book_stats;return stat(p,s);}
@@ -114,7 +118,10 @@ static size_t host_fread(void *p,size_t n,size_t c,FILE *f){size_t r=fread(p,n,c
 #define fread host_fread
 #define free host_free
 #define opendir counted_opendir
+static int fat_rename(const char *a,const char *b){struct stat st;if(!stat(b,&st)){errno=EEXIST;return -1;}return rename(a,b);}
+#define rename fat_rename
 #include "book_lock_collage.c"
+#undef rename
 #undef opendir
 #undef stat
 #undef fread
@@ -137,7 +144,7 @@ esp_err_t nvs_get_str(nvs_handle_t h,const char *k,char *s,size_t *n){(void)h;(v
 void nvs_close(nvs_handle_t h){assert(h==1);}
 esp_err_t book_store_roots(book_store_root_t *r,int *n){snprintf(r[0].path,sizeof(r[0].path),"%s/books",fixtures);*n=1;return ESP_OK;}
 bool book_store_roots_degraded(void){return false;}
-esp_err_t book_progress_list(book_progress_visit_fn f,void *c){(void)f;(void)c;return ESP_OK;}
+esp_err_t book_progress_list(book_progress_visit_fn f,void *c){if(foreign_records){char path[512];snprintf(path,sizeof(path),"%s/foreign.wread",fixtures);book_progress_t value={.file_size=1,.last_open_s=1000};(void)f(path,&value,c);}return ESP_OK;}
 bool book_progress_load(const char *p,uint32_t s,book_progress_t *out){(void)s;const char *name=strrchr(p,'/');int id=atoi(name+1);out->last_open_s=100-(unsigned)id+recent_bump+(id==promoted?1000:0);return true;}
 bool book_title_from_path(const char *p,char *s,size_t n){const char *name=strrchr(p,'/');snprintf(s,n,"%s",name?name+1:p);char *ext=strrchr(s,'.');if(ext)*ext=0;return true;}
 bool pico_boot_asset_allowed(const char *p){(void)p;return true;}
@@ -177,7 +184,10 @@ int main(int argc,char **argv){
  // Complete art precedes persistence, and the dimensions pass does not reread cover pixels.
  assert(remove(LOCK_CACHE_DIR "/collage.bin")==0);cache_payload_read=0;
  assert(book_lock_collage_prepare(other)&&!memcmp(fb,other,LOCK_FRAME_BYTES)&&live==warm);
- assert(cache_payload_read==cover_bytes&&s_pending_frame==other);
+ size_t visible_bytes=0;lib=library_load();assert(lib);lock_placement_t visible_places[30];unsigned places=make_placements(lib,visible_places);
+ for(unsigned i=0;i<lib->used;++i){bool hit=false;for(unsigned k=0;k<places;++k)if(visible_places[k].index==i&&cover_visible(visible_places[k]))hit=true;
+  if(hit){assert(cover_dimensions_read(&lib->books[i]));visible_bytes+=(size_t)lib->books[i].width*lib->books[i].height;}}
+ host_free(lib);assert(visible_bytes<cover_bytes&&cache_payload_read==visible_bytes&&s_pending_frame==other);
  FILE *missing=fopen(LOCK_CACHE_DIR "/collage.bin","rb");assert(!missing);
  book_lock_collage_cache_commit(fb);assert(!s_pending_frame);
  missing=fopen(LOCK_CACHE_DIR "/collage.bin","rb");assert(!missing);
@@ -193,6 +203,10 @@ int main(int argc,char **argv){
  unsigned previous_plots=plotted;recent_bump=100;
  assert(book_lock_collage_draw(other)&&!memcmp(fb,other,LOCK_FRAME_BYTES));
  assert(plotted==previous_plots&&live==warm&&cover_requests==requests);
+ // 外来格式旧记录不改变总数与整图缓存键。/ Foreign progress keeps the real count and cached artwork stable.
+ foreign_records=true;
+ for(unsigned n=0;n<3;++n){assert(book_lock_collage_draw(other));assert(!memcmp(fb,other,LOCK_FRAME_BYTES)&&plotted==previous_plots);}
+ foreign_records=false;
  // A genuinely changed recency order must rebuild, then restoring it reproduces the original pixels.
  promoted=14;
  assert(book_lock_collage_draw(other)&&memcmp(fb,other,LOCK_FRAME_BYTES)&&plotted>previous_plots);
@@ -203,18 +217,26 @@ int main(int argc,char **argv){
  profile="自定义名字";assert(book_lock_collage_draw(other)&&memcmp(fb,other,LOCK_FRAME_BYTES));assert(decoded==15);profile="名字很长名字很长名字很长名字很长名字很长";assert(book_lock_collage_draw(other));profile="Kiiko";
  // 损坏封面头不能把无效比例带入几何计算；重解码后重新建立缓存。
  // Invalid cover metadata cannot enter geometry; decode again and rebuild the cache.
- lib=library_load();assert(lib);char cached_cover[112];image_cache_path(&lib->books[0],cached_cover);
+ lib=library_load();assert(lib);char cached_cover[112];image_cache_path(&lib->books[2],cached_cover);
  FILE *bad=fopen(cached_cover,"r+b");assert(bad);lock_cache_t header;assert(fread(&header,1,sizeof(header),bad)==sizeof(header));header.source_h=0;rewind(bad);assert(fwrite(&header,1,sizeof(header),bad)==sizeof(header));fclose(bad);
- assert(!cover_dimensions_read(&lib->books[0]));
- unsigned prior_decoded=decoded;uint8_t *repaired=cover_load(&lib->books[0],&lib->cache_complete);assert(repaired&&decoded==prior_decoded+1&&lib->books[0].source_h);host_free(repaired);
+ assert(!cover_dimensions_read(&lib->books[2]));
+ unsigned prior_decoded=decoded;uint8_t *repaired=cover_load(&lib->books[2],&lib->cache_complete);assert(repaired&&decoded==prior_decoded+1&&lib->books[2].source_h);host_free(repaired);
  // 尺寸头可读时，损坏像素仍须在正式绘制时校验并修复。
  // Valid dimensions never skip checksum validation of damaged pixels in the drawing pass.
  bad=fopen(cached_cover,"r+b");assert(bad&&fseek(bad,sizeof(lock_cache_t)+4,SEEK_SET)==0);int badpixel=fgetc(bad);assert(fseek(bad,-1,SEEK_CUR)==0&&fputc(badpixel^1,bad)!=EOF);fclose(bad);
- assert(cover_dimensions_read(&lib->books[0]));host_free(lib);
+ assert(cover_dimensions_read(&lib->books[2]));host_free(lib);
  assert(remove(LOCK_CACHE_DIR "/collage.bin")==0);unsigned before_repair=decoded;
  assert(book_lock_collage_prepare(other)&&decoded==before_repair+1&&!memcmp(fb,other,LOCK_FRAME_BYTES));book_lock_collage_cache_commit(other);
  rotation=EPD_ROT_INVERTED_PORTRAIT;assert(book_lock_collage_draw(other));rotation=EPD_ROT_PORTRAIT;
  uint8_t small[64]={0};assert(!ttf_text_mask_px(small,700,1,0,0,48,"本"));assert(!ttf_text_mask_px(small,8,181,0,0,48,"本"));
+ // 真正冷缓存只解码可见封面，输出仍与原始整帧逐字节一致。
+ // A cold cache decodes only visible art and still matches every original frame byte.
+ lib=library_load();assert(lib);for(unsigned i=0;i<lib->used;++i){char path[112];image_cache_path(&lib->books[i],path);assert(!remove(path));}host_free(lib);
+ assert(!remove(LOCK_CACHE_DIR "/collage.bin"));unsigned before_cold=decoded;
+ assert(book_lock_collage_draw(other)&&!memcmp(fb,other,LOCK_FRAME_BYTES));
+ assert(decoded>before_cold&&decoded<before_cold+15);
+ unsigned after_cold=decoded,plots_after_cold=plotted;
+ assert(book_lock_collage_draw(other)&&decoded==after_cold&&plotted==plots_after_cold);
  // 每个阶段强制分配失败；绘制失败不留持久内存，也不会对启动恢复状态进行写入。
  // Inject allocation failure at each stage; failed paints retain no workspace or boot-resume writes.
  ttf_font_cache_clear();size_t resident=live;
@@ -239,6 +261,11 @@ int main(int argc,char **argv){
     subprocess.run(flags+[f'-DBOOK_LOCK_CACHE_PARENT="{work}/cache"',str(work/'test.c'),str(work/'assets.c'),
                           str(work/'ttf.o'),str(ROOT/'main/ui/ui_image_dither.c'),'-lm',gc,'-o',str(work/'test')],check=True)
     subprocess.run([str(work/'test'),str(work),str(args.font.resolve()),str(work/'frame.raw')],check=True)
+    raw=(work/'frame.raw').read_bytes()
+    if args.reference:assert raw==args.reference.read_bytes(), 'collage pixels changed'
+    if args.raw_output:
+        args.raw_output.parent.mkdir(parents=True,exist_ok=True)
+        args.raw_output.write_bytes(raw)
     if args.output:
         from PIL import Image
         raw=(work/'frame.raw').read_bytes()

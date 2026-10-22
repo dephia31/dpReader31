@@ -403,7 +403,7 @@ int zip_prefetch_step(zip_reader_t *z,int index) {
         if(e->offset>z->directory||header>z->directory-e->offset||
            e->packed>z->directory-e->offset-header)return -1;
         size_t need=header+e->packed;
-        if(need>512u*1024u||!metalio_cache_can_grow(need))return -1;
+        if(need>KIIKO_BOARD_ZIP_PREFETCH_KB*1024u||!metalio_cache_can_grow(need))return -1;
         if(fstat(fileno(z->file),&z->prefetch_stat))return -1;
         z->prefetch=heap_caps_malloc(need,PSRAM);if(!z->prefetch)return -1;
         z->prefetch_size=need;z->prefetch_index=index;z->prefetch_offset=e->offset;

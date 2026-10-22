@@ -20,12 +20,11 @@ enum{TOC,SHELF,MODE_GL16,E0470_TURN_LTR,E0470_TURN_RTL};
 #define BOOK_TOC_ROWS 10
 static const char*s_text="text";
 static bool s_clear_confirm,s_reader_text_frame,s_reader_cleanup,s_save_failed,s_reader_turn_pending,s_water_turn_pending;
-static bool chrome,background,enabled;
+static bool chrome,background;
 static int images,effect,full,s_turns,s_turn_direction,s_view,s_water_turn_dir,s_unsaved;
 static unsigned s_page,s_stats_pending_turns,s_session_turns,s_chapter;
 static int64_t s_last_turn_ms,s_stats_activity_ms;
 static size_t s_jump_offset;
-static bool display_reader_fast_ripple_enabled(void){return enabled;}
 static unsigned book_layout_page_count(void){return 100000;}
 static unsigned book_layout_page_image_count(unsigned p){(void)p;return images;}
 static unsigned book_chapter_count(void){return 0;}
@@ -40,21 +39,20 @@ static const char*app_settings_book_background_path(void){return background?"wal
 static app_redraw_t paint_reading(app_ctx_t*c,int mode){(void)c;assert(mode==MODE_GL16);return APP_REDRAW_AREA;}
 '''+function('turn_page',root/'main/apps/app_book.c')+r'''
 int main(void){
- app_ctx_t ctx={.now_ms=12345};const int periods[]={0,5,10,30};unsigned cases=0;
- for(int active=0;active<2;++active)for(int kind=0;kind<6;++kind)for(unsigned p=0;p<4;++p){
-  enabled=active;full=periods[p];images=kind==1;background=kind==2;effect=kind==3?0:kind==5?2:1;
+ app_ctx_t ctx={.now_ms=12345};const int periods[]={0,5,10,15,20,30};unsigned cases=0;
+ for(int kind=0;kind<6;++kind)for(unsigned p=0;p<6;++p){
+  full=periods[p];images=kind==1;background=kind==2;effect=kind==3?0:kind==5?2:1;
   bool from_text=kind!=4;chrome=false;s_page=1;s_turns=s_unsaved=0;
-  bool eligible=((active&&effect<2)||effect==2)&&from_text&&!images&&!background;
-  int expected=eligible&&(!full||full>10)?10:full;
-  for(int n=1;n<=35;++n){s_reader_text_frame=from_text;
+  int expected=full;
+  for(int n=1;n<=65;++n){s_reader_text_frame=from_text;
    assert(turn_page(&ctx,1)==APP_REDRAW_AREA);
    assert(s_reader_cleanup==(expected&&n%expected==0));
    assert(s_water_turn_pending==(from_text&&!images&&!background&&effect==1&&!s_reader_cleanup));++cases;
   }
  }
- enabled=true;chrome=true;full=0;effect=1;images=0;background=false;s_reader_text_frame=true;s_turns=0;
+ chrome=true;full=0;effect=1;images=0;background=false;s_reader_text_frame=true;s_turns=0;
  assert(turn_page(&ctx,1)==APP_REDRAW_PAGE&&!s_water_turn_pending&&!s_reader_turn_pending);
- printf("PASS: %u actual turns,5/10/30/unlimited cleanup,image/background/old-image/ordinary/chrome eligibility\n",cases);
+ printf("PASS: %u actual turns,0/5/10/15/20/30 exact cleanup without ten-turn caps,image/background/old-image/ordinary/chrome eligibility\n",cases);
 }
 '''
 outlet=r'''
@@ -85,6 +83,7 @@ static int s_pclk_mhz,power,clear,regular,recover,last_bands,prepares;
 static const EpdWaveform*last_wave;
 static enum EpdDrawError result;
 #define ESP_LOGW(...) ((void)0)
+#define ESP_LOGI(...) ((void)0)
 static bool main_before_update(EpdiyHighlevelState*h,enum EpdDrawError*r){(void)h;(void)r;return false;}
 static const EpdWaveform*display_reader_text_waveform(void){return &normal;}
 static bool system_navigation_gray_changed(EpdiyHighlevelState*h){(void)h;return false;}
@@ -110,7 +109,19 @@ static void epd_hl_waveform(EpdiyHighlevelState*h,const EpdWaveform*w){(void)h;(
 static void epd_clear(void){++clear;}
 static enum EpdDrawError epd_hl_update_screen_from_white(EpdiyHighlevelState*h,int mode,int temp){(void)h;assert(mode==MODE_GC16&&temp==25);++recover;return EPD_DRAW_SUCCESS;}
 static void ui_page_cleaned(enum EpdDrawError e){assert(e==EPD_DRAW_SUCCESS);}
-'''+function('epd_lcd_set_prefill_lines',root/'boards/metalio47/src/components/epdiy/src/output_lcd/render_lcd.c')+function('update_display_reader_turn_unlocked',root/'boards/metalio47/src/main/display.c')+r'''
+static bool s_main_fault,full_requested;
+static int online_depth,current_tick=7777,latency_depth,forced_full;
+#define E0470_TURN_FAST_TICK_US 11090
+#define E0470_TURN_RTL 0
+#define LATENCY_DISPLAY_BEGIN() (++latency_depth)
+#define LATENCY_DISPLAY_END() (--latency_depth)
+static bool pico_online_display_begin(void){assert(!online_depth);++online_depth;return true;}
+static void pico_online_display_end(bool held){assert(held&&online_depth==1);--online_depth;}
+static bool display_needs_full(void){return full_requested;}
+static int panel_full;
+static enum EpdDrawError update_display_area_full_with_unlocked(EpdiyHighlevelState*h,const EpdWaveform*w,int m,EpdRect a){(void)h;(void)a;assert(w==&E0470_WAVEFORM&&m==MODE_GL16&&!s_system_binary);++panel_full;last_wave=w;return result;}
+static enum EpdDrawError update_display_full_unlocked(EpdiyHighlevelState*h){(void)h;++forced_full;return result;}
+'''+function('epd_lcd_set_prefill_lines',root/'boards/metalio47/src/components/epdiy/src/output_lcd/render_lcd.c')+function('update_display_reader_turn_unlocked',root/'boards/metalio47/src/main/display.c')+function('update_display_reader_panel',root/'boards/metalio47/src/main/display.c')+r'''
 int main(void){
  EpdiyHighlevelState h={0};EpdRect a={0,0,684,1216};
  prepare=true;effect=1;
@@ -136,14 +147,30 @@ int main(void){
   result=EPD_DRAW_SUCCESS;assert(update_display_reader_turn_unlocked(&h,a,0,bands)==EPD_DRAW_SUCCESS);
   assert(last_wave==&normal&&last_bands==(int)bands);
  }
+ // Every graphical panel keeps complete grays in every reader effect, even when text quantization is unavailable.
+ result=EPD_DRAW_SUCCESS;disabled=false;prepare=true;
+ for(effect=0;effect<3;effect++){
+  int previous_fast=fast_prepares,previous_prepare=prepares,previous_panel=panel_full;
+  assert(update_display_reader_panel(&h,a)==EPD_DRAW_SUCCESS);
+  assert(last_wave==&E0470_WAVEFORM&&panel_full==previous_panel+1&&fast_prepares==previous_fast&&prepares==previous_prepare);
+ }
+ prepare=false;assert(update_display_reader_panel(&h,a)==EPD_DRAW_SUCCESS&&last_wave==&E0470_WAVEFORM);
  s_system_binary=true;prepare=true;disabled=false;int previous=reader_calls,previous_prepares=prepares,previous_compact=compact_calls;
  assert(update_display_reader_turn_unlocked(&h,a,0,8)==EPD_DRAW_SUCCESS);
  assert(reader_calls==previous&&prepares==previous_prepares&&compact_calls==previous_compact+1);
  assert(tps_prepares==tps_cancels);
- puts("PASS: same22-phase wave for ordinary1-band/ripple8-band,exactDU20 isolation,real192-row prefill mapping,TPS leases,missing/OOM/underrun recovery and boot-local full48 fallback");
+ s_system_binary=false;disabled=false;prepare=true;effect=2;full_requested=false;
+ assert(update_display_reader_panel(&h,a)==EPD_DRAW_SUCCESS&&last_wave==&E0470_WAVEFORM);
+ assert(current_tick==7777&&!online_depth&&!latency_depth&&!s_main_fault);
+ full_requested=true;int previous_preparation=prepares;
+ assert(update_display_reader_panel(&h,a)==EPD_DRAW_SUCCESS&&forced_full==1&&prepares==previous_preparation);
+ result=EPD_DRAW_EMPTY_LINE_QUEUE;
+ assert(update_display_reader_panel(&h,a)==EPD_DRAW_EMPTY_LINE_QUEUE&&s_main_fault&&forced_full==2);
+ assert(current_tick==7777&&!online_depth&&!latency_depth);
+ puts("PASS: body22 ordinary1-band/ripple8-band;panels always full vendorGL48 across all3reader effects,exactDU20 isolation,real192-row prefill mapping,TPS leases,missing/OOM/underrun recovery and boot-local full48 fallback");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='text-ripple-routes-',dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='text-ripple-routes-') as folder:
  for name,code in [('eligibility',turn),('outlet',outlet)]:
   c=Path(folder)/(name+'.c');binary=c.with_suffix('');c.write_text(code)
   subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',

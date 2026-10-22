@@ -57,6 +57,15 @@ static atomic_uint s_network_users;
 // Keep the S31 lock/BOOT suspension contract without changing PR28 learning/subscription.
 static atomic_bool s_sleep_suspended;
 static char s_sleep_peer[18];
+static char s_network_peer[18];
+static bool s_network_peer_pending;
+// 文件传输/临时扫描持有射频租约；仅常驻联网不持有，保持日常WiFi与翻页器共存。
+// File transfer/temporary scans reserve the radio; network-only sessions do not, retaining everyday coexistence.
+static bool metalio_radio_reserved(void) {
+    return atomic_load(&s_sleep_suspended)||atomic_load(&s_network_users)>0;
+}
+
+
 #else
 #endif
 static TaskHandle_t s_host_task;
@@ -1529,13 +1538,27 @@ static void host_task(void *param) {
     vTaskDelete(NULL);
 }
 
+#if KIIKO_BOARD_METALIO47
+static void network_resume_peer(void) {
+    if(s_network_peer_pending&&!atomic_load(&s_network_users)) {
+        if(s_network_peer[0])snprintf(s_reconnect_addr,sizeof(s_reconnect_addr),"%s",s_network_peer);
+        s_network_peer[0]=0;s_network_peer_pending=false;
+    }
+}
+#else
+#endif
+
 static esp_err_t start_locked(void) {
 #if KIIKO_BOARD_METALIO47
-    if (atomic_load(&s_sleep_suspended)) return ESP_ERR_INVALID_STATE;
+    if (metalio_radio_reserved()) return ESP_ERR_INVALID_STATE;
 #else
     if (atomic_load(&s_network_users)) return ESP_ERR_INVALID_STATE;
 #endif
     if (s_running) return ESP_OK;
+#if KIIKO_BOARD_METALIO47
+    network_resume_peer();
+#else
+#endif
 
     // 内存闸门：NimBLE 的 host 动态分配走 PSRAM（CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL），
     // 但控制器与协议栈任务必须落在内部 RAM——它跑在硬件路径上，读不到 PSRAM。所以卡住的
@@ -1639,10 +1662,18 @@ esp_err_t ble_pt_stop(uint32_t timeout_ms) {
     return error;
 }
 esp_err_t ble_pt_network_acquire(void) {
-    atomic_fetch_add(&s_network_users, 1);
 #if KIIKO_BOARD_METALIO47
-    return ESP_OK;
+    if(!lifecycle_take(2000))return ESP_ERR_TIMEOUT;
+    unsigned previous=atomic_fetch_add(&s_network_users,1);
+    if(!previous) {
+        snprintf(s_network_peer,sizeof(s_network_peer),"%s",s_link_up?s_conn_addr:s_reconnect_addr);
+        s_network_peer_pending=true;
+    }
+    const esp_err_t error=stop_locked();
+    if(error!=ESP_OK)atomic_fetch_sub(&s_network_users,1);
+    lifecycle_give();return error;
 #else
+    atomic_fetch_add(&s_network_users, 1);
     const esp_err_t error = ble_pt_stop(2000);
     if (error != ESP_OK) atomic_fetch_sub(&s_network_users, 1);
     return error;
@@ -1706,7 +1737,7 @@ static bool why_load(char *out, size_t cap) {
 
 void ble_pt_sync(bool wanted) {
 #if KIIKO_BOARD_METALIO47
-    if (atomic_load(&s_sleep_suspended)) wanted = false;
+    if (metalio_radio_reserved()) wanted = false;
 #else
     if (atomic_load(&s_network_users)) wanted = false;
 #endif

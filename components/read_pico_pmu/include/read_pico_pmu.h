@@ -176,6 +176,8 @@ esp_err_t read_pico_pmu_init(i2c_master_bus_handle_t bus_handle, const read_pico
 esp_err_t read_pico_pmu_deinit(void);
 bool read_pico_pmu_ready(void);
 const pmu_snapshot_t* read_pico_pmu_get(void);
+/// 锁屏消费过的短按序号，仅作提示；不能据此解锁。/ Locked short-input serial for hints only, never an unlock signal.
+uint32_t read_pico_pmu_lock_key_serial(void);
 
 /// 读 IDENTITY / STATUS / DIAG / 事件 / 配置 / 时间 / 闹钟。
 /// / Read IDENTITY / STATUS / DIAG / event / config / time / alarm.
@@ -221,6 +223,9 @@ bool read_pico_pmu_take_key_wakeup(void);
 esp_err_t read_pico_pmu_keys_pause(void);
 void read_pico_pmu_keys_resume(void);
 #else
+/// 一次短按即可唤醒；开机证据只能消费一次。/ One short press wakes; boot evidence is consumed once.
+bool read_pico_pmu_take_key_wakeup_single(void);
+bool read_pico_pmu_take_boot_short_press(void);
 #endif
 /// 保证 RUNNING 后发 HOST_SOFT_SLEEP，等到 STATUS 为 SOFT_SLEEP（随后 EN=0）。
 /// / After RUNNING, send HOST_SOFT_SLEEP and wait for STATUS SOFT_SLEEP (then EN=0).

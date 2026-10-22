@@ -10,10 +10,10 @@
  * User continues fast responsiveness tuning: normalize eight pixels per 32-bit word when no gray bands exist and avoid rewriting binary PSRAM words; retain phases, cleanup and navigation bounds without extra caches.
  * 用户修订：三种主页模式均固定底栏，仅局部移动横条；普通切页复用柔和灰阶表，黑白端点单向驱动、等灰保持，中灰保留校准相位。取消每三次全像素整理，仍每十二次完整清残影。快刷棋盘格输出、首次进入、解锁及手动全刷不变，不得伪造back。
  * User revision: all main modes retain navigation with local markers; ordinary transitions reuse soft grays with directional BW endpoints, held equal grays and calibrated changed midgrays. Remove third-page full-pixel settling but retain twelfth-page cleanup. Fast checkerboards, initial entry, unlock and manual full output remain; never fabricate back.
- * 用户2026-10-20修订：文件目录与设置列表三模式共用黑白快刷差分，资料头像和底栏保留灰阶；二级页及模式切换不累计周期全刷，侧滑使用系统柔和灰阶而非文字表。显式全刷、解锁和真正输出失败仍恢复。
- * User revision 2026-10-20: Files/Settings share fast BW differences in all modes, retaining avatar/navigation grays. Child/mode transitions accrue no periodic full refresh; edge returns use system soft gray instead of text LUTs. Explicit full, unlock and actual scan-failure recovery remain.
- * 用户随后修订：二级页底色恢复原灰阶，浅灰不再用短表；黑白目标旧墨同轮加强擦白，常驻底栏仍按原裁剪保护。
- * Subsequent user revision: restore original child backgrounds and complete light-gray drive; strengthen changed-white erasure within binary updates, preserving the original fixed-navigation crop.
+ * 用户2026-10-21恢复rc96显示/残影控制，保留127行预填防欠载和侧滑方向；普通阅读采用原rc97直接差分。
+ * User revision 2026-10-21: restore rc96 display/cleanup, keeping 127-line underrun protection and directional back swipes; ordinary reading uses rc97 direct differences.
+ * 用户2026-10-21残影反馈：普通文字改用校准GL16完整迁移并保持等灰像素，水波纹继续柔和文字序列；不增加相数或第二轮输出。
+ * User ghosting feedback 2026-10-21: ordinary text uses calibrated GL16 transitions with equal-gray holds; ripple keeps soft text phases, without added phases or replay.
  * 用户修订：所有推屏及欠载恢复与 OTA 擦写共用递归锁；无升级任务时保持原波形、范围和节奏。
  * User revision: serialize all display output and underrun recovery with OTA flash operations; keep existing waveforms, bounds and cadence outside updates.
  * 用户要求加快主页水波纹：复用阅读的一拍一带调度，以8带37相共44拍、11090us完成；保留主页原灰阶序列、底栏边界、OTA锁及失败恢复。
@@ -52,10 +52,6 @@
 static const char* TAG = "read_pico";
 static bool s_bulk_io;
 static bool s_full_refresh_requested;
-static bool s_system_fast;
-bool display_system_fast_set(bool enabled) {
-    const bool previous=s_system_fast;s_system_fast=enabled;return previous;
-}
 void display_request_full_refresh(void) { s_full_refresh_requested = true; }
 static int s_pclk_mhz = DISPLAY_PCLK_DEFAULT_MHZ;
 
@@ -143,48 +139,6 @@ static EpdRect main_body_area(void) {
 static uint8_t main_bw_byte(uint8_t value) {
     return (value & 0x0f) >= 8 ? ((value & 0xf0) >= 0x80 ? 0xff : 0x0f)
                              : ((value & 0xf0) >= 0x80 ? 0xf0 : 0x00);
-}
-
-// Pico倒置竖屏下物理x对应逻辑y；仅转换目标，头像/底栏及真实旧帧保持。
-// In inverted portrait, physical x maps to logical y; convert only the target, retaining avatar/navigation and actual history.
-void display_system_content(uint8_t* fb, bool navigation, EpdRect gray) {
-    if(!fb || !main_nav_geometry())return;
-    const int end=navigation?UI_NAV_REFRESH_END:epd_rotated_display_height();
-    const int stride=epd_width()/2;
-    for(int y=0;y<epd_height();++y) {
-        const int lx=epd_height()-1-y;
-        for(int x=0;x<end/2;++x) {
-            uint8_t value=fb[y*stride+x],binary=main_bw_byte(value);
-            if(lx>=gray.x && lx<gray.x+gray.width) {
-                if(x*2>=gray.y && x*2<gray.y+gray.height)binary=(binary&0xf0)|(value&0x0f);
-                if(x*2+1>=gray.y && x*2+1<gray.y+gray.height)binary=(binary&0x0f)|(value&0xf0);
-            }
-            fb[y*stride+x]=binary;
-        }
-    }
-}
-
-// 灰阶恢复原完整序列；有旧墨变白时同轮加强擦白，等值及固定底栏保持。
-// Restore complete gray sequences; strengthen changed whites in the same scan, holding equal pixels and fixed navigation.
-static const EpdWaveform* system_waveform(EpdiyHighlevelState* hl,EpdRect area,enum EpdDrawMode* mode) {
-    if(!hl || !hl->front_fb || !hl->back_fb || !main_nav_geometry()) {
-        *mode=MODE_GL16;return display_main_ui_waveform();
-    }
-    const int start=area.y<0?0:area.y;
-    int end=area.y+area.height;if(end>epd_width())end=epd_width();
-    bool erase=false;
-    for(int y=0;y<epd_height();++y)for(int x=start/2;x<(end+1)/2;++x) {
-        const uint8_t to=hl->front_fb[y*epd_width()/2+x],from=hl->back_fb[y*epd_width()/2+x];
-        if(to==from)continue;
-        for(int shift=0;shift<8;shift+=4) {
-            const int v=(to>>shift)&15;
-            erase |= v==15 && ((from>>shift)&15)!=15;
-            if(v && v!=15 && v!=((from>>shift)&15)) {
-                *mode=MODE_GL16;return display_main_ui_waveform();
-            }
-        }
-    }
-    *mode=MODE_DU;return erase?display_main_shelf_exit_waveform():display_main_bw_waveform();
 }
 
 static bool main_gray_column(int x) {
@@ -324,9 +278,9 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     const bool changing_page = s_main_changing_page;
     s_main_changing_page = false;
     const int refresh_mode = app_settings_main_refresh_mode();
-    const bool water = !s_system_fast && refresh_mode == APP_MAIN_REFRESH_WATER;
-    const bool normal = !s_system_fast && refresh_mode == APP_MAIN_REFRESH_NORMAL;
-    const bool fast = !s_system_fast && refresh_mode == APP_MAIN_REFRESH_FAST;
+    const bool water = refresh_mode == APP_MAIN_REFRESH_WATER;
+    const bool normal = refresh_mode == APP_MAIN_REFRESH_NORMAL;
+    const bool fast = refresh_mode == APP_MAIN_REFRESH_FAST;
     s_main_shelf_exit = false;
     s_main_armed = NULL;
     if (!owner || !hl || !hl->front_fb || !hl->back_fb) return false;
@@ -351,7 +305,6 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     const EpdWaveform* body_wave = normal ? display_main_normal_waveform() : gray_fallback ? display_main_gray_waveform()
         : shelf_exit ? display_main_shelf_exit_waveform() : display_main_bw_waveform();
     enum EpdDrawMode body_mode = normal || gray_fallback ? MODE_GL16 : MODE_DU;
-    if(s_system_fast)body_wave=system_waveform(hl,body_area,&body_mode);
     bool body_full = false;
     // 普通切页只驱动变化像素，完整中灰相位不缩短；每十二次仍用原表清理内容区。
     // Ordinary changes drive differing pixels without shortening midgray phases; the original table still cleans the body every twelfth change.
@@ -363,11 +316,6 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
             body_mode = MODE_GC16;
             body_full = true;
         }
-    }
-    // 非整理刷新使用等灰保持表，将底栏横条和内容同轮提交，省去另一次8相扫描。
-    // Hold-equal tables can commit the marker with the body, avoiding another eight-phase scan outside cleanup.
-    if(changed&&!body_full&&body_wave!=&E0470_WAVEFORM){
-        marker_with_body=true;body_area.height=UI_NAV_MARKER_SCAN_END;
     }
     const bool shelf_regions=normal&&changed&&s_main_band_count&&(changing_page||body_full);
     if(shelf_regions){marker_with_body=true;body_area.height=UI_NAV_MARKER_SCAN_END;}
@@ -397,7 +345,7 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
         // Water outputs the final gray target directly, without a BW prepass or a second whole-page gray update; common recovery handles failure.
         read_pico_epd_use_scan(READ_PICO_EPD_SCAN_FAST);
         epd_lcd_set_prefill_lines(127);
-        EpdRect ripple = body_area;
+        EpdRect ripple = main_body_area();
         const int prior_tick=e0470_page_turn_tick_us();
         e0470_page_turn_set_tick_us(E0470_TURN_FAST_TICK_US);
         *result = e0470_page_turn_with_waveform_compact(hl, ripple, E0470_TURN_RTL,
@@ -478,7 +426,7 @@ static enum EpdDrawError hl_update(
     const bool protected_area = area && s_main_armed && !s_main_fault && main_nav_geometry();
     if (protected_area) {
         main_freeze_navigation(hl, false);
-        if (!s_system_fast && app_settings_main_fast_refresh()) main_normalize_body(hl);
+        if (app_settings_main_fast_refresh()) main_normalize_body(hl);
         clipped = *area;
         if ((int64_t)clipped.y + clipped.height > UI_NAV_REFRESH_END)
             clipped.height = UI_NAV_REFRESH_END - clipped.y;
@@ -501,12 +449,7 @@ static enum EpdDrawError hl_update(
     }
     enum EpdDrawError intercepted;
     if (main_before_update(hl, &intercepted)) return intercepted;
-    if(s_system_fast && !full && (mode&0x0f)!=MODE_GC16 && waveform!=&E0470_FOLLOW_WAVEFORM) {
-        waveform=system_waveform(hl,area?*area:(EpdRect){0,0,epd_rotated_display_width(),epd_rotated_display_height()},&mode);
-        allow_gl16_diff=true;
-        epd_hl_waveform(hl,waveform);
-    }
-    if (!s_system_fast && waveform != &E0470_FOLLOW_WAVEFORM && area == NULL) {
+    if (waveform != &E0470_FOLLOW_WAVEFORM && area == NULL) {
         if ((mode & 0xF) == MODE_GC16) {
             s_page_refreshes = 0;
         } else if (APP_UI_GC16_EVERY > 0 && ++s_page_refreshes >= APP_UI_GC16_EVERY) {
@@ -552,16 +495,29 @@ static enum EpdDrawError update_display_fast_page_unlocked(EpdiyHighlevelState* 
     if (main_begin(hl, &navigation)) return navigation;
     enum EpdDrawError intercepted;
     if (main_before_update(hl, &intercepted)) return intercepted;
-    // 系统子页/模式切换不累计强刷；一次输出最终目标，不能因第3/12次操作闪全屏和底栏。
-    // Child navigation/mode changes accrue no forced-full debt; present the final target once without third/twelfth-operation flashes.
-    enum EpdDrawMode mode=MODE_GL16;
-    const EpdWaveform* waveform=s_system_fast
-        ? system_waveform(hl,(EpdRect){0,0,epd_rotated_display_width(),epd_rotated_display_height()},&mode)
-        : display_main_ui_waveform();
-    use_scan_for(waveform,mode);
-    epd_poweron();epd_hl_waveform(hl,waveform);
-    enum EpdDrawError result=epd_hl_update_screen(hl,mode,25);
-    epd_hl_waveform(hl,&E0470_WAVEFORM);
+    if (APP_UI_FAST_GC16_EVERY > 0 && ++s_page_refreshes >= APP_UI_FAST_GC16_EVERY) {
+        s_page_refreshes = 0;
+        use_scan_for(&E0470_WAVEFORM, MODE_GC16);
+        epd_poweron();
+        epd_hl_waveform(hl, &E0470_WAVEFORM);
+        enum EpdDrawError result = epd_hl_update_screen_full(hl, MODE_GC16, 25);
+
+        rails_keepalive();
+        ESP_LOGI(TAG, "fast navigation cleanup after %d transitions", APP_UI_FAST_GC16_EVERY);
+        return result;
+    }
+    const bool ordinary = app_settings_main_refresh_mode() == APP_MAIN_REFRESH_NORMAL;
+    const EpdWaveform* waveform = ordinary ? display_main_normal_waveform() : &E0470_WAVEFORM;
+    use_scan_for(waveform, MODE_GL16);
+    epd_poweron();
+    epd_hl_waveform(hl, waveform);
+    // 普通子页面与四主页使用同一柔和灰阶，不另加黑白预刷或延迟补刷；其他模式保留原周期。
+    // Ordinary subpages share the roots' soft grayscale in one pass, without BW prepasses or delayed output; other modes retain their cadence.
+    const bool settle = !ordinary && APP_UI_FAST_GL16_SETTLE_EVERY > 0 &&
+                        s_page_refreshes % APP_UI_FAST_GL16_SETTLE_EVERY == 0;
+    enum EpdDrawError result = settle ? epd_hl_update_screen_full(hl, MODE_GL16, 25)
+                                      : epd_hl_update_screen(hl, MODE_GL16, 25);
+    epd_hl_waveform(hl, &E0470_WAVEFORM);
     rails_keepalive();
     return result;
 }
@@ -689,7 +645,9 @@ static enum EpdDrawError update_display_reader_turn_unlocked(EpdiyHighlevelState
     // 阅读普通翻页和水波纹共用灰阶扫描；主页保留独立路径。
     // Ordinary reader turns and ripple share gray scanning; main tabs retain their separate path.
     read_pico_epd_use_scan(READ_PICO_EPD_SCAN_FAST);
-    epd_lcd_set_prefill_lines(s_bulk_io ? 127 : 64);
+    // 真机首轮文字扫描在预绘制并发时出现欠载；使用现有127行上限预填，不扩大队列或改变帧节拍。
+    // The first real text scan underruns during concurrent prepainting; prefill the existing 127-line limit without growing queues or changing frame pacing.
+    epd_lcd_set_prefill_lines(127);
     epd_poweron();
     // 通用GL16连相同灰边也会重新压黑；文字序列保持等灰并提前少量回浅，直接用于条带LUT。
     // Generic GL16 re-drives even equal gray edges; text phases hold them and advance a few settling pulses in the band LUT.
@@ -716,6 +674,11 @@ static enum EpdDrawError update_display_reader_turn_unlocked(EpdiyHighlevelState
     rails_keepalive();
     ESP_LOGW(TAG, "water turn failed (%d), recovery=%d", result, recovered);
     return recovered;
+}
+
+static enum EpdDrawError update_display_water_turn_unlocked(EpdiyHighlevelState* hl, EpdRect area,
+                                             e0470_turn_dir_t dir) {
+    return update_display_reader_turn_unlocked(hl,area,dir,E0470_TURN_FAST_BANDS,display_reader_text_waveform());
 }
 
 // 供数不足时的兜底：把频率退回安全值，整屏白一次，让后面的差分刷有干净参考帧。
@@ -979,12 +942,14 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
-        ? update_display_full_unlocked(hl) : update_display_reader_turn_unlocked(hl, area, dir, E0470_TURN_FAST_BANDS, display_reader_text_waveform());
+        ? update_display_full_unlocked(hl) : update_display_water_turn_unlocked(hl, area, dir);
     pico_online_display_end(held);
     LATENCY_DISPLAY_END();
     return result;
 }
 
+// 保留侧滑返回的方向和系统灰阶；其余刷新恢复原rc96。
+// Keep directional system-gray edge returns; restore the remaining rc96 presentation path.
 enum EpdDrawError update_display_main_turn(EpdiyHighlevelState* hl,EpdRect area,e0470_turn_dir_t dir) {
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
@@ -996,17 +961,35 @@ enum EpdDrawError update_display_main_turn(EpdiyHighlevelState* hl,EpdRect area,
     pico_online_display_end(held);LATENCY_DISPLAY_END();return result;
 }
 
-// 同步单带文字翻页：与水波纹相同灰阶/节拍，不错相、不追加第二轮。
-// One synchronous band shares ripple gray pulses/timing, with no stagger or second output.
-enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area,
-                                             e0470_turn_dir_t dir) {
+// 普通文字保持校准灰阶差分；可选速读黑白保留真实旧帧，原厂DU只提交一次。
+// Ordinary text keeps calibrated gray differences; optional Fast BW uses native DU once with the real history.
+enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl,EpdRect area,e0470_turn_dir_t dir) {
+    (void)dir;
+    if (app_settings_reader_turn_effect() != 2)
+        return update_display_area_diff_with(hl, display_main_gray_waveform(), MODE_GL16, area);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
-    int prior_tick=e0470_page_turn_tick_us();
-    e0470_page_turn_set_tick_us(E0470_TURN_FAST_TICK_US);
-    enum EpdDrawError result = display_needs_full()
-        ? update_display_full_unlocked(hl) : update_display_reader_turn_unlocked(hl, area, dir, 1, display_reader_text_waveform());
-    e0470_page_turn_set_tick_us(prior_tick);
+    enum EpdDrawError result;
+    if (display_needs_full()) result = update_display_full_unlocked(hl);
+    else if (main_before_update(hl, &result)) { /* 全局恢复优先。/ Global recovery takes priority. */ }
+    else if (!display_reader_fast_text_prepare(hl, area))
+        result = update_display_area_diff_with_unlocked(hl, display_main_gray_waveform(), MODE_GL16, area);
+    else {
+        const EpdWaveform* waveform = display_reader_fast_text_waveform();
+        // 本板DU按原FULL扫描一次提交20相，不用8相跟随表或水波纹逐拍补等。
+        // Submit native DU's 20 phases once with Pico FULL scanning, without FOLLOW8 or ripple tick padding.
+        use_scan_for(waveform, MODE_DU);
+        epd_lcd_set_prefill_lines(127);
+        epd_poweron();
+        epd_hl_waveform(hl, waveform);
+        result = epd_hl_update_area(hl, MODE_DU, 25, area);
+        epd_hl_waveform(hl, &E0470_WAVEFORM);
+        use_scan_for(&E0470_WAVEFORM, MODE_GL16);
+        rails_keepalive();
+        if (result == EPD_DRAW_NO_PHASES_AVAILABLE)
+            result = update_display_area_diff_with_unlocked(hl, display_main_gray_waveform(), MODE_GL16, area);
+        else if (result != EPD_DRAW_SUCCESS) result = main_recover(hl, result);
+    }
     pico_online_display_end(held);
     LATENCY_DISPLAY_END();
     return result;

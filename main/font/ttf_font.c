@@ -15,6 +15,7 @@
  */
 
 #include "ttf_font.h"
+#include "../kiiko_board_config.h"
 #include "ttf_stroke_filter.h"
 
 #include <dirent.h>
@@ -71,8 +72,8 @@ static void ttf_free(void* ptr, void* userdata) {
 // S31 faces share an adaptive 1MiB/768KiB budget, falling back to320KiB under pressure.
 // 扩容保留插图连续空间；淘汰全局最旧字形，不清空仍在用的字体槽。
 // Growth reserves contiguous image memory; evict global LRU glyphs, preserving face slots.
-#define TTF_CACHE_LIMIT (1024u * 1024u)
-#define TTF_CACHE_PRESSURE_LIMIT (320u * 1024u)
+#define TTF_CACHE_LIMIT (KIIKO_BOARD_TTF_CACHE_LIMIT_KB * 1024u)
+#define TTF_CACHE_PRESSURE_LIMIT (KIIKO_BOARD_TTF_CACHE_PRESSURE_KB * 1024u)
 #else
 // 字形缓存的总预算。TTF_CACHE_LIMIT 原来是每槽的，多槽之后那是 4 × 512 KB，而字体字节、
 // loca 和字形表本身已经吃掉好几 MB；抽干 PSRAM 的症状不是文字出问题，而是插图解码拿不到
@@ -83,7 +84,7 @@ static void ttf_free(void* ptr, void* userdata) {
 // show up as broken text but as illustration decoding that cannot get a contiguous block: images
 // vanish after a few page turns (measured: an image wanted 384 KB with 269 KB left).
 // 320 KB still re-rasterizes a page of body text; the cost is a few extra glyphs per turn.
-#define TTF_CACHE_LIMIT (320 * 1024)
+#define TTF_CACHE_LIMIT (KIIKO_BOARD_TTF_CACHE_LIMIT_KB * 1024u)
 #endif
 // 哈希桶数。/ Hash buckets.
 #define TTF_CACHE_BUCKETS 256
@@ -1879,7 +1880,7 @@ static bool cache_reserve(size_t extra) {
     // Evict by global slot recency instead of flushing every face when one slot exceeds its budget.
     size_t available=heap_caps_get_free_size(METALIO_PSRAM)+s_cache_total;
     size_t cap=available>=6u*1024u*1024u?TTF_CACHE_LIMIT:
-        available>=4u*1024u*1024u?768u*1024u:TTF_CACHE_PRESSURE_LIMIT;
+        available>=4u*1024u*1024u?KIIKO_BOARD_TTF_CACHE_MID_KB*1024u:TTF_CACHE_PRESSURE_LIMIT;
     const bool grow=metalio_cache_can_grow(extra);
     if(!grow)cap=TTF_CACHE_PRESSURE_LIMIT;
     while(s_cache_total && s_cache_total+extra>cap) {

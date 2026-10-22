@@ -1,6 +1,7 @@
 include("${CMAKE_CURRENT_LIST_DIR}/../cmake/board.cmake")
 if(KIIKO_BOARD_METALIO47)
 set(main_requires
+    kiiko_board
     read_pico
     metalio_hw
     read_pico_transfer
@@ -71,6 +72,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "ui/ui_pinpad.c"
         "ui/ui_power_dialog.c"
         "ui/ui_quick_menu.c"
+        "ui/ui_ai_menu.c"
         "ui/ui_lock_feedback.c"
         "ui/ui_quick_menu_input.c"
         "ui/ui_click_feedback.c"
@@ -132,7 +134,6 @@ idf_component_register(
         "assets/loading_4bpp.bin"
         "assets/builtin.ttf"
         "assets/ui-hanzi.bin"
-        "assets/reading.md"
         "assets/display-test.png"
 )
 
@@ -158,6 +159,7 @@ endif()
 
 else()
 set(main_requires
+    kiiko_board
     read_pico
     read_pico_transfer
     read_pico_search
@@ -278,11 +280,9 @@ idf_component_register(
     REQUIRES ${main_requires}
     INCLUDE_DIRS "." "app" "apps" "font" "ui" "factory" "book"
     EMBED_FILES
-        "assets/lock_4bpp.bin"
         "assets/loading_4bpp.bin"
         "assets/builtin.ttf"
         "assets/ui-hanzi.bin"
-        "assets/reading.md"
         "assets/display-test.png"
 )
 

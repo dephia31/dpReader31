@@ -6,9 +6,15 @@ import json
 import re
 
 BOARDS = ('pico', 'metalio47')
+BOARD_ALIASES = {'metalio_s31': 'metalio47'}
+
+def canonical_board(board):
+    return BOARD_ALIASES.get(board, board)
+
 
 
 def select_source(text, board):
+    board = canonical_board(board)
     if board not in BOARDS:
         raise ValueError('Unknown board: ' + board)
     # 只解释本工程的设备分支；保留SDK、平台和功能预处理指令给原编译器。
@@ -45,6 +51,7 @@ def select_source(text, board):
 
 
 def materialize(root, destination, board, tests=False):
+    board = canonical_board(board)
     root, destination = Path(root).resolve(), Path(destination).resolve()
     if board not in BOARDS or root == destination or root.is_relative_to(destination):
         raise ValueError('Use a separate destination for pico or metalio47')
@@ -110,7 +117,7 @@ def materialize(root, destination, board, tests=False):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--board', choices=BOARDS, required=True)
+    parser.add_argument('--board', choices=(*BOARDS, *BOARD_ALIASES), required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--tests', action='store_true')
     args = parser.parse_args()

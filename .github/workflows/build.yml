@@ -2,15 +2,23 @@ name: build
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/metalio-s31-test30]
   pull_request:
   workflow_dispatch:
 
 jobs:
   display-host-tests:
+    env:
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Select Clang for sanitizer host regressions
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/kiiko-host-cc"
+          ln -s "$(command -v clang)" "$RUNNER_TEMP/kiiko-host-cc/cc"
+          echo "$RUNNER_TEMP/kiiko-host-cc" >> "$GITHUB_PATH"
       - name: Board selection and Pico host-test view
         shell: bash
         run: |
@@ -28,6 +36,7 @@ jobs:
           bash tools/run_metalio_cover_cache_host_test.sh
           python3 tools/board_source_view.py --board metalio47 --tests --output build/host/metalio47
           python3 build/host/metalio47/tools/metalio_vcom_host_test.py
+          python3 build/host/metalio47/tools/test_glass_geometry.py
       - name: Water-turn, display recovery, navigation and waveform regressions
         shell: bash
         working-directory: build/host/pico
@@ -40,6 +49,8 @@ jobs:
           python3 tools/lock_pin_host_test.py
           python3 tools/lock_screen_host_test.py
           python3 tools/power_double_click_host_test.py
+          python3 tools/pico_wake_option_host_test.py
+          python3 tools/pico_lock_hint_host_test.py
           python3 tools/pico_lock_wait_host_test.py
           python3 tools/factory_reset_host_test.py
           python3 tools/factory_reset_ui_host_test.py
@@ -48,7 +59,6 @@ jobs:
           python3 tools/metalio_clock_cache_host_test.py
           python3 tools/pager_host_test.py
           python3 tools/quick_layer_raster_host_test.py
-          python3 tools/test_glass_geometry.py
           python3 tools/test_epd_difference_bounds.py --check-regression
           python3 tools/test_s31_pie_dispatch.py
           python3 tools/test_lcd_frame_lifecycle.py
@@ -63,25 +73,59 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    # 钉在 v6.1 发布点。release-v6.1 分支会继续演进，LCD LL 接口已经变过一次。
-    # Pin to the v6.1 release. The release-v6.1 branch keeps moving; the LCD LL API already changed once.
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [pico, metalio47]
+    # v6.1 includes both Xtensa S3 and RISC-V S31; never share their build/config directories.
     container: espressif/idf:v6.1
     steps:
       - uses: actions/checkout@v4
-
-      # sdkconfig.defaults 里的 120MHz flash / PSRAM 依赖真机的 flash 型号，
-      # CI 用 sdkconfig.ci 换成默认时序，只验证能不能编过。
-      # The 120 MHz flash / PSRAM timing in sdkconfig.defaults needs the real
-      # flash part; CI uses sdkconfig.ci (default timing) and only checks that it compiles.
-      - name: build
+      - name: Build and validate the selected board package
         shell: bash
         run: |
-          . $IDF_PATH/export.sh
-          idf.py -DKIIKO_BOARD=pico -DSDKCONFIG_DEFAULTS=sdkconfig.ci set-target esp32s3
-          idf.py -DKIIKO_BOARD=pico -DSDKCONFIG_DEFAULTS=sdkconfig.ci build
+          . "$IDF_PATH/export.sh"
+          extra=()
+          if [ "${{ matrix.board }}" = metalio47 ]; then extra=(--s31-pie --s31-text-ripple); fi
+          python tools/build_firmware.py --board "${{ matrix.board }}" \
+            --idf-${{ matrix.board }} "$IDF_PATH" --python "$(command -v python)" \
+            --output build/boards "${extra[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.board }}
+          path: build/boards/packages/
 
-      - name: size
+  board-reader-tests:
+    env:
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [pico, metalio47]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Clang for sanitizer host regressions
         shell: bash
         run: |
-          . $IDF_PATH/export.sh
-          idf.py size
+          mkdir -p "$RUNNER_TEMP/kiiko-host-cc"
+          ln -s "$(command -v clang)" "$RUNNER_TEMP/kiiko-host-cc/cc"
+          echo "$RUNNER_TEMP/kiiko-host-cc" >> "$GITHUB_PATH"
+      - name: Materialize and test reader/UI/settings for this board
+        shell: bash
+        run: |
+          python3 tools/board_source_view.py --board "${{ matrix.board }}" --tests --output build/host/${{ matrix.board }}
+          cd build/host/${{ matrix.board }}
+          mkdir -p build/book-tests/settings-card
+          python3 tools/reading_settings_host_test.py
+          python3 tools/reader_controls_host_test.py
+          python3 tools/reader_ui_scale_host_test.py
+          python3 tools/reader_refresh_release_host_test.py
+          python3 tools/reader_fullscreen_host_test.py
+          python3 tools/lock_screen_host_test.py
+          python3 tools/power_double_click_host_test.py
+          cc -std=gnu11 -Wall -Wextra -Werror -Itools/settings_backup_stubs \
+            -Icomponents/read_pico_transfer/include tools/settings_backup_host_test.c -o build/settings-backup
+          build/settings-backup
+          sh tools/run_app_loop_host_tests.sh
+          bash tools/run_display_navigation_tests.sh

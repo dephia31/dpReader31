@@ -18,7 +18,7 @@ typedef int read_pico_pmu_key_action_t;
 typedef int esp_err_t;
 static struct {unsigned key_state;} state;
 static bool held,long_sent,candidate,ready=true,keys_paused;
-static uint32_t key_epoch;
+static uint32_t key_epoch,s_lock_key_serial;
 static int64_t candidate_since,down_since,clock_us;
 static int key_lock,action,io_error,poll_error;
 static power_double_click_t s_wake_click;
@@ -28,26 +28,30 @@ static int64_t esp_timer_get_time(void){return clock_us;}
 static int metalio_io_read(uint16_t *value){*value=inputs;return io_error;}
 static void metalio_volume_sample(uint16_t value,int64_t ms){(void)value;(void)ms;}
 static void metalio_volume_clear(void){++drains;}
+#define GPIO_NUM_61 61
+static int gpio_get_level(int pin){assert(pin==61);return 1;}
+static void metalio_ai_sample(bool down,int64_t ms){assert(!down);(void)ms;}
+static void metalio_ai_clear(void){}
 static int read_pico_pmu_poll(void){return poll_error;}
 static const typeof(state) *read_pico_pmu_get(void){return &state;}
 static void read_pico_clear_ioe_int(void){}
 static void vTaskDelay(int ms){clock_us+=(int64_t)ms*1000;}
 '''
-for name in ('keys','read_pico_pmu_keys_pause','read_pico_pmu_keys_resume','read_pico_pmu_drain_events','read_pico_pmu_take_key_wakeup'):
+for name in ('read_pico_pmu_lock_key_serial','keys','read_pico_pmu_keys_pause','read_pico_pmu_keys_resume','read_pico_pmu_drain_events','read_pico_pmu_take_key_wakeup'):
     unit+=function(name,ROOT/'components/read_pico_pmu/metalio_power_adapter.c')+'\n'
 unit+=function('app_lock_wait_key_idle',ROOT/'main/sleep.c')+'\n'
 unit+=r'''
 static void sample(bool down,int ms){inputs=down?0x7fff:0xffff;clock_us=(int64_t)ms*1000;keys();}
-static void reset(void){s_wake_click=(power_double_click_t){0};held=long_sent=candidate=keys_paused=false;key_epoch=0;candidate_since=down_since=clock_us=0;state.key_state=0;action=io_error=poll_error=drains=0;inputs=0xffff;}
+static void reset(void){s_wake_click=(power_double_click_t){0};held=long_sent=candidate=keys_paused=false;key_epoch=s_lock_key_serial=0;candidate_since=down_since=clock_us=0;state.key_state=0;action=io_error=poll_error=drains=0;inputs=0xffff;}
 int main(void){
  reset();sample(true,0);sample(false,10);sample(false,40);assert(!held&&!read_pico_pmu_take_key_wakeup());
  // Short clicks wake on the debounced release, not a stale held level.
  reset();sample(true,0);sample(true,30);assert(held&&!read_pico_pmu_take_key_wakeup());
- sample(false,80);sample(false,110);assert(!held&&!read_pico_pmu_take_key_wakeup());
- sample(true,180);sample(true,210);sample(false,260);sample(false,290);assert(read_pico_pmu_take_key_wakeup()&&!read_pico_pmu_take_key_wakeup());
+ sample(false,80);sample(false,110);assert(!held&&!read_pico_pmu_take_key_wakeup()&&read_pico_pmu_lock_key_serial()==1);
+ sample(true,180);sample(true,210);sample(false,260);sample(false,290);assert(read_pico_pmu_take_key_wakeup()&&!read_pico_pmu_take_key_wakeup()&&read_pico_pmu_lock_key_serial()==2);
  // Consume the lock-initiating long action once; its continuing hold/release cannot wake again.
  reset();sample(true,0);sample(true,30);sample(true,730);assert(!read_pico_pmu_take_key_wakeup());
- sample(true,800);assert(!read_pico_pmu_take_key_wakeup());sample(false,810);sample(false,840);assert(!read_pico_pmu_take_key_wakeup());
+ sample(true,800);assert(!read_pico_pmu_take_key_wakeup());sample(false,810);sample(false,840);assert(!read_pico_pmu_take_key_wakeup()&&!read_pico_pmu_lock_key_serial());
  // A later short click can be queued while collage composition occupies the UI thread.
  read_pico_pmu_drain_events();sample(true,900);sample(true,930);sample(false,1000);sample(false,1030);
  sample(true,1100);sample(true,1130);sample(false,1200);sample(false,1230);

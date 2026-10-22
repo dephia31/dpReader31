@@ -42,10 +42,14 @@ int main(void){
     }
     EpdRect mode=reading_setting_rect(2),keys=reading_setting_rect(4);
     assert(keys.x==mode.x&&keys.y>mode.y&&keys.y==910);
+#if KIIKO_BOARD_METALIO47
+    const unsigned expected[]={15,20,30,0,5,10};
+#else
     const unsigned expected[]={15,30,0,5,10};
-    for(unsigned i=0;i<5;++i){s_turns=100;assert(reading_settings_action(&ctx,120,750)==APP_REDRAW_PAGE);assert(full_pages==(int)expected[i]&&!s_turns);}
-    full_pages=77;reading_settings_action(&ctx,120,750);assert(full_pages==5);
-    for(unsigned i=0;i<6;++i){s_turns=4;reading_settings_action(&ctx,450,750);assert(effect==(int)((i+1)%(KIIKO_BOARD_METALIO47?3:2))&&s_turns==0);}
+#endif
+    for(unsigned i=0;i<sizeof(expected)/sizeof(expected[0]);++i){s_turns=100;assert(reading_settings_action(&ctx,120,750)==APP_REDRAW_PAGE);assert(full_pages==(int)expected[i]&&!s_turns);}
+    full_pages=77;reading_settings_action(&ctx,120,750);assert(full_pages==(KIIKO_BOARD_METALIO47?0:5));
+    for(unsigned i=0;i<6;++i){s_turns=4;reading_settings_action(&ctx,450,750);assert(effect==(int)((i+1)%3)&&s_turns==0);}
     s_reader_panel=READER_PANEL_REFRESH_SETTINGS;
     reading_settings_action(&ctx,120,850);assert(s_reader_panel==READER_PANEL_TURN_SETTINGS);
     s_reader_panel=READER_PANEL_REFRESH_SETTINGS;

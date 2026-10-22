@@ -33,6 +33,7 @@
 #include "esp_timer.h"
 #include "transfer_http_time.h"
 #include "transfer_ntp_time.h"
+#include "esp_app_desc.h"
 // HTTP 服务独占写入，供 /info 诊断真实接收与写卡瓶颈，不含文件名。
 // Owned by the HTTP task; report measured receive/storage costs without file names.
 static struct {
@@ -282,6 +283,11 @@ static int commit_file(const char *part, const char *path) {
 typedef int (*receive_cb_t)(void *, char *, size_t);
 typedef void (*progress_cb_t)(size_t);
 enum { TRANSFER_COMMITTED_BACKUP_RETAINED = 299 };
+#if KIIKO_BOARD_METALIO47
+#ifdef ESP_PLATFORM
+#include "transfer_stream_writer.h"
+#endif
+#endif
 static int receive_file(const char *path, const char *part, size_t total, char *buf,
                         size_t cap, receive_cb_t recv, void *ctx, progress_cb_t progress) {
     FILE *f = fopen(part, "wb");
@@ -296,6 +302,9 @@ static int receive_file(const char *path, const char *part, size_t total, char *
     const int64_t started_us = esp_timer_get_time();
     int64_t receive_us = 0, write_us = 0;
     unsigned writes = 0;
+    unsigned write_slot=0;
+    transfer_writer_t *writer=transfer_writer_start(f,buf,cap,total);
+    if(writer)buf=transfer_writer_acquire(writer,write_slot);
 #endif
 #else
     // HTTP 常按小包到达；扩大文件缓冲可显著减少 TF 卡零碎写入。
@@ -314,6 +323,9 @@ static int receive_file(const char *path, const char *part, size_t total, char *
 #endif
     while (done < total) {
 #if KIIKO_BOARD_METALIO47
+#ifdef ESP_PLATFORM
+        if(writer && atomic_load(&writer->error)){error=507;break;}
+#endif
         size_t room = cap - pending;
         size_t n = total - done < room ? total - done : room;
 #ifdef ESP_PLATFORM
@@ -340,11 +352,20 @@ static int receive_file(const char *path, const char *part, size_t total, char *
             phase_us = esp_timer_get_time();
             ++writes;
 #endif
-            size_t written = fwrite(buf, 1, pending, f);
 #ifdef ESP_PLATFORM
-            write_us += esp_timer_get_time() - phase_us;
+            if(writer) {
+                transfer_writer_submit(writer,write_slot,pending);
+                write_slot^=1;
+                buf=transfer_writer_acquire(writer,write_slot);
+            } else
 #endif
-            if (written != pending) { error = 507; break; }
+            {
+                size_t written=fwrite(buf,1,pending,f);
+#ifdef ESP_PLATFORM
+                write_us+=esp_timer_get_time()-phase_us;
+#endif
+                if(written!=pending){error=507;break;}
+            }
             pending = 0;
         }
 #else
@@ -353,6 +374,10 @@ static int receive_file(const char *path, const char *part, size_t total, char *
     }
 #if KIIKO_BOARD_METALIO47
 #ifdef ESP_PLATFORM
+    if(writer) {
+        int write_error=transfer_writer_finish(writer,write_slot,&write_us,&writes);
+        if(write_error)error=write_error;
+    }
     int64_t close_us = esp_timer_get_time();
 #endif
 #else
@@ -1155,6 +1180,10 @@ static esp_err_t respond_error(httpd_req_t *req, int code) {
     return ESP_FAIL;
 }
 
+#ifdef KIIKO_LOCAL_NETWORK_PROBE
+#include "transfer_network_probe.h"
+#endif
+
 static esp_err_t index_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     return httpd_resp_send(req, upload_start, upload_end - upload_start - 1);
@@ -1173,12 +1202,33 @@ static esp_err_t info_handler(httpd_req_t *req) {
     cJSON_AddStringToObject(json, "wifi_ssid", status.wifi_ssid);
     cJSON_AddStringToObject(json, "root", s_root);
     cJSON_AddStringToObject(json, "wifi_band", "2.4GHz");
+    const esp_app_desc_t *app=esp_app_get_description();
+    cJSON_AddStringToObject(json,"project",app->project_name);
+    cJSON_AddStringToObject(json,"version",app->version);
+    char elf[65];
+    for(unsigned i=0;i<32;++i)snprintf(elf+i*2,3,"%02x",app->app_elf_sha256[i]);
+    cJSON_AddStringToObject(json,"elf_sha256",elf);
+    cJSON_AddBoolToObject(json,"ble_running",ble_pt_running());
+    cJSON_AddBoolToObject(json,"network_only",s_cfg.network_only);
+    cJSON_AddNumberToObject(json,"heap_internal_free",heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(json,"heap_internal_min",heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(json,"heap_internal_largest",heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(json,"tcp_window",CONFIG_LWIP_TCP_WND_DEFAULT);
+    cJSON_AddNumberToObject(json,"wifi_dynamic_rx",CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM);
+    cJSON_AddNumberToObject(json,"wifi_static_rx",CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM);
+    cJSON_AddNumberToObject(json,"wifi_rx_ba",CONFIG_ESP_WIFI_RX_BA_WIN);
+
+#ifdef KIIKO_LOCAL_NETWORK_PROBE
+    transfer_network_probe_info(json);
+#endif
     wifi_ps_type_t ps;
     if (esp_wifi_get_ps(&ps) == ESP_OK) cJSON_AddNumberToObject(json, "wifi_ps", ps);
     wifi_ap_record_t ap;
     if (status.mode == READ_PICO_TRANSFER_MODE_STA && esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
         cJSON_AddNumberToObject(json, "wifi_rssi", ap.rssi);
         cJSON_AddNumberToObject(json, "wifi_channel", ap.primary);
+        cJSON_AddBoolToObject(json,"ap_supports_11n",ap.phy_11n);
+        cJSON_AddBoolToObject(json,"ap_supports_11ax",ap.phy_11ax);
     }
     cJSON *metrics = cJSON_AddObjectToObject(json, "last_receive");
     if (metrics) {
@@ -2041,10 +2091,12 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     if (!claim_config()) return ESP_ERR_INVALID_STATE;
     if (s_wifi || s_netif || s_http) { release_config(); return ESP_ERR_INVALID_STATE; }
-    // S31保留原生WiFi/BLE共存，并用同一配置锁与后台对时互斥。/ Retain native S31 coexistence and serialize configuration against background sync.
-    const esp_err_t reserve = ble_pt_network_acquire();
-    if (reserve != ESP_OK) { release_config(); return reserve; }
-    s_ble_network_reserved = true;
+    // 传输服务持有临时BLE租约；仅联网保持共存，对时与配置仍串行。/ Transfer owns a temporary BLE lease; network-only retains coexistence and configuration stays serialized.
+    if(!cfg->network_only) {
+        const esp_err_t reserve=ble_pt_network_acquire();
+        if(reserve!=ESP_OK){release_config();return reserve;}
+        s_ble_network_reserved=true;
+    }
     s_cfg = *cfg;
     if (cfg->root_dir) strcpy(s_root, cfg->root_dir);
     else s_root[0] = 0;
@@ -2165,6 +2217,9 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     }
     err = esp_wifi_start(); if (err != ESP_OK) goto fail;
     s_started = true;
+#ifdef KIIKO_LOCAL_NETWORK_PROBE
+    transfer_network_probe_start();
+#endif
     if (cfg->mode == READ_PICO_TRANSFER_MODE_STA && !cfg->network_only) {
         esp_err_t power_err = esp_wifi_set_ps(WIFI_PS_NONE);
         if (power_err != ESP_OK) ESP_LOGW("transfer", "disable wifi power save: %s", esp_err_to_name(power_err));

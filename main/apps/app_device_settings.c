@@ -24,6 +24,8 @@
  * S31 user revision: normalize root settings content to BW and use DU20, retaining fixed navigation and gray font/wallpaper previews in subpages.
  * 用户撤回跟手滚动：三种主页模式统一恢复一次手势推进一段列表并差分刷新的原逻辑，无惯性、浅墨或停稳补刷。
  * User rollback: all main modes return to one discrete list step per gesture with differential updates, without inertia, light motion ink or idle restoration.
+ * 用户2026-10-21修订：设置列表滚动保留文字抗锯齿和灰阶头像，撤掉书架额外四相补白，列表仍一次输出且不影响固定底栏。
+ * User revision2026-10-21: keep AA text and gray avatars during list scrolls, omit the shelf's four added white phases, and retain one output with fixed navigation.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -1243,20 +1245,13 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_navigation(fb);
         return;
     }
+#if KIIKO_BOARD_METALIO47
     if (s_page == SETTINGS_POWER_SLEEP) {
         back_header(fb, "关机睡眠");
         section(fb, 248, "选择电源菜单中“关机”的方式");
-#if KIIKO_BOARD_METALIO47
         const char *labels[] = {"彻底关机", "锁屏待机"};
-#else
-        const char *labels[] = {"彻底关机", "先浅睡，10 分钟后深睡"};
-#endif
         const char *details[] = {"完全断电，长按电源键开机",
-#if KIIKO_BOARD_METALIO47
                                  "按下方方式保留锁屏"};
-#else
-                                 "锁屏画面保留；深睡后短按电源键开机"};
-#endif
         for (int i = 0; i < 2; ++i) {
             EpdRect box = {36, 300 + i * 154, 612, 132};
             bool active = app_settings_staged_shutdown() == (i == 1);
@@ -1265,7 +1260,6 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text(fb, 64, box.y + 79, 20, details[i], EPD_DRAW_ALIGN_LEFT, false);
             if (active) epd_fill_circle(609, box.y + 66, 8, UI_GRAY_BLACK, fb);
         }
-#if KIIKO_BOARD_METALIO47
         ui_text(fb, 54, 664, 21, "浅睡按键返回，深睡重启恢复。", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 54, 708, 21, "壁纸与票根均可锁屏。", EPD_DRAW_ALIGN_LEFT, false);
         const char *modes[]={"保留待机", "浅睡省电", "深睡省电"};
@@ -1291,13 +1285,45 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         ui_text(fb,48,800,20,"USB/拿起唤醒：保留待机",EPD_DRAW_ALIGN_LEFT,false);
         ui_text(fb,48,856,20,"定时维护不解锁、不点前光",EPD_DRAW_ALIGN_LEFT,false);
         ui_text(fb,48,912,20,"深睡后先短按，再连接刷机",EPD_DRAW_ALIGN_LEFT,false);
-#else
-        ui_text(fb, 54, 664, 21, "浅睡时按键直接返回，深睡时会重新开机。", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 54, 708, 21, "锁屏样式同时适用于壁纸与阅读票根。", EPD_DRAW_ALIGN_LEFT, false);
-#endif
         settings_navigation(fb);
         return;
     }
+#else
+    if (s_page == SETTINGS_POWER_SLEEP) {
+        back_header(fb, "关机睡眠");
+        section(fb, 236, "选择电源菜单中“关机”的方式");
+        const char *shutdown_labels[] = {"彻底关机", "先浅睡，10 分钟后深睡"};
+        const char *shutdown_details[] = {"完全断电，长按电源键开机",
+                                          "锁屏画面保留；深睡后短按电源键开机"};
+        for (int i = 0; i < 2; ++i) {
+            int y = 278 + i * 136;
+            bool active = app_settings_staged_shutdown() == (i == 1);
+            settings_card(fb, (EpdRect){36, y, 612, 124}, 22, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
+            ui_text(fb, 64, y + 20, 29, shutdown_labels[i], EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 64, y + 72, 20, shutdown_details[i], EPD_DRAW_ALIGN_LEFT, false);
+            if (active) epd_fill_circle(609, y + 62, 8, UI_GRAY_BLACK, fb);
+        }
+        ui_text(fb, 54, 558, 21, "浅睡时按键直接返回，深睡时会重新开机。", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 594, 21, "锁屏样式同时适用于壁纸与阅读票根。", EPD_DRAW_ALIGN_LEFT, false);
+        // 用户修订：开机按键次数可选，单击更快、双击防误触；深睡唤醒与锁屏解锁共用。
+        // User revision: the boot press count is selectable; one press is faster, two resist accidental wake. Deep-sleep wake and lock unlock share it.
+        section(fb, 650, "按电源键开机");
+        const char *wake_labels[] = {"单击开机", "双击开机"};
+        const char *wake_details[] = {"按一次电源键就开机，更快", "连续按两次，放在包里不易误开机"};
+        for (int i = 0; i < 2; ++i) {
+            int y = 692 + i * 124;
+            bool active = app_settings_wake_presses() == (uint8_t)(i + 1);
+            settings_card(fb, (EpdRect){36, y, 612, 112}, 22, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
+            ui_text(fb, 64, y + 16, 27, wake_labels[i], EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 64, y + 64, 20, wake_details[i], EPD_DRAW_ALIGN_LEFT, false);
+            if (active) epd_fill_circle(609, y + 56, 8, UI_GRAY_BLACK, fb);
+        }
+        ui_text(fb, 54, 948, 21, "深睡唤醒与锁屏解锁都按这个次数。", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 984, 21, "双击更防误触；单击一按即用。", EPD_DRAW_ALIGN_LEFT, false);
+        settings_navigation(fb);
+        return;
+    }
+#endif
     if (s_page == SETTINGS_BOOT) {
         back_header(fb, "电脑刷机");
         settings_card(fb, (EpdRect){36, 254, 612, 298}, 22, UI_GRAY_WHITE, 0x70);
@@ -1590,13 +1616,6 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
     render_content(ctx,fb);
 #if KIIKO_BOARD_METALIO47
     display_monochrome_content(fb);
-#else
-    if(s_page==SETTINGS_MAIN) {
-        EpdRect avatar={57,180-s_main_scroll+(settings_profile_height()-82)/2,82,82};
-        if(avatar.y<160){avatar.height-=160-avatar.y;avatar.y=160;}
-        if(!s_avatar_ready || avatar.height<=0)avatar=(EpdRect){0};
-        display_system_content(fb,true,avatar);
-    }
 #endif
     settings_navigation(fb);
 }
@@ -2307,18 +2326,15 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if (y >= 518 && y < 588) { time_open(); return APP_REDRAW_PAGE; }
         return APP_REDRAW_NONE;
     }
-    if (s_page == SETTINGS_POWER_SLEEP) {
 #if KIIKO_BOARD_METALIO47
+    if (s_page == SETTINGS_POWER_SLEEP) {
         if(ui_rect_hit((EpdRect){36,774,612,70},ev->x0,ev->y0)) { s_page=SETTINGS_LOCK_SLEEP; return APP_REDRAW_PAGE; }
-#else
-#endif
         if (y >= 300 && y < 432) {
             app_settings_set_staged_shutdown(false);
             return APP_REDRAW_PAGE;
         }
         if (y >= 454 && y < 586) {
             app_settings_set_staged_shutdown(true);
-#if KIIKO_BOARD_METALIO47
             return APP_REDRAW_PAGE;
         }
         return APP_REDRAW_NONE;
@@ -2326,12 +2342,31 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     if (s_page == SETTINGS_LOCK_SLEEP) {
         for(int i=0;i<3;i++) if(ui_rect_hit((EpdRect){36,300+i*148,612,128},ev->x0,ev->y0)) {
             app_settings_set_lock_sleep((uint8_t)i);
-#else
-#endif
             return APP_REDRAW_PAGE;
         }
         return APP_REDRAW_NONE;
     }
+#else
+    if (s_page == SETTINGS_POWER_SLEEP) {
+        if (y >= 278 && y < 402) {
+            app_settings_set_staged_shutdown(false);
+            return APP_REDRAW_PAGE;
+        }
+        if (y >= 414 && y < 538) {
+            app_settings_set_staged_shutdown(true);
+            return APP_REDRAW_PAGE;
+        }
+        if (y >= 692 && y < 804) {
+            app_settings_set_wake_presses(1);
+            return APP_REDRAW_PAGE;
+        }
+        if (y >= 816 && y < 928) {
+            app_settings_set_wake_presses(2);
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
+#endif
     if (s_page == SETTINGS_CONFIG) {
         if (y >= 561 && y < 644) {
             s_config_confirm = false;
@@ -2658,8 +2693,11 @@ static bool settings_present(app_ctx_t *ctx, app_redraw_t redraw) {
 #if KIIKO_BOARD_METALIO47
         guard_draw_result(ctx->hl,update_display_area_diff_with(ctx->hl,display_main_bw_waveform(),MODE_DU,area));
 #else
-        const EpdWaveform *wave=display_main_normal_waveform();
-        guard_draw_result(ctx->hl, update_display_area_diff_with(ctx->hl,wave,MODE_GL16,area));
+        // 列表仅一次短灰阶差分；保留抗锯齿目标，取消主页替换、清白预刷与松手补刷。
+        // Present the list once with short gray differences; retain AA targets without main substitution, white prepasses or release settling.
+        display_main_transition_cancel();
+        const EpdWaveform *wave=display_settings_scroll_waveform();
+        guard_draw_result(ctx->hl, update_display_area_diff_with(ctx->hl,wave,MODE_DU,area));
 #endif
         return true;
     }
@@ -2680,7 +2718,11 @@ static bool settings_present(app_ctx_t *ctx, app_redraw_t redraw) {
 }
 
 const app_desc_t app_device_settings = {
+#if KIIKO_BOARD_METALIO47
     .binary_ui = true,
+#else
+    .binary_ui = false,
+#endif
     .title = "设置 Settings", .detail = "显示、连接与设备", .enter_full = false,
     .owns_keys = true, .menu_handle_enabled = no_menu_handle,
     .main_page_visible = main_page_visible, .edge_back_enabled = settings_edge_back,

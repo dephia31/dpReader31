@@ -108,15 +108,18 @@ static bool images_match_panel(void) {
     return false;
 }
 
-// 缓存验证失败时继续原开机路径，不假设未知屏幕已经全白。
-// A rejected cache keeps the original startup path; never assume an unknown panel is white.
-static bool restore_retained_lock(EpdiyHighlevelState *hl,uint8_t *framebuffer) {
-    read_pico_sd_info_t info;
-    for(unsigned wait=0;wait<150 && read_pico_sd_get_info(&info)==ESP_ERR_NOT_FINISHED;++wait)
-        vTaskDelay(pdMS_TO_TICKS(20));
-    if(!lock_screen_restore(framebuffer))return false;
-    memcpy(hl->back_fb,framebuffer,(size_t)epd_width()*epd_height()/2);
-    return true;
+// 深睡保持原物理锁图；卡与参考帧稍后就绪，不能用临时圆锁覆盖。
+// Preserve physical art on deep boot; pending media/reference recovery must not replace it with a badge.
+static bool prepare_startup_frame(EpdiyHighlevelState *hl,uint8_t *framebuffer,bool resuming,bool vcom_ok) {
+    if(resuming && vcom_ok && !lock_pin_enabled())return app_lock_resume_frame(hl);
+    epd_poweron();
+    if(!resuming)read_pico_i2c_census_take();
+    epd_clear();
+    epd_hl_set_all_white(hl);
+    if(resuming)ui_lock_fallback_draw(framebuffer);
+    else ui_draw_full_image(framebuffer,loading_4bpp_bin_start);
+    update_display_from_white(hl);
+    return false;
 }
 
 void app_main(void) {
@@ -150,21 +153,7 @@ void app_main(void) {
     // 深睡保留屏幕已有画面：验证缓存后同时恢复前后帧，省去清白和开机图两次推屏。
     // Deep sleep retains the panel image: validate its cache and restore both references, skipping white erase and splash output.
     const bool resuming = pico_boot_has_resume() && reset == ESP_RST_DEEPSLEEP;
-    bool restored_lock = false;
-    if(resuming && vcom_ok && !lock_pin_enabled() && pico_boot_resume_frame_cached()) {
-        restored_lock=restore_retained_lock(&hl,framebuffer);
-    }
-    if(!restored_lock) {
-        epd_poweron();
-        if(!resuming)read_pico_i2c_census_take();
-        // 清屏把整屏（含最外圈）一起驱动到白；运行时不再屏蔽白边，边角随内容刷新。
-        // The clear drives every pixel including the outermost ring; no runtime white border.
-        epd_clear();
-        epd_hl_set_all_white(&hl);
-        if(resuming)ui_lock_fallback_draw(framebuffer);
-        else ui_draw_full_image(framebuffer,loading_4bpp_bin_start);
-        update_display_from_white(&hl);
-    }
+    (void)prepare_startup_frame(&hl,framebuffer,resuming,vcom_ok);
     rp_boot_mark("splash");
     // 直接续读不先加载整份系统字体；密码验证仍先使用所选系统字体。
     // Direct reader resume skips loading the whole system face first; PIN authentication still uses the selected UI face.

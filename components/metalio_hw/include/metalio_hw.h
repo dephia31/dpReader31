@@ -24,6 +24,13 @@ esp_err_t metalio_prepare_key_wake(void);
 esp_err_t metalio_restore_key_io(void);
 bool metalio_key_down(void);
 int metalio_take_volume(void);
+/// 官方AI/BOOT输入GPIO61，25ms去抖、500ms长按；长按抬手不触发短按。
+/// Vendor AI/BOOT input GPIO61,25ms debounce and500ms hold; release after a hold never produces a tap.
+enum { METALIO_AI_NONE, METALIO_AI_SHORT, METALIO_AI_LONG };
+void metalio_ai_sample(bool down,int64_t now_ms);
+int metalio_take_ai(void);
+/// 丢弃跨锁屏/休眠输入；重新稳定释放后才接收。/ Discard cross-lock/sleep input until a stable release.
+void metalio_ai_clear(void);
 void metalio_volume_clear(void);
 void metalio_volume_sample(uint16_t inputs,int64_t now_ms);
 esp_err_t metalio_tps_on(int vcom_mv);

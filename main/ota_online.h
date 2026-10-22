@@ -22,8 +22,8 @@
 #define PICO_OTA_LAYOUT "pico-dual-4m-v1"
 #define PICO_OTA_BOARD "RDP-G01-W"
 #define PICO_OTA_CAPABILITY "PICO_HTTPS_OTA_V1"
-#define PICO_OTA_FEED_URL "https://kiikoread.com/update.json"
-#define PICO_OTA_FEED_FALLBACK_URL "https://wegooo-cell.github.io/read-pico-reader/update.json"
+#define PICO_OTA_FEED_URL "https://wegooo-cell.github.io/read-pico-reader/update.json"
+#define PICO_OTA_FEED_FALLBACK_URL "https://kiikoread.com/update.json"
 #endif
 
 typedef enum { PICO_UPDATE_IDLE, PICO_UPDATE_CHECKING, PICO_UPDATE_AVAILABLE,

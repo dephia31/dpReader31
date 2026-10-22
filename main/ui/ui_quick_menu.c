@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：浮于清晰页面之上的液态玻璃快捷层，四个圆键沿用密码锁屏的折射与亮边。
- * English: A liquid-glass quick layer over the sharp page, sharing PIN-key refraction and highlights.
+ * 中文：浮于页面之上的液态玻璃快捷层，四个圆键沿用密码锁屏的折射与亮边。
+ * English: A liquid-glass quick layer over the page, sharing PIN-key refraction and highlights.
  * 用户修订：仅展开时生成玻璃；缓存四个小圆键直到关闭，输入只恢复原像素与圆内按压，避免重复模糊和顶部重刷。
  * User revision: generate glass only on open; cache four small keys until close and restore original pixels for local interior feedback without reblurring or refreshing the top panel.
  * 冻结：不访问硬件、设置或刷新，不留整帧缓存；输入零分配，关闭释放。
@@ -204,9 +204,10 @@ void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool soften_text) {
     if(!fb||epd_rotated_display_width()!=UI_LOCK_WIDTH||epd_rotated_display_height()<UI_QUICK_HEIGHT)return;
     s_underlay=heap_caps_malloc(TOP_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);s_frame=fb;s_rotation=epd_get_rotation();
     if(s_underlay)save_tile(fb,(EpdRect){0,0,UI_LOCK_WIDTH,UI_QUICK_HEIGHT},s_underlay);
+    (void)soften_text;
     EpdRect panel={18,88,UI_LOCK_WIDTH-36,280};
-    if(!s_underlay||!ui_glass_panel_frost(fb,panel,48,25,160,soften_text)) { ui_fill_round_rect(fb,panel,48,0xe0);ui_draw_control_frame(fb,panel,48,0x60); }
-    for(unsigned i=0;i<4;++i){if(s_underlay)restore_circle(fb,i);if(!s_underlay||!ui_glass_panel_frost(fb,key_rect(i),UI_QUICK_RADIUS,25,160,soften_text))solid_key(fb,i);}
+    if(!s_underlay||!ui_glass_panel_frost(fb,panel,48,45,160,true)) { ui_fill_round_rect(fb,panel,48,0xe0);ui_draw_control_frame(fb,panel,48,0x60); }
+    for(unsigned i=0;i<4;++i){if(s_underlay)restore_circle(fb,i);if(!s_underlay||!ui_glass_panel_frost(fb,key_rect(i),UI_QUICK_RADIUS,58,160,true))solid_key(fb,i);}
     // Allocate key snapshots after every glass workspace has been released.
 #else
     if(!fb||epd_rotated_display_width()<UI_LOCK_WIDTH||epd_rotated_display_height()<UI_QUICK_HEIGHT)return;

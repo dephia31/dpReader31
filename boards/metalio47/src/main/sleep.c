@@ -8,6 +8,8 @@
  * for soft sleep / power-off.
  * 用户修订：票根从任意页面进入均用系统字体；浅睡唤醒恢复此前阅读字体，深睡由启动检查点恢复。
  * User revision: tickets use the system face from every page; light wake restores the previous reader face, while deep wake uses the startup checkpoint.
+ * 用户修订：单击锁屏提示复用Pico布局；双击/PIN和S31外设休眠顺序保持。
+ * User revision: use Pico's single-click hint layout, retaining double-click/PIN and S31 peripheral sleep sequencing.
  */
 
 #include "sleep.h"
@@ -125,7 +127,134 @@ app_wake_source_t app_last_wake_source(void) {
     return (app_wake_source_t)app_settings_last_wake();
 }
 
-// 中文：默认保留CPU/PSRAM/TF；可选硬件浅睡使用下方完整外设事务。
+// 单击等待650ms再局部提示，三秒后还原原图；不唤灯、不把触摸当作解锁。
+// Wait650ms for a double click, show locally for3s, then restore art without waking the lamp or granting touch unlock.
+static EpdiyHighlevelState *s_lock_hint_hl;
+static EpdiyHighlevelState *s_boot_lock_hl;
+static bool s_boot_lock_active, s_boot_lock_known, s_boot_lock_draw;
+
+// 未恢复像素前不做差分提示；缺卡/坏透明底图仍保留物理锁图，不假设白底。
+// Never hint against unknown pixels; absent media or a damaged transparent backdrop keeps physical art rather than assuming white.
+static void lock_resume_service(void) {
+    EpdiyHighlevelState *hl=s_boot_lock_hl;
+    if(!hl)return;
+    read_pico_sd_info_t info={0};
+    if(read_pico_sd_get_info(&info)==ESP_ERR_NOT_FINISHED)return;
+    if(!info.mounted){s_boot_lock_hl=NULL;return;}
+    uint8_t *fb=epd_hl_get_framebuffer(hl);
+    bool restored=lock_screen_restore(fb);
+    if(!restored && !s_boot_lock_draw)return;
+    s_boot_lock_hl=NULL;
+    if(!restored) {
+        uint8_t style=app_settings_lock_style();
+        if(style==3)return;
+        epd_hl_set_all_white(hl);
+        app_lock_font_t saved;app_font_begin_lock(&saved);
+        bool drawn=style==0?book_ticket_draw(fb,false):style==2?book_lock_collage_prepare(fb):draw_wallpaper(fb);
+        app_font_end_lock(&saved);
+        if(!drawn)return;
+    }
+    if(restored && pico_boot_resume_frame_cached())
+        memcpy(hl->back_fb,fb,(size_t)epd_width()*epd_height()/2);
+    else {
+        enum EpdDrawError result=update_display_full(hl);
+        guard_draw_result(hl,result);epd_poweroff();
+        if(result!=EPD_DRAW_SUCCESS)return;
+        if(app_settings_lock_style()==2)book_lock_collage_cache_commit(fb);
+        if(app_settings_lock_style()==1)ui_wallpaper_cache_commit(fb);
+        if(lock_screen_save(fb))(void)pico_boot_mark_frame_cached();
+    }
+    s_boot_lock_known=true;s_lock_hint_hl=hl;
+}
+
+bool app_lock_resume_frame(EpdiyHighlevelState *hl) {
+    s_boot_lock_hl=hl;s_boot_lock_active=hl!=NULL;
+    s_boot_lock_known=s_boot_lock_draw=false;s_lock_hint_hl=NULL;
+    lock_resume_service();return s_boot_lock_known;
+}
+
+static struct {
+    uint8_t *pixels;
+    EpdRect area;
+    uint32_t serial;
+    int64_t pending_at, until;
+} s_lock_hint;
+
+static uint8_t lock_hint_pixel(uint8_t *fb,int x,int y) {
+    int px=x,py=y;
+    switch(epd_get_rotation()) {
+        case EPD_ROT_PORTRAIT:px=epd_width()-y-1;py=x;break;
+        case EPD_ROT_INVERTED_LANDSCAPE:px=epd_width()-x-1;py=epd_height()-y-1;break;
+        case EPD_ROT_INVERTED_PORTRAIT:px=y;py=epd_height()-x-1;break;
+        default:break;
+    }
+    return epd_get_pixel(px,py,epd_width(),epd_height(),fb);
+}
+
+static void lock_hint_present(void) {
+    epd_poweron();
+    enum EpdDrawError result=update_display_area_diff_with(s_lock_hint_hl,&E0470_WAVEFORM,MODE_GL16,s_lock_hint.area);
+    guard_draw_result(s_lock_hint_hl,result);
+    epd_poweroff();
+}
+
+static void lock_hint_finish(bool restore) {
+    if(s_lock_hint.pixels) {
+        uint8_t *fb=epd_hl_get_framebuffer(s_lock_hint_hl);
+        EpdRect r=s_lock_hint.area;
+        for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x) {
+            size_t i=(size_t)y*r.width+x;
+            uint8_t v=(s_lock_hint.pixels[i/2]>>((i&1)*4))&15;
+            epd_draw_pixel(r.x+x,r.y+y,(uint8_t)(v*17),fb);
+        }
+        if(restore)lock_hint_present();
+        heap_caps_free(s_lock_hint.pixels);s_lock_hint.pixels=NULL;
+    }
+    s_lock_hint.pending_at=s_lock_hint.until=0;
+}
+
+static void lock_hint_service(void) {
+    if(!s_lock_hint_hl)return;
+    int64_t now=esp_timer_get_time()/1000;
+    uint32_t serial=read_pico_pmu_lock_key_serial();
+    if(serial!=s_lock_hint.serial) {
+        s_lock_hint.serial=serial;s_lock_hint.pending_at=now+650;
+    }
+    if(s_lock_hint.pending_at && now>=s_lock_hint.pending_at) {
+        s_lock_hint.pending_at=0;s_lock_hint.until=now+3000;
+        if(!s_lock_hint.pixels) {
+            uint8_t *fb=epd_hl_get_framebuffer(s_lock_hint_hl);
+            const int w=epd_rotated_display_width(),h=epd_rotated_display_height();
+            s_lock_hint.area=(EpdRect){(w-448)/2,h-196,448,72};
+            if(fb && w>=448 && h>=268)
+                s_lock_hint.pixels=heap_caps_calloc(1,448u*72u/2u,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+            if(s_lock_hint.pixels) {
+                EpdRect r=s_lock_hint.area;
+                for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x) {
+                    size_t i=(size_t)y*r.width+x;
+                    s_lock_hint.pixels[i/2]|=(lock_hint_pixel(fb,r.x+x,r.y+y)>>4)<<((i&1)*4);
+                }
+                ui_fill_round_rect(fb,r,28,UI_GRAY_WHITE);
+                ui_draw_round_rect(fb,r,28,UI_GRAY_BLACK);
+                ui_text_fixed_vc(fb,w/2,r.y+r.height/2,28,"双击电源键解锁",EPD_DRAW_ALIGN_CENTER,false);
+                lock_hint_present();
+            }
+        }
+    }
+    if(s_lock_hint.until && now>=s_lock_hint.until)lock_hint_finish(true);
+}
+
+
+static void lock_hint_begin(EpdiyHighlevelState *hl) {
+    s_lock_hint_hl=s_boot_lock_active&&!s_boot_lock_known?NULL:hl;
+    s_lock_hint.serial=read_pico_pmu_lock_key_serial();
+}
+static void lock_hint_end(void) {
+    lock_hint_finish(false);
+    s_lock_hint_hl=NULL;
+}
+
+// 默认保留CPU/PSRAM/TF；可选硬件浅睡使用下方完整外设事务。
 // USB/拿起唤醒或事务失败时保留待机；任何定时唤醒都不解锁、不进入深睡。
 // English: Default retains CPU/PSRAM/TF; optional light sleep uses the complete transaction below.
 // USB/pickup/failure retain standby; timer maintenance never unlocks or escalates to deep sleep.
@@ -145,7 +274,9 @@ app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc,uint32_t timeo
     ESP_LOGI(TAG,"S31 lock wait: mode=%u, USB/pickup use retained standby",app_settings_lock_sleep());
     for(;;) {
         if(read_pico_pmu_take_key_wakeup()) { wake=APP_WAKE_KEY; break; }
-        if (!hardware_failed && !deadline && s_lock_sleep_touch && !pickup && !metalio_usb_blocks_sleep()) {
+        lock_resume_service();
+        lock_hint_service();
+        if (!s_boot_lock_active && !s_lock_hint.pending_at && !s_lock_hint.until && !hardware_failed && !deadline && s_lock_sleep_touch && !pickup && !metalio_usb_blocks_sleep()) {
             unsigned mode=app_settings_lock_sleep();
             if(mode==1) {
                 bool key=false;
@@ -182,6 +313,7 @@ app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc,uint32_t timeo
         // Avoid repeated sleep/wake register transitions; block each loop for key/idle/watchdog scheduling.
         vTaskDelay(pdMS_TO_TICKS(30));
     }
+    lock_hint_finish(wake!=APP_WAKE_KEY);
     if(pickup) (void)sc7a20h_shared_irq_idle(acc);
     if (wake != APP_WAKE_TIMEOUT) metalio_frontlight_restore();
     app_settings_set_last_wake((uint8_t)(wake==APP_WAKE_TIMEOUT?APP_WAKE_NONE:wake));
@@ -521,7 +653,7 @@ void enter_lock_and_sleep(
     if (lock_drawn && result == EPD_DRAW_SUCCESS) {
         if (lock_style == 2) book_lock_collage_cache_commit(framebuffer);
         if (lock_style == 1) ui_wallpaper_cache_commit(framebuffer);
-        if(!lock_pin_enabled() && s_lock_deep_ready)s_lock_frame_cached=lock_screen_save(framebuffer);
+        s_lock_frame_cached=lock_screen_save(framebuffer);
     }
     // 密码启用时即使显示失败也保持验证边界，绝不回到未验证页面。
     // A display failure must never return an unauthenticated page when the PIN is enabled.
@@ -530,8 +662,10 @@ void enter_lock_and_sleep(
     ESP_LOGI(TAG, "lock LIGHT");
     epd_poweroff();
     s_lock_sleep_touch=touch;
+    lock_hint_begin(hl);
     if (lock_pin_enabled()) lock_screen_authenticate(hl, touch, acc, false);
     else lock_wait_for_unlock(acc);
+    lock_hint_end();
     s_lock_sleep_touch=NULL;
     s_lock_deep_ready=false;s_lock_frame_cached=false;
     pico_boot_clear_resume();
@@ -551,11 +685,16 @@ void enter_lock_and_sleep(
 }
 
 void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h_handle_t acc) {
+    lock_hint_begin(hl);
+    s_boot_lock_draw=true;
+    lock_resume_service();
     if (!lock_pin_enabled()) {
         if(pico_boot_has_resume()) {
             pico_boot_ready();pico_boot_hold_resume();
             lock_wait_for_unlock(NULL);
         }
+        lock_hint_end();
+        (void)app_lock_resume_frame(NULL);
         return;
     }
     // 卡挂载有界等待仅为了字体/锁屏图；没有卡仍必须验证。
@@ -571,7 +710,12 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
             app_settings_lock_style() == 2 ? book_lock_collage_prepare(fb) :
             app_settings_lock_style() == 3 ? book_lock_bookmark_draw(fb,app_settings_bookmark_path()) : draw_wallpaper(fb);
         if (!drawn) ui_lock_fallback_draw(fb);
+        enum EpdDrawError result=update_display_full(hl);
+        guard_draw_result(hl,result);epd_poweroff();
+        if(drawn && result==EPD_DRAW_SUCCESS)(void)lock_screen_save(fb);
     }
     lock_screen_authenticate(hl, touch, acc, true);
+    lock_hint_end();
+    (void)app_lock_resume_frame(NULL);
     app_font_end_lock(&saved);
 }

@@ -6,9 +6,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "esp_heap_caps.h"
+#include "../kiiko_board_config.h"
 #define METALIO_PSRAM (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
-#define METALIO_CACHE_RESERVE (2560u * 1024u)
-#define METALIO_CACHE_BLOCK_RESERVE (1024u * 1024u)
+#define METALIO_CACHE_RESERVE (KIIKO_BOARD_CACHE_PSRAM_RESERVE_KB * 1024u)
+#define METALIO_CACHE_BLOCK_RESERVE (KIIKO_BOARD_CACHE_BLOCK_RESERVE_KB * 1024u)
 
 static inline bool metalio_cache_can_grow(size_t bytes) {
     const size_t free=heap_caps_get_free_size(METALIO_PSRAM);

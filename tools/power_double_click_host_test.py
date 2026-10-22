@@ -16,16 +16,28 @@ unit += r'''
 #define ESP_LOGI(...) ((void)0)
 enum {PMU_EVT_KEY_DOWN=1,PMU_EVT_KEY_SHORT=2,PMU_EVT_KEY_LONG=3};
 static power_double_click_t s_wake_click;
+static uint32_t s_lock_key_serial;
+static bool s_scan_short,s_boot_short;
 static struct {bool event_ok;unsigned pending_events;struct {unsigned type,event_id,timestamp_ms;}event;} s_snap;
-static typeof(s_snap.event) events[16];static unsigned count,index_at;
+static typeof(s_snap.event) events[16];static unsigned count,index_at;static bool ack_error;
 static int read_pico_pmu_poll(void){s_snap.event_ok=true;s_snap.pending_events=count-index_at;if(index_at<count)s_snap.event=events[index_at];return 0;}
-static int read_pico_pmu_event_ack(unsigned id){assert(id==events[index_at].event_id);++index_at;return 0;}
+static int read_pico_pmu_event_ack(unsigned id){assert(id==events[index_at].event_id);if(ack_error)return -1;++index_at;return 0;}
 static void add(unsigned type,unsigned ms){assert(count<16);events[count]=(typeof(events[0])){type,count+1,ms};++count;}
-static void reset(void){s_wake_click=(power_double_click_t){0};count=index_at=0;}
+static void reset(void){s_wake_click=(power_double_click_t){0};count=index_at=0;s_scan_short=s_boot_short=ack_error=false;}
 '''
 unit += function('read_pico_pmu_take_key_wakeup', ROOT/'components/read_pico_pmu/read_pico_pmu.c')
+unit += function('read_pico_pmu_take_key_wakeup_single', ROOT/'components/read_pico_pmu/read_pico_pmu.c')
+unit += function('read_pico_pmu_take_boot_short_press', ROOT/'components/read_pico_pmu/read_pico_pmu.c')
 unit += r'''
 int main(void){
+ reset();add(PMU_EVT_KEY_DOWN,100);assert(!read_pico_pmu_take_key_wakeup_single());
+ add(PMU_EVT_KEY_SHORT,200);assert(read_pico_pmu_take_key_wakeup_single());assert(!read_pico_pmu_take_key_wakeup_single());
+ reset();add(PMU_EVT_KEY_LONG,200);assert(!read_pico_pmu_take_key_wakeup_single());
+ reset();add(PMU_EVT_KEY_SHORT,100);add(PMU_EVT_KEY_LONG,200);assert(!read_pico_pmu_take_key_wakeup_single());
+ reset();add(PMU_EVT_KEY_SHORT,200);ack_error=true;assert(!read_pico_pmu_take_key_wakeup_single());
+ ack_error=false;assert(read_pico_pmu_take_key_wakeup_single());
+ reset();assert(!read_pico_pmu_take_boot_short_press());s_boot_short=true;
+ assert(read_pico_pmu_take_boot_short_press()&&!read_pico_pmu_take_boot_short_press());
  reset();add(PMU_EVT_KEY_DOWN,100);add(PMU_EVT_KEY_SHORT,180);assert(!read_pico_pmu_take_key_wakeup());
  add(PMU_EVT_KEY_DOWN,250);add(PMU_EVT_KEY_SHORT,320);assert(read_pico_pmu_take_key_wakeup());assert(!read_pico_pmu_take_key_wakeup());
  // UI解码阻塞期间两个短按排队，使用PMU时间而不是消费时间。/ Queued clicks use PMU event time, not UI consumption time.

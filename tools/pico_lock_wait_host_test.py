@@ -41,6 +41,9 @@ static int sc7a20h_int1_level(void *h){(void)h;return 0;}
 static bool pickup_ia(void *h){(void)h;return false;}
 static void gpio_wakeup_disable(int gpio){(void)gpio;}
 static bool read_pico_pmu_take_key_wakeup(void){return key_at&&now>=key_at;}
+static bool lock_wait_key(void){return read_pico_pmu_take_key_wakeup();}
+static struct {int64_t pending_at,touch_until;} s_lock_hint;
+static void lock_hint_finish(bool restore){(void)restore;}
 static void read_pico_clear_ioe_int(void){}
 static int gpio_get_level(int gpio){(void)gpio;return fault==3?0:1;}
 static void vTaskDelay(int ms){now+=(int64_t)ms*1000;assert(now<12000000);}

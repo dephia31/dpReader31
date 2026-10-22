@@ -4,12 +4,65 @@
  */
 #include <assert.h>
 #include <stdio.h>
+#include <limits.h>
 #include <string.h>
 #include "display_reader_waveform.h"
 #include "e0470_epaper_waveform.h"
 
+static enum EpdRotation test_rotation;
+int epd_width(void) { return 1216; }
+int epd_height(void) { return 684; }
+enum EpdRotation epd_get_rotation(void) { return test_rotation; }
+static uint8_t test_front[1216*684/2], test_back[1216*684/2], test_original[1216*684/2];
+static uint8_t test_old[1216*684/2];
+static void test_fast_target(void) {
+    EpdiyHighlevelState hl = {.front_fb=test_front, .back_fb=test_back};
+    const EpdWaveform* waveform = display_reader_fast_text_waveform();
+    const EpdWaveformPhases* native = e0470_waveform_phases(&E0470_FULL_WAVEFORM, MODE_DU);
+    assert(waveform == &E0470_FULL_WAVEFORM && native && native->phases == E0470_FULL_DU_FRAMES);
+    assert(e0470_waveform_phases(waveform, MODE_DU) == native && !native->phase_times);
+    uint8_t original[E0470_FULL_DU_FRAMES*16*4]; memcpy(original,native->luts,sizeof(original));
+    for(int f=0;f<native->phases;++f) {
+        assert(e0470_phase_action(native,f,0,0)==0 && e0470_phase_action(native,f,15,15)==0);
+    }
+    for(int rot=0;rot<4;++rot) {
+        test_rotation=(enum EpdRotation)rot;
+        int lw=(rot&1)?684:1216, lh=(rot&1)?1216:684;
+        EpdRect areas[]={{31,33,17,11},{-3,-4,9,13},{lw-5,lh-7,50,60},{0,0,lw,lh},
+            {INT_MAX-2,0,INT_MAX,1},{0,INT_MAX-1,1,INT_MAX},{0,0,0,5},{-50,-60,3,3}};
+        for(unsigned c=0;c<sizeof(areas)/sizeof(areas[0]);++c) {
+            for(size_t i=0;i<sizeof(test_front);++i) {
+                test_front[i]=test_original[i]=(uint8_t)(i*29+37);
+                test_back[i]=test_old[i]=(uint8_t)(i*137+81);
+            }
+            EpdRect a=areas[c]; bool changed=display_reader_fast_text_prepare(&hl,a);
+            assert(changed==(c<4));
+            assert(!memcmp(test_back,test_old,sizeof(test_back)));
+            for(int y=0;y<684;++y)for(int x=0;x<1216;++x) {
+                int lx,ly;
+                switch(rot) {
+                    case 0:lx=x;ly=y;break;
+                    case 1:lx=y;ly=1215-x;break;
+                    case 2:lx=1215-x;ly=683-y;break;
+                    default:lx=683-y;ly=x;break;
+                }
+                size_t at=(size_t)y*1216+x;unsigned shift=(at&1)*4;
+                unsigned before=(test_original[at/2]>>shift)&15;
+                bool inside=(int64_t)lx>=a.x&&(int64_t)lx<(int64_t)a.x+a.width&&
+                    (int64_t)ly>=a.y&&(int64_t)ly<(int64_t)a.y+a.height&&a.width>0&&a.height>0;
+                assert(((test_front[at/2]>>shift)&15)==(inside?(before<8?0u:15u):before));
+            }
+        }
+    }
+    hl.back_fb=hl.front_fb;assert(!display_reader_fast_text_prepare(&hl,(EpdRect){0,0,16,16}));
+    assert(!display_reader_fast_text_prepare(NULL,(EpdRect){0,0,16,16}));
+    assert(!memcmp(original,native->luts,sizeof(original)));
+    puts("PASS: Pico native DU20 bytes/phases and equal BW holds; all16 targets,4 rotations,clipping,odd nibbles,outside grays and real history retained");
+}
+
 int main(void) {
     e0470_waveform_init();
+    test_fast_target();
     const EpdWaveformPhases* old = e0470_waveform_phases(&E0470_TEXTTURN_WAVEFORM, MODE_GL16);
     uint8_t saved[E0470_GL16_FRAMES * 16 * 4];
     assert(old && old->phases == E0470_GL16_FRAMES && !old->phase_times);

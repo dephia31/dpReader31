@@ -719,11 +719,6 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
     s_render_secondary=previous;
 #if KIIKO_BOARD_METALIO47
     display_monochrome_content(fb);
-#else
-    // 根入口继续黑白快刷；目录及操作子页保留原卡片、分隔线和输入区灰阶。
-    // Keep the root entry binary; retain original card, divider and input grays in directory/operation children.
-    if(main_page_visible(ctx))
-        display_system_content(fb,true,(EpdRect){0});
 #endif
 }
 
@@ -1143,7 +1138,11 @@ static void files_before_lock(app_ctx_t *ctx) { (void)ctx;s_pager_pressed=UI_PAG
 static void files_exit(app_ctx_t *ctx) { files_before_lock(ctx); ui_keyboard_end(); }
 
 const app_desc_t app_files = {
+#if KIIKO_BOARD_METALIO47
     .binary_ui = true,
+#else
+    .binary_ui = false,
+#endif
     .title = "文件管理 Files", .detail = "TF 卡文件与传输", .enter_full = false,
     .owns_keys = true, .menu_handle_enabled = no_menu_handle,
     .main_page_visible = main_page_visible, .edge_back_enabled = files_edge_back,

@@ -12,12 +12,13 @@ import struct
 import subprocess
 import sys
 import zipfile
-from board_source_view import BOARDS, materialize
+from board_source_view import BOARDS, BOARD_ALIASES, canonical_board, materialize
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def metadata(board):
+    board = canonical_board(board)
     if board not in BOARDS:
         raise ValueError('Unknown board: ' + board)
     value = json.loads((ROOT / 'boards' / board / 'board.json').read_text())
@@ -89,9 +90,11 @@ def export(build, output, board):
     cache = build / 'CMakeCache.txt'
     experimental_pie = board == 'metalio47' and cache.exists() and 'METALIO_PIE_PIXELS:BOOL=ON' in cache.read_text()
     experimental_ripple = board == 'metalio47' and cache.exists() and 'METALIO_TEXT_RIPPLE_EXPERIMENT:BOOL=ON' in cache.read_text()
+    experimental_network = board == 'metalio47' and cache.exists() and 'METALIO_NETWORK_PROBE:BOOL=ON' in cache.read_text()
     manifest = {'name': info['name'], 'version': identity['version'], 'board': board,
                 'experimental_pie_pixels': bool(experimental_pie),
                 'experimental_text_ripple': bool(experimental_ripple),
+                'experimental_network_probe': bool(experimental_network),
                 'project': identity['project'], 'new_install_prompt_erase': False,
                 'builds': [{'chipFamily': 'ESP32-S3' if board == 'pico' else 'ESP32-S31', 'parts': []}]}
     checksums, args = [], [shlex.join(plan['write_flash_args'])]
@@ -121,6 +124,7 @@ def export(build, output, board):
               'esptool_stub': loader['stub'], 'free_app_bytes': entries['ota_0'][3] - identity['size'],
               'experimental_pie_pixels': bool(experimental_pie),
               'experimental_text_ripple': bool(experimental_ripple),
+                'experimental_network_probe': bool(experimental_network),
               'built': True, 'device_flashed': False, 'published': False}
     (output / 'verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     with zipfile.ZipFile(output.parent / f"kiikoread-{board}-{identity['version']}-USB.zip", 'w', zipfile.ZIP_DEFLATED) as archive:
@@ -148,6 +152,8 @@ def build_one(board, args):
                '-DCCACHE_ENABLE=OFF', '-DMETALIO_LOCAL_LATENCY=OFF',
                '-DMETALIO_PIE_PIXELS=' + ('ON' if board == 'metalio47' and args.s31_pie else 'OFF'),
                '-DMETALIO_TEXT_RIPPLE_EXPERIMENT=' + ('ON' if board == 'metalio47' and args.s31_text_ripple else 'OFF'),
+               '-DMETALIO_UI_GRAY22_EXPERIMENT=OFF',
+               '-DMETALIO_NETWORK_PROBE=' + ('ON' if board == 'metalio47' and args.s31_network_probe else 'OFF'),
                'reconfigure', 'build']
     if args.dry_run:
         print(json.dumps({'board': board, 'sdk': str(sdk), 'command': command}, ensure_ascii=False))
@@ -160,7 +166,15 @@ def build_one(board, args):
         lines = [line for line in path.read_text().splitlines()
                  if not any(line.startswith(key + '=') or line == '# ' + key + ' is not set'
                             for key in required)]
-        path.write_text('\n'.join(lines + [key + '=y' for key in required]) + '\n')
+        # 同步经过本地验证的S31传输缓冲，接收窗口必须匹配无线缓冲预算。
+        # Migrate validated S31 transfer buffers; receive windows must match the radio buffer budget.
+        transfer={'CONFIG_TINYUSB_MSC_BUFSIZE':'16384','CONFIG_LWIP_TCP_WND_DEFAULT':'32768',
+                  'CONFIG_LWIP_TCP_RECVMBOX_SIZE':'32','CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM':'16',
+                  'CONFIG_ESP_WIFI_RX_BA_WIN':'32','CONFIG_LWIP_TCP_OOSEQ_MAX_PBUFS':'8',
+                  'CONFIG_LWIP_TCP_SACK_OUT':'y'}
+        lines=[line for line in lines if not any(line.startswith(key+'=') or line=='# '+key+' is not set' for key in transfer)]
+        path.write_text('\n'.join(lines+[key+'=y' for key in required]+
+                                  [key+'='+value for key,value in transfer.items()])+'\n')
     cache = getattr(args, 'managed_' + board)
     if cache:
         shutil.copytree(cache, source / 'managed_components', dirs_exist_ok=True)
@@ -191,7 +205,7 @@ def build_one(board, args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--board', choices=(*BOARDS, 'all'), required=True)
+    parser.add_argument('--board', choices=(*BOARDS, *BOARD_ALIASES, 'all'), required=True)
     parser.add_argument('--output', type=Path, default=ROOT / 'build/boards')
     parser.add_argument('--python', type=Path, default=Path(sys.executable))
     parser.add_argument('--tools', type=Path)
@@ -202,11 +216,15 @@ def main():
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--s31-pie', action='store_true', help='Explicit local S31 PIE experiment; normal builds stay C')
     parser.add_argument('--s31-text-ripple', action='store_true', help='Explicit local S31 four-level text-ripple experiment; ordinary builds remain full grayscale')
+    parser.add_argument('--s31-network-probe', action='store_true', help='Local S31 read-only radio counters; not a delivery default')
     args = parser.parse_args()
+    args.board = canonical_board(args.board)
     if args.s31_pie and args.board == 'pico':
         parser.error('--s31-pie requires metalio47 or all')
     if args.s31_text_ripple and args.board == 'pico':
         parser.error('--s31-text-ripple requires metalio47 or all')
+    if args.s31_network_probe and args.board == 'pico':
+        parser.error('--s31-network-probe requires metalio47 or all')
     boards = BOARDS if args.board == 'all' else (args.board,)
     if args.list:
         print(json.dumps([metadata(board) for board in boards], ensure_ascii=False, indent=2))

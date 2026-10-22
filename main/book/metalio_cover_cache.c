@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：2MiB 封面像素预算；低内存时回收最久未使用项，留2MiB给前台工作。
- * English: Bound cover pixels to 2 MiB and retain a 2 MiB foreground memory reserve.
+ * 中文：板级封面像素预算；低内存时回收最久未使用项并保留前台余量。
+ * English: Honor the board cover budget and foreground memory reserve with LRU eviction.
  */
 #include "metalio_cover_cache.h"
 #include "metalio_memory.h"
@@ -26,8 +26,8 @@ static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static void lock(void) { pthread_mutex_lock(&mutex); }
 static void unlock(void) { pthread_mutex_unlock(&mutex); }
 #endif
-#define CACHE_SLOTS 96
-#define CACHE_BUDGET (4u*1024u*1024u)
+#define CACHE_SLOTS KIIKO_BOARD_COVER_RAM_SLOTS
+#define CACHE_BUDGET (KIIKO_BOARD_COVER_RAM_BUDGET_KB * 1024u)
 typedef struct {
     metalio_cover_key_t key;
     metalio_cover_meta_t meta;

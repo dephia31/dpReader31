@@ -1043,11 +1043,20 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
     read_pico_transfer_get_status(&next);
     // 接收期间让屏幕保持静止，网页端显示实时进度；避免刷屏与写卡争用。
     // Keep the panel still during reception; the browser owns live progress.
+#if KIIKO_BOARD_METALIO47
+    // 首个上传状态也不推屏，避免开始接收后才抢占内存带宽；完成/错误正常显示。
+    // Skip even the first upload-state scan to avoid competing after reception starts; completion/errors still repaint.
+    if(next.state==READ_PICO_TRANSFER_UPLOADING) {
+        s_status=next;
+        return APP_REDRAW_NONE;
+    }
+#else
     if (next.state == READ_PICO_TRANSFER_UPLOADING && s_status.state == READ_PICO_TRANSFER_UPLOADING) {
         s_status.cur_bytes = next.cur_bytes;
         s_status.sta_count = next.sta_count;
         return APP_REDRAW_NONE;
     }
+#endif
     if (s_status.state == READ_PICO_TRANSFER_ERROR && next.state == READ_PICO_TRANSFER_STOPPED) return APP_REDRAW_NONE;
     bool network_changed = next.network_ready != s_status.network_ready ||
         next.mode != s_status.mode || strcmp(next.ssid, s_status.ssid) ||

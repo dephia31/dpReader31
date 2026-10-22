@@ -4,6 +4,7 @@ static inline void read_pico_transfer_service_poll(void) {}
 
 #include "common.h"
 #define READ_PICO_TRANSFER_STOPPED 0
+#define READ_PICO_TRANSFER_UPLOADING 3
 #define READ_PICO_TRANSFER_MODE_STA 1
 #define READ_PICO_TRANSFER_MODE_AP 2
 typedef struct {int state,mode;bool network_ready;} read_pico_transfer_status_t;

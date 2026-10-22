@@ -123,6 +123,7 @@ static bool s_input_settle,s_input_layout,s_scroll_present_pending;
 static EpdRect s_input_area;
 typedef struct {int kind;} EpdWaveform;
 static const EpdWaveform E0470_WAVEFORM={0},E0470_FOLLOW_WAVEFORM={1};
+static const EpdWaveform *display_settings_scroll_waveform(void){return &E0470_WAVEFORM;}
 enum EpdDrawMode {MODE_DU,MODE_GL16};
 enum EpdDrawError {EPD_DRAW_SUCCESS};
 static int diff_pushes,full_pushes,render_calls;

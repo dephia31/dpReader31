@@ -11,6 +11,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "kiiko_board.h"
 
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"
@@ -234,8 +235,9 @@ esp_err_t sc7a20h_power_down(sc7a20h_handle_t h) {
 esp_err_t sc7a20h_power_up(sc7a20h_handle_t h) {
     if (h == NULL) return ESP_ERR_INVALID_STATE;
     return sc7a20h_apply_config(h, &h->cfg);
-#if KIIKO_BOARD_METALIO47
 }
+// S31共享中断脚只轮询，Pico保留自身路径。/ Poll S31 shared IRQ; Pico retains its own path.
+#if KIIKO_BOARD_METALIO47
 
 esp_err_t sc7a20h_shared_irq_polling(sc7a20h_handle_t h) {
     if (h == NULL || h->dev == NULL) return ESP_ERR_INVALID_STATE;
@@ -267,9 +269,8 @@ esp_err_t sc7a20h_shared_irq_idle(sc7a20h_handle_t h) {
     err=write_reg(h,SC7A20H_REG_CTRL1,0x10);
     if (err==ESP_OK) h->powered=false;
     return err;
-#else
-#endif
 }
+#endif
 
 bool sc7a20h_powered(sc7a20h_handle_t h) {
     return h != NULL && h->powered;

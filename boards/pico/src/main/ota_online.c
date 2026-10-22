@@ -212,8 +212,8 @@ static bool check_feed(void) {
     char *json = heap_caps_malloc(8193, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     pico_release_t *release = heap_caps_calloc(1, sizeof(*release), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!json || !release) { state(PICO_UPDATE_FAILED, "内存不足，请退出传书后重试"); goto failed; }
-    // 主站失败后回退已有 GitHub 更新源；同一缓冲区顺序请求，无并发 TLS 连接。
-    // Fall back to the existing GitHub source, reusing one buffer and one TLS connection at a time.
+    // GitHub Pages清单优先，官网清单备用；同一缓冲区顺序请求，无并发TLS连接。
+    // Prefer GitHub Pages metadata, falling back to the website with one shared buffer and no concurrent TLS clients.
     static const char *const feeds[] = {PICO_OTA_FEED_URL, PICO_OTA_FEED_FALLBACK_URL};
     bool valid = false;
     for (size_t source = 0; source < sizeof(feeds) / sizeof(feeds[0]) && !atomic_load(&s_cancel); ++source) {

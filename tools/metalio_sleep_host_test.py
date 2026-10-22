@@ -18,6 +18,11 @@ typedef struct {int x_mg,y_mg,z_mg;unsigned status;} sc7a20h_sample_t;
 #define APP_SLEEP_DEEP 1
 static void *s_lock_sleep_touch;
 static bool s_lock_deep_ready,s_lock_frame_cached;
+static struct {int64_t pending_at,until;} s_lock_hint;
+static bool hint_window;
+static int64_t esp_timer_get_time(void);
+static void lock_hint_service(void){if(hint_window)s_lock_hint.until=esp_timer_get_time()<500000?500:0;}
+static void lock_hint_finish(bool restore){(void)restore;}
 static bool pin;
 static unsigned cached_marks;
 static int cached_error;
@@ -53,9 +58,10 @@ static void read_pico_clear_ioe_int(void){}
 static void vTaskDelay(int ms){assert(ms==30);scheduler_yields++;clock_us+=(int64_t)ms*1000;}
 static void app_settings_set_last_wake(unsigned source){last_wake=source;}
 '''
+unit+='static bool s_boot_lock_active;static void lock_resume_service(void){}\n'
 unit+=function('app_light_sleep_wait_timed',root/'main/sleep.c')
 unit+=r'''
-static void reset(void){clock_us=0;key_at=plug_at=-1;frontlight_calls=motion_reads=sensor_on=sensor_off=reconnects=scheduler_yields=0;pickup=usb=powered=stale_motion=false;lp_mode=light_calls=deep_calls=cached_marks=0;cached_error=0;pin=s_lock_frame_cached=false;light_key=light_fail=s_lock_deep_ready=false;s_lock_sleep_touch=NULL;}
+static void reset(void){hint_window=false;s_lock_hint.pending_at=s_lock_hint.until=0;clock_us=0;key_at=plug_at=-1;frontlight_calls=motion_reads=sensor_on=sensor_off=reconnects=scheduler_yields=0;pickup=usb=powered=stale_motion=false;lp_mode=light_calls=deep_calls=cached_marks=0;cached_error=0;pin=s_lock_frame_cached=false;light_key=light_fail=s_lock_deep_ready=false;s_lock_sleep_touch=NULL;}
 static void settled(void){assert(frontlight_calls==(last_wake==APP_WAKE_NONE?1:2));}
 int main(void){
  reset();assert(app_light_sleep_wait_timed(NULL,1000)==APP_WAKE_TIMEOUT&&last_wake==APP_WAKE_NONE&&scheduler_yields==34);settled();
@@ -77,6 +83,7 @@ int main(void){
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&deep_calls==1&&cached_marks==(c&&!p));settled();
  }
  reset();lp_mode=1;s_lock_sleep_touch=(void*)1;usb=true;key_at=500000;assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!light_calls);settled();
+ reset();hint_window=true;lp_mode=1;s_lock_sleep_touch=(void*)1;light_key=true;assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&light_calls==1&&clock_us>=500000);settled();
  puts("PASS: production S31 retained lock 45min/3h scheduler model, no hardware sleep/TF unmount/CPU reset, bounded short-key response, 4Hz fresh motion, USB powered/hotplug, lamp restores only on real wake, timeout remains dark");
 }
 '''

@@ -66,8 +66,6 @@ static void restore_time_from_pmu(void) {
     if (settimeofday(&tv, NULL) == 0) ESP_LOGI(TAG, "system clock restored from PMU");
 }
 
-extern const uint8_t lock_4bpp_bin_start[] asm("_binary_lock_4bpp_bin_start");
-extern const uint8_t lock_4bpp_bin_end[] asm("_binary_lock_4bpp_bin_end");
 extern const uint8_t loading_4bpp_bin_start[] asm("_binary_loading_4bpp_bin_start");
 extern const uint8_t loading_4bpp_bin_end[] asm("_binary_loading_4bpp_bin_end");
 
@@ -87,41 +85,23 @@ static bool resolve_vcom_at_boot(void) {
     return false;
 }
 
-// 开机图和锁屏图是预先转好的 4bpp 全屏位图，尺寸对不上说明资源和面板不匹配。
-// Splash and lock images are pre-baked 4bpp full-frames. A size mismatch
-// means the assets do not match the panel.
+// 冷启动图仍校验面板尺寸；锁屏由当前样式绘制，不再链接未使用的旧锁图。
+// Validate the cold splash against the panel; selected styles render locks without linking obsolete unused art.
 static bool images_match_panel(void) {
-    size_t lock_size = (size_t)(lock_4bpp_bin_end - lock_4bpp_bin_start);
     size_t loading_size = (size_t)(loading_4bpp_bin_end - loading_4bpp_bin_start);
     size_t expected = (size_t)epd_width() * epd_height() / 2;
-    if (lock_size == expected && loading_size == expected) return true;
+    if (loading_size == expected) return true;
     ESP_LOGE(
-        TAG, "Image size mismatch: lock %u loading %u expected %u",
-        (unsigned)lock_size, (unsigned)loading_size, (unsigned)expected
+        TAG, "Image size mismatch: loading %u expected %u",
+        (unsigned)loading_size, (unsigned)expected
     );
     return false;
 }
 
-// 缓存验证失败时继续原开机路径，不假设未知屏幕已经全白。
-// A rejected cache keeps the original startup path; never assume an unknown panel is white.
-static bool restore_retained_lock(EpdiyHighlevelState *hl,uint8_t *framebuffer) {
-    read_pico_sd_info_t info = {0};
-    for(unsigned wait=0;wait<150 && read_pico_sd_get_info(&info)==ESP_ERR_NOT_FINISHED;++wait)
-        vTaskDelay(pdMS_TO_TICKS(20));
-    // 超时未挂载不能继续进入卡上的缓存读取。/ Never enter cached-art I/O after a mount timeout.
-    if(!info.mounted)return false;
-    if(!lock_screen_restore(framebuffer))return false;
-    memcpy(hl->back_fb,framebuffer,(size_t)epd_width()*epd_height()/2);
-    return true;
-}
-
-// 深睡恢复会继续等双击解锁；缓存失效时也必须显示锁屏，不能停留在「准备资源」。
-// Deep resumes still await double-press unlock; invalid art must show a lock face, never a loading splash.
+// 深睡保持面板上原锁屏；挂卡与参考帧恢复由锁屏输入循环继续，不能用圆锁覆盖。
+// Keep the retained lock on deep boot; the locked-input loop resumes pending media/reference restoration without a badge replacement.
 static bool prepare_startup_frame(EpdiyHighlevelState *hl,uint8_t *framebuffer,bool resuming,bool vcom_ok) {
-    bool restored=false;
-    if(resuming && vcom_ok && !lock_pin_enabled() && pico_boot_resume_frame_cached())
-        restored=restore_retained_lock(hl,framebuffer);
-    if(restored)return true;
+    if(resuming && vcom_ok)return app_lock_resume_frame(hl);
     epd_poweron();
     if(!resuming)read_pico_i2c_census_take();
     epd_clear();
@@ -185,9 +165,22 @@ void app_main(void) {
     // Confirm a new slot only after hardware, display, touch, and required setup succeed.
     pico_ota_confirm_running();
 
-    if(resuming && !lock_pin_enabled())
-        ESP_LOGI(TAG,"resume lock cache=%d; waiting for double power press",restored_lock);
-    app_lock_boot_gate(&hl, hw.touch, hw.sensor);
+    // 单击开机：开机那一次短按就算开机，直接续读；双击开机仍停在锁屏等第二次。
+    // One-press boot treats the powering short press as the boot; double-click boot still waits on the lock face.
+    const bool boot_press = read_pico_pmu_take_boot_short_press();
+    const bool boot_with_one_press = resuming && !lock_pin_enabled() && boot_press &&
+        app_settings_wake_presses() == 1;
+    if (boot_with_one_press) {
+        ESP_LOGI(TAG, "resume lock cache=%d; one-press boot", restored_lock);
+        pico_boot_ready();
+        pico_boot_hold_resume();
+    } else {
+        if(resuming && !lock_pin_enabled())
+            ESP_LOGI(TAG,"resume lock cache=%d; power presses=%u",restored_lock,
+                (unsigned)app_settings_wake_presses());
+        app_lock_boot_gate(&hl, hw.touch, hw.sensor);
+    }
+    (void)app_lock_resume_frame(NULL);
     rp_boot_mark("lock");
     const app_desc_t *first = app_home_page();
     pico_resume_t resume = {0};

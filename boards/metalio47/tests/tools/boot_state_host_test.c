@@ -68,8 +68,9 @@ int main(void) {
     pico_boot_ready(); pico_boot_init(false); assert(!pico_boot_recovery()); pico_boot_ready();
     // 密码取消/深睡再次开机不能丢失恢复，但实际开书前必须消费。
     // PIN cancellation and another deep boot retain resume; actual opening still consumes it.
-    assert(pico_boot_save_resume(&resume) == ESP_OK); pico_boot_init(false); pico_boot_ready();
-    pico_boot_hold_resume(); assert(durable.resume_valid);
+    assert(pico_boot_save_resume(&resume) == ESP_OK);
+    assert(pico_boot_mark_frame_cached()==ESP_OK); pico_boot_init(false); pico_boot_ready();
+    pico_boot_hold_resume(); assert(durable.resume_valid && durable.reserved[0]);
     pico_boot_init(false); assert(!pico_boot_recovery()); pico_boot_ready(); pico_boot_hold_resume();
     assert(pico_boot_take_resume(&out) && !strcmp(out.path, resume.path) && !durable.resume_valid);
     assert(pico_boot_save_resume(&resume) == ESP_OK); pico_boot_init(false); pico_boot_ready(); pico_boot_hold_resume();
@@ -82,8 +83,9 @@ int main(void) {
     assert(!pico_boot_recovery() && !pico_boot_asset_allowed("/sdcard/books/large.epub") && pico_boot_asset_allowed(resume.path));
     // 密码取消/深睡再次开机不能丢失恢复，但实际开书前必须消费。
     // PIN cancellation and another deep boot retain resume; actual opening still consumes it.
-    assert(pico_boot_save_resume(&resume) == ESP_OK); pico_boot_init(false); pico_boot_ready();
-    pico_boot_hold_resume(); assert(durable.resume_valid);
+    assert(pico_boot_save_resume(&resume) == ESP_OK);
+    assert(pico_boot_mark_frame_cached()==ESP_OK); pico_boot_init(false); pico_boot_ready();
+    pico_boot_hold_resume(); assert(durable.resume_valid && durable.reserved[0]);
     pico_boot_init(false); assert(!pico_boot_recovery()); pico_boot_ready(); pico_boot_hold_resume();
     assert(pico_boot_take_resume(&out) && !strcmp(out.path, resume.path) && !durable.resume_valid);
     assert(pico_boot_save_resume(&resume) == ESP_OK); pico_boot_init(false); pico_boot_ready(); pico_boot_hold_resume();

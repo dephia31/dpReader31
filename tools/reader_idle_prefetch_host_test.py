@@ -133,7 +133,7 @@ int main(void){touch_t touch={0};app_ctx_t ctx={.touch=&touch};
  puts("PASS: real-thread scan overlap, row-boundary stop instead of whole-page join, partial-page continuation, 40 rapid cache hits, input/navigation priority and generation/OOM/image/background/panel guards");
 }
 '''
-with tempfile.TemporaryDirectory(dir='/private/tmp') as d:
+with tempfile.TemporaryDirectory() as d:
  c=Path(d)/'test.c';exe=Path(d)/'test';c.write_text(unit)
  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-pthread','-fsanitize=address,undefined',str(c),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True,timeout=30)

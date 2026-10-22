@@ -139,17 +139,17 @@ static int book_order(const lock_book_t *a, const lock_book_t *b) {
     int title = strcmp(a->title, b->title);
     return title ? title : strcmp(a->path, b->path);
 }
-static void collect_book(lock_library_t *library, const char *path,
+static bool collect_book(lock_library_t *library, const char *path,
                           const struct stat *st, const book_progress_t *saved) {
     const char *ext = strrchr(path, '.');
     if (!ext || (strcasecmp(ext, ".epub") && strcasecmp(ext, ".txt")) ||
         !S_ISREG(st->st_mode) || st->st_size < 0 || (uint64_t)st->st_size > UINT32_MAX ||
-        strlen(path) >= BOOK_STORE_PATH_MAX || hidden_book(library->hidden, path)) return;
+        strlen(path) >= BOOK_STORE_PATH_MAX || hidden_book(library->hidden, path)) return false;
     // 只保留常读/最近的十五条；总数继续完整统计，目录和字体不作书籍计数。
     // Keep only fifteen recent books while counting every eligible title; exclude folders and fonts.
     lock_book_t candidate = {0};
     snprintf(candidate.path, sizeof(candidate.path), "%s", path);
-    if (!book_title_from_path(path, candidate.title, sizeof(candidate.title))) return;
+    if (!book_title_from_path(path, candidate.title, sizeof(candidate.title))) return false;
     if (library->count < UINT_MAX) ++library->count;
     candidate.source_w = BOOK_COVER_W; candidate.source_h = BOOK_COVER_H;
     candidate.size = (uint32_t)st->st_size;
@@ -164,11 +164,12 @@ static void collect_book(lock_library_t *library, const char *path,
     candidate.key = hash_bytes(candidate.key, &library->font_weight, sizeof(library->font_weight));
     unsigned at = 0;
     while (at < library->used && book_order(&library->books[at], &candidate) <= 0) ++at;
-    if (at >= LOCK_BOOKS) return;
+    if (at >= LOCK_BOOKS) return true;
     if (library->used < LOCK_BOOKS) ++library->used;
     memmove(&library->books[at + 1], &library->books[at],
             (library->used - at - 1) * sizeof(candidate));
     library->books[at] = candidate;
+    return true;
 }
 static void scan_root(lock_library_t *library, const char *root) {
     lock_dir_t *frames = lock_alloc((LOCK_DEPTH + 1) * sizeof(*frames));
@@ -230,8 +231,9 @@ static bool index_progress(const char *path,const book_progress_t *progress,void
     for(int i=0;i<library->roots_count;++i){size_t n=strlen(library->roots[i].path);if(!strncmp(path,library->roots[i].path,n)&&path[n]=='/')inside=true;}
     for(unsigned i=0;i<library->used;++i)if(!strcmp(path,library->books[i].path))duplicate=true;
     unsigned count=library->count;
-    if(!duplicate)collect_book(library,path,&st,progress);
-    library->count=inside?count:count<UINT_MAX?count+1:count;
+    bool accepted = duplicate || collect_book(library, path, &st, progress);
+    // 非TXT/EPUB旧记录不参与计数，避免每次索引恢复都改变整图键。/ Foreign-format progress never changes the count or frame key.
+    library->count = inside || !accepted ? count : count < UINT_MAX ? count + 1 : count;
     return true;
 }
 static bool index_restore(lock_library_t *library) {
@@ -291,7 +293,18 @@ static void cache_write(const char *path, lock_cache_t header, const uint8_t *da
     bool good = fwrite(&header, 1, sizeof(header), file) == sizeof(header) &&
                 fwrite(data, 1, header.bytes, file) == header.bytes;
     if (fclose(file)) good = false;
-    if (good && !rename(temporary, path)) return;
+    if (good) {
+        if (!rename(temporary, path)) return;
+        // FAT覆盖先保留旧缓存；新文件提交失败时回滚，文件键与校验保持。/ Retain old FAT caches until commit and roll back failures without changing keys/checksums.
+        char backup[128];
+        if (snprintf(backup, sizeof(backup), "%s.bak", path) < (int)sizeof(backup)) {
+            (void)remove(backup);
+            if (!rename(path, backup)) {
+                if (!rename(temporary, path)) { (void)remove(backup); return; }
+                (void)rename(backup, path);
+            }
+        }
+    }
     (void)remove(temporary);
 }
 static bool cache_header(FILE *file, lock_cache_t *header, uint64_t key) {
@@ -344,6 +357,34 @@ static uint8_t *cover_read(lock_book_t *book) {
     }
     fclose(file);
     return gray;
+}
+static void cover_size(lock_book_t *book, unsigned sw, unsigned sh) {
+    unsigned h = 334, w = (unsigned)(((uint64_t)h * sw + sh / 2u) / sh);
+    if (!w) w = 1;
+    while (w > 1216 || h > 1216 || (uint64_t)w * h > LOCK_IMAGE_PIXELS) {
+        w = (w + 1) / 2; h = (h + 1) / 2;
+    }
+    book->width = w; book->height = h;
+    book->source_w = sw; book->source_h = sh;
+}
+static void cover_dimensions_load(lock_book_t *book, bool *complete) {
+    if (cover_dimensions_read(book)) return;
+    uint8_t *data = NULL; size_t bytes = 0; bool png = false;
+    unsigned sw = BOOK_COVER_W, sh = BOOK_COVER_H;
+    size_t available = heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    size_t budget = available > LOCK_RESERVE + 512u * 1024u ? available - LOCK_RESERVE - 512u * 1024u : 0;
+    if (budget > 4u * 1024u * 1024u) budget = 4u * 1024u * 1024u;
+    const char *ext = strrchr(book->path, '.');
+    esp_err_t error = ESP_ERR_NOT_FOUND;
+    if (budget && ext && !strcasecmp(ext, ".epub") && pico_boot_asset_allowed(book->path))
+        error = book_epub_cover_bounded(book->path, &data, &bytes, &png, budget);
+    bool valid = error == ESP_OK && book_image_dimensions(data, bytes, png, &sw, &sh) &&
+        sw && sh && sw <= 65535 && sh <= 65535;
+    free(data);
+    if (valid) { cover_size(book, sw, sh); return; }
+    if (error != ESP_ERR_NOT_FOUND) *complete = false;
+    book->width = book->source_w = BOOK_COVER_W;
+    book->height = book->source_h = BOOK_COVER_H;
 }
 static uint8_t *cover_load_bounded(lock_book_t *book, bool *complete, size_t limit) {
     uint8_t *gray = cover_read(book);
@@ -441,9 +482,11 @@ static unsigned make_placements(const lock_library_t *library, lock_placement_t 
 }
 static bool inside_cover(float x, float y, float width) {
     if (x < 0 || y < 0 || x >= width || y >= LOCK_COVER_HEIGHT) return false;
-    float radius = fminf(LOCK_RADIUS, width / 2.f);
-    float cx = fmaxf(radius - x, x - (width - radius));
-    float cy = fmaxf(radius - y, y - (LOCK_COVER_HEIGHT - radius));
+    float half = width / 2.f, radius = LOCK_RADIUS < half ? LOCK_RADIUS : half;
+    float cx = radius - x, rx = x - (width - radius);
+    if (rx > cx) cx = rx;
+    float cy = radius - y, ry = y - (LOCK_COVER_HEIGHT - radius);
+    if (ry > cy) cy = ry;
     return cx <= 0 || cy <= 0 || cx * cx + cy * cy <= radius * radius;
 }
 static uint8_t sample_cover(const uint8_t *gray, const lock_book_t *book, float sx, float sy) {
@@ -472,9 +515,11 @@ static bool pale_cover(const uint8_t *gray, const lock_book_t *book) {
 static bool cover_edge(float x, float y, float width) {
     const float inset = 1.3f;
     if (x < inset || y < inset || x >= width - inset || y >= LOCK_COVER_HEIGHT - inset) return true;
-    float radius = fminf(LOCK_RADIUS, width / 2.f);
-    float cx = fmaxf(radius - x, x - (width - radius));
-    float cy = fmaxf(radius - y, y - (LOCK_COVER_HEIGHT - radius));
+    float half = width / 2.f, radius = LOCK_RADIUS < half ? LOCK_RADIUS : half;
+    float cx = radius - x, rx = x - (width - radius);
+    if (rx > cx) cx = rx;
+    float cy = radius - y, ry = y - (LOCK_COVER_HEIGHT - radius);
+    if (ry > cy) cy = ry;
     return cx > 0 && cy > 0 && cx * cx + cy * cy >= (radius - inset) * (radius - inset);
 }
 // 固定的小投影沿真实圆角旋转；不用第二张全屏或逐像素工作区。
@@ -487,15 +532,16 @@ static void cover_shadow_draw(uint8_t *fb, lock_placement_t p) {
     int right = (int)fminf(684.f, fmaxf(0.f, ceilf(x0 + LOCK_COS * p.w + spread)));
     int top = (int)fminf(1216.f, fmaxf(0.f, floorf(y0 - spread)));
     int bottom = (int)fminf(1216.f, fmaxf(0.f, ceilf(y0 + LOCK_SIN * p.w + LOCK_COS * LOCK_COVER_HEIGHT + spread)));
-    float radius = fminf(LOCK_RADIUS, p.w / 2.f);
+    float half = p.w / 2.f, radius = LOCK_RADIUS < half ? LOCK_RADIUS : half;
     for (int y = top; y < bottom; ++y) {
         for (int x = left; x < right; ++x) {
             float dx = x + .5f - x0, dy = y + .5f - y0;
             float u = LOCK_COS * dx + LOCK_SIN * dy, v = -LOCK_SIN * dx + LOCK_COS * dy;
             float qx = fabsf(u - p.w / 2.f) - (p.w / 2.f - radius);
             float qy = fabsf(v - LOCK_COVER_HEIGHT / 2.f) - (LOCK_COVER_HEIGHT / 2.f - radius);
-            float ax = fmaxf(qx, 0.f), ay = fmaxf(qy, 0.f);
-            float distance = sqrtf(ax * ax + ay * ay) + fminf(fmaxf(qx, qy), 0.f) - radius;
+            float ax = qx > 0.f ? qx : 0.f, ay = qy > 0.f ? qy : 0.f;
+            float outer = qx > qy ? qx : qy, inner = outer < 0.f ? outer : 0.f;
+            float distance = sqrtf(ax * ax + ay * ay) + inner - radius;
             if (distance >= spread) continue;
             float fade = distance <= 0.f ? 1.f : (spread - distance) / spread;
             // 二次衰减让边缘轻柔，16物理灰阶抖动保留细小亮度差。
@@ -505,6 +551,15 @@ static void cover_shadow_draw(uint8_t *fb, lock_placement_t p) {
         }
         lock_yield((unsigned)y);
     }
+}
+static bool cover_visible(lock_placement_t p) {
+    float x0 = 342.f + LOCK_COS * p.x - LOCK_SIN * p.y;
+    float y0 = 608.f + LOCK_SIN * p.x + LOCK_COS * p.y;
+    int left = (int)fminf(684.f, fmaxf(0.f, floorf(x0 - LOCK_SIN * LOCK_COVER_HEIGHT)));
+    int right = (int)fminf(684.f, fmaxf(0.f, ceilf(x0 + LOCK_COS * p.w)));
+    int top = (int)fminf(1216.f, fmaxf(0.f, floorf(y0)));
+    int bottom = (int)fminf(1216.f, fmaxf(0.f, ceilf(y0 + LOCK_SIN * p.w + LOCK_COS * LOCK_COVER_HEIGHT)));
+    return left < right && top < bottom;
 }
 static void cover_draw(uint8_t *fb, const uint8_t *gray, const lock_book_t *book, lock_placement_t p) {
     bool outline = pale_cover(gray, book);
@@ -631,30 +686,41 @@ static bool collage_draw(uint8_t *fb, bool defer_cache) {
         fclose(cached);
         if (ok) { free(library); return true; }
     }
-    memset(fb, 255, LOCK_FRAME_BYTES);
-    // 缓存有效时仅读头取得原比例；不存在或头损坏时才解码，一次只保留一张图。
-    // Read valid headers for original ratios; decode absent/bad caches one image at a time.
-    for (unsigned i = 0; i < library->used; ++i) {
-        if (cover_dimensions_read(&library->books[i])) continue;
-        uint8_t *gray = cover_load(&library->books[i], &library->cache_complete);
-        if (!gray) { free(library); return false; }
-        free(gray);
-    }
-    lock_placement_t placements[30];
-    unsigned n = make_placements(library, placements);
-    for (unsigned p = 0; p < n; ++p) cover_shadow_draw(fb, placements[p]);
-    for (unsigned i = 0; i < library->used; ++i) {
-        const unsigned sw = library->books[i].source_w, sh = library->books[i].source_h;
-        uint8_t *gray = cover_load(&library->books[i], &library->cache_complete);
-        // 第二次读取失败或比例变化时交回安全回退，不能拉伸封面或固化半张锁屏。
-        // A failed reread or changed ratio requests safe fallback, never stretched art or a partial persistent frame.
-        if (!gray || library->books[i].source_w != sw || library->books[i].source_h != sh) {
-            free(gray); free(library); return false;
+    // 原压缩图只查尺寸，布局后跳过完全在屏幕外的封面；不改变绘制顺序或像素。
+    // Probe original sizes, then skip covers wholly off-screen without changing paint order or pixels.
+    bool painted = false;
+    for (unsigned attempt = 0; attempt < 2 && !painted; ++attempt) {
+        for (unsigned i = 0; i < library->used; ++i) {
+            if (!attempt) cover_dimensions_load(&library->books[i], &library->cache_complete);
+            else {
+                // 损坏原图可能回退到默认比例，仅此时重新验证全部布局。/ A corrupt source may fall back to another ratio; validate all geometry only then.
+                uint8_t *gray = cover_load(&library->books[i], &library->cache_complete);
+                if (!gray) { free(library); return false; }
+                free(gray);
+            }
         }
-        for (unsigned p = 0; p < n; ++p)
-            if (placements[p].index == i) cover_draw(fb, gray, &library->books[i], placements[p]);
-        free(gray);
+        memset(fb, 255, LOCK_FRAME_BYTES);
+        lock_placement_t placements[30];
+        unsigned n = make_placements(library, placements);
+        for (unsigned p = 0; p < n; ++p) cover_shadow_draw(fb, placements[p]);
+        painted = true;
+        for (unsigned i = 0; i < library->used; ++i) {
+            bool visible = false;
+            for (unsigned p = 0; p < n; ++p)
+                if (placements[p].index == i && cover_visible(placements[p])) visible = true;
+            if (!visible) continue;
+            unsigned sw = library->books[i].source_w, sh = library->books[i].source_h;
+            uint8_t *gray = cover_load(&library->books[i], &library->cache_complete);
+            if (!gray) { free(library); return false; }
+            if (library->books[i].source_w != sw || library->books[i].source_h != sh) {
+                free(gray); painted = false; break;
+            }
+            for (unsigned p = 0; p < n; ++p)
+                if (placements[p].index == i) cover_draw(fb, gray, &library->books[i], placements[p]);
+            free(gray);
+        }
     }
+    if (!painted) { free(library); return false; }
     bool ok = captions_draw(fb, library->count);
     if (ok && library->cache_complete) {
         lock_cache_t header = {.magic = LOCK_CACHE_MAGIC, .version = LOCK_CACHE_VERSION,

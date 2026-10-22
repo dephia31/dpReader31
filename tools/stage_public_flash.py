@@ -44,6 +44,10 @@ def stage(output: Path, ota_origin: str | None = None) -> None:
     shutil.copytree(FLASH / "manual", output / "manual", dirs_exist_ok=True)
     if (FLASH / "new-features").is_dir():
         shutil.copytree(FLASH / "new-features", output / "new-features", dirs_exist_ok=True)
+    # 中文：只发布构建好的模拟器；宿主源码、个人书库和工具链留在站点外。
+    # English: Publish built simulator assets only, excluding sources, personal files and toolchains.
+    if (FLASH / "simulator").is_dir():
+        shutil.copytree(FLASH / "simulator", output / "simulator", dirs_exist_ok=True)
     version = json.loads((FLASH / "manifest.json").read_text())["version"]
     versioned = FLASH / f"Pico-update-{version}.bin"
     if versioned.is_file(): shutil.copy2(versioned, output / versioned.name)
@@ -62,7 +66,10 @@ def stage(output: Path, ota_origin: str | None = None) -> None:
     # Publish only verified archived manifests/base parts, excluding local test files.
     # 最新基础包来自 Release；兼容性检查使用已经校验过的站点镜像。
     # The latest base comes from Release; compare archives with the verified staged image.
-    archives = check_archived_releases(FLASH, output / "partitions.bin")
+    archives = check_archived_releases(FLASH, output / "partitions.bin", output)
+    previous = json.loads((FLASH / 'manifest.json').read_text()).get('previous_version')
+    if previous:
+        assert any(item['version'] == previous for item in archives), 'previous official release is missing'
     if (FLASH / "releases.json").is_file():
         shutil.copy2(FLASH / "releases.json", output / "releases.json")
         shutil.copy2(FLASH / "versions.js", output / "versions.js")
@@ -104,11 +111,13 @@ def stage(output: Path, ota_origin: str | None = None) -> None:
             if target.is_dir(): target = target / 'index.html'
             assert target.is_relative_to(output.resolve()) and target.is_file(), (
                 f"broken local link in {page}: {link}")
-    if ota_origin:
-        assert ota_origin == 'https://kiikoread.com'
-        feed = json.loads((output / 'update.json').read_text())
-        feed['url'] = ota_origin + '/' + f'Pico-update-{version}.bin'
-        (output / 'update.json').write_text(json.dumps(feed, ensure_ascii=False, indent=2) + '\n')
+    feed = json.loads((output / 'update.json').read_text())
+    # 用户指定GitHub Pages为默认OTA源；只接受固件已允许的两个HTTPS来源。
+    # The user selected GitHub Pages for OTA; retain the firmware's exact HTTPS allowlist.
+    origin = ota_origin or feed['url'].rsplit('/', 1)[0]
+    assert origin in ('https://kiikoread.com', 'https://wegooo-cell.github.io/read-pico-reader')
+    feed['url'] = origin + '/' + f'Pico-update-{version}.bin'
+    (output / 'update.json').write_text(json.dumps(feed, ensure_ascii=False, indent=2) + '\n')
     check(output)
     files = list(output.rglob("*"))
     count = sum(path.is_file() for path in files)
@@ -120,6 +129,6 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('output', nargs='?', type=Path, default=ROOT / '_site')
-    parser.add_argument('--ota-origin', choices=['https://kiikoread.com'])
+    parser.add_argument('--ota-origin', choices=['https://kiikoread.com', 'https://wegooo-cell.github.io/read-pico-reader'])
     args = parser.parse_args()
     stage(args.output, args.ota_origin)

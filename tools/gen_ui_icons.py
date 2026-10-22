@@ -92,11 +92,11 @@ COMMON_ICONS = (
     "download",          # 系统升级 / system upgrade
     "cpu",               # BOOT 刷机 / boot flashing
     "book-open",         # 阅读设置 / reading settings
-    "timer",             # 自动休眠 / idle lock
     "pager-chevron-first", # AnimateIcons / first page
     "pager-chevron-last",  # AnimateIcons / last page
     "animate-circle-chevron-left", # AnimateIcons / shared back
     "animate-bookmark-plus", # 阅读题头已收藏 / saved reader-header favorite
+    "x",                 # 电源弹窗·取消 / power dialog, cancel
 )
 
 def icons_for_board(board):

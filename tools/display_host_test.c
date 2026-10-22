@@ -14,6 +14,9 @@
 #include "app_config.h"
 #include "settings.h"
 #include "e0470_epaper_waveform.h"
+uint8_t app_settings_reader_turn_effect(void) {return 0;}
+bool display_reader_fast_text_prepare(EpdiyHighlevelState *hl,EpdRect area) {(void)hl;(void)area;assert(false);return false;}
+const EpdWaveform* display_reader_fast_text_waveform(void) {assert(false);return NULL;}
 app_main_refresh_mode_t app_settings_main_refresh_mode(void) {return APP_MAIN_REFRESH_NORMAL;}
 // 所有真实推屏和欠载恢复都必须持有 OTA 互斥锁，包括递归兜底。
 // Every physical scan and underrun recovery must hold OTA exclusion, including recursive fallback.
@@ -82,8 +85,9 @@ enum EpdDrawError e0470_page_turn_with_waveform_compact(EpdiyHighlevelState* hl,
     e0470_turn_dir_t dir,const EpdWaveform* waveform,unsigned bands) {
     assert(ota_display_depth);
     assert(hl&&area.width>0&&dir==E0470_TURN_RTL);
-    assert(waveform==&reader_soft&&bands==expected_turn_bands);
+    assert(waveform==(expected_turn_bands==1?display_main_gray_waveform():&reader_soft)&&bands==expected_turn_bands);
     ++water_calls;assert(last_scan==READ_PICO_EPD_SCAN_FAST);
+    assert(prefill==127);
     return water_result;
 }
 
@@ -198,8 +202,8 @@ int main(void) {
     assert(update_display_mode_diff(&hl, MODE_GL16) == EPD_DRAW_SUCCESS);
     assert(last_mode == MODE_GC16);
 
-    // 子页和首次模式选择不触发第3/12次全刷，仍保留显式全刷及欠载恢复。
-    // Child/mode transitions never trigger third/twelfth-operation full output; explicit full and underrun recovery remain.
+    // 普通子页面沿用 rc96：柔和灰阶差分，达到原阈值用原表 GC16 清理。
+    // Match rc96: soft-gray subpage differences with original-table GC16 at the cleanup threshold.
     for (int i = 0; i < APP_UI_FAST_GC16_EVERY - 1; ++i) {
         int prior_full = full_draws;
         assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
@@ -208,7 +212,7 @@ int main(void) {
         assert(full_draws == prior_full);
     }
     assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
-    assert(last_mode == MODE_GL16 && waveform_at_draw == &soft_gray && last_scan == READ_PICO_EPD_SCAN_FULL);
+    assert(last_mode == MODE_GC16 && waveform_at_draw == &E0470_WAVEFORM && last_scan == READ_PICO_EPD_SCAN_FULL && full_draws > 0);
 
     // Image pages clear the optical state and use the full grayscale waveform.
     memcpy(front, target, FB_BYTES);
@@ -263,11 +267,9 @@ int main(void) {
     assert(update_display_water_turn(&hl,(EpdRect){0,0,16,16},E0470_TURN_RTL)==EPD_DRAW_SUCCESS);
     assert(water_calls==1&&!draws&&!clears&&last_scan==READ_PICO_EPD_SCAN_FULL);
     assert(turn_tick_us==21000&&!ota_display_depth);
-    expected_turn_bands=1;
     assert(update_display_text_turn(&hl,(EpdRect){0,0,16,16},E0470_TURN_RTL)==EPD_DRAW_SUCCESS);
-    assert(turn_tick_us==21000&&!ota_display_depth);
-    expected_turn_bands=E0470_TURN_FAST_BANDS;
-    water_calls=0;
+    assert(turn_tick_us==21000&&!ota_display_depth&&water_calls==1&&draws==1&&waveform_at_draw==display_main_gray_waveform());
+    water_calls=draws=0;
     water_result = EPD_DRAW_NO_PHASES_AVAILABLE;
     assert(update_display_water_turn(&hl, (EpdRect){0, 0, 16, 16}, E0470_TURN_RTL) == EPD_DRAW_SUCCESS);
     assert(water_calls == 1 && draws == 1 && !clears && last_mode == MODE_GL16);

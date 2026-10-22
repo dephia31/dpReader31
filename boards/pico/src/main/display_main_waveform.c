@@ -170,3 +170,9 @@ const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode draw_mode) {
 const EpdWaveform* display_main_ui_waveform(void) {
     return display_main_normal_waveform();
 }
+
+// 设置滚动复用八相灰阶差分：只向目标灰度推动，不先清白/压黑；字缘目标不二值化。
+// Settings scrolling reuses eight-phase gray differences: drive only toward the target without white/black resets or binarizing glyph edges.
+const EpdWaveform* display_settings_scroll_waveform(void) {
+    return &E0470_FOLLOW_WAVEFORM;
+}

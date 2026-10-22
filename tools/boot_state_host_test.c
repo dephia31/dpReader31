@@ -68,8 +68,9 @@ int main(void) {
     pico_boot_ready(); pico_boot_init(false); assert(!pico_boot_recovery()); pico_boot_ready();
     // 密码取消/深睡再次开机不能丢失恢复，但实际开书前必须消费。
     // PIN cancellation and another deep boot retain resume; actual opening still consumes it.
-    assert(pico_boot_save_resume(&resume) == ESP_OK); pico_boot_init(false); pico_boot_ready();
-    pico_boot_hold_resume(); assert(durable.resume_valid);
+    assert(pico_boot_save_resume(&resume) == ESP_OK);
+    assert(pico_boot_mark_frame_cached()==ESP_OK); pico_boot_init(false); pico_boot_ready();
+    pico_boot_hold_resume(); assert(durable.resume_valid && durable.reserved[0]);
     pico_boot_init(false); assert(!pico_boot_recovery()); pico_boot_ready(); pico_boot_hold_resume();
     assert(pico_boot_take_resume(&out) && !strcmp(out.path, resume.path) && !durable.resume_valid);
     assert(pico_boot_save_resume(&resume) == ESP_OK); pico_boot_init(false); pico_boot_ready(); pico_boot_hold_resume();
@@ -82,8 +83,9 @@ int main(void) {
     assert(!pico_boot_recovery() && !pico_boot_asset_allowed("/sdcard/books/large.epub") && pico_boot_asset_allowed(resume.path));
     // 密码取消/深睡再次开机不能丢失恢复，但实际开书前必须消费。
     // PIN cancellation and another deep boot retain resume; actual opening still consumes it.
-    assert(pico_boot_save_resume(&resume) == ESP_OK); pico_boot_init(false); pico_boot_ready();
-    pico_boot_hold_resume(); assert(durable.resume_valid);
+    assert(pico_boot_save_resume(&resume) == ESP_OK);
+    assert(pico_boot_mark_frame_cached()==ESP_OK); pico_boot_init(false); pico_boot_ready();
+    pico_boot_hold_resume(); assert(durable.resume_valid && durable.reserved[0]);
     pico_boot_init(false); assert(!pico_boot_recovery()); pico_boot_ready(); pico_boot_hold_resume();
     assert(pico_boot_take_resume(&out) && !strcmp(out.path, resume.path) && !durable.resume_valid);
     assert(pico_boot_save_resume(&resume) == ESP_OK); pico_boot_init(false); pico_boot_ready(); pico_boot_hold_resume();
@@ -113,6 +115,13 @@ int main(void) {
     assert(pico_boot_save_resume(&resume)==ESP_OK&&pico_boot_mark_frame_cached()==ESP_OK);
     pico_boot_init(false);assert(pico_boot_has_resume()&&pico_boot_resume_frame_cached());
     assert(durable.reserved[0]==0&&!durable.resume_valid);
+    // 多次等待/深睡都保留真实锁图标记，但新开书前仍消费一次性入口。
+    // Repeated locked boots retain the actual-art marker while book admission remains one-shot.
+    for(unsigned cycle=0;cycle<4;++cycle){
+        pico_boot_ready();pico_boot_hold_resume();
+        assert(durable.resume_valid&&durable.reserved[0]==1);
+        pico_boot_init(false);assert(pico_boot_has_resume()&&pico_boot_resume_frame_cached());
+    }
     assert(pico_boot_take_resume(&out)&&!pico_boot_resume_frame_cached());pico_boot_ready();
     assert(pico_boot_save_resume(&resume)==ESP_OK);fail_commit=true;
     assert(pico_boot_mark_frame_cached()==ESP_FAIL);fail_commit=false;
