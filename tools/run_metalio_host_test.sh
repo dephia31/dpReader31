@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/metalio-tests
-cc -std=c11 -Wall -Wextra -Werror -Wno-unknown-attributes -Wno-sign-compare -Wno-unused-parameter -Wno-unused-function -g -fsanitize=address,undefined \
+cc -std=c11 -Wall -Wextra -Werror -Wno-unknown-attributes -Wno-sign-compare -Wno-unused-parameter -Wno-unused-function -g -fsanitize=address,undefined  -Itools/host_board_metalio \
     -include tools/metalio_stubs/sdkconfig.h \
     -Itools/metalio_stubs -Icomponents/epdiy/src -Icomponents/epdiy/include \
     -Icomponents/e0470_epaper_waveform/include -Icomponents/e0470_epaper_waveform/waveforms \

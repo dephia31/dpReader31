@@ -1,20 +1,26 @@
 /* SPDX-License-Identifier: Apache-2.0
  * 中文：独立锁屏输入循环；禁止触摸键、蓝牙、拿起或冷启动绕过密码。
  * English: Isolated locked-input loop; touch keys, BLE, pickup and cold starts cannot bypass authentication.
- * 冻结：只有摘要校验成功才能返回；模糊缓存只建一次，入场只推一次灰阶，按键只推变化区域。
- * Frozen: Return only after digest verification; build frost once, present entry once and update only changed controls while typing.
+ * 用户修订：读取失败或确认未开启时直接返回；正常读取的已有密码必须摘要验证，模糊缓存与局部输入保持。
+ * User revision: return for read failure or confirmed disabled state; require digest verification for readable enabled PINs, retaining cached frost and local input.
  */
 #include "lock_screen.h"
 #include "lock_pin.h"
 #include "settings.h"
 #include "ui_pinpad.h"
 #include "ui_kit.h"
+#include "ui_lock_feedback.h"
 #include "sleep.h"
 #include "boot_state.h"
 #include "display.h"
 #include "e0470_epaper_waveform.h"
 #include "read_pico_pmu.h"
+#if defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
+/* S31 的关机前灭灯与前光恢复走 metalio_hw；Pico 没有这两个外设。 */
+/* The S31 powers the panel and restores the front light through metalio_hw; the Pico has neither. */
 #include "metalio_hw.h"
+#endif
+
 #include "ble_page_turner.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
@@ -29,9 +35,10 @@
 #define LOCK_SCREEN_CACHE_PARENT "/sdcard/.readpico"
 #endif
 #define LOCK_ART_PATH LOCK_SCREEN_CACHE_PARENT "/locks/pin-background.bin"
-#define ART_MAGIC UINT32_C(0x50414432)
+// 旧兜底图可能包含加载提示；升级缓存代号，失效后只显示无文字圆锁。
+// Old fallbacks may contain loading text; invalidate that art generation and replace misses with the text-free badge.
+#define ART_MAGIC UINT32_C(0x50414433)
 typedef struct {uint32_t magic,rotation,style,checksum;uint64_t wallpaper;} art_header_t;
-extern const uint8_t lock_4bpp_bin_start[] asm("_binary_lock_4bpp_bin_start");
 static uint32_t checksum(const uint8_t *bytes){uint32_t h=2166136261u;for(unsigned i=0;i<FRAME_BYTES;++i)h=(h^bytes[i])*16777619u;return h;}
 static uint64_t wallpaper_key(void){
     if(app_settings_lock_style()!=1 && app_settings_lock_style()!=3)return 0;
@@ -68,7 +75,7 @@ bool lock_screen_save(const uint8_t *frame){
 }
 static void restore_art(uint8_t *fb,const uint8_t *original){
     if(original)memcpy(fb,original,FRAME_BYTES);
-    else if(!lock_screen_restore(fb)){memset(fb,255,FRAME_BYTES);ui_draw_full_image(fb,lock_4bpp_bin_start);}
+    else if(!lock_screen_restore(fb))ui_lock_fallback_draw(fb);
 }
 static void present(EpdiyHighlevelState *hl,EpdRect area){
     epd_poweron();enum EpdDrawError result=update_display_area_diff_with(hl,&E0470_WAVEFORM,MODE_GL16,area);
@@ -84,16 +91,27 @@ static void present_input(EpdiyHighlevelState *hl,EpdRect area){
 }
 
 void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7a20h_handle_t acc,bool boot){
+    if(!lock_pin_enabled())return;
     uint8_t *fb=epd_hl_get_framebuffer(hl);
+#if KIIKO_BOARD_METALIO47
+    // S31 开机验证前先等电源键松开，避免同一次按住直接唤醒待机。
+    // On the S31 wait for the key to release before verifying, so the same hold cannot wake it.
     if(boot)app_lock_wait_key_idle(800);
+#else
+    (void)acc;
+#endif
     (void)ble_pt_stop(2000);
     lock_screen_save(fb);
     uint8_t *original=heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)>FRAME_BYTES+1024u*1024u
         ?heap_caps_malloc(FRAME_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT):NULL;
     if(original)memcpy(original,fb,FRAME_BYTES);
     ui_pinpad_t pad={0};ui_pinpad_begin(&pad,fb,"输入密码");
+    // S31 用 art_visible 避免重复推拼贴；两板后面都会把标志清掉。
+    // The S31 tracks art_visible to avoid re-presenting the collage; both branches clear it below.
+    bool art_visible=false;
+#if defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
     bool waiting=!boot;
-    bool art_visible=!boot;
+    art_visible=!boot;
     unsigned failures=0;int64_t retry_at=0;
     for(;;){
         if(waiting){
@@ -115,6 +133,25 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
         ui_pinpad_reset(&pad,"输入密码",lock_pin_available()?"":"凭据读取失败，请重启后重试");
         if(!lock_pin_available())pad.blocked=true;
         else if(esp_timer_get_time()/1000<retry_at){pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"请等待 10 秒后重试");}
+#else
+    bool waiting=true;
+    unsigned failures=0;int64_t retry_at=0;
+    for(;;){
+        if(waiting){
+            restore_art(fb,original);present(hl,ui_pinpad_full());
+            if(!boot)app_lock_wait_key_idle(800);
+            epd_poweroff();
+            if(app_light_sleep_wait_timed(NULL,10u*60u*1000u)==APP_WAKE_TIMEOUT){
+                ui_pinpad_end(&pad);free(original);app_enter_host_sleep(APP_SLEEP_DEEP);
+                // 防御性处理：电源交接意外返回也继续验证。/ Defensive: a returning power handoff still requires verification.
+                original=NULL;ui_pinpad_begin(&pad,fb,"输入密码");
+                continue;
+            }
+        }
+        app_lock_wait_key_idle(800);
+        ui_pinpad_reset(&pad,"输入密码","");
+        if(esp_timer_get_time()/1000<retry_at){pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"请等待 10 秒后重试");}
+#endif
         // 直接推送完整密码画面一次，不再补刷第二段背景。/ Present the complete PIN screen once, without a second backdrop stage.
         ui_pinpad_paint(fb,&pad,ui_pinpad_full());present(hl,ui_pinpad_full());
         art_visible=false;

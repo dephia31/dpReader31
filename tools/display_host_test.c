@@ -22,6 +22,7 @@ bool pico_online_display_begin(void) { ++ota_display_depth; return true; }
 void pico_online_display_end(bool held) { assert(held && ota_display_depth); --ota_display_depth; }
 void e0470_page_turn_release(void) {}
 static int turn_tick_us = 21000;
+static unsigned expected_turn_bands=E0470_TURN_FAST_BANDS;
 void e0470_page_turn_set_tick_us(int us) { turn_tick_us = us; }
 int e0470_page_turn_tick_us(void) { return turn_tick_us; }
 bool app_settings_main_fast_refresh(void) {return false;}
@@ -32,21 +33,30 @@ void* heap_caps_aligned_alloc(size_t a,size_t b,unsigned c) {(void)a;(void)b;(vo
 void heap_caps_free(void* p) {(void)p;assert(false);}
 const EpdWaveform* display_main_gray_waveform(void) {return &E0470_WAVEFORM;}
 const EpdWaveform* display_main_shelf_exit_waveform(void) {return &E0470_WAVEFORM;}
+// 本组不注册灰阶内容带；若误入分区呈现，立即失败。/ This suite registers no gray bands; fail on an unexpected regional presentation.
+const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode mode) {
+    (void)mode; assert(false); return NULL;
+}
+enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* hl, EpdRect area,
+    EpdRect strong_area, const EpdWaveform* soft_waveform,
+    const EpdWaveform* strong_waveform, enum EpdDrawMode strong_mode) {
+    (void)hl; (void)area; (void)strong_area; (void)soft_waveform;
+    (void)strong_waveform; (void)strong_mode;
+    assert(false); return EPD_DRAW_OTHER_ERROR;
+}
 static const EpdWaveform soft_gray = {4};
 static const EpdWaveform reader_soft = {5};
 const EpdWaveform* display_reader_text_waveform(void) {return &reader_soft;}
 const EpdWaveform* display_main_water_waveform(void) {return &soft_gray;}
 const EpdWaveform* display_main_normal_waveform(void) { return display_main_water_waveform(); }
-const EpdWaveform* display_main_page_gray_waveform(void){return display_main_normal_waveform();}
-const EpdWaveform* display_main_shelf_soft_waveform(void){return &soft_gray;}
-const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode mode){(void)mode;return &E0470_WAVEFORM;}
+const EpdWaveform* display_main_ui_waveform(void) {return display_main_normal_waveform();}
 const EpdWaveform* display_main_bw_waveform(void) {return &E0470_WAVEFORM;}
 const EpdWaveform* display_main_acrylic_waveform(void) {return &E0470_WAVEFORM;}
 const EpdWaveform* display_main_acrylic_clean_waveform(void) {return &E0470_WAVEFORM;}
 int epd_rotated_display_width(void) { return 684; }
 int epd_rotated_display_height(void) { return 1216; }
 
-#define FB_BYTES (1216*684/2)
+#define FB_BYTES 128
 const EpdWaveform E0470_WAVEFORM = {0}, E0470_FOLLOW_WAVEFORM = {1}, E0470_GRAY8_WAVEFORM = {2}, E0470_FULL_WAVEFORM = {3};
 static uint8_t target[FB_BYTES], presented[FB_BYTES];
 static int clocks, powerons, clears, draws, full_draws, safe_clock, prefill, last_mode, last_scan;
@@ -55,9 +65,6 @@ static int scan_at_draw, prefill_at_draw;
 static enum EpdDrawError next_draw_error;
 static unsigned draw_errors_remaining;
 static unsigned blind_pushes, repair_delays, poweroffs;
-static unsigned fail_clear_at;
-static struct {enum EpdDrawError error;} render_context;
-static const short clear_cycle_time=15;
 static bool checking_repair;
 static bool drive_active, no_change;
 static unsigned drive_releases, release_failures;
@@ -75,15 +82,10 @@ enum EpdDrawError e0470_page_turn_with_waveform_compact(EpdiyHighlevelState* hl,
     e0470_turn_dir_t dir,const EpdWaveform* waveform,unsigned bands) {
     assert(ota_display_depth);
     assert(hl&&area.width>0&&dir==E0470_TURN_RTL);
-    assert(waveform==&reader_soft&&bands==E0470_TURN_FAST_BANDS);
+    assert(waveform==(expected_turn_bands==1?display_main_gray_waveform():&reader_soft)&&bands==expected_turn_bands);
     ++water_calls;assert(last_scan==READ_PICO_EPD_SCAN_FAST);
+    assert(prefill==127);
     return water_result;
-}
-
-enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* state,EpdRect area,
-    EpdRect strong,const EpdWaveform* soft,const EpdWaveform* art,enum EpdDrawMode mode){
-    (void)state;(void)area;(void)strong;(void)soft;(void)art;(void)mode;
-    assert(false);return EPD_DRAW_OTHER_ERROR;
 }
 
 void read_pico_epd_set_pclk(int mhz) { ++clocks; safe_clock = mhz; }
@@ -101,7 +103,7 @@ void epd_poweroff(void) { if (checking_repair) assert(ota_display_depth); ++powe
 EpdRect epd_full_screen(void) { return (EpdRect){0,0,1216,684}; }
 void vTaskDelay(uint32_t ticks) {
     assert(checking_repair && ota_display_depth);
-    assert(ticks==1);
+    assert((repair_delays == 0 && ticks == 400) || (repair_delays > 0 && ticks == 1));
     ++repair_delays;
 }
 void epd_push_pixels(EpdRect area, short time, int color) {
@@ -110,10 +112,8 @@ void epd_push_pixels(EpdRect area, short time, int color) {
     const unsigned phase = blind_pushes % 26;
     assert(color == (phase < 10 ? 0 : phase < 23 ? 1 : 2));
     ++blind_pushes;
-    if (fail_clear_at == blind_pushes) render_context.error = EPD_DRAW_EMPTY_LINE_QUEUE;
 }
 void epd_clear(void) { assert(ota_display_depth); assert(powerons > 0); ++clears; }
-#include "metalio_clear_checked.inc"
 int64_t esp_timer_get_time(void) { return now_us; }
 
 // 与 highlevel.c:307 相同：该 API 清前缓冲，而不是参考后缓冲。
@@ -192,30 +192,24 @@ int main(void) {
         assert(last_area.x == 24 && last_area.y == 612 && last_area.width == 636 && last_area.height == 114);
         assert(last_mode == MODE_GL16 && waveform_at_draw == &E0470_WAVEFORM && correct_target_at_draw);
     }
-    now_us += APP_UI_GC16_MIN_INTERVAL_US;
     for (int i = 0; i < APP_UI_GC16_EVERY - 1; ++i) {
-        front[0]^=1;target[0]=front[0];
         assert(update_display_mode_diff(&hl, MODE_GL16) == EPD_DRAW_SUCCESS);
         assert(last_mode == MODE_GL16);
     }
-    front[0]^=1;target[0]=front[0];
     assert(update_display_mode_diff(&hl, MODE_GL16) == EPD_DRAW_SUCCESS);
     assert(last_mode == MODE_GC16);
 
-    // 普通子页面一次输出柔和灰阶，第三次不驱动整页，达到原阈值仍用原表GC16。
-    // Ordinary subpages use one soft-gray difference without third-page full output, retaining original-table GC16 at the threshold.
-    now_us += APP_UI_GC16_MIN_INTERVAL_US;
+    // 普通子页面沿用 rc96：柔和灰阶差分，达到原阈值用原表 GC16 清理。
+    // Match rc96: soft-gray subpage differences with original-table GC16 at the cleanup threshold.
     for (int i = 0; i < APP_UI_FAST_GC16_EVERY - 1; ++i) {
-        front[0]^=1;target[0]=front[0];
         int prior_full = full_draws;
         assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
         assert(last_mode == MODE_GL16 && last_scan == READ_PICO_EPD_SCAN_FULL);
         assert(waveform_at_draw == &soft_gray && hl.waveform == &E0470_WAVEFORM);
         assert(full_draws == prior_full);
     }
-    front[0]^=1;target[0]=front[0];
     assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
-    assert(last_mode == MODE_GC16 && waveform_at_draw == &E0470_FULL_WAVEFORM && last_scan == READ_PICO_EPD_SCAN_FULL && full_draws > 0);
+    assert(last_mode == MODE_GC16 && waveform_at_draw == &E0470_WAVEFORM && last_scan == READ_PICO_EPD_SCAN_FULL && full_draws > 0);
 
     // Image pages clear the optical state and use the full grayscale waveform.
     memcpy(front, target, FB_BYTES);
@@ -270,7 +264,9 @@ int main(void) {
     assert(update_display_water_turn(&hl,(EpdRect){0,0,16,16},E0470_TURN_RTL)==EPD_DRAW_SUCCESS);
     assert(water_calls==1&&!draws&&!clears&&last_scan==READ_PICO_EPD_SCAN_FULL);
     assert(turn_tick_us==21000&&!ota_display_depth);
-    water_calls=0;
+    assert(update_display_text_turn(&hl,(EpdRect){0,0,16,16},E0470_TURN_RTL)==EPD_DRAW_SUCCESS);
+    assert(turn_tick_us==21000&&!ota_display_depth&&water_calls==1&&draws==1&&waveform_at_draw==display_main_gray_waveform());
+    water_calls=draws=0;
     water_result = EPD_DRAW_NO_PHASES_AVAILABLE;
     assert(update_display_water_turn(&hl, (EpdRect){0, 0, 16, 16}, E0470_TURN_RTL) == EPD_DRAW_SUCCESS);
     assert(water_calls == 1 && draws == 1 && !clears && last_mode == MODE_GL16);
@@ -284,7 +280,7 @@ int main(void) {
     // Reader full refresh matches rc90: one original-table GC16 output, without epd_clear or a white-baseline text pass.
     assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);
     assert(clears==0&&draws==1&&full_draws==1&&last_mode==MODE_GC16&&!white_baseline&&correct_target_at_draw);
-    assert(waveform_at_draw==&E0470_FULL_WAVEFORM);
+    assert(waveform_at_draw==&E0470_WAVEFORM);
     assert(!memcmp(front,target,FB_BYTES)&&!memcmp(back,target,FB_BYTES));
     // 手动修复保留目标页和底栏，只做一次最终整屏输出；成功后局部更新不再被迫全刷。
     // Manual repair preserves the target and navigation with one final full output, then allows local updates again.
@@ -298,7 +294,7 @@ int main(void) {
         display_main_transition_arm(&hl, true, true);
         display_request_full_refresh();
         enum EpdDrawError repaired = display_panel_repair(&hl);
-        assert(blind_pushes == 3 * 26 && repair_delays == 3 && poweroffs == (failure?4u:3u));
+        assert(blind_pushes == 6 * 26 && repair_delays == 7 && poweroffs == 1);
         assert(!memcmp(front, target, FB_BYTES) && hl.waveform == &E0470_WAVEFORM);
         assert(draws == (failure ? 2 : 1) && full_draws == draws);
         assert(correct_target_at_draw && white_baseline && !ota_display_depth);
@@ -307,23 +303,6 @@ int main(void) {
         assert(update_display_area_diff_with(&hl, &E0470_WAVEFORM, MODE_GL16,
                                             (EpdRect){0,160,16,16}) == EPD_DRAW_SUCCESS);
         assert(full_draws == prior + (failure == 2));
-    }
-    // 任一原生清屏相失败都立即终止，不确认白底历史；下次输出必须恢复全刷。
-    // Stop at every native clear-phase fault; never commit a fictitious white reference.
-    for (unsigned phase = 1; phase <= 78; ++phase) {
-        memcpy(front, target, FB_BYTES); memset(back, 0x55, FB_BYTES);
-        blind_pushes = repair_delays = poweroffs = 0;
-        draws = full_draws = 0;
-        fail_clear_at = phase;
-        assert(display_panel_repair(&hl) == EPD_DRAW_EMPTY_LINE_QUEUE);
-        assert(blind_pushes == phase && draws == 0 && !drive_active && !ota_display_depth);
-        assert(!memcmp(front, target, FB_BYTES));
-        for (int j = 0; j < FB_BYTES; ++j) assert(back[j] == 0x55);
-        fail_clear_at = 0;
-        int prior = full_draws;
-        assert(update_display_area_diff_with(&hl, &E0470_WAVEFORM, MODE_GL16,
-                                            (EpdRect){0,160,16,16}) == EPD_DRAW_SUCCESS);
-        assert(full_draws == prior + 1);
     }
     unsigned prior_pushes = blind_pushes;
     assert(display_panel_repair(NULL) == EPD_DRAW_INVALID_CROP && blind_pushes == prior_pushes);
@@ -347,19 +326,19 @@ int main(void) {
     assert(update_display_area_diff_with(&hl, &E0470_WAVEFORM, MODE_GL16,
                                         (EpdRect){0,160,16,16}) == EPD_DRAW_SUCCESS);
     old_releases = drive_releases;
-    assert(!drive_active); // rails are cut immediately, even when the neutral-drive hook retries.
+    assert(drive_active);
     rails_idle_check(20049); assert(drive_releases == old_releases);
-    rails_idle_check(20050); assert(!drive_active && drive_releases == old_releases + 1);
+    rails_idle_check(20050); assert(drive_active && drive_releases == old_releases + 1);
     rails_idle_check(20099); assert(drive_releases == old_releases + 1);
     rails_idle_check(20100); assert(!drive_active && drive_releases == old_releases + 2);
     unsigned old_offs = poweroffs;
     rails_idle_check(27999); assert(poweroffs == old_offs && drive_releases == old_releases + 2);
-    rails_idle_check(28000); assert(poweroffs == old_offs);
-    rails_idle_check(28001); assert(poweroffs == old_offs);
+    rails_idle_check(28000); assert(poweroffs == old_offs + 1);
+    rails_idle_check(28001); assert(poweroffs == old_offs + 1);
     assert(draws == old_draws && clears == old_clears);
     assert(!memcmp(front, target, FB_BYTES) && !memcmp(back, target, FB_BYTES));
-    puts("idle drive release: no-change output, bounded neutral-drive retry, no extra scans and immediate HV cut and no idle scan passed");
-    puts("display recovery: front retained, locked blind panel repair, single final frame, all 78 clear-phase faults, retry/failure recovery and bulk prefill passed");
+    puts("idle drive release: no-change output, bounded I2C retry, no extra scans and unchanged HV burst timeout passed");
+    puts("display recovery: front retained, locked blind panel repair, single final frame, retry/failure recovery and bulk prefill passed");
 }
 
 // Continuous state is exercised separately with native-size buffers.

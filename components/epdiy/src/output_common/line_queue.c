@@ -22,7 +22,12 @@ LineQueue_t lq_init(int queue_len, int element_size) {
 
     int elem_buf_size = ceil_div(element_size, 16) * 16;
 
+#if defined(CONFIG_IDF_TARGET_ESP32S31)
+    // ISR读取的是指针表；必须驻内部RAM，不能按像素行大小误分配到PSRAM。/ The ISR dereferences this pointer table; allocate pointer-sized entries in internal RAM, never pixel-sized PSRAM blocks.
+    queue.bufs = heap_caps_calloc(queue.size, sizeof(*queue.bufs), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+#else
     queue.bufs = calloc(queue.size, elem_buf_size);
+#endif
     assert(queue.bufs != NULL);
 
     for (int i = 0; i < queue.size; i++) {

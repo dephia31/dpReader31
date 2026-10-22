@@ -532,6 +532,7 @@ enum EpdDrawError epd_draw_base(
     const EpdWaveform* waveform
 );
 
+
 /// 下一次扫描按行选择相位 LUT；负相位表示该行保持。/ Select a phase LUT by line for the next scan; negative phases hold.
 void epd_set_line_phase_luts(const uint8_t* const* phase_luts, const int8_t* line_phase);
 /// 下一次扫描按物理列条带选择相位 LUT；范围为半开像素区间。/ Select phase LUTs by physical column bands for the next scan.

@@ -1,27 +1,27 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：摘句沿用图书缓存原子外壳，渲染不读卡；最多检查32KiB已解析正文。
- * English: Sentence caches reuse atomic book-cache files; rendering never reads media, and extraction examines at most 32 KiB of parsed text.
+ * 中文：只缓存当前阅读章节的完整摘句，章节变化替换单个缓存；摘句沿用图书缓存原子外壳，渲染不读卡；最多检查32KiB已解析正文。
+ * English: Cache a complete sentence for the current chapter, replacing one cache on chapter changes. Sentence caches reuse atomic book-cache files; rendering never reads media, and extraction examines at most 32 KiB of parsed text.
  */
 #include "book_excerpt.h"
 #include "book_index_cache.h"
 #include <string.h>
-static uint32_t checksum(const char *s) {
-    uint32_t h=2166136261u;
+static uint32_t checksum(const char *s,uint32_t chapter) {
+    uint32_t h=(2166136261u^chapter)*16777619u;
     for (; *s; ++s) h=(h^(uint8_t)*s)*16777619u;
     return h;
 }
-typedef struct { uint32_t checksum; char text[BOOK_EXCERPT_CAP]; } excerpt_t;
-bool book_excerpt_load(const char *source, char out[BOOK_EXCERPT_CAP]) {
+typedef struct { uint32_t chapter,checksum; char text[BOOK_EXCERPT_CAP]; } excerpt_t;
+bool book_excerpt_load(const char *source,uint32_t chapter,char out[BOOK_EXCERPT_CAP]) {
     if (!out) return false;
     out[0]=0;
     char path[160]; book_index_cache_header_t key;
-    if (!book_index_cache_prepare(source,"quote",1,path,sizeof(path),&key)) return false;
+    if (!book_index_cache_prepare(source,"quote",2,path,sizeof(path),&key)) return false;
     FILE *file=book_index_cache_open_read(path,&key);
     if (!file) return false;
     excerpt_t value;
     bool ok=fread(&value,1,sizeof(value),file)==sizeof(value) && fgetc(file)==EOF;
     fclose(file);
-    ok=ok && strnlen(value.text,sizeof(value.text))<sizeof(value.text) && value.text[0] && value.checksum==checksum(value.text);
+    ok=ok && value.chapter==chapter && strnlen(value.text,sizeof(value.text))<sizeof(value.text) && value.text[0] && value.checksum==checksum(value.text,value.chapter);
     if (ok) memcpy(out,value.text,sizeof(value.text));
     return ok;
 }
@@ -50,10 +50,10 @@ static bool sentence(const char *s,size_t len,char *out) {
     }
     return false;
 }
-void book_excerpt_offer(const char *source,const html_text_t *text) {
+void book_excerpt_offer(const char *source,uint32_t chapter,const html_text_t *text) {
     if (!source || !text || !text->utf8 || !text->len) return;
-    excerpt_t value={0};
-    if (book_excerpt_load(source,value.text)) return;
+    excerpt_t value={.chapter=chapter};
+    if (book_excerpt_load(source,chapter,value.text)) return;
     size_t budget=32768;
     if (!text->count) sentence(text->utf8,text->len<budget?text->len:budget,value.text);
     for (size_t i=0; i<text->count&&budget&&!value.text[0]; ++i) {
@@ -65,9 +65,9 @@ void book_excerpt_offer(const char *source,const html_text_t *text) {
         sentence(text->utf8+b->offset,n,value.text); budget-=n;
     }
     if (!value.text[0]) return;
-    value.checksum=checksum(value.text);
+    value.checksum=checksum(value.text,chapter);
     char path[160],temp[176]; book_index_cache_header_t key;
-    if (!book_index_cache_prepare(source,"quote",1,path,sizeof(path),&key)) return;
+    if (!book_index_cache_prepare(source,"quote",2,path,sizeof(path),&key)) return;
     FILE *file=book_index_cache_open_write(path,&key,temp,sizeof(temp));
     if (file) book_index_cache_finish_write(file,temp,path,fwrite(&value,1,sizeof(value),file)==sizeof(value));
 }

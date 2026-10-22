@@ -17,6 +17,7 @@ unit = r'''
 #include <stdlib.h>
 #include <string.h>
 #include "ui_lock_feedback.h"
+#include "ui_kit.h"
 typedef struct {int id;} EpdiyHighlevelState;
 #define MODE_DU 1
 #define READ_PICO_TRANSFER_UPLOADING 3
@@ -24,13 +25,12 @@ typedef struct {int state;} read_pico_transfer_status_t;
 static uint8_t frame[684u*1216u/2u], original[sizeof(frame)], back[sizeof(frame)];
 static unsigned style=2, pushes, white_pushes, cancels, touches;
 static int rotation, transfer, result, white_result;
-static bool online, missing, small, s_lock_feedback_started;
+static bool online, missing, small, s_lock_feedback_visible;
 #define EPD_DRAW_SUCCESS 0
 static const int E0470_FOLLOW_WAVEFORM=1;
-static unsigned drained, lamp_off;
-static void metalio_frontlight(unsigned b,unsigned w){assert(!b&&w==50);++lamp_off;}
-static void read_pico_pmu_drain_events(void){++drained;}
-static void epd_poweroff(void){}
+int epd_width(void){return 1216;}
+int epd_height(void){return 684;}
+enum EpdRotation epd_get_rotation(void){return EPD_ROT_LANDSCAPE;}
 int epd_rotated_display_width(void){return small?70:rotation&1?684:1216;}
 int epd_rotated_display_height(void){return small?70:rotation&1?1216:684;}
 static size_t offset(int x,int y){
@@ -46,6 +46,25 @@ void epd_draw_pixel(int x,int y,uint8_t c,uint8_t *fb){
  fb[at/2]=(fb[at/2]&~(15u<<shift))|((c>>4)<<shift);++touches;
 }
 static unsigned pixel(const uint8_t *fb,int x,int y){size_t at=offset(x,y);return(fb[at/2]>>((at&1)*4))&15;}
+void epd_fill_circle(int cx,int cy,int radius,uint8_t gray,uint8_t *fb){
+ for(int y=-radius;y<=radius;++y)for(int x=-radius;x<=radius;++x)
+  if(x*x+y*y<=radius*radius)epd_draw_pixel(cx+x,cy+y,gray,fb);
+}
+uint8_t epd_get_pixel(int x,int y,int width,int height,const uint8_t *fb){
+ (void)width;(void)height;return (uint8_t)(pixel(fb,x,y)<<4);
+}
+int app_settings_system_contrast(void){return 100;}
+static void verify_badge(void){
+ int cx=(epd_rotated_display_width()-97)/2+48,cy=(epd_rotated_display_height()-97)/2+48;
+ int ring=0,glyph=0,mid=0,hole=0;
+ for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x){
+  int dx=x-cx,dy=y-cy,d=dx*dx+dy*dy,v=(int)pixel(frame,x,y);
+  if(d>52*52)assert(v==15);
+  else if(d>=44*44&&d<=50*50){if(!v)++ring;}
+  else if(d<40*40){if(!v)++glyph;else if(v<15)++mid;else ++hole;}
+ }
+ assert(ring>300&&glyph>200&&mid>100&&hole>1500);
+}
 static unsigned app_settings_lock_style(void){return style;}
 static bool pico_online_busy(void){return online;}
 static void read_pico_transfer_get_status(read_pico_transfer_status_t *s){s->state=transfer;}
@@ -64,20 +83,19 @@ static int update_display_area_diff_with(EpdiyHighlevelState *h,const int *w,int
  ++pushes;if(!result)memcpy(back,frame,sizeof(frame));return result;
 }
 '''
+for name in ('ui_read_pixel','icon_nibble','ui_draw_icon','ui_contrast_gray'):
+    unit += function(name,ROOT/'main/ui/ui_kit.c')+'\n'
+unit += function('epd_draw_circle',ROOT/'components/epdiy/src/epdiy.c')+'\n'
 unit += function('app_lock_feedback', ROOT/'main/sleep.c')
 unit += r'''
-static void reset(void){memset(frame,0x57,sizeof(frame));memcpy(original,frame,sizeof(frame));memcpy(back,original,sizeof(frame));pushes=white_pushes=cancels=touches=drained=lamp_off=0;style=2;online=missing=small=s_lock_feedback_started=false;transfer=result=white_result=0;}
+static void reset(void){memset(frame,0x57,sizeof(frame));memcpy(original,frame,sizeof(frame));memcpy(back,original,sizeof(frame));pushes=white_pushes=cancels=touches=0;style=2;online=missing=small=s_lock_feedback_visible=false;transfer=result=white_result=0;}
 int main(int argc,char **argv){
  EpdiyHighlevelState hl={0};
  for(rotation=0;rotation<4;++rotation){
-  reset();app_lock_feedback(&hl);assert(pushes==1&&white_pushes==1&&cancels==1&&touches>0&&s_lock_feedback_started&&!memcmp(frame,back,sizeof(frame)));
+  reset();app_lock_feedback(&hl);assert(pushes==1&&white_pushes==1&&cancels==1&&touches>0&&s_lock_feedback_visible&&!memcmp(frame,back,sizeof(frame)));
   int cx=(epd_rotated_display_width()-97)/2+48,cy=(epd_rotated_display_height()-97)/2+48;
-  for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x){
-   int dx=x-cx,dy=y-cy;
-   if(dx*dx+dy*dy>48*48)assert(pixel(frame,x,y)==15);
-   else assert(pixel(frame,x,y)==0||pixel(frame,x,y)==15);
-  }
-  assert(pixel(frame,cx,cy-21)==0&&pixel(frame,cx,cy+9)==0&&pixel(frame,cx+30,cy)==15&&pixel(frame,cx+47,cy)==0);
+  verify_badge();
+  assert(pixel(frame,cx,cy-30)==15&&pixel(frame,cx+47,cy)==0);
 
   if(rotation==1&&argc>1){FILE *f=fopen(argv[1],"wb");assert(f);for(int y=0;y<1216;++y)for(int x=0;x<684;++x)assert(fputc((int)pixel(frame,x,y)*17,f)!=EOF);assert(!fclose(f));}
  }
@@ -86,15 +104,20 @@ int main(int argc,char **argv){
  reset();transfer=READ_PICO_TRANSFER_UPLOADING;app_lock_feedback(&hl);assert(!pushes&&!white_pushes&&!touches&&!memcmp(frame,original,sizeof(frame)));
  reset();missing=true;app_lock_feedback(&hl);assert(!pushes&&!white_pushes&&!touches);
  reset();app_lock_feedback(NULL);assert(!pushes&&!white_pushes&&!touches);
- reset();white_result=1;app_lock_feedback(&hl);assert(white_pushes==1&&!pushes&&!touches&&s_lock_feedback_started&&drained==1&&lamp_off==1&&!memcmp(back,original,sizeof(frame)));
- reset();result=1;app_lock_feedback(&hl);assert(white_pushes==1&&pushes==1&&cancels==1&&s_lock_feedback_started&&drained==1);for(size_t at=0;at<sizeof(frame);++at)assert(back[at]==255);
+ reset();white_result=1;app_lock_feedback(&hl);assert(white_pushes==1&&!pushes&&!touches&&!s_lock_feedback_visible&&!memcmp(back,original,sizeof(frame)));
+ reset();result=1;app_lock_feedback(&hl);assert(white_pushes==1&&pushes==1&&cancels==1&&!s_lock_feedback_visible);for(size_t at=0;at<sizeof(frame);++at)assert(back[at]==255);
  reset();small=true;app_lock_feedback(&hl);assert(!pushes&&!white_pushes&&!touches&&!cancels);
- reset();online=true;s_lock_feedback_started=true;app_lock_feedback(&hl);assert(!s_lock_feedback_started&&!white_pushes);
+ reset();online=true;s_lock_feedback_visible=true;app_lock_feedback(&hl);assert(!s_lock_feedback_visible&&!white_pushes);
+ for(rotation=0;rotation<4;++rotation){
+  reset();ui_lock_fallback_draw(frame);
+  verify_badge();assert(!white_pushes&&!pushes);
+ }
+ ui_lock_fallback_draw(NULL);
  puts("PASS: one calibrated white page precedes a local binary round lock in four rotations; real back history; white/icon faults never commit readiness; other-style/OTA/upload/missing-frame/undersize guards");
  return 0;
 }
 '''
-with tempfile.TemporaryDirectory(prefix='kiikoread-lock-feedback-', dir='/private/tmp') as folder:
+with tempfile.TemporaryDirectory(prefix='kiikoread-lock-feedback-') as folder:
     work = Path(folder)
     (work/'test.c').write_text(unit)
     subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',

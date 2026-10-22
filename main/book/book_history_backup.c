@@ -10,13 +10,27 @@
 #include <stdlib.h>
 #include <string.h>
 #include "nvs.h"
+#include "kiiko_board.h"
 
 #define HISTORY_MAX_RECORDS 512
 #define HISTORY_MAX_VALUE 4096
 #define HISTORY_RECORD_HEADER 20
 
+// 书库命名空间按板取值；改名前先确认不会清空老用户数据。
+// Library namespaces come from the board; verify no user data would be lost before renaming.
+#if KIIKO_BOARD_METALIO47
+#define HISTORY_NS_BOOKS "mt_books"
+#define HISTORY_NS_TICKET "mt_ticket"
+#define HISTORY_NS_TITLES "mt_titles"
+#else
+#define HISTORY_NS_BOOKS "rp_books"
+#define HISTORY_NS_TICKET "rp_ticket"
+#define HISTORY_NS_TITLES "rp_titles"
+#endif
+
 static const char *const namespaces[] = {
-    "mt_books", "mt_ticket", "mt_marks", "mt_favs", "mt_titles", "mt_shelf"
+    HISTORY_NS_BOOKS, HISTORY_NS_TICKET, KIIKO_BOARD_MARKS_NS,
+    KIIKO_BOARD_FAVORITES_NS, HISTORY_NS_TITLES, KIIKO_BOARD_SHELF_NS
 };
 
 static uint32_t hash_bytes(uint32_t hash, const void *data, size_t len) {

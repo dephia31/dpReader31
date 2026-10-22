@@ -33,6 +33,7 @@
 #include "ui_image_dither.h"
 #include "ui_kit.h"
 #include "settings.h"
+#include "kiiko_board.h"
 #include "nvs.h"
 #ifdef ESP_PLATFORM
 #include "freertos/FreeRTOS.h"
@@ -45,7 +46,9 @@
 #define LOCK_IMAGE_PIXELS (128u * 1024u)
 #define LOCK_FRAME_BYTES (684u * 1216u / 2u)
 #ifndef BOOK_LOCK_CACHE_PARENT
-#define BOOK_LOCK_CACHE_PARENT "/sdcard/.metalio_s31"
+// 锁屏拼贴的落卡目录按板区分，避免两板互相读坏缓存。
+// Lock-collage cache directory is per board so the two never share entries.
+#define BOOK_LOCK_CACHE_PARENT KIIKO_BOARD_CACHE_DIR
 #endif
 #define LOCK_CACHE_DIR BOOK_LOCK_CACHE_PARENT "/locks"
 #define LOCK_CACHE_VERSION 1u
@@ -249,7 +252,7 @@ static lock_library_t *library_load(void) {
     lock_library_t *library=lock_alloc(sizeof(*library));if(!library)return NULL;
     library->cache_complete=true;library->font_path=ttf_font_path();
     library->font_stat_valid=!stat(library->font_path,&library->font_stat);library->font_weight=ttf_get_weight();
-    (void)nvs_open("mt_shelf",NVS_READONLY,&library->hidden);
+    (void)nvs_open(KIIKO_BOARD_SHELF_NS,NVS_READONLY,&library->hidden);
     (void)book_store_roots(library->roots,&library->roots_count);
     if(book_store_roots_degraded())library->cache_complete=false;
     unsigned root_count=s_library_root_count;

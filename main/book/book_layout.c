@@ -829,6 +829,14 @@ size_t book_layout_page_for_offset(size_t off) {
     return lo;
 }
 
+// 阅读线只铺在有字的地方：整行只有空白字符时不画。
+// Guides cover inked spans only; whitespace-only lines get none.
+static bool line_has_ink(const char* line) {
+    for (const char* at = line; at && *at; ++at)
+        if (*at != ' ' && *at != '\t' && *at != '\r' && *at != '\n') return true;
+    return false;
+}
+
 // 画一列：字格居中于列宽，列内自上而下逐字；转 90° 的字走旋转绘制，右上角标点抬高半格。
 // 完整列把余量摊到字间，和横排的两端对齐同一套规则。
 // Draw one column: em boxes are centered across the column pitch and glyphs run downward.
@@ -847,18 +855,18 @@ static void draw_vertical_column(uint8_t* fb, EpdRect rect, int left, int pitch,
     if (align == 1) y += (available - indent - run_height) / 2;
     else if (align == 2) y += available - indent - run_height;
     int extra = 0;
-    if (justify) {
-        int glyphs = 0;
-        for (size_t at = 0; at < line_len;) {
-            size_t n = codepoint_size(s_line + at, line_len - at);
-            if (!n) break;
-            ++glyphs;
-            at += n;
-        }
-        int slack = available - indent - run_height;
-        if (glyphs > 1 && slack > 0) extra = slack / (glyphs - 1);
+    int glyph_count = 0;
+    for (size_t at = 0; at < line_len;) {
+        size_t n = codepoint_size(s_line + at, line_len - at);
+        if (!n) break;
+        ++glyph_count;
+        at += n;
     }
-    if (s_reading_line) {
+    if (justify) {
+        int slack = available - indent - run_height;
+        if (glyph_count > 1 && slack > 0) extra = slack / (glyph_count - 1);
+    }
+    if (s_reading_line && line_has_ink(s_line)) {
         // 阅读线跟着列走，位置在列的右侧：把整页逆时针转 90° 来读这一列，横排的「字下」正落在这里。
         // 原先画在列中线上（cell + px/2），等于穿字而过，看上去就是错乱。
         // 上下位置滑杆在竖排里横着移动这条线；再往里就压字了，所以夹在字格右边。
@@ -871,16 +879,20 @@ static void draw_vertical_column(uint8_t* fb, EpdRect rect, int left, int pitch,
         if (guide_x < cell_left + px + 1) guide_x = cell_left + px + 1;
         const int dash = s_reading_line == 1 ? 19 : 2;
         const int period = s_reading_line == 1 ? 31 : 13;
-        // 与横排对称：横排的虚线走整页宽度、从页左边起算，竖排就走整页高度、从页上边起算。
-        // 这样每列的虚实节奏完全一样，也不会因为列首缩进、居中或列长短而各画各的——原先每列
-        // 从自己的字首起算、画到自己的字尾，看着就是疏密不一、长短不齐。
-        // Symmetric with the horizontal rule: horizontally the dashes span the page width and count from
-        // its left edge, so vertically they span the page height and count from its top edge. Every
-        // column then shares one rhythm instead of each drawing its own from its own first glyph to its
-        // own last, which read as uneven spacing and uneven lengths.
+        // 与横排对称：竖排走整页高度、从页上边起算，每列的虚实节奏完全一样，不会因为列首缩进、
+        // 居中或列长短而各画各的。只在有字的纵向范围内落墨：列首缩进与列尾留白保持白底。
+        // Symmetric with the horizontal rule: the rhythm counts from the page's top edge so every
+        // column shares it regardless of indent, centring or column length. The dashes ink only the
+        // column's glyph span; the leading indent and the trailing blank stay white.
+        const int ink_top = y;
+        int ink_bottom = y + ttf_vertical_text_height_px(px, s_line, s_tracking_px + extra);
+        if (ink_bottom > rect.y + rect.height) ink_bottom = rect.y + rect.height;
         for (int pos = rect.y; pos < rect.y + rect.height; pos += period) {
-            int height = pos + dash <= rect.y + rect.height ? dash : rect.y + rect.height - pos;
-            if (height > 0) epd_fill_rect((EpdRect){guide_x, pos, 2, height}, 0x50, fb);
+            int top = pos, bottom = pos + dash;
+            if (bottom > rect.y + rect.height) bottom = rect.y + rect.height;
+            if (top < ink_top) top = ink_top;
+            if (bottom > ink_bottom) bottom = ink_bottom;
+            if (bottom > top) epd_fill_rect((EpdRect){guide_x, top, 2, bottom - top}, 0x50, fb);
         }
     }
     // 整列一次交给字体引擎：它按 run 换字体，并按竖排规则决定每字正立、抬角还是转 90°。
@@ -998,16 +1010,6 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
         if (used + leading + line_height > rect.height) return;
         used += leading;
         if (s_line[0]) {
-            if (s_reading_line) {
-                int guide_y = rect.y + (int)used + line_px + (line_height - line_px) / 2 +
-                              s_reading_line_offset;
-                int dash = s_reading_line == 1 ? 19 : 2;
-                int period = s_reading_line == 1 ? 31 : 13;
-                for (int dx = 0; dx < rect.width; dx += period) {
-                    int width = dx + dash <= rect.width ? dash : rect.width - dx;
-                    epd_fill_rect((EpdRect){rect.x + dx, guide_y, width, 2}, 0x50, fb);
-                }
-            }
             int x = rect.x + indent;
             int available = rect.width - indent;
             if (align == 1) x += (available - line_width) / 2;
@@ -1020,19 +1022,43 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
             const blk_t *line_block = block_at(off);
             bool final_line = paragraph_end || next >= s_len ||
                 (line_block && next >= line_block->offset + line_block->len);
+            // 完整正文行对齐到统一右边界；悬挂标点最多使用少量右侧留白。
+            // Justify complete body lines; a hanging closer may use a small part of the right margin.
+            const bool fitted = !heading && !align && (!final_line || line_width > available);
+            int line_extent = line_width > 0 ? line_width : 0;
+            if (fitted) {
+                int hang = s_rect.x > 4 ? line_px / 3 : 0;
+                if (hang > s_rect.x - 4) hang = s_rect.x - 4;
+                line_extent = line_width > available ? available + hang : available;
+            }
+            // 阅读线只铺在有字的横向范围：首行缩进、行尾空白和对齐留白保持白底。
+            // 虚实仍从页左边缘起算，各行的点划节奏保持一致。
+            // The guide inks only the line's glyph span: the first-line indent, trailing blanks and
+            // alignment slack stay white. Dashes still count from the page's left edge so every line
+            // keeps the same rhythm.
+            if (s_reading_line && line_has_ink(s_line)) {
+                int guide_y = rect.y + (int)used + line_px + (line_height - line_px) / 2 +
+                              s_reading_line_offset;
+                int dash = s_reading_line == 1 ? 19 : 2;
+                int period = s_reading_line == 1 ? 31 : 13;
+                const int ink_left = x, ink_right = x + line_extent;
+                for (int dx = 0; dx < rect.width; dx += period) {
+                    int left = rect.x + dx, right = rect.x + dx + dash;
+                    if (right > rect.x + rect.width) right = rect.x + rect.width;
+                    if (left < ink_left) left = ink_left;
+                    if (right > ink_right) right = ink_right;
+                    if (right > left)
+                        epd_fill_rect((EpdRect){left, guide_y, right - left, 2}, 0x50, fb);
+                }
+            }
             // 绘制按 run 换字体：行宽、字距、两端对齐的算法一个字没动，只有取字形的槽跟着走。
             // Drawing follows the runs: width, tracking and justification math are untouched,
             // only the slot each glyph comes from changes.
             ttf_draw_set_runs(s_line_run_count ? s_line_runs : NULL, s_line_run_count);
-            if (!heading && !align && (!final_line || line_width > available)) {
-                // 完整正文行对齐到统一右边界；悬挂标点最多使用少量右侧留白。
-                // Justify complete body lines; a hanging closer may use a small part of the right margin.
-                int hang = s_rect.x > 4 ? line_px / 3 : 0;
-                if (hang > s_rect.x - 4) hang = s_rect.x - 4;
-                int target = line_width > available ? available + hang : available;
+            if (fitted)
                 ttf_draw_text_px_fitted(fb, x, baseline, line_px, s_line, s_tracking_px,
-                                        target, 0, 15);
-            } else if (s_tracking_px && !heading)
+                                        line_extent, 0, 15);
+            else if (s_tracking_px && !heading)
                 ttf_draw_text_px_spaced(fb, x, baseline, line_px, s_line, s_tracking_px, 0, 15);
             else
                 ttf_draw_text_px(fb, x, baseline, line_px, s_line, EPD_DRAW_ALIGN_LEFT, 0, 15);

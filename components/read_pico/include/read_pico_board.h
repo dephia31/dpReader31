@@ -2,8 +2,9 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 中文：独立Metalio S31板级适配；read_pico前缀仅为RC90兼容接口。
- * English: Independent Metalio S31 hardware; read_pico names are RC90 API compatibility.
+ * 小纸 Pico 板级：I2C、IOE、SY7636A、EPD 总线与电源轨。
+ *
+ * Read Pico board: I2C, IO expander, SY7636A, EPD bus and rails.
  */
 
 #pragma once
@@ -24,15 +25,29 @@ extern "C" {
 
 #define READ_PICO_I2C_PORT ((i2c_port_t)CONFIG_READ_PICO_I2C_PORT)
 #define READ_PICO_I2C_FREQ_HZ CONFIG_READ_PICO_I2C_FREQ_HZ
-/// TCA9555与SC7A20H共享S31 GPIO2，低有效。/ Shared active-low S31 GPIO2.
+/// FCA9555 INT#，原理图接到 ESP32-S3 IO41。GPIO41 不是 RTC 脚，只能浅睡唤醒。
+/// / FCA9555 INT# on ESP32-S3 IO41. GPIO41 is not RTC, so light-sleep wake only.
 #define READ_PICO_IOE_INT_GPIO CONFIG_READ_PICO_IOE_INT_GPIO
-/// FT6336U独立GPIO5中断；复位经TCA P12。/ FT6336U IRQ on GPIO5, reset on TCA P12.
+/// CST836U INT，原理图 TXD0 / GPIO43。开漏低有效，FPC 侧有 10k 上拉。
+/// / CST836U INT on TXD0 / GPIO43. Open-drain, active-low, 10k pull-up on the FPC.
 #define READ_PICO_TP_INT_GPIO CONFIG_READ_PICO_TP_INT_GPIO
 
+#if defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
+/* Metalio V1.5：TCA9555 与 SC7A20H 共享 GPIO2，FT6336U 中断独立在 GPIO5，复位经 TCA P12。 */
+/* Metalio V1.5: the TCA9555 shares GPIO2 with the SC7A20H; the FT6336U IRQ is on GPIO5 and its
+ * reset comes from TCA P12. */
 #define READ_PICO_PRODUCT_NAME "kiikoread Metalio S31"
 #define READ_PICO_DEVICE_NAME "Metalio S31"
-/// RC90兼容轴映射常数，尚未对本S31实测校准；拿起检测使用相邻原始样本差。
-/// Compatibility axis constants are not calibrated for this S31; pickup uses raw sample deltas.
+#else
+/* 小纸 Pico：FCA9555 INT# 在 ESP32-S3 IO41（非 RTC 脚，只能浅睡唤醒），CST836U INT 在 TXD0/GPIO43。 */
+/* Read Pico: FCA9555 INT# on ESP32-S3 IO41 (not an RTC pin, light-sleep wake only) and the
+ * CST836U INT on TXD0 / GPIO43. */
+#define READ_PICO_PRODUCT_NAME "kiikoread"
+#define READ_PICO_DEVICE_NAME "kiikoread"
+#endif
+
+/// 芯片平放实测 -5,-119,-1005；转到设备坐标后屏幕朝上约为 +Z。
+/// / Chip at rest on the bench: -5,-119,-1005. Device frame is about +Z face-up.
 #define READ_PICO_ACCEL_ZERO_X_MG 119
 #define READ_PICO_ACCEL_ZERO_Y_MG 5
 #define READ_PICO_ACCEL_ZERO_Z_MG 1005
@@ -68,7 +83,8 @@ typedef struct {
     bool all_online;
 } read_pico_i2c_census_t;
 
-/// Metalio常供电I2C器件探测；不访问不存在的SY7636A。/ Probe always-powered Metalio I2C devices.
+/// 轨已上电后再拍。SY7636A 在 EN 低时不应答。
+/// / Take after the rails are up. SY7636A NACKs while EN is low.
 void read_pico_i2c_census_take(void);
 const read_pico_i2c_census_t* read_pico_i2c_census(void);
 
@@ -83,12 +99,20 @@ int read_pico_ioe_int_level(void);
 /// 读取低有效卡座 CD；通信失败时不改输出，调用方不得将失败解释为拔卡。
 /// / Read active-low slot CD; leave output untouched on failure, which is not card removal.
 esp_err_t read_pico_sd_detect(bool* present);
-/// S31没有卡座CD；此兼容接口不能证明卡在位，挂载用卡通信确认。
-/// No S31 card-detect pin; this compatibility hint cannot prove media presence.
+/// 简化检测；通信失败返回 false。挂载与拔卡判断应使用 checked detect。
+/// / Convenience detection returns false on I/O failure; mounting and removal use checked detect.
 bool read_pico_sd_present(void);
 bool read_pico_rails_on(void);
+/// 刷新结束后释放 MODE/XOE/VCOM_EN，保留高压轨与原电压；已经中性时不访问 I2C，失败返回 false 供重试。
+/// Release MODE/XOE/VCOM_EN after output, retaining HV rails and voltage settings; neutral state does no I2C, false requests a retry.
+bool read_pico_epd_release_drive(void);
+/// S31 浅睡后按保持的 LCD 配置重建驱动；Pico 用 read_pico_ioe_wake 恢复扩展口。
+/// Rebuild the LCD driver from the retained configuration after an S31 light sleep; on the Pico
+/// read_pico_ioe_wake restores the expander instead.
+void read_pico_epd_restore_lcd(void);
 
-/// 原Pico操作在S31返回NOT_SUPPORTED。/ Pico VCOMCTL operation is unsupported on S31.
+/// 翻转 VCOMCTL：1=外部 VCOM_EN，0=自动时序。
+/// / Toggle VCOMCTL: 1=external VCOM_EN, 0=auto timing.
 esp_err_t read_pico_toggle_vcomctl(void);
 
 /// 拉低再放开触摸芯片的 RST（挂在 FCA9555 上）。触摸进了深度睡眠后不再应答 I2C，
@@ -105,11 +129,12 @@ esp_err_t read_pico_tp_rst(bool high);
 /// call before light sleep and after wake.
 void read_pico_clear_ioe_int(void);
 
-/// Restore the S31 LCD after a light-sleep bus hold.
-void read_pico_epd_restore_lcd(void);
+/// 睡前收口 9555：悬空的 Port1 推高；host_off 时 CW_INT 也改输出低，关机期间 INT# 不再被 PMU 事件拉低。浅睡不能用 host_off，按键唤醒要靠 CW_INT。
+/// Park the 9555 before sleep: drive unconnected Port1 high; with host_off, CW_INT turns output-low so PMU events cannot pull INT# while off. Never use host_off for light sleep; key wake needs CW_INT.
+esp_err_t read_pico_ioe_sleep(bool host_off);
+/// 恢复运行时的方向配置并清 INT#。/ Restore running directions and clear INT#.
+esp_err_t read_pico_ioe_wake(void);
+
 #ifdef __cplusplus
 }
 #endif
-
-// 每轮扫描后释放S31直连XOE/MODE，不改变TPS电压或USB。/ Release direct S31 XOE/MODE after output; no TPS-voltage or USB change.
-bool read_pico_epd_release_drive(void);

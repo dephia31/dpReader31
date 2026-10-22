@@ -22,11 +22,20 @@
 #include "book_title.h"
 #include "epdiy.h"
 #include "esp_heap_caps.h"
+#include "kiiko_board.h"
 #include "nvs.h"
 #include "read_pico_pmu.h"
 #include "ttf_font.h"
 #include "ui_kit.h"
 #include "ui_image_dither.h"
+
+// 阅读时长命名空间按板取值；改名前先确认不会清空老用户统计。
+// Reading-time namespace comes from the board; verify no user statistics are lost before renaming.
+#if KIIKO_BOARD_METALIO47
+#define BOOK_TICKET_NS "mt_ticket"
+#else
+#define BOOK_TICKET_NS "rp_ticket"
+#endif
 
 #define TICKET_MAGIC UINT32_C(0x52505431)
 typedef struct {
@@ -65,7 +74,7 @@ static uint32_t local_day(void) {
 static void stats_load(ticket_stats_t *out) {
     memset(out, 0, sizeof(*out));
     nvs_handle_t h;
-    if (nvs_open("mt_ticket", NVS_READONLY, &h) != ESP_OK) return;
+    if (nvs_open(BOOK_TICKET_NS, NVS_READONLY, &h) != ESP_OK) return;
     size_t len = sizeof(*out);
     esp_err_t err = nvs_get_blob(h, "stats", out, &len);
     nvs_close(h);
@@ -81,7 +90,7 @@ esp_err_t book_ticket_record(uint32_t seconds, uint32_t turns) {
     stats.total_turns += turns;
     if (day) { stats.today_seconds += seconds; stats.today_turns += turns; }
     nvs_handle_t h;
-    esp_err_t err = nvs_open("mt_ticket", NVS_READWRITE, &h);
+    esp_err_t err = nvs_open(BOOK_TICKET_NS, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
     err = nvs_set_blob(h, "stats", &stats, sizeof(stats));
     if (err == ESP_OK && day && seconds) {
@@ -115,7 +124,7 @@ bool book_ticket_recent_days(uint32_t seconds[30]) {
     uint32_t today = local_day();
     if (!today) return false;
     nvs_handle_t h;
-    if (nvs_open("mt_ticket", NVS_READONLY, &h) != ESP_OK) return true;
+    if (nvs_open(BOOK_TICKET_NS, NVS_READONLY, &h) != ESP_OK) return true;
     ticket_heat_t heat = {0};
     size_t len = sizeof(heat);
     esp_err_t err = nvs_get_blob(h, "heatmap", &heat, &len);
@@ -137,7 +146,7 @@ bool book_ticket_month_days(int year, int month, uint32_t seconds[31]) {
     struct tm date = {0}; gmtime_r(&timestamp, &date);
     if (date.tm_year+1900 != year || date.tm_mon+1 != month) return false;
     nvs_handle_t h;
-    if (nvs_open("mt_ticket", NVS_READONLY, &h) != ESP_OK) return true;
+    if (nvs_open(BOOK_TICKET_NS, NVS_READONLY, &h) != ESP_OK) return true;
     ticket_month_t heat; month_load(h, &heat); nvs_close(h);
     uint32_t first = today-(date.tm_mday-1);
     for (int i=0; i<date.tm_mday; ++i) {

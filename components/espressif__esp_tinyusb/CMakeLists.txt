@@ -109,7 +109,8 @@ if(CONFIG_TINYUSB_MTP_ENABLED)
          "mtp/tinyusb_mtp_write.c")
 endif() # CONFIG_TINYUSB_MTP_ENABLED
 
-idf_component_register(SRCS ${srcs}
+set(kiiko_selected_sources ${srcs})
+idf_component_register(SRCS ${kiiko_selected_sources}
                        INCLUDE_DIRS "include"
                        PRIV_INCLUDE_DIRS "include_private"
                        PRIV_REQUIRES ${priv_req}

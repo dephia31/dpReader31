@@ -141,8 +141,13 @@ void ble_pt_reset_failure(void);
 /// inflate can allocate again. Waits at most timeout_ms (capped at 2s).
 esp_err_t ble_pt_stop(uint32_t timeout_ms);
 /// S31睡眠前关闭无线，醒后恢复目标；不改用户开关。/ Suspend radios while preserving user settings.
+/// 仅 S31 有关机/锁屏待机流程；Pico 的睡眠由 PMU 交接，不经过这里。
+/// The suspend/resume pair belongs to the S31's locked-standby flow; the Pico hands sleep to the
+/// PMU and never calls them.
+#if defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
 esp_err_t ble_pt_suspend_for_sleep(void);
 void ble_pt_resume_after_sleep(void);
+#endif
 bool ble_pt_running(void);
 /// 登记原生S31网络会话；SDK仲裁WiFi/BLE共存，不拆连接。
 /// Track native S31 networking while the SDK arbitrates WiFi/BLE coexistence.
@@ -172,6 +177,10 @@ esp_err_t ble_pt_connect(const char *addr);
 /// 请求连接最近成功使用的翻页器；不阻塞，待栈可用时处理，保留网络占用和失败退避。
 /// Queue the most recently successful turner without blocking; wait for stack availability and preserve network leases/backoff.
 void ble_pt_reconnect_recent(void);
+/// 取消已排队但尚未开始的自动重连；离开蓝牙页时用。两板共用。
+/// Cancel a queued automatic reconnect that has not started yet; used when leaving the BLE page.
+/// Shared by both boards.
+void ble_pt_cancel_recent(void);
 void ble_pt_disconnect(void);
 bool ble_pt_connected(void);
 bool ble_pt_connecting(void);

@@ -56,14 +56,18 @@ int __DECLARE_RCC_ATOMIC_ENV __attribute__((unused));
 #include <hal/gdma_channel.h>
 
 /* S31/P4：LCD 挂 AXI-GDMA；S3：AHB-GDMA。通道与描述符对齐须一致。 */
-#if defined(SOC_GDMA_TRIG_PERIPH_LCD0_BUS) && (SOC_GDMA_TRIG_PERIPH_LCD0_BUS == SOC_GDMA_BUS_AXI)
-#define LCD_GDMA_NEW_CHANNEL gdma_new_axi_channel
-#define LCD_GDMA_DESC_ALIGN 8
-typedef dma_descriptor_align8_t lcd_dma_desc_t;
-#elif defined(SOC_GDMA_TRIG_PERIPH_LCD0_BUS) && (SOC_GDMA_TRIG_PERIPH_LCD0_BUS == SOC_GDMA_BUS_AHB)
+/* 先判 AHB：S3 没有 SOC_GDMA_BUS_AXI，而未定义符号在 #if 里等于 0，先判 AXI 会把 S3 误判成 AXI。 */
+/* Check AHB first: the S3 has no SOC_GDMA_BUS_AXI and an undefined symbol is 0 inside #if, so
+ * testing AXI first would misclassify the S3 as AXI. */
+#if defined(SOC_GDMA_TRIG_PERIPH_LCD0_BUS) && (SOC_GDMA_TRIG_PERIPH_LCD0_BUS == SOC_GDMA_BUS_AHB)
 #define LCD_GDMA_NEW_CHANNEL gdma_new_ahb_channel
 #define LCD_GDMA_DESC_ALIGN 4
 typedef dma_descriptor_t lcd_dma_desc_t;
+#elif defined(SOC_GDMA_BUS_AXI) && defined(SOC_GDMA_TRIG_PERIPH_LCD0_BUS) && \
+    (SOC_GDMA_TRIG_PERIPH_LCD0_BUS == SOC_GDMA_BUS_AXI)
+#define LCD_GDMA_NEW_CHANNEL gdma_new_axi_channel
+#define LCD_GDMA_DESC_ALIGN 8
+typedef dma_descriptor_align8_t lcd_dma_desc_t;
 #else
 #define LCD_GDMA_NEW_CHANNEL gdma_new_ahb_channel
 #define LCD_GDMA_DESC_ALIGN 4

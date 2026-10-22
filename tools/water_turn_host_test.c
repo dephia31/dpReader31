@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
- * 中文：验证真实水波纹组件的8/16/24带、48相、四向映射、裁剪边界和失败后旧帧基准。
- * English: Exercise the real water-turn engine's 8/16/24 bands, 48 phases, four directions, crop bounds and failure baseline.
+ * 中文：验证真实水波纹组件的8/16/24带、37相、四向映射、裁剪边界和失败后旧帧基准。
+ * English: Exercise the real water-turn engine's 8/16/24 bands, 37 phases, four directions, crop bounds and failure baseline.
  */
 #include <assert.h>
 #include <stdbool.h>
@@ -11,17 +11,14 @@
 #include "e0470_page_turn.h"
 #include "e0470_epaper_waveform.h"
 
-#ifndef TEST_PHASES
-#define TEST_PHASES 48
-#endif
 #define WIDTH 1216
 #define HEIGHT 684
 #define FB_BYTES ((WIDTH * HEIGHT) / 2)
 static uint8_t front[FB_BYTES], back[FB_BYTES], diff[WIDTH * HEIGHT];
 static bool dirty_lines[HEIGHT];
 static uint8_t dirty_columns[WIDTH / 2];
-static const EpdWaveformPhases gl = {.phases = TEST_PHASES, .luts = (const uint8_t*)"x"};
-static const EpdWaveformPhases soft_gl = {.phases = TEST_PHASES, .luts = (const uint8_t*)"s"};
+static const EpdWaveformPhases gl = {.phases = 37, .luts = (const uint8_t*)"x"};
+static const EpdWaveformPhases soft_gl = {.phases = 37, .luts = (const uint8_t*)"s"};
 const EpdWaveform E0470_WAVEFORM = {.id = 1};
 const EpdWaveform E0470_APPLY_WAVEFORM = {.id = 2};
 static const EpdWaveform soft_wave = {.id = 3};
@@ -35,7 +32,7 @@ static const int8_t* staged_bands;
 static int staged_count;
 static EpdRect difference_crop;
 static int scans, fail_at, differences, powerons;
-static int phase_hits[TEST_PHASES];
+static int phase_hits[37];
 static int test_bands=8, test_launch_step=1;
 static int lut_builds;
 static int64_t now_us;
@@ -59,7 +56,7 @@ const EpdWaveformPhases* e0470_waveform_phases(const EpdWaveform* waveform, int 
     return waveform == &soft_wave ? &soft_gl : &gl;
 }
 void epd_build_1ppB_lut_1k(uint8_t* lut, const EpdWaveformPhases* phases, int frame) {
-    assert((phases == &gl || phases == &soft_gl) && frame >= 0 && frame < TEST_PHASES);
+    assert((phases == &gl || phases == &soft_gl) && frame >= 0 && frame < 37);
     ++lut_builds;
     memset(lut, frame, 1024);
 }
@@ -121,13 +118,13 @@ enum EpdDrawError epd_draw_base(EpdRect area, const uint8_t* data, EpdRect crop,
             assert(!columns[x]);
     int tick = scans++;
     int active = 0;
-    bool phase_seen[TEST_PHASES] = {0};
+    bool phase_seen[37] = {0};
     int px = -1, py = -1;
     if (staged_lines) {
         for (int y = 0; y < HEIGHT; ++y) {
             int p = staged_lines[y];
             if (p < 0) continue;
-            assert(p < TEST_PHASES && staged_luts[p][0] == p);
+            assert(p < 37 && staged_luts[p][0] == p);
             if (!phase_seen[p]) { phase_seen[p] = true; ++active; }
             if (px < 0) { px = WIDTH / 2; py = y; }
         }
@@ -136,7 +133,7 @@ enum EpdDrawError epd_draw_base(EpdRect area, const uint8_t* data, EpdRect crop,
         for (int b = 0; b < staged_count; ++b) {
             int p = staged_bands[b];
             if (p < 0) continue;
-            assert(p < TEST_PHASES && staged_luts[p][0] == p);
+            assert(p < 37 && staged_luts[p][0] == p);
             assert(staged_x0[b] >= 0 && staged_x1[b] <= WIDTH && staged_x1[b] > staged_x0[b]);
             if (!phase_seen[p]) { phase_seen[p] = true; ++active; }
             if (px < 0) { px = (staged_x0[b] + staged_x1[b]) / 2; py = HEIGHT / 2; }
@@ -144,14 +141,13 @@ enum EpdDrawError epd_draw_base(EpdRect area, const uint8_t* data, EpdRect crop,
     }
     int expected = 0;
     for (int b = 0; b < test_bands; ++b)
-        if (tick - b*test_launch_step >= 0 && tick - b*test_launch_step < TEST_PHASES) ++expected;
-    if(active!=expected)fprintf(stderr,"phase mismatch tick=%d bands=%d stride=%d active=%d expected=%d\n",tick,test_bands,test_launch_step,active,expected);
+        if (tick - b*test_launch_step >= 0 && tick - b*test_launch_step < 37) ++expected;
     assert(active == expected);
-    for(int p=0;p<TEST_PHASES;++p)phase_hits[p]+=phase_seen[p];
+    for(int p=0;p<37;++p)phase_hits[p]+=phase_seen[p];
     if(tick==(test_bands-1)*test_launch_step) {
         assert(phase_seen[0]);
-        if(test_launch_step==1)assert(expected==test_bands && tick<TEST_PHASES);
-        else assert(tick>=TEST_PHASES && expected<test_bands);
+        if(test_launch_step==1)assert(expected==test_bands && tick<37);
+        else assert(tick>=37 && expected<test_bands);
     }
     if (tick == 0 && check_direction) {
         int lx, ly;
@@ -195,11 +191,11 @@ int main(void) {
         EpdRect logical = (rot & 1) ? (EpdRect){0, 0, HEIGHT, WIDTH} :
                                       (EpdRect){0, 0, WIDTH, HEIGHT};
         assert(e0470_page_turn(&hl, logical, direction) == EPD_DRAW_SUCCESS);
-        assert(scans == (TEST_PHASES+7) && differences == 1 && powerons == 1);
-        assert(!memcmp(back, front, sizeof(back)) && now_us == (fast?((TEST_PHASES+7)*11090):((TEST_PHASES+7)*21000)));
+        assert(scans == 44 && differences == 1 && powerons == 1);
+        assert(!memcmp(back, front, sizeof(back)) && now_us == (fast?487960:924000));
         if(fast)assert(trace_hash==normal_trace);else normal_trace=trace_hash;
         assert(!staged_luts);
-        for(int p=0;p<TEST_PHASES;++p)assert(phase_hits[p]==8);
+        for(int p=0;p<37;++p)assert(phase_hits[p]==8);
         // 真实阅读页保留页眉和底栏；裁剪区同样必须覆盖全部 8 带。
         // The actual reader leaves header and footer outside the crop; all 8 bands must still run.
         EpdRect reader = {0, 160, logical.width, logical.height - 288};
@@ -207,7 +203,7 @@ int main(void) {
         scans = differences = 0;
         check_direction = false;
         assert(e0470_page_turn(&hl, reader, direction) == EPD_DRAW_SUCCESS);
-        assert(scans == (TEST_PHASES+7) && differences == 1);
+        assert(scans == 44 && differences == 1);
         check_crop_baseline(reader);
         // 全屏阅读保留状态栏时从第 80 行开始，水波纹仍要覆盖整个正文。
         // Full-screen reading keeps the status row at y=80 while animating the remaining body.
@@ -215,7 +211,7 @@ int main(void) {
         memset(back, 0xFF, sizeof(back));
         scans = differences = 0;
         assert(e0470_page_turn(&hl, fullscreen_reader, direction) == EPD_DRAW_SUCCESS);
-        assert(scans == (TEST_PHASES+7) && differences == 1);
+        assert(scans == 44 && differences == 1);
         check_crop_baseline(fullscreen_reader);
         check_direction = true;
         memset(back, 0xFF, sizeof(back));
@@ -235,26 +231,26 @@ int main(void) {
     scans=differences=fail_at=0;now_us=0;scan_time_us=18000;
     memset(back,0xFF,sizeof(back));memset(phase_hits,0,sizeof(phase_hits));
     assert(e0470_page_turn(&hl,full,direction)==EPD_DRAW_SUCCESS);
-    assert(scans==(TEST_PHASES+7) && now_us==((TEST_PHASES+7)*18000) && !memcmp(back,front,sizeof(back)));
-    for(int p=0;p<TEST_PHASES;++p)assert(phase_hits[p]==8);
+    assert(scans==44 && now_us==792000 && !memcmp(back,front,sizeof(back)));
+    for(int p=0;p<37;++p)assert(phase_hits[p]==8);
     scan_time_us=7000;
-    for(int failure=1;failure<=(TEST_PHASES+7);++failure){
+    for(int failure=1;failure<=44;++failure){
         scans=differences=0;fail_at=failure;
         memset(back,0xFF,sizeof(back));
         assert(e0470_page_turn(&hl,full,direction)==EPD_DRAW_OTHER_ERROR);
         assert(scans==failure && !staged_luts);
         for(size_t i=0;i<sizeof(back);++i)assert(back[i]==0xFF);
     }
-    // 对比主页原24带、紧凑24带和紧凑16带；48相完整且只回写正文，保留底栏与邻接半字节。
-    // Compare original 24, compact 24 and compact 16 main bands; keep all TEST_PHASES phases and commit only the body, preserving navigation and adjacent nibbles.
+    // 对比主页原24带、紧凑24带和紧凑16带；37相完整且只回写正文，保留底栏与邻接半字节。
+    // Compare original 24, compact 24 and compact 16 main bands; keep all 37 phases and commit only the body, preserving navigation and adjacent nibbles.
     e0470_page_turn_set_tick_us(E0470_TURN_DEFAULT_TICK_US);
-    const int expected_ticks[]={(23*((TEST_PHASES+22)/23)+TEST_PHASES),(TEST_PHASES+23),(TEST_PHASES+15),(TEST_PHASES+7)};
-    const int expected_us[]={((23*((TEST_PHASES+22)/23)+TEST_PHASES)*12000),((TEST_PHASES+23)*12000),((TEST_PHASES+15)*12000),((TEST_PHASES+7)*11090)};
+    const int expected_ticks[]={83,60,52,44};
+    const int expected_us[]={996000,720000,624000,487960};
     for(int profile=0;profile<4;++profile)for(int rot=0;rot<4;++rot)for(int dir=0;dir<4;++dir) {
         e0470_page_turn_set_tick_us(profile==3?E0470_TURN_FAST_TICK_US:E0470_TURN_DEFAULT_TICK_US);
         const bool compact=profile!=0;
         test_bands=profile==3?8:profile==2?16:24;
-        test_launch_step=compact?1:(TEST_PHASES+22)/23;
+        test_launch_step=compact?1:2;
         rotation=(enum EpdRotation)rot; direction=(e0470_turn_dir_t)dir;
         EpdRect logical=(rot&1)?(EpdRect){0,0,HEIGHT,WIDTH}:(EpdRect){0,0,WIDTH,HEIGHT};
         EpdRect body={0,0,logical.width,logical.height-128};
@@ -273,7 +269,7 @@ int main(void) {
                (&hl,body,direction,&soft_wave,(unsigned)test_bands)==EPD_DRAW_SUCCESS);
         assert(scans==expected_ticks[profile] && differences==1 && powerons==1 && now_us==expected_us[profile]);
         assert(e0470_page_turn_tick_us()==(profile==3?E0470_TURN_FAST_TICK_US:E0470_TURN_DEFAULT_TICK_US));
-        for(int p=0;p<TEST_PHASES;++p)assert(phase_hits[p]==test_bands);
+        for(int p=0;p<37;++p)assert(phase_hits[p]==test_bands);
         check_crop_baseline(body);
         // 奇数边界的未覆盖半字节也必须保留原参考帧。
         // Odd crop boundaries must preserve each neighboring baseline nibble.
@@ -299,7 +295,7 @@ int main(void) {
         memset(back,0xFF,sizeof(back));memset(phase_hits,0,sizeof(phase_hits));
         assert(e0470_page_turn_with_waveform_compact(&hl,main_body,direction,&soft_wave,(unsigned)test_bands)==EPD_DRAW_SUCCESS);
         assert(scans==expected_ticks[profile] && now_us==(int64_t)expected_ticks[profile]*18000);check_crop_baseline(main_body);
-        for(int p=0;p<TEST_PHASES;++p)assert(phase_hits[p]==test_bands);
+        for(int p=0;p<37;++p)assert(phase_hits[p]==test_bands);
         scan_time_us=7000;
         for(int failure=1;failure<=expected_ticks[profile];++failure){
             scans=differences=0;fail_at=failure;memset(back,0xFF,sizeof(back));
@@ -314,14 +310,14 @@ int main(void) {
     for(unsigned i=0;i<sizeof(mixed_profiles)/sizeof(mixed_profiles[0]);++i) {
         int profile=mixed_profiles[i];
         bool reader=profile==1;
-        test_bands=profile==0?24:reader||profile==3?8:16; test_launch_step=profile==0?(TEST_PHASES+22)/23:1;
+        test_bands=profile==0?24:reader||profile==3?8:16; test_launch_step=profile==0?2:1;
         int tick_us=reader||profile==3?E0470_TURN_FAST_TICK_US:E0470_TURN_DEFAULT_TICK_US;
         e0470_page_turn_set_tick_us(tick_us);
         scans=differences=fail_at=0;now_us=0;memset(back,0xFF,sizeof(back));
         enum EpdDrawError result=reader?e0470_page_turn(&hl,main_body,direction):
             (profile>=2?e0470_page_turn_with_waveform_compact:e0470_page_turn_with_waveform)
             (&hl,main_body,direction,&soft_wave,(unsigned)test_bands);
-        assert(result==EPD_DRAW_SUCCESS && scans==(profile==0?(23*((TEST_PHASES+22)/23)+TEST_PHASES):reader||profile==3?(TEST_PHASES+7):(TEST_PHASES+15)));
+        assert(result==EPD_DRAW_SUCCESS && scans==(profile==0?83:reader||profile==3?44:52));
         assert(now_us==(int64_t)scans*tick_us && e0470_page_turn_tick_us()==tick_us);
         check_crop_baseline(main_body);
     }
@@ -334,9 +330,10 @@ int main(void) {
     e0470_page_turn_set_tick_us(E0470_TURN_FAST_TICK_US);
     scans=differences=fail_at=0;
     assert(e0470_page_turn(&hl,(EpdRect){0,0,HEIGHT,WIDTH},E0470_TURN_LTR)==EPD_DRAW_SUCCESS);
-    assert(lut_builds==before_luts+TEST_PHASES && scans==(TEST_PHASES+7));
+    assert(lut_builds==before_luts+37 && scans==44);
     scans=differences=0;
     const unsigned invalid_bands[]={0,1,33};
+    const unsigned invalid_compact_bands[]={0,33};
     for(unsigned i=0;i<sizeof(invalid_bands)/sizeof(invalid_bands[0]);++i)
         assert(e0470_page_turn_with_waveform(&hl,(EpdRect){0,0,HEIGHT,WIDTH},E0470_TURN_LTR,
                                              &soft_wave,invalid_bands[i])==EPD_DRAW_INVALID_CROP);
@@ -353,8 +350,22 @@ int main(void) {
     for (size_t i = 0; i < sizeof(back); ++i) assert(back[i] == 0xFF);
     assert(e0470_page_turn_with_waveform_compact(&hl,main_body,direction,&soft_wave,16)==EPD_DRAW_NO_PHASES_AVAILABLE);
     assert(scans==0 && differences==0);
-    for(unsigned i=0;i<sizeof(invalid_bands)/sizeof(invalid_bands[0]);++i)
-        assert(e0470_page_turn_with_waveform_compact(&hl,main_body,direction,&soft_wave,invalid_bands[i])==EPD_DRAW_INVALID_CROP);
+    for(unsigned i=0;i<sizeof(invalid_compact_bands)/sizeof(invalid_compact_bands[0]);++i)
+        assert(e0470_page_turn_with_waveform_compact(&hl,main_body,direction,&soft_wave,invalid_compact_bands[i])==EPD_DRAW_INVALID_CROP);
     assert(e0470_page_turn_with_waveform_compact(&hl,main_body,direction,NULL,16)==EPD_DRAW_NO_PHASES_AVAILABLE);
-    printf("PASS: %d phases, %d compact reader ticks, four rotations/directions, every failure tick, preserved physical history, clipping, slow scans and OOM\n",TEST_PHASES,TEST_PHASES+7);
+    // 普通翻页同步输出一个条带，保留每个像素的全部灰阶相位。/ Ordinary turns synchronize one band without dropping grayscale phases.
+    water_test_alloc_fail=0;check_direction=false;test_bands=1;test_launch_step=1;
+    for(int rot=0;rot<4;++rot)for(int dir=0;dir<4;++dir){
+        rotation=(enum EpdRotation)rot;direction=(e0470_turn_dir_t)dir;
+        EpdRect page=(rot&1)?(EpdRect){0,0,HEIGHT,WIDTH}:(EpdRect){0,0,WIDTH,HEIGHT};
+        for(int failure=0;failure<=37;++failure){
+            memset(back,255,sizeof(back));scans=differences=0;fail_at=failure;memset(phase_hits,0,sizeof(phase_hits));
+            enum EpdDrawError error=e0470_page_turn_with_waveform_compact(&hl,page,direction,&soft_wave,1);
+            assert(error==(failure?EPD_DRAW_OTHER_ERROR:EPD_DRAW_SUCCESS));assert(!staged_luts);
+            if(!failure){assert(scans==37);for(int phase=0;phase<37;++phase)assert(phase_hits[phase]==1);assert(!memcmp(back,front,sizeof(back)));}
+            else for(size_t at=0;at<sizeof(back);++at)assert(back[at]==255);
+        }
+    }
+    puts("PASS: one-band ordinary turn, four rotations/directions, all phases once and every failed phase preserves history");
+    puts("water turn: 4 rotations x 4 directions; reader 8 bands at 44 ticks, simulated 487.96ms; main original 24/compact 24/16/8 bands: 83/60/52/44 ticks, simulated 996/720/624/487.96ms; slow scans complete all 37 phases; every failure tick preserves history and clears LUTs; crop bounds, invalid inputs and OOM passed");
 }

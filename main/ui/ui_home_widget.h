@@ -18,3 +18,6 @@ bool ui_home_folder_compose(uint8_t *out,uint8_t *scratch,const ui_home_cover_t 
 void ui_home_folder_draw(uint8_t *fb,const uint8_t *pixels,bool binary,EpdRect bounds);
 /// 复用同一曲线与短底座，bounds为组件画布，内部按比例变换。/ Reuse one curved short-pedestal shape, scaled inside component bounds.
 void ui_home_clock_draw(uint8_t *fb,EpdRect bounds,const struct tm *date,bool binary);
+/// 宜家房体和刻度不含字体，可单独缓存；数字与指针保持活动绘制。/ Cacheable IKEA body/ticks exclude fonts; numerals and hands stay live.
+void ui_home_clock_body_draw(uint8_t *fb,EpdRect bounds,bool binary);
+void ui_home_clock_hands_draw(uint8_t *fb,EpdRect bounds,const struct tm *date);

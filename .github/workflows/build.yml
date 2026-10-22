@@ -1,0 +1,64 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  display-host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Water-turn, display recovery, navigation and waveform regressions
+        shell: bash
+        run: |
+          bash tools/run_water_turn_host_test.sh
+          bash tools/run_display_host_test.sh
+          bash tools/run_display_navigation_tests.sh
+          python3 tools/pmic_gate_host_test.py
+          python3 tools/boot_panel_actions_host_test.py
+          python3 tools/lock_pin_host_test.py
+          python3 tools/lock_screen_host_test.py
+          python3 tools/settings_scroll_host_test.py
+          python3 tools/pico_system_aa_host_test.py
+          python3 tools/power_double_click_host_test.py
+          python3 tools/pico_lock_hint_host_test.py
+          python3 tools/pico_lock_wait_host_test.py
+          python3 tools/pico_wake_option_host_test.py
+          python3 tools/lock_feedback_host_test.py
+          python3 tools/reader_refresh_release_host_test.py
+          python3 tools/reader_idle_prefetch_host_test.py
+          python3 tools/reader_spacing_host_test.py
+          python3 tools/test_book_toc.py
+          node tools/flasher_integrity_host_test.cjs
+          python3 tools/vertical_punctuation_host_test.py
+          python3 tools/vertical_number_host_test.py
+          cc -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -g -fsanitize=address,undefined -fno-omit-frame-pointer -Imain/book -Imain -Itools/book_layout_stubs -Itools/book_source_host_stubs tools/book_layout_host_test.c main/book/book_layout.c main/book/html_text.c -o build/book-tests/layout
+          build/book-tests/layout
+
+  build:
+    runs-on: ubuntu-latest
+    # 钉在 v6.1 发布点。release-v6.1 分支会继续演进，LCD LL 接口已经变过一次。
+    # Pin to the v6.1 release. The release-v6.1 branch keeps moving; the LCD LL API already changed once.
+    container: espressif/idf:v6.1
+    steps:
+      - uses: actions/checkout@v4
+
+      # sdkconfig.defaults 里的 120MHz flash / PSRAM 依赖真机的 flash 型号，
+      # CI 用 sdkconfig.ci 换成默认时序，只验证能不能编过。
+      # The 120 MHz flash / PSRAM timing in sdkconfig.defaults needs the real
+      # flash part; CI uses sdkconfig.ci (default timing) and only checks that it compiles.
+      - name: build
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py -DSDKCONFIG_DEFAULTS=sdkconfig.ci set-target esp32s3
+          idf.py -DSDKCONFIG_DEFAULTS=sdkconfig.ci build
+
+      - name: size
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py size

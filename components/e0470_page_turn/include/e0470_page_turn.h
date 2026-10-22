@@ -55,6 +55,8 @@ enum EpdDrawError e0470_page_turn_with_waveform(
 );
 
 /// 显式序列的一拍一带入口；保留波形、指定条带数与当前节拍：8带/默认48相共55拍，裁剪37相为44拍。/ Compact explicit sequence: retain waveform, requested bands and current pacing; eight bands take 55 ticks with the default 48 phases (44 trimmed).
+/// 同步普通翻页用1带，水波纹用2..32带。/ Use one synchronous band for ordinary turns, 2..32 for ripple.
+/// 显式序列的一拍一带入口；保留波形、指定条带数与当前节拍，8带37相共44拍。/ Compact explicit sequence: retain waveform, requested bands and current pacing; eight bands/37 phases take 44 ticks.
 enum EpdDrawError e0470_page_turn_with_waveform_compact(
     EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir,
     const EpdWaveform* waveform, unsigned bands
@@ -65,6 +67,16 @@ enum EpdDrawError e0470_page_turn_with_waveform_compact(
 enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* hl, EpdRect area,
     EpdRect strong_area, const EpdWaveform* soft_waveform,
     const EpdWaveform* strong_waveform, enum EpdDrawMode strong_mode);
+
+/// 倒置竖屏的上下柔和区与中间校准区同时逐相输出；区域须全逻辑宽、32列对齐。
+/// Inverted portrait: output soft chrome and calibrated middle art in the same phases; full logical width and 32-column alignment are required.
+/// 不错相、不改灰阶序列；仅临时2048B PSRAM，成功后一次提交真实back，失败留给调用方恢复。
+/// No staggering or sequence changes; use 2048 temporary PSRAM bytes, commit the real baseline once on success and let the caller recover failures.
+enum EpdDrawError e0470_update_regions(
+    EpdiyHighlevelState* hl, EpdRect area, EpdRect strong_area,
+    const EpdWaveform* soft_waveform, const EpdWaveform* strong_waveform,
+    enum EpdDrawMode strong_mode
+);
 
 #ifdef __cplusplus
 }

@@ -8,6 +8,9 @@
  */
 
 #include "read_pico_pmu.h"
+#include "power_double_click.h"
+#include "pico_soc_filter.h"
+#include "esp_timer.h"
 
 #include <string.h>
 
@@ -22,8 +25,10 @@
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_dev;
 static pmu_snapshot_t s_snap;
+static pico_soc_filter_t s_soc_filter;
 static uint16_t s_seq = 1;
 static bool s_ready;
+static uint32_t s_lock_key_serial;
 static uint8_t s_last_payload[PMU_FRAME_PAYLOAD_SIZE];
 static uint8_t s_last_plen;
 
@@ -374,7 +379,12 @@ esp_err_t read_pico_pmu_event_ack(uint16_t event_id) {
     return read_pico_pmu_poll();
 }
 
+static power_double_click_t s_wake_click;
+// 记录握手扫描中真正收到的短按，避免充电或定时唤醒跳过锁屏。/ Record real handshake short presses so charging/timers cannot skip the lock.
+static bool s_scan_short;
+static bool s_boot_short;
 void read_pico_pmu_drain_events(void) {
+    s_wake_click=(power_double_click_t){0};
     for (int i = 0; i < PMU_EVENT_FIFO_DEPTH; i++) {
         if (read_pico_pmu_poll() != ESP_OK) break;
         if (!s_snap.event_ok || s_snap.pending_events == 0) break;
@@ -386,6 +396,7 @@ void read_pico_pmu_drain_events(void) {
 }
 
 read_pico_pmu_key_action_t read_pico_pmu_take_key_action(void) {
+    s_wake_click=(power_double_click_t){0};
     read_pico_pmu_key_action_t action = READ_PICO_PMU_KEY_NONE;
     for (int i = 0; i < PMU_EVENT_FIFO_DEPTH; i++) {
         if (read_pico_pmu_poll() != ESP_OK) break;
@@ -410,20 +421,47 @@ bool read_pico_pmu_take_key_short(void) {
 }
 
 bool read_pico_pmu_take_key_wakeup(void) {
-    bool wake = false;
+    s_scan_short = false;
     for (int i = 0; i < PMU_EVENT_FIFO_DEPTH; i++) {
         if (read_pico_pmu_poll() != ESP_OK) break;
         if (!s_snap.event_ok || s_snap.pending_events == 0) break;
         uint8_t type = s_snap.event.type;
         uint16_t id = s_snap.event.event_id;
-        if (type == PMU_EVT_KEY_DOWN || type == PMU_EVT_KEY_SHORT) {
-            wake = true;
+        if (type == PMU_EVT_KEY_SHORT) {
+            ++s_lock_key_serial;
+            s_scan_short = true;
+            power_double_click_push(&s_wake_click,s_snap.event.timestamp_ms);
             ESP_LOGI(TAG, "key wake %s id=%u", pmu_event_name(type), (unsigned)id);
+        } else if (type == PMU_EVT_KEY_LONG) {
+            s_wake_click=(power_double_click_t){0};
         }
         if (id == 0) break;
         if (read_pico_pmu_event_ack(id) != ESP_OK) break;
     }
-    return wake;
+    return power_double_click_take(&s_wake_click);
+}
+
+uint32_t read_pico_pmu_lock_key_serial(void) { return s_lock_key_serial; }
+
+bool read_pico_pmu_take_key_wakeup_single(void) {
+    bool pressed = false;
+    s_wake_click = (power_double_click_t){0};
+    for (int i = 0; i < PMU_EVENT_FIFO_DEPTH; ++i) {
+        if (read_pico_pmu_poll() != ESP_OK) break;
+        if (!s_snap.event_ok || !s_snap.pending_events) break;
+        uint8_t type = s_snap.event.type;
+        uint16_t id = s_snap.event.event_id;
+        if (!id || read_pico_pmu_event_ack(id) != ESP_OK) break;
+        if (type == PMU_EVT_KEY_SHORT) pressed = true;
+        else if (type == PMU_EVT_KEY_LONG) pressed = false;
+    }
+    return pressed;
+}
+
+bool read_pico_pmu_take_boot_short_press(void) {
+    bool seen = s_boot_short;
+    s_boot_short = false;
+    return seen;
 }
 
 // 命令 OK/ACCEPTED 只表示受理，以 STATUS power_state 为准。
@@ -633,6 +671,21 @@ static esp_err_t refresh_core(bool full) {
         read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0);
         read_pico_pmu_cmd(PMU_CMD_ALARM_GET, NULL, 0);
     }
+    // 稳定结果仅供百分比显示；原始快照、诊断及低压保护均保持。
+    // The stabilized result serves percentage display only; preserve raw diagnostics and voltage protection.
+    bool use_quick=s_snap.quick_ok;
+    uint16_t raw=use_quick?s_snap.qb_soc:s_snap.soc_permille;
+    bool valid=use_quick?(s_snap.qb_flags&3)==3:s_snap.status_ok&&(s_snap.flags&PMU_STATUS_BATTERY_VALID);
+    s_snap.display_soc_valid=valid&&raw<=1000;
+    if(s_snap.display_soc_valid){
+        uint8_t charge=use_quick?s_snap.qb_charge:s_snap.charge_state;
+        // 与状态栏使用同一个有效充电位；状态枚举滞后不能冻结高段上升。
+        // Use the same valid charging bit as the header; a lagging state enum must not freeze upper-SOC increases.
+        bool charging=use_quick?(s_snap.qb_flags&4)!=0:(s_snap.flags&PMU_STATUS_CHARGING_ACTIVE)!=0;
+        s_snap.display_soc_permille=pico_soc_filter_update(&s_soc_filter,raw,use_quick?s_snap.qb_mv:s_snap.battery_mv,
+            charging||charge==PMU_CHARGE_FULL_INFERRED,charge==PMU_CHARGE_FULL_INFERRED,
+            s_snap.status_ok&&(s_snap.flags&(PMU_STATUS_BATTERY_LOW|PMU_STATUS_BATTERY_CRITICAL)),(uint32_t)(esp_timer_get_time()/1000));
+    }
     s_snap.last_err = ESP_OK;
     return ESP_OK;
 }
@@ -647,6 +700,7 @@ esp_err_t read_pico_pmu_poll(void) {
 
 esp_err_t read_pico_pmu_init(i2c_master_bus_handle_t bus_handle, const read_pico_pmu_config_t* config) {
     memset(&s_snap, 0, sizeof(s_snap));
+    memset(&s_soc_filter,0,sizeof(s_soc_filter));
     if (config == NULL || bus_handle == NULL) return ESP_ERR_INVALID_ARG;
 
     uint16_t addr = config->i2c_addr ? config->i2c_addr : PMU_I2C_ADDR;
@@ -715,7 +769,11 @@ esp_err_t read_pico_pmu_init(i2c_master_bus_handle_t bus_handle, const read_pico
         ESP_LOGW(TAG, "handshake not RUNNING after HOST_READY");
     }
     if (s_ready) {
-        read_pico_pmu_drain_events();
+        // 保留开机期间已完成的双击；普通启动的主循环随后正常丢弃这些事件。
+        // Retain a completed boot-time double click for deep-lock resume; normal UI drains it later.
+        bool boot_double=read_pico_pmu_take_key_wakeup();
+        s_wake_click.ready=boot_double;
+        s_boot_short = s_scan_short;
         return ESP_OK;
     }
     (void)read_pico_pmu_deinit();
@@ -730,7 +788,9 @@ esp_err_t read_pico_pmu_deinit(void) {
     s_bus = NULL;
     s_dev = NULL;
     s_ready = false;
+    s_scan_short = s_boot_short = false;
     memset(&s_snap, 0, sizeof(s_snap));
+    memset(&s_soc_filter,0,sizeof(s_soc_filter));
     return ESP_OK;
 }
 

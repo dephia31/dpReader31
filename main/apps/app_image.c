@@ -27,7 +27,7 @@
 
 #define IMAGE_MAX 96
 #define IMAGE_BYTES_MAX BOOK_IMAGE_FILE_MAX
-#define IMAGE_ROWS 8
+#define IMAGE_ROWS ((UI_LOCK_HEIGHT - 254) / 101)
 extern const uint8_t display_test_png_start[] asm("_binary_display_test_png_start");
 extern const uint8_t display_test_png_end[] asm("_binary_display_test_png_end");
 
@@ -154,7 +154,7 @@ static bool load_image(int index) {
     return true;
 }
 
-static void render(app_ctx_t *ctx, uint8_t *fb) {
+static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     (void)ctx;
     ui_clear_page(fb);
     if (s_viewing && s_gray) {
@@ -180,9 +180,13 @@ static void render(app_ctx_t *ctx, uint8_t *fb) {
         ui_text_vc(fb, 58, box.y + 42, 24, s_items[idx].name, EPD_DRAW_ALIGN_LEFT, false);
         ui_text_vc(fb, 623, box.y + 42, 25, "›", EPD_DRAW_ALIGN_RIGHT, false);
     }
-    if (s_message[0]) ui_text(fb, 36, 1035, 21, s_message, EPD_DRAW_ALIGN_LEFT, false);
-    ui_nav_draw(fb, 3);
+    if (s_message[0]) ui_text(fb, 36, UI_LOCK_HEIGHT-70, 21, s_message, EPD_DRAW_ALIGN_LEFT, false);
+
 }
+static void render(app_ctx_t *ctx,uint8_t *fb) {
+    render_content(ctx,fb);
+}
+
 
 static bool present(app_ctx_t *ctx, app_redraw_t redraw) {
     if (redraw == APP_REDRAW_NONE) return true;
@@ -235,8 +239,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) 
     }
     if (event->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
     if (event->y0 < 160 && event->x0 < 120) { ctx->request_return = true; return APP_REDRAW_NONE; }
-    int tab = ui_nav_hit(event->x0, event->y0);
-    if (tab >= 0) { ui_nav_request(ctx, tab); return APP_REDRAW_NONE; }
+
     for (int row = 0; row < IMAGE_ROWS; ++row) {
         int idx = s_page * IMAGE_ROWS + row;
         if (idx >= s_count) break;
@@ -247,10 +250,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) 
     }
     return APP_REDRAW_NONE;
 }
+static bool image_edge_back(app_ctx_t *ctx) { (void)ctx; return true; }
 static bool menu_handle_enabled(app_ctx_t *ctx) { (void)ctx; return false; }
 const app_desc_t app_image = {
+    .binary_ui = true,
     .title = "图片对比 Images", .detail = "灰阶测试图 / TF 卡 JPG PNG", .enter_full = false,
-    .owns_keys = true, .menu_handle_enabled = menu_handle_enabled,
+    .owns_keys = true, .menu_handle_enabled = menu_handle_enabled, .edge_back_enabled = image_edge_back,
     .on_enter = on_enter, .on_exit = image_on_exit, .on_media_lost = on_media_lost,
     .render = render, .present = present, .on_key = on_key,
     .on_gesture = on_gesture,

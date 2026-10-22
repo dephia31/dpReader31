@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/book-tests
-cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
+cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined  -Itools/host_board_pico \
     -Imain -Itools/shelf_waveform_host_stubs -Itools/waveform_host_stubs -Icomponents/epdiy/include -Icomponents/epdiy/src \
     -Icomponents/e0470_epaper_waveform/include -Icomponents/e0470_epaper_waveform/waveforms -Icomponents/e0470_epaper_waveform/metalio \
     tools/shelf_waveform_host_test.c main/display_main_waveform.c \

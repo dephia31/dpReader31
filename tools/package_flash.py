@@ -22,6 +22,12 @@ def package(build: Path, output: Path):
             'published version already exists with different bytes; '
             'stage local tests in build/, or increment the version for an authorized release')
     manifest=json.loads((ROOT/'flash/manifest.json').read_text())
+    if manifest['version'] != version:
+        # 中文：正式发布必须先保留上一版的可刷写清单。/ English: A release must retain the previous installable manifest first.
+        previous = manifest['version']
+        catalog=json.loads((ROOT/'flash/releases.json').read_text())
+        assert any(item['version']==previous for item in catalog['releases']), 'archive the previous official release first'
+        manifest['previous_version']=previous
     manifest['version']=version
     manifest['name']='kiikoread'
     manifest['updated_at']=datetime.now(ZoneInfo('Asia/Shanghai')).isoformat(timespec='seconds')
@@ -31,12 +37,17 @@ def package(build: Path, output: Path):
     parts={'firmware.bin':build/'Read_Pico.bin','bootloader.bin':build/'bootloader/bootloader.bin',
            'partitions.bin':build/'partition_table/partition-table.bin','ota_data_initial.bin':build/'ota_data_initial.bin'}
     for name,path in parts.items():shutil.copy2(path,output/name)
+    # 清单携带本次构建的校验值，网页下载后再核对内部版本，安装器不使用未验证缓存。
+    # Bind this build's hashes into the manifest; the web flasher also verifies the embedded version before installation.
+    for part in manifest['builds'][0]['parts']:
+        payload=(output/part['path']).read_bytes()
+        part.update(size=len(payload),sha256=hashlib.sha256(payload).hexdigest())
     shutil.copy2(build/'Read_Pico.bin',output/upgrade_name)
     shutil.copy2(build/'Read_Pico.bin',output/'Pico-update.bin')
     release={'schema':1,'version':version,'project':'Read_Pico','board':'RDP-G01-W','layout':'pico-dual-4m-v1',
         'minimum_base_version':'0.3.3-rc72','url':f'https://wegooo-cell.github.io/read-pico-reader/{upgrade_name}',
         'size':len(data),'sha256':hashlib.sha256(data).hexdigest(),
-        'notes':'1. kiikoread 品牌与全新官网\n2. 资料卡简化、姓名排版优化\n3. 水波纹主页完整灰阶\n4. TF 卡兼容、缺失字体闪屏修复\n5. 拼贴及密码锁屏、列表书架、首行缩进微调\n6. 主站联网升级，保留 GitHub 更新途径'}
+        'notes':'1. 恢复设置、文件及二级页文字抗锯齿\n2. 修复充电显示，新增单/双击唤醒\n3. 更新锁屏、取消图标及阅读辅助线\n4. 入书清残影，优化连续翻页输出\n5. OTA优先GitHub，保留原rc98'}
     (output/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
     (output/'update.json').write_text(json.dumps(release,ensure_ascii=False,indent=2)+'\n')
     check(output)

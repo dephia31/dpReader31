@@ -99,6 +99,8 @@ typedef struct {
     uint16_t diag_host_rst;
     uint16_t diag_adc;
 
+    bool display_soc_valid; ///< 主机高段稳定结果有效；原始PMU字段不变 / Host upper-SOC result; raw PMU fields remain intact
+    uint16_t display_soc_permille;
     bool quick_ok;
     uint16_t qb_mv;
     uint16_t qb_soc;
@@ -108,6 +110,10 @@ typedef struct {
     pmu_event_t event;
     pmu_config_t config;
     uint32_t unix_sec;
+    /// TIME_GET 的毫秒部分；S31 的 PCF8563 只到秒，适配层留 0。
+    /// Millisecond fraction from TIME_GET; the S31 PCF8563 is second-resolution, so the adapter
+    /// leaves this 0.
+    uint16_t unix_millis;
     uint8_t time_synced;
     uint8_t alarm_mode;
     uint32_t alarm_remain;
@@ -135,6 +141,7 @@ static inline int pmu_battery_percent(const pmu_snapshot_t *p) {
         if (!p->status_ok || !(p->flags & PMU_STATUS_BATTERY_VALID)) return -1;
         soc = p->soc_permille;
     }
+    if(soc<=1000 && p->display_soc_valid)soc=p->display_soc_permille;
     return soc <= 1000 ? (soc + 5) / 10 : -1;
 }
 static inline bool pmu_battery_charging(const pmu_snapshot_t *p) {
@@ -161,6 +168,8 @@ esp_err_t read_pico_pmu_init(i2c_master_bus_handle_t bus_handle, const read_pico
 esp_err_t read_pico_pmu_deinit(void);
 bool read_pico_pmu_ready(void);
 const pmu_snapshot_t* read_pico_pmu_get(void);
+/// Pico锁屏消费过的短按序号，仅作提示；不能据此解锁。/ Pico locked short-input serial for hints only, never an unlock signal.
+uint32_t read_pico_pmu_lock_key_serial(void);
 
 /// 读 IDENTITY / STATUS / DIAG / 事件 / 配置 / 时间 / 闹钟。
 /// / Read IDENTITY / STATUS / DIAG / event / config / time / alarm.
@@ -197,11 +206,20 @@ read_pico_pmu_key_action_t read_pico_pmu_take_key_action(void);
 /// 抽干事件队列；若有电源键短按返回 true。
 /// / Drain the queue; true if a power-key short press was seen.
 bool read_pico_pmu_take_key_short(void);
-/// S31消费后台记录的去抖短按/长按；单独持有按下电平不构成新唤醒。
-/// S31 consumes a queued debounced click/hold; a held level alone is not a new wake.
+/// 抽干队列后的唤醒判定：Pico 要求两次独立短按释放，S31 由适配层按扩展口按键队列给出。
+/// / Wake decision after draining the queue: the Pico needs two distinct short releases, while the
+/// S31 adapter answers from the expander key queue.
 bool read_pico_pmu_take_key_wakeup(void);
-/// S31改动扩展口方向前暂停采样；有待处理按键时拒绝，恢复后重新同步电平。
-/// Pause S31 sampling before changing expander directions; reject pending keys and resync levels on resume.
+/// 一次短按即可唤醒；开机证据只能消费一次。/ One short press wakes; boot evidence is consumed once.
+bool read_pico_pmu_take_key_wakeup_single(void);
+bool read_pico_pmu_take_boot_short_press(void);
+/// 锁屏提示用来判断双击序列是否连续；S31 适配层用扩展口按键计数，Pico 用 PMU 序号。
+/// The lock hint uses this to tell whether a double-click sequence is still contiguous; the S31
+/// adapter counts expander keys and the Pico uses the PMU serial.
+uint32_t read_pico_pmu_lock_key_serial(void);
+/// 改扩展口方向前暂停采样：有待处理按键时拒绝，恢复后重新同步电平（仅 S31 有扩展口按键）。
+/// Pause sampling before changing expander directions; reject pending keys and resync on resume
+/// (only the S31 reads keys from the expander).
 esp_err_t read_pico_pmu_keys_pause(void);
 void read_pico_pmu_keys_resume(void);
 /// 保证 RUNNING 后发 HOST_SOFT_SLEEP，等到 STATUS 为 SOFT_SLEEP（随后 EN=0）。

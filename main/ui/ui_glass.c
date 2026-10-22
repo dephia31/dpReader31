@@ -11,6 +11,7 @@
  */
 #include "ui_glass.h"
 #include "ui_kit.h"
+#include "ui_quick_menu.h"
 #include "ui_image_dither.h"
 #include "esp_heap_caps.h"
 #include <math.h>
@@ -24,8 +25,11 @@
 #define GAUSS_TAPS (2 * GAUSS_RADIUS + 1)
 #define UI_GLASS_FLOOR 2
 #define UI_GLASS_INK_ALPHA 20
-#define UI_GLASS_MAX_PIXELS (UI_LOCK_WIDTH * 384u)
+// 像素上限跟快捷层高度同一来源，避免两处不同步。
+// The pixel cap derives from the quick-layer height so the two can never drift apart.
+#define UI_GLASS_MAX_PIXELS (UI_LOCK_WIDTH * (unsigned)UI_QUICK_HEIGHT)
 static const uint8_t s_gauss[GAUSS_TAPS]={9,28,55,72,55,28,9};
+static const uint8_t s_reader_gauss[GAUSS_TAPS]={20,34,47,54,47,34,20};
 static uint8_t s_disp[REFRACT_SAMPLES+1],s_spec[REFRACT_SAMPLES+1];
 static bool s_refract_ready;
 static void refract_prepare(void) {
@@ -95,13 +99,19 @@ static float refract_sample(const uint8_t *table, float x) {
     const float frac = at - (float)i;
     return (float)table[i] * (1.0f - frac) + (float)table[j] * frac;
 }
-static void panel_row_h(const uint8_t *fb, int left, int top, int w, int row, uint8_t *dst) {
+// 固定七抽头的整数卷积允许展开；不改变浮点折射的计算次序。
+// Unroll the fixed seven-tap integer convolution without changing floating-point refraction order.
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((optimize("O3")))
+#endif
+static void panel_row_h(const uint8_t *source, int w, int row, uint8_t *dst,const uint8_t *kernel) {
+    const uint8_t *pixels = source + (size_t)row * w;
     for (int x = 0; x < w; ++x) {
         int sum = 0;
         for (int k = 0; k < GAUSS_TAPS; ++k) {
             int sx = x + k - GAUSS_RADIUS;
             if (sx < 0) sx = 0; else if (sx >= w) sx = w - 1;
-            sum += s_gauss[k] * ui_read_pixel(fb, left + sx, top + row);
+            sum += kernel[k] * pixels[sx];
         }
         dst[x] = (uint8_t)(sum >> 8);
     }
@@ -111,13 +121,15 @@ static float panel_sdf(float x, float y, float w, float h, float r) {
     const float qy = fabsf(y - h * 0.5f) - (h * 0.5f - r);
     const float mx = qx > 0.0f ? qx : 0.0f, my = qy > 0.0f ? qy : 0.0f;
     const float inner = qx > qy ? qx : qy;
-    return sqrtf(mx * mx + my * my) + (inner < 0.0f ? inner : 0.0f) - r;
+    return ((mx == 0.0f && my == 0.0f) ? 0.0f : sqrtf(mx * mx + my * my)) +
+        (inner < 0.0f ? inner : 0.0f) - r;
 }
-bool ui_glass_panel(uint8_t *fb, EpdRect rect, int radius, int white, int refract) {
+bool ui_glass_panel_frost(uint8_t *fb, EpdRect rect, int radius, int white, int refract,bool soften_text) {
     if (!fb || rect.width<=0 || rect.height<=0 || rect.x<0 || rect.y<0 ||
         rect.width>UI_LOCK_WIDTH || rect.height>UI_LOCK_HEIGHT ||
         rect.x>UI_LOCK_WIDTH-rect.width || rect.y>UI_LOCK_HEIGHT-rect.height) return false;
     const int w=rect.width,h=rect.height;
+    const uint8_t *kernel=soften_text?s_reader_gauss:s_gauss;
     const size_t need=(size_t)w*h;
     if(need>UI_GLASS_MAX_PIXELS)return false;
     if(radius<0)radius=0;
@@ -132,24 +144,30 @@ bool ui_glass_panel(uint8_t *fb, EpdRect rect, int radius, int white, int refrac
     if(!s_panel_blur)return false;
     uint8_t (*s_panel_ring)[w]=(void *)(s_panel_blur+need);
     refract_prepare();
-    // 第一步：整块面板的纯高斯模糊。源是页面原图（fb 此时只读），横向进环、纵向写输出。
-    // Step one: a pure Gaussian blur of the whole panel. The source is the untouched page, so the
-    // horizontal pass fills the ring and the vertical pass writes the output.
+    // 原图只解包一次；输出复用这块存储。每行写回前，后续所需的原图行已进入横向环。
+    // Unpack the source once and reuse its storage for output. Before overwriting a row, the
+    // horizontal ring already owns every original row still needed by subsequent output.
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            s_panel_blur[(size_t)y * w + x] = ui_read_pixel(fb, rect.x + x, rect.y + y);
     int base = 0;
     for (int k = 0; k < GAUSS_TAPS; ++k) {
         int row = k - GAUSS_RADIUS;
         if (row < 0) row = 0; else if (row >= h) row = h - 1;
-        panel_row_h(fb, rect.x, rect.y, w, row, s_panel_ring[k]);
+        panel_row_h(s_panel_blur, w, row, s_panel_ring[k],kernel);
     }
     for (int y = 0; y < h; ++y) {
+        const uint8_t *rows[GAUSS_TAPS];
+        for (int k = 0; k < GAUSS_TAPS; ++k) rows[k] = s_panel_ring[(base + k) % GAUSS_TAPS];
         for (int x = 0; x < w; ++x) {
-            int sum = 0;
-            for (int k = 0; k < GAUSS_TAPS; ++k) sum += s_gauss[k] * s_panel_ring[(base + k) % GAUSS_TAPS][x];
+            const int sum = kernel[0] * (rows[0][x] + rows[6][x]) + kernel[1] * (rows[1][x] + rows[5][x]) +
+                            kernel[2] * (rows[2][x] + rows[4][x]) + kernel[3] * rows[3][x];
             s_panel_blur[(size_t)y * w + x] = (uint8_t)(sum >> 8);
         }
+        if (y == h - 1) break;
         int next = y + GAUSS_RADIUS + 1;
         if (next >= h) next = h - 1;
-        panel_row_h(fb, rect.x, rect.y, w, next, s_panel_ring[base]);
+        panel_row_h(s_panel_blur, w, next, s_panel_ring[base],kernel);
         base = (base + 1) % GAUSS_TAPS;
     }
     // 第二步：中央取模糊值，只有边框带折射，和底栏同一套模型。
@@ -160,16 +178,23 @@ bool ui_glass_panel(uint8_t *fb, EpdRect rect, int radius, int white, int refrac
     const int refract_pct = refract < 10 ? 10 : refract;
     const float refract_scale = (float)refract_pct / 100.0f;
     const float bezel = (float)REFRACT_BEZEL * refract_scale;
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) {
-            // 圆角外直接跳过：不判这一下就画成整块矩形，四角是方的而不是胶囊。
-            // Skip everything outside the rounded shape: without this the panel is painted as a
-            // full rectangle and its corners stay square instead of a capsule.
+    uint8_t tint[16];
+    for (int value=0;value<16;++value) {
+        int out=(value*(100-UI_GLASS_INK_ALPHA)+50)/100;
+        if (white>0) {
+            out+=(15-out)*white/100;
+            if (out<UI_GLASS_FLOOR) out=UI_GLASS_FLOOR;
+        }
+        tint[value]=(uint8_t)out;
+    }
+    // 圆角距离和折射向量关于中心对称：每四个像素仅求一次几何，仍分别读取原模糊值。
+    // Rounded distances/refraction are centre-symmetric: compute geometry once per four pixels, retaining each original blurred sample.
+    for (int y = 0; y < (h+1)/2; ++y) {
+        for (int x = 0; x < (w+1)/2; ++x) {
             const float dist = panel_sdf((float)x + 0.5f, (float)y + 0.5f, fw, fh, fr);
             if (dist > 0.0f) continue;
             const float t = -dist / bezel;
-            int value = s_panel_blur[(size_t)y * w + x];
-            int spec = 0;
+            int sx=x,sy=y,spec=0;
             if (t > 0.0f && t < 1.0f) {
                 const float disp = refract_sample(s_disp, t) * refract_scale;
                 spec = (int)(refract_sample(s_spec, t) + 0.5f);
@@ -182,30 +207,32 @@ bool ui_glass_panel(uint8_t *fb, EpdRect rect, int radius, int white, int refrac
                     const float g = sqrtf(gx * gx + gy * gy);
                     if (g > 0.0001f) {
                         gx /= g; gy /= g;
-                        int sx = x - (int)lroundf(gx * disp);
-                        int sy = y - (int)lroundf(gy * disp);
+                        sx = x - (int)lroundf(gx * disp);
+                        sy = y - (int)lroundf(gy * disp);
                         if (sx < 0) sx = 0; else if (sx >= w) sx = w - 1;
                         if (sy < 0) sy = 0; else if (sy >= h) sy = h - 1;
-                        value = s_panel_blur[(size_t)sy * w + sx];
                     }
                 }
             }
-            int out = (value * (100 - UI_GLASS_INK_ALPHA) + 50) / 100;
-            // 白色层：把结果往白里提，玻璃上的字和图标因此更清楚。
-            // White layer: lift the result toward white so text and icons on the glass read better.
-            if (white > 0) {
-                out += (15 - out) * white / 100;
-                // 按百分比提亮对深色底是无效的，所以再加一个统一的下限，玻璃永远是浅色。
-                // Percentage blending does nothing on a dark backdrop, so the shared floor below
-                // keeps the glass light on any content.
-                if (out < UI_GLASS_FLOOR) out = UI_GLASS_FLOOR;
+            const int highlight=spec/17;
+            for(int mirror_y=0;mirror_y<2;++mirror_y) {
+                const int dy=mirror_y?h-1-y:y,source_y=mirror_y?h-1-sy:sy;
+                if(mirror_y&&dy==y)continue;
+                for(int mirror_x=0;mirror_x<2;++mirror_x) {
+                    const int dx=mirror_x?w-1-x:x,source_x=mirror_x?w-1-sx:sx;
+                    if(mirror_x&&dx==x)continue;
+                    int out=tint[s_panel_blur[(size_t)source_y*w+source_x]]+highlight;
+                    if(out>15)out=15;
+                    epd_draw_pixel(rect.x+dx,rect.y+dy,
+                        ui_image_dither_gray((uint8_t)(out*17),rect.x+dx,rect.y+dy),fb);
+                }
             }
-            const int lifted = out + spec / 17;
-            if (lifted > out) out = lifted > 15 ? 15 : lifted;
-            epd_draw_pixel(rect.x + x, rect.y + y,
-                           ui_image_dither_gray((uint8_t)(out * 17), rect.x + x, rect.y + y), fb);
         }
     }
     heap_caps_free(s_panel_blur);
     return true;
+}
+
+bool ui_glass_panel(uint8_t *fb,EpdRect rect,int radius,int white,int refract) {
+    return ui_glass_panel_frost(fb,rect,radius,white,refract,false);
 }

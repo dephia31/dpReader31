@@ -43,7 +43,8 @@ esp_err_t zip_extract(zip_reader_t* reader, int index, void* dst, size_t cap);
 /// Read at most 64 KiB for advisory dimensions; full extraction still verifies CRC.
 esp_err_t zip_extract_prefix(zip_reader_t *reader, int index, void *dst, size_t cap);
 
-/// 每次最多读 4KiB，预取至多 512KiB 的压缩章节；实际提取仍验证 CRC。
-/// Read at most 4 KiB per call, caching at most 512 KiB; extraction still verifies CRC.
+/// 每次最多读 4KiB，预取上限由 KIIKO_BOARD_ZIP_PREFETCH_KB 给出（为 0 时恒返回 -1）；实际提取仍验证 CRC。
+/// Read at most 4 KiB per call; the cap comes from KIIKO_BOARD_ZIP_PREFETCH_KB (0 always returns -1);
+/// extraction still verifies CRC.
 int zip_prefetch_step(zip_reader_t *reader,int index);
 void zip_prefetch_clear(zip_reader_t *reader);

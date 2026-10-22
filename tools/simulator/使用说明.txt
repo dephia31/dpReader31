@@ -1,0 +1,26 @@
+Pico Mac 模拟器 · 0.2 · kiikoread 0.3.3-rc97
+
+打开
+双击 Pico Simulator.app 或“打开 Pico 模拟器.command”。
+Apple 芯片 Mac，macOS 13 或更新版本。保留同目录的 Data 文件夹。
+此次更新保留已有书籍、字体、设置和阅读记录；旧版程序源码在 snapshots/rc90。
+
+使用
+点按和拖动屏幕，使用左/右方向键翻页、空格打开工具栏。
+电源键锁屏，再点唤醒；顶部下滑展开快捷菜单。
+右侧四个按钮进入首页、书架、文件管理和设置。
+把 EPUB/TXT 放入 Data/card/books，字体放入 Data/card/fonts。
+采用 rc97 正式发布的首页、书架、阅读、设置和四位密码锁界面。
+界面由同版本固件 C 源码绘制，屏幕分辨率 684×1216。
+
+网页体验
+https://kiikoread.com/simulator/
+“问说明书”查到具体功能后，点“在模拟器里演示”。
+演示支持暂停、上一步、下一步，关闭后返回原先的自由体验。
+演示不修改个人设置和阅读进度。网页导入文件仅在本次会话使用。
+
+边界
+这是固件源码级的界面和阅读引擎模拟器，不执行 ESP32 的 BIN。
+WiFi、蓝牙、USB、OTA、传感器及墨水屏物理波形仍需实机验证。
+源码快照与 SHA-256 清单见 firmware/ 和 source-manifest.json。
+重新构建：python3 build.py，然后 python3 package.py。

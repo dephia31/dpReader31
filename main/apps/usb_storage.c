@@ -6,11 +6,10 @@
  * 冻结：固件和电脑绝不同时挂载 TF 卡；主机弹出时也不自动挂载到第二路径；不自动格式化。
  * Frozen: Firmware and host never mount SD together, including host eject; never auto-format.
  */
-#include "usb_storage.h"
 #include "ui_avatar.h"
 #include "book_cover_jobs.h"
 #include "book_lock_collage.h"
-#include "metalio_hw.h"
+#include "usb_storage.h"
 #include <stdlib.h>
 #include "driver/sdmmc_host.h"
 #include "esp_log.h"
@@ -23,24 +22,64 @@
 #include "tinyusb_msc.h"
 #include "ttf_font.h"
 
+#if KIIKO_BOARD_METALIO47
+#include "metalio_hw.h"
+#else
+#include "esp_private/usb_phy.h"
+#endif
+
 static const char *TAG = "usb_storage";
 static sdmmc_card_t *s_card;
 static tinyusb_msc_storage_handle_t s_storage;
-
+#if !KIIKO_BOARD_METALIO47
+static usb_phy_handle_t s_serial_phy;
+#endif
 static bool s_host_ready, s_usb_ready, s_msc_ready;
 static bool s_active;
 static bool s_cleanup_pending;
 
+#if KIIKO_BOARD_METALIO47
 // S31的USJ/UTMI独立，GPIO36只切物理通路，不做S3共享PHY切换。
 // S31 USJ/UTMI are separate; GPIO36 switches the board route, not an S3 shared PHY.
 static esp_err_t restore_serial_phy(void) { return metalio_usb_route_serial(true); }
 static esp_err_t release_serial_phy(void) { return metalio_usb_route_serial(false); }
+#else
+// MSC 用完内部 PHY 后，把它交还给串口/JTAG，电脑才能再次自动刷写。
+// Return the shared internal PHY to Serial/JTAG after MSC so flashing can reconnect.
+static esp_err_t restore_serial_phy(void) {
+    if (s_serial_phy) return ESP_OK;
+    const usb_phy_config_t config = {
+        .controller = USB_PHY_CTRL_SERIAL_JTAG,
+        .target = USB_PHY_TARGET_INT,
+    };
+    esp_err_t err = usb_new_phy(&config, &s_serial_phy);
+    if (err != ESP_OK) ESP_LOGE(TAG, "USB Serial/JTAG restore failed: %s", esp_err_to_name(err));
+    // 共享内部 PHY 的归还是建议性的：按 rc99 保持同样的结果，不改变本机交接结论。
+    // Returning the shared internal PHY is advisory on the Pico; keep rc99's outcome so the
+    // local handoff verdict never changes.
+    return ESP_OK;
+}
+
+static esp_err_t release_serial_phy(void) {
+    if (!s_serial_phy) return ESP_OK;
+    esp_err_t err = usb_del_phy(s_serial_phy);
+    if (err != ESP_OK) ESP_LOGW(TAG, "USB Serial/JTAG release failed: %s", esp_err_to_name(err));
+    s_serial_phy = NULL;
+    // 同上：释放失败只记录，不阻断后续 MSC 安装，与 rc99 一致。
+    // As above: a failed release is only logged and never blocks MSC setup, matching rc99.
+    return ESP_OK;
+}
+#endif
 
 bool usb_storage_active(void) { return s_active; }
 bool usb_storage_connected(void) { return s_active && !s_cleanup_pending && tud_mounted(); }
 
 void usb_storage_phy_init(void) {
+#if KIIKO_BOARD_METALIO47
     metalio_usb_serial_startup();
+#else
+    restore_serial_phy();
+#endif
 }
 
 static void release_card(void) {
@@ -65,16 +104,28 @@ esp_err_t usb_storage_start(void) {
     if (!ttf_font_is_builtin()) ttf_font_open_builtin();
     esp_err_t err = read_pico_sd_sync();
     if (err != ESP_OK) return err;
+#if KIIKO_BOARD_METALIO47
+    // S31 的卡座由扩展口保持，必须在总线初始化前释放。
+    // The S31 card hold lives on the expander and must be released before the bus is initialised.
     metalio_sd_release_hold();
+#endif
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
-    // S31使用slot0四线总线；USB写入保守使用20MHz。
-    // S31 slot0 uses four data lines; retain 20MHz for USB writes.
+    // USB transfer uses the conservative 20 MHz SD clock.  The 1-bit bus is
+    // already slower than the USB endpoint and 40 MHz can stall on long writes.
     host.max_freq_khz = SDMMC_FREQ_DEFAULT;
     sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
+#if KIIKO_BOARD_METALIO47
+    // S31使用slot0四线总线；USB写入同样保守使用20MHz。
+    // The S31 uses four data lines on slot 0 and keeps the same conservative 20 MHz for USB writes.
     host.slot = SDMMC_HOST_SLOT_0;
     slot.width = 4;
     slot.clk = GPIO_NUM_24; slot.cmd = GPIO_NUM_25; slot.d0 = GPIO_NUM_20;
     slot.d1 = GPIO_NUM_21; slot.d2 = GPIO_NUM_22; slot.d3 = GPIO_NUM_23;
+#else
+    slot.width = 1;
+    slot.clk = GPIO_NUM_38; slot.cmd = GPIO_NUM_42; slot.d0 = GPIO_NUM_44;
+    slot.d1 = slot.d2 = slot.d3 = GPIO_NUM_NC;
+#endif
     slot.cd = slot.wp = GPIO_NUM_NC;
     slot.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
     err = sdmmc_host_init();
@@ -100,6 +151,8 @@ esp_err_t usb_storage_start(void) {
     err = tinyusb_msc_new_storage_sdmmc(&storage, &s_storage);
     if (err != ESP_OK) goto fail;
     tinyusb_config_t usb = TINYUSB_DEFAULT_CONFIG();
+    // 串口通路没交出来就不能装 tinyusb，否则下载口被 MSC 抢走。
+    // Without the serial route released, installing tinyusb would steal the download port.
     err = release_serial_phy();
     if (err != ESP_OK) goto fail;
     err = tinyusb_driver_install(&usb);
@@ -158,6 +211,8 @@ cleanup:
         s_active = true;
         return err == ESP_OK ? ESP_ERR_INVALID_STATE : err;
     }
+    // 路由没回到串口就不宣称交接完成，否则电脑侧丢掉下载口。
+    // Never claim a finished handoff while the route is still away from serial, or the host loses the download port.
     if (route_err != ESP_OK) return route_err;
     s_active = false;
     s_cleanup_pending = false;

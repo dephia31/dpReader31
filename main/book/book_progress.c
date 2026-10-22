@@ -20,13 +20,20 @@
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
+#include "kiiko_board.h"
 #include "nvs.h"
 
 #define PATH_CAP BOOK_STORE_PATH_MAX
 #define HEADER_SIZE 24
 #define RECORD_CAP (HEADER_SIZE + PATH_CAP)
 static const char* TAG = "book_progress";
+// 阅读进度命名空间按板取值；改名前先确认不会清空老用户进度。
+// Reading-progress namespace comes from the board; verify no user progress is lost before renaming.
+#if KIIKO_BOARD_METALIO47
 static const char* NS = "mt_books";
+#else
+static const char* NS = "rp_books";
+#endif
 
 // 列表拓扑仅在 HTTP 停止并 join 后修改；HTTP 只原子标记已有节点。
 // Mutate list topology only after HTTP stops and joins; HTTP only atomically marks existing nodes.

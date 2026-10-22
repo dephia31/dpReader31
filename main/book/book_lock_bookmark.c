@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
  * 中文：透明PNG书封直接叠加在当前画面上；保留原画布比例，不依赖阅读记录或额外整帧缓存。
  * English: Composite a transparent PNG cover over the current frame, preserving canvas ratio without reader history or an extra full-frame cache.
+ * 用户2026-10-21修订：有界PSRAM行环合并阴影/图案读取，保留逐像素结果；低内存沿用原双遍，缓存完整校验先于底图修改。
+ * User revision2026-10-21: a bounded PSRAM row ring fuses shadow/art reads with identical pixels; low memory retains two passes and cache validation precedes background edits.
  */
 #include "book_lock_bookmark.h"
 #include "book_cover.h"
@@ -9,6 +11,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <stdio.h>
+#include <errno.h>
+#include <sys/stat.h>
+
+#ifndef BOOK_SEAL_CACHE_PARENT
+#define BOOK_SEAL_CACHE_PARENT "/sdcard/.readpico"
+#endif
+#define SEAL_CACHE BOOK_SEAL_CACHE_PARENT "/locks/seal-layer.bin"
+#define SEAL_TEMP SEAL_CACHE ".tmp"
 
 typedef struct {
     uint8_t *visited,*pending;
@@ -76,6 +87,183 @@ static uint8_t pixel(const uint8_t *fb,int x,int y) {
     }
     return (epd_get_pixel(px,py,epd_width(),epd_height(),fb)>>4)*17u;
 }
+
+// 缓存的是PNG层，不含阅读底图；逐行叠加到每次锁屏的真实当前页面。
+// Cache only the PNG layer, then stream it over the current page without retaining fonts/images twice.
+typedef struct { uint32_t magic,width,height,checksum; uint64_t key; } seal_header_t;
+typedef struct { FILE *file; uint8_t *white; bool has_alpha; } seal_sink_t;
+static uint32_t seal_checksum(uint32_t hash,const uint8_t *p,size_t n) {
+    while(n--)hash=(hash^*p++)*16777619u;
+    return hash;
+}
+static bool seal_row(void *context,unsigned y,unsigned w,const uint8_t *gray,const uint8_t *alpha) {
+    seal_sink_t *s=context; uint8_t row[684*2];
+    for(unsigned x=0;x<w;++x) {
+        row[x*2]=gray[x];row[x*2+1]=alpha[x];
+        if(alpha[x]!=255)s->has_alpha=true;
+        size_t at=(size_t)y*w+x;
+        if(gray[x]>=250)s->white[at>>3]|=(uint8_t)(1u<<(at&7));
+    }
+    return fwrite(row,2,w,s->file)==w;
+}
+static bool seal_white(const uint8_t *bits,size_t at) {return (bits[at>>3]>>(at&7))&1u;}
+static bool seal_remove_white(FILE *file,const uint8_t *white,unsigned w,unsigned h) {
+    size_t bits=((size_t)w*h+7)/8,offset=(bits+h+1)&~(size_t)1;
+    uint8_t *work=heap_caps_malloc(offset+2*h,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!work)return false;
+    memset(work,0,offset);
+    white_flood_t f={.visited=work,.pending=work+bits,.rows=(uint16_t*)(work+offset),.height=h};
+    for(unsigned x=0;x<w;++x) {
+        if(seal_white(white,x))white_flood_mark(&f,x,0);
+        size_t at=(size_t)(h-1)*w+x;if(seal_white(white,at))white_flood_mark(&f,at,h-1);
+    }
+    for(unsigned y=1;y+1<h;++y) {
+        size_t at=(size_t)y*w;
+        if(seal_white(white,at))white_flood_mark(&f,at,y);
+        if(seal_white(white,at+w-1))white_flood_mark(&f,at+w-1,y);
+    }
+    while(f.count) {
+        unsigned y=f.rows[f.head];f.head=(f.head+1)%h;--f.count;f.pending[y]=0;
+        size_t row=(size_t)y*w;
+        for(unsigned x=0;x<w;) {
+            if(!seal_white(white,row+x)){++x;continue;}
+            unsigned left=x;bool reached=false;
+            while(x<w&&seal_white(white,row+x)){size_t at=row+x++;reached|=seal_white(f.visited,at);}
+            if(!reached)continue;
+            for(unsigned xx=left;xx<x;++xx) {
+                size_t at=row+xx;f.visited[at>>3]|=(uint8_t)(1u<<(at&7));
+                if(y&&seal_white(white,at-w))white_flood_mark(&f,at-w,y-1);
+                if(y+1<h&&seal_white(white,at+w))white_flood_mark(&f,at+w,y+1);
+            }
+        }
+    }
+    bool ok=true;uint8_t row[684*2];
+    for(unsigned y=0;y<h&&ok;++y) {
+        long at=(long)(sizeof(seal_header_t)+(size_t)y*w*2);
+        ok=!fseek(file,at,SEEK_SET)&&fread(row,2,w,file)==w;
+        for(unsigned x=0;x<w&&ok;++x)if(seal_white(f.visited,(size_t)y*w+x))row[x*2]=row[x*2+1]=0;
+        if(ok)ok=!fseek(file,at,SEEK_SET)&&fwrite(row,2,w,file)==w;
+    }
+    free(work);return ok;
+}
+static bool seal_build(const char *path,seal_header_t *header) {
+    if((mkdir(BOOK_SEAL_CACHE_PARENT,0775)&&errno!=EEXIST)||
+       (mkdir(BOOK_SEAL_CACHE_PARENT "/locks",0775)&&errno!=EEXIST))return false;
+    size_t bits=((size_t)header->width*header->height+7)/8;
+    uint8_t *white=heap_caps_malloc(bits,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!white)return false;
+    memset(white,0,bits);
+    FILE *f=fopen(SEAL_TEMP,"wb+");
+    if(!f){free(white);return false;}
+    seal_sink_t sink={.file=f,.white=white};
+    bool ok=fwrite(header,1,sizeof(*header),f)==sizeof(*header)&&
+        book_png_file_layer_rows(path,header->width,header->height,seal_row,&sink);
+    if(ok&&!sink.has_alpha)ok=seal_remove_white(f,white,header->width,header->height);
+    free(white);
+    uint8_t row[684*2];header->checksum=2166136261u;
+    if(ok)ok=!fflush(f)&&!fseek(f,sizeof(*header),SEEK_SET);
+    for(unsigned y=0;y<header->height&&ok;++y) {
+        ok=fread(row,2,header->width,f)==header->width;
+        if(ok)header->checksum=seal_checksum(header->checksum,row,header->width*2);
+    }
+    if(ok)ok=!fseek(f,0,SEEK_SET)&&fwrite(header,1,sizeof(*header),f)==sizeof(*header)&&!fflush(f);
+    if(fclose(f))ok=false;
+    if(ok&&!rename(SEAL_TEMP,SEAL_CACHE))return true;
+    (void)remove(SEAL_TEMP);return false;
+}
+static FILE *seal_open(const seal_header_t *wanted) {
+    FILE *f=fopen(SEAL_CACHE,"rb");if(!f)return NULL;
+    seal_header_t h;uint8_t row[684*2];uint32_t sum=2166136261u;
+    bool ok=fread(&h,1,sizeof(h),f)==sizeof(h)&&h.magic==wanted->magic&&h.width==wanted->width&&
+        h.height==wanted->height&&h.key==wanted->key;
+    for(unsigned y=0;y<wanted->height&&ok;++y) {
+        ok=fread(row,2,wanted->width,f)==wanted->width;
+        if(ok)sum=seal_checksum(sum,row,wanted->width*2);
+    }
+    if(ok)ok=sum==h.checksum&&fgetc(f)==EOF&&!ferror(f);
+    if(ok)return f;
+    fclose(f);return NULL;
+}
+// 六行阴影偏移只需七行环；额外十六行顺序预读减少TF小读，不持有整屏或完整PNG层。
+// A six-row shadow offset needs a seven-row ring; sixteen-row prefetches reduce small SD reads without holding a frame or full PNG layer.
+static bool seal_draw_rows(FILE *f,uint8_t *fb,unsigned w,unsigned h,uint8_t *work,bool *started) {
+    const size_t row_bytes=(size_t)w*2;
+    uint8_t *block=work+7*row_bytes;
+    unsigned buffered=0,block_row=0;
+    const int ox=(684-(int)w)/2,oy=(1216-(int)h)/2;
+    int dx=1,dy=epd_width(),origin=0;
+    switch(epd_get_rotation()) {
+        case EPD_ROT_PORTRAIT:dx=epd_width();dy=-1;origin=epd_width()-1;break;
+        case EPD_ROT_INVERTED_PORTRAIT:dx=-epd_width();dy=1;origin=(epd_height()-1)*epd_width();break;
+        case EPD_ROT_INVERTED_LANDSCAPE:dx=-1;dy=-epd_width();origin=epd_width()*epd_height()-1;break;
+        default:break;
+    }
+    if(fseek(f,sizeof(seal_header_t),SEEK_SET))return false;
+    for(unsigned y=0;y<h+6&&oy+(int)y<1216;++y) {
+        uint8_t *art=NULL;
+        if(y<h) {
+            if(block_row==buffered) {
+                buffered=h-y<16?h-y:16;block_row=0;
+                if(fread(block,row_bytes,buffered,f)!=buffered)return false;
+            }
+            art=work+(y%7)*row_bytes;
+            memcpy(art,block+block_row++*row_bytes,row_bytes);
+        }
+        const uint8_t *shadow=y>=6?work+((y-6)%7)*row_bytes:NULL;
+        int at=origin+(oy+(int)y)*dy+ox*dx;
+        for(unsigned x=0;x<w+4&&ox+(int)x<684;++x,at+=dx) {
+            unsigned a=art&&x<w?art[x*2+1]:0;
+            unsigned sa=shadow&&x>=4&&x-4<w?shadow[(x-4)*2+1]:0;
+            if(!a&&!sa)continue;
+            const int xx=ox+(int)x,yy=oy+(int)y,shift=(at&1)*4;
+            uint8_t *target=fb+(size_t)at/2;
+            unsigned value=((*target>>shift)&15)*17u;
+            if(sa)value=ui_image_dither_gray((value*(255-sa/5)+127)/255,xx,yy);
+            if(a) {
+                value=art[x*2]+(value*(255-a)+127)/255;
+                if(value>255)value=255;
+                value=ui_image_dither_gray(value,xx,yy);
+            }
+            *started=true;
+            *target=(uint8_t)((*target&~(15u<<shift))|((value>>4)<<shift));
+        }
+    }
+    return fgetc(f)==EOF&&!ferror(f);
+}
+static bool seal_draw(uint8_t *fb,const char *path,unsigned w,unsigned h,bool *started) {
+    struct stat st;if(stat(path,&st))return false;
+    uint64_t key=UINT64_C(14695981039346656037);
+    for(const unsigned char *p=(const unsigned char*)path;*p;++p)key=(key^*p)*UINT64_C(1099511628211);
+    key=(key^(uint64_t)st.st_size)*UINT64_C(1099511628211);
+    key=(key^(uint64_t)st.st_mtime)*UINT64_C(1099511628211);
+    seal_header_t wanted={.magic=UINT32_C(0x53454131),.width=w,.height=h,.key=key};
+    FILE *f=seal_open(&wanted);
+    if(!f&&seal_build(path,&wanted))f=seal_open(&wanted);
+    if(!f)return false;
+    uint8_t *work=heap_caps_malloc((size_t)w*2*23,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(work) {
+        bool ok=seal_draw_rows(f,fb,w,h,work,started);
+        free(work);fclose(f);return ok;
+    }
+    uint8_t row[684*2];bool ok=true;int ox=(684-(int)w)/2,oy=(1216-(int)h)/2;
+    for(unsigned pass=0;pass<2&&ok;++pass) {
+        ok=!fseek(f,sizeof(wanted),SEEK_SET);
+        for(unsigned y=0;y<h&&ok;++y) {
+            ok=fread(row,2,w,f)==w;
+            for(unsigned x=0;x<w&&ok;++x) {
+                unsigned a=row[x*2+1];if(!a)continue;
+                int xx=ox+x+(pass?0:4),yy=oy+y+(pass?0:6);
+                if(xx>=684||yy>=1216)continue;
+                unsigned bg=pixel(fb,xx,yy);
+                unsigned value=pass?row[x*2]+(bg*(255-a)+127)/255:(bg*(255-a/5)+127)/255;
+                if(value>255)value=255;
+                *started=true;
+                epd_draw_pixel(xx,yy,ui_image_dither_gray(value,xx,yy),fb);
+            }
+        }
+    }
+    fclose(f);return ok;
+}
 bool book_lock_bookmark_draw(uint8_t *fb,const char *path) {
     unsigned sw,sh;
     const char *ext=path?strrchr(path,'.'):NULL;
@@ -85,6 +273,11 @@ bool book_lock_bookmark_draw(uint8_t *fb,const char *path) {
     unsigned w=684,h=(uint64_t)sh*w/sw;
     if(h>1216){h=1216;w=(uint64_t)sw*h/sh;}
     if(!w||!h)return false;
+    bool started=false;
+    if(seal_draw(fb,path,w,h,&started))return true;
+    // 卡在输出途中失败时底图已不完整，交给锁屏入口画白底锁；禁止在半成品上再叠一次PNG。
+    // A mid-output media failure leaves an incomplete frame: let the lock entry draw its white badge, never overlay the PNG twice.
+    if(started)return false;
     size_t count=(size_t)w*h;
     if(heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<2*count+512u*1024u)return false;
     uint8_t *layers=heap_caps_malloc(2*count,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);

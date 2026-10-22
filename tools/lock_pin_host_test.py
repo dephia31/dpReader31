@@ -66,11 +66,11 @@ psa_status_t psa_key_derivation_abort(psa_key_derivation_operation_t*);
 #include "lock_pin.c"
 #include "lock_pin_flow.c"
 static pin_record_t durable,staged;
-static bool present,staged_present,ns_present,fail_read,fail_write,fail_commit;
-static unsigned generation,commits,aborts;
+static bool present,staged_present,ns_present,fail_read,fail_get,fail_write,fail_commit;
+static unsigned generation,commits,aborts,read_opens;
 static int crypto_fail;
-esp_err_t nvs_open(const char *ns,int mode,nvs_handle_t *h){assert(!strcmp(ns,"metalio_lock"));if(fail_read)return ESP_FAIL;if(mode==NVS_READONLY&&!ns_present)return ESP_ERR_NVS_NOT_FOUND;*h=1;staged=durable;staged_present=present;return ESP_OK;}
-esp_err_t nvs_get_blob(nvs_handle_t h,const char *key,void *out,size_t *n){assert(h==1&&!strcmp(key,"credential"));if(!present)return ESP_ERR_NVS_NOT_FOUND;assert(*n==sizeof(durable));memcpy(out,&durable,*n);return ESP_OK;}
+esp_err_t nvs_open(const char *ns,int mode,nvs_handle_t *h){assert(!strcmp(ns,"pico_lock"));if(mode==NVS_READONLY)++read_opens;if(fail_read)return ESP_FAIL;if(mode==NVS_READONLY&&!ns_present)return ESP_ERR_NVS_NOT_FOUND;*h=1;staged=durable;staged_present=present;return ESP_OK;}
+esp_err_t nvs_get_blob(nvs_handle_t h,const char *key,void *out,size_t *n){assert(h==1&&!strcmp(key,"credential"));if(fail_get)return ESP_FAIL;if(!present)return ESP_ERR_NVS_NOT_FOUND;assert(*n==sizeof(durable));memcpy(out,&durable,*n);return ESP_OK;}
 esp_err_t nvs_set_blob(nvs_handle_t h,const char *key,const void *in,size_t n){assert(h==1&&!strcmp(key,"credential")&&n==sizeof(staged));if(fail_write)return ESP_FAIL;memcpy(&staged,in,n);staged_present=true;return ESP_OK;}
 esp_err_t nvs_erase_key(nvs_handle_t h,const char *key){assert(h==1&&!strcmp(key,"credential"));if(fail_write)return ESP_FAIL;staged_present=false;return present?ESP_OK:ESP_ERR_NVS_NOT_FOUND;}
 esp_err_t nvs_commit(nvs_handle_t h){assert(h==1);++commits;if(fail_commit)return ESP_FAIL;durable=staged;present=staged_present;ns_present=true;return ESP_OK;}
@@ -91,6 +91,12 @@ psa_status_t psa_key_derivation_abort(psa_key_derivation_operation_t *o){memset(
 static void reboot(void){s_loaded=s_available=s_enabled=false;memset(&s_record,0,sizeof(s_record));}
 static bool zero(const void *data,size_t size){const uint8_t *p=data;for(size_t i=0;i<size;++i)if(p[i])return false;return true;}
 int main(void){
+ // 用户选择：从未设置时读失败直接放行，不创建密码；恢复后再次读取，无需重启。
+ // User policy: failed reads do not enable a PIN or write defaults; retry after recovery without a reboot.
+ fail_read=true;assert(!lock_pin_enabled()&&!lock_pin_available());
+ assert(lock_pin_replace(NULL,"1234")==ESP_ERR_INVALID_STATE&&!present&&!commits);
+ fail_read=false;assert(!lock_pin_enabled()&&lock_pin_available());
+ unsigned reads=read_opens;for(unsigned i=0;i<100;++i)assert(!lock_pin_enabled());assert(read_opens==reads&&!commits);
  assert(!lock_pin_enabled()&&lock_pin_available());assert(!lock_pin_verify("7391"));
  lock_pin_flow_t f;lock_pin_flow_begin(&f,false);unsigned before=commits;
  assert(lock_pin_flow_input(&f,"7391")==0&&f.step==PIN_FLOW_CONFIRM&&!present);lock_pin_flow_end(&f);assert(commits==before&&zero(&f,sizeof(f)));
@@ -100,16 +106,26 @@ int main(void){
  char digest[65];for(unsigned i=0;i<32;++i)snprintf(digest+2*i,65-2*i,"%02x",durable.digest[i]);assert(!strcmp(digest,"EXPECTED"));
  for(unsigned i=0;i+4<=sizeof(durable);++i)assert(memcmp((uint8_t*)&durable+i,"7391",4));
  pin_record_t old=durable;reboot();assert(lock_pin_enabled()&&lock_pin_verify("7391"));
+ unsigned saved_commits=commits;
+ for(unsigned fault=0;fault<2;++fault){
+  fail_read=fault==0;fail_get=fault==1;reboot();
+  assert(!lock_pin_enabled()&&!lock_pin_available()&&!lock_pin_verify("7391"));
+  assert(lock_pin_replace(NULL,"1234")==ESP_ERR_INVALID_STATE);
+  fail_read=fail_get=false;assert(lock_pin_enabled()&&lock_pin_available()&&lock_pin_verify("7391"));
+  assert(commits==saved_commits&&!memcmp(&old,&durable,sizeof(old)));
+  reads=read_opens;assert(lock_pin_enabled()&&read_opens==reads);
+ }
+
  assert(lock_pin_replace("0000","4321")!=0&&!memcmp(&old,&durable,sizeof(old)));
  lock_pin_flow_begin(&f,false);assert(lock_pin_flow_input(&f,"0000")!=0&&f.step==PIN_FLOW_OLD);assert(lock_pin_flow_input(&f,"7391")==0&&f.step==PIN_FLOW_NEW);assert(lock_pin_flow_input(&f,"4321")==0);lock_pin_flow_end(&f);assert(lock_pin_verify("7391"));
  for(int i=1;i<=6;++i){crypto_fail=i;assert(!lock_pin_verify("7391")&&lock_pin_replace("7391","4321")!=0);crypto_fail=0;assert(lock_pin_verify("7391")&&!memcmp(&old,&durable,sizeof(old)));}
  for(unsigned i=0;i<2;++i){fail_write=i==0;fail_commit=i==1;assert(lock_pin_replace("7391","4321")!=0);fail_write=fail_commit=false;reboot();assert(lock_pin_verify("7391"));}
  lock_pin_flow_begin(&f,false);assert(lock_pin_flow_input(&f,"7391")==0&&lock_pin_flow_input(&f,"4321")==0&&lock_pin_flow_input(&f,"4321")==0);assert(lock_pin_verify("4321")&&!lock_pin_verify("7391")&&memcmp(old.salt,durable.salt,16));
- old=durable;durable.magic^=1;reboot();assert(lock_pin_enabled()&&!lock_pin_available()&&!lock_pin_verify("4321")&&lock_pin_replace(NULL,"1234")!=0);durable=old;
- fail_read=true;reboot();assert(lock_pin_enabled()&&!lock_pin_available());fail_read=false;reboot();assert(lock_pin_verify("4321"));
+ old=durable;durable.magic^=1;reboot();assert(!lock_pin_enabled()&&!lock_pin_available()&&!lock_pin_verify("4321")&&lock_pin_replace(NULL,"1234")!=0);durable=old;
+ fail_read=true;reboot();assert(!lock_pin_enabled()&&!lock_pin_available());fail_read=false;assert(lock_pin_enabled()&&lock_pin_verify("4321"));
  lock_pin_flow_begin(&f,true);assert(lock_pin_flow_input(&f,"0000")!=0&&lock_pin_enabled());lock_pin_flow_end(&f);assert(lock_pin_enabled());
  lock_pin_flow_begin(&f,true);assert(lock_pin_flow_input(&f,"4321")==0&&f.step==PIN_FLOW_DONE&&!lock_pin_enabled());reboot();assert(!lock_pin_enabled()&&lock_pin_available());
- assert(aborts>10);puts("PASS: real PBKDF2 vector, random salt/no plaintext, constant-time digest, 4 digits; confirm/mismatch/cancel; old-PIN change/disable; NVS/crypto faults, cold reload and corrupt storage fail closed");
+ assert(aborts>10);puts("PASS: real PBKDF2 vector, random salt/no plaintext, constant-time digest, 4 digits; confirm/mismatch/cancel; old-PIN change/disable; NVS read failures are nonblocking without writes, conclusive caching/retry recovery; readable PIN/crypto failures remain protected");
 }
 '''.replace('EXPECTED',expected)
     (p/'test.c').write_text(unit)

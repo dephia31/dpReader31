@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：最多四张可重建正文光栅，调用方须持有阅读绘制锁；不持有屏幕历史帧。
- * English: Up to four rebuildable body rasters, under the reader draw lock; never own EPD history.
+ * 中文：若干张可重建正文光栅（槽数由板级宏给出），调用方须持有阅读绘制锁；不持有屏幕历史帧。
+ * English: Rebuildable body rasters (slot count from the board macro), used under the reader draw
+ * lock; never owns EPD history.
+ *
+ * 冻结：只缓存可重建的像素，不缓存字库或解包句柄。
+ * Frozen: cached pixels only; never fonts or unpacked handles.
  */
 #pragma once
 #include <stdbool.h>

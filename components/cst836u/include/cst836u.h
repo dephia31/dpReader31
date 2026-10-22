@@ -26,7 +26,16 @@ extern "C" {
 
 typedef struct cst836u_dev_t* cst836u_handle_t;
 
+#if defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
+/* Metalio 的 FT6336U 在 0x38；寄存器与读点格式完全不同，实现见 metalio_ft6336.c。 */
+/* The Metalio FT6336U answers at 0x38; registers and point format differ entirely, see
+ * metalio_ft6336.c. */
 #define CST836U_ADDR_DEFAULT 0x38
+#else
+/* 小纸 Pico 的 CST836U 在 0x15。/ The Read Pico CST836U answers at 0x15. */
+#define CST836U_ADDR_DEFAULT 0x15
+#endif
+
 #define CST836U_MAX_POINTS 2
 #define CST836U_RAW_LEN 15
 #define CST836U_I2C_HZ_DEFAULT 400000

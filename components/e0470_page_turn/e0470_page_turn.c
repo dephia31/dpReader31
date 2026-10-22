@@ -261,7 +261,7 @@ static void copy_front_to_back(EpdiyHighlevelState* hl, EpdRect phys) {
 static enum EpdDrawError page_turn_run(EpdiyHighlevelState* hl, EpdRect area,
     e0470_turn_dir_t dir, const EpdWaveform* waveform, unsigned band_count, bool compact) {
     if (hl == NULL) return EPD_DRAW_NO_PHASES_AVAILABLE;
-    if (band_count < 2 || band_count > TURN_BANDS_MAX) return EPD_DRAW_INVALID_CROP;
+    if (band_count < (compact ? 1u : 2u) || band_count > TURN_BANDS_MAX) return EPD_DRAW_INVALID_CROP;
     if (dir > E0470_TURN_BTT) dir = E0470_TURN_RTL;
 
     const EpdWaveformPhases* gl = e0470_waveform_phases(waveform, MODE_GL16);

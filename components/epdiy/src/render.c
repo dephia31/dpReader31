@@ -643,7 +643,7 @@ EpdRect epd_difference_image_base(
             break;
     }
     for (max_x = x_end - 1; max_x >= crop_to.x; max_x--) {
-        uint8_t mask = min_x % 2 ? 0xF0 : 0x0F;
+        uint8_t mask = max_x % 2 ? 0xF0 : 0x0F;
         if ((col_dirtyness[max_x / 2] & mask) != 0)
             break;
     }

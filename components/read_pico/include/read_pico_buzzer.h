@@ -2,10 +2,14 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 中文：S31无Pico GPIO2蜂鸣器；GPIO2为共享IRQ，绝不输出PWM。
- * English: S31 GPIO2 is a shared IRQ, never a Pico buzzer/PWM output.
- * 本头仅保留RC90兼容声明；已编译实现为metalio_haptic.c，未支持的音频返回NOT_SUPPORTED。
- * Compiled implementation is metalio_haptic.c; unsupported audio returns NOT_SUPPORTED.
+ * GPIO2 → AO3400A 栅极，高导通低关断。停播必须禁用 PWM 并拉低。
+ * 曲谱合成是零中心 PCM；硬件占空比另经 bias/gain/min/max 映射。
+ * 高频 PWM 默认不初始化、不上电自测。
+ *
+ * GPIO2 drives the AO3400A gate: high on, low off. Stop must disable PWM
+ * and drive the pin low. Score synthesis is zero-centered PCM; hardware
+ * duty is mapped separately via bias/gain/min/max. HF PWM is off by
+ * default and is not a power-on self-test.
  */
 
 #pragma once

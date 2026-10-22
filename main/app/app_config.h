@@ -45,11 +45,23 @@
 // 阅读页另有独立的可选整屏清残影周期。
 // Count only whole system-page transitions; local controls, dialogs and cover updates do not advance
 // the cleanup cadence. Reading keeps its own configurable full-screen cleanup interval.
+#if defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
+// S31：整页差分 24 次且距上次整刷满 60 秒才升级 GC16（Metalio 合并后的策略）。
+// S31: promote to GC16 after 24 whole-page differentials and 60 s since the last full refresh.
 #define APP_UI_GC16_EVERY 24
 #define APP_UI_GC16_MIN_INTERVAL_US 60000000LL
+#else
+// Pico：官方 rc99 的计数清理，每 40 次整页差分升级 GC16，没有时间门限。
+// Pico: rc99's counter cleanup, promoting on every 40th whole-page differential with no time gate.
+#define APP_UI_GC16_EVERY 40
+#endif
 // 非普通子页面的旧灰阶出口每三次做全像素整理；普通模式已改用单次柔和差分，仅保留下面的完整清残影周期。
 // Legacy nonordinary subpage output settles every third page; ordinary uses single soft differences with only the full-cleanup interval below.
 #define APP_UI_FAST_GL16_SETTLE_EVERY 3
 // 全像素灰阶仍不能无限消除累积残影，达到阈值时同步做完整 GC16。
 // Full-pixel gray updates cannot remove unlimited ghosting, so periodically run a synchronous GC16.
+#if defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
 #define APP_UI_FAST_GC16_EVERY 24
+#else
+#define APP_UI_FAST_GC16_EVERY 12
+#endif

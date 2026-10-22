@@ -584,15 +584,22 @@ int main(void) {
     test_guide_segments = 0; test_guide_first_x = -1; vertical_draws = 0;
     book_layout_draw_page(&fb, 0, r, 40);
     assert(test_guide_segments > 1 && vertical_draws > 0);
-    assert(test_guide_first_x >= first_vertical_x + 40 && test_guide_height > 2);
-    // 与横排对称：虚线从整页上边起算、走整页高度，所以第一段落在页顶，段距正好一个周期，
-    // 与列首缩进无关——原先每列从自己的字首起算，缩进一变相位就变，看着疏密不一。
-    // Symmetric with the horizontal rule: the dashes count from the page's top edge and span its
-    // height, so the first segment sits at the page top and the next is exactly one period later,
-    // whatever the column's indent. Counting from each column's own start shifted the phase with it.
-    assert(test_guide_first_y == r.y && test_guide_second_y - test_guide_first_y == 31);
+    // 首个虚线可被文字起点裁成一像素；断言实际交集，不能要求完整段长。/ A first dash may clip to one pixel at the text start; assert that intersection instead of a full segment.
+    assert(test_guide_first_x >= first_vertical_x + 40);
+    assert(test_guide_first_y == first_vertical_y && test_guide_height == 1);
+    // 阅读线只铺在有字的纵向范围：列首缩进下面没有虚线，第一段从字首起笔而不是页顶。
+    // The guide inks only the glyph span: no dashes under the leading indent, so the first segment
+    // starts at the first glyph instead of the page top.
+    assert(test_guide_first_y > r.y);
     assert(test_guide_last_y < r.y + r.height);
+    // 缩进归零后字首就落在页顶；虚实节奏仍从页上边起算，所以第一段在页顶、段距正好一个周期。
+    // Without the indent the first glyph sits on the page top; the rhythm still counts from the page
+    // edge, so the first segment lands there and the next is exactly one period later.
     book_layout_set_first_line_indent(0);
+    assert(book_layout_build("甲乙丙丁", strlen("甲乙丙丁"), r, 40));
+    test_guide_segments = 0; test_guide_first_x = -1;
+    book_layout_draw_page(&fb, 0, r, 40);
+    assert(test_guide_first_y == r.y && test_guide_second_y - test_guide_first_y == 31);
     // 上下位置滑杆在竖排里横着移动阅读线；调到最里也必须留在字格右边，不许压字。
     // The offset slider moves the guide sideways in vertical setting; even at its innermost it must
     // stay right of the glyph cell instead of biting into the text.

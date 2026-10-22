@@ -8,7 +8,7 @@ mkdir -p build/book-tests
 python3 tools/metalio_clear_test_fragment.py
 link_gc=(-Wl,--gc-sections)
 if [[ "$(uname -s)" == "Darwin" ]]; then link_gc=(-Wl,-dead_strip); fi
-cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
+cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined  -Itools/host_board_pico \
     -ffunction-sections -fdata-sections "${link_gc[@]}" \
     -Ibuild/book-tests -Itools/display_host_stubs -Icomponents/continuous_du/include -Icomponents/e0470_page_turn/include -Imain -Imain/app \
     tools/display_host_test.c main/display.c -o build/book-tests/display

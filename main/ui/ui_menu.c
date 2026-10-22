@@ -13,6 +13,7 @@
 #include <stdio.h>
 
 #include "app_registry.h"
+#include "kiiko_board.h"
 #include "ui_kit.h"
 
 #define UI_MENU_LIST_TOP UI_CONTENT_TOP
@@ -181,6 +182,7 @@ int ui_menu_hit_test(uint16_t x, uint16_t y, int leaf) {
     return first + row;
 }
 
+#if KIIKO_BOARD_METALIO47
 // Metalio 盖板键：Home100 / Prev200 / Next300，Y1600，容差30。
 // Metalio cover keys: Home100 / Prev200 / Next300 at Y1600 with tolerance30.
 int ui_key_hit_test(uint16_t x, uint16_t y) {
@@ -190,3 +192,15 @@ int ui_key_hit_test(uint16_t x, uint16_t y) {
     if (x >= 270 && x <= 330) return UI_KEY_3;
     return -1;
 }
+#else
+// 按 UI_KEY_PITCH 均分，三个按键的中心（80/240/400）正好落在各段中点，
+// 手指偏一点也还在同一段里。
+// Split by UI_KEY_PITCH so the three key centers (80/240/400) sit at mid-segment;
+// a slight finger miss still lands in the same segment.
+int ui_key_hit_test(uint16_t x, uint16_t y) {
+    if (y < UI_KEY_AREA_TOP) return -1;
+    int index = (int)x / UI_KEY_PITCH;
+    if (index >= UI_KEY_COUNT) return -1;
+    return index;
+}
+#endif

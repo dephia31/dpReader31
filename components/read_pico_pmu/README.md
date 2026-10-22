@@ -13,3 +13,19 @@
 | VCOM | 参考运行1200mV；不做永久写入/出厂标定 |
 
 正常界面由主循环调用轮询，不依赖旧Pico后台PMU快照。旧协议枚举只作为API兼容标识；闹钟、LED、CW32配置等未实现命令返回NOT_SUPPORTED。归档协议文档不能作为S31接线或充电参数依据。充电电流/电压未在此次审查中改写。
+| 芯片 / Part | 跑小纸 Pico PMU 固件的 CW32L010 / CW32L010 running the Read Pico PMU firmware |
+| 总线 / Bus | I2C，400 kHz，地址 `PMU_I2C_ADDR` / I2C, 400 kHz, address `PMU_I2C_ADDR` |
+| 中断 / Interrupt | 经 FCA9555 扩展口（P0.2），也是浅睡唤醒源 / Routed through the FCA9555 expander (P0.2), also the light-sleep wake source |
+
+## 许可 / License
+
+Apache-2.0，见 [LICENSE](LICENSE)。
+
+Apache-2.0, see [LICENSE](LICENSE).
+
+
+## Pico 高电量显示 / Pico upper-SOC display
+
+CW32按其文档中的电压表估算SOC，并在充电结束时重新定基；拔电电压松弛可能造成百分比跳变。主机不改这张表、不用电压猜充满：只有校验且有效的快照参与显示。高段使用每秒一次的五样本中位数，电源状态变化观察30秒，再按有效较低读数逐步收敛；轮询频率不改变下降速度。低SOC、低压和真实充满状态立即采用原值；长时间缺读或重启从有效原值重新定基，不累计离线下降。原始快照和安全保护不经显示滤波，Metalio电量计不使用此算法。它稳定估算显示，不能代替实际电流计或电池放电校准。
+
+CW32 estimates SOC from its documented voltage table and rebases after charging; unplug relaxation may therefore jump percentages. The host keeps that table and accepts only valid checked samples, without inferring full from voltage. Upper-range display uses a five-sample median at one-second intervals, observes power changes for30seconds and then converges toward lower readings by time. Poll frequency cannot accelerate descent. Low SOC/voltage and confirmed-full samples bypass smoothing; gaps/restarts rebase without offline descent debt. Raw diagnostics/safety remain untouched, and Metalio's gauge does not use this filter. Display stability is not a replacement for current measurement or discharge calibration.

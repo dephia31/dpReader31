@@ -10,6 +10,8 @@
  * Latest user revision: titles reuse the page's active face: system on Home, reader in books, directly rasterized at the original size.
  * 不为标题切换或重复加载字库；内建缺字回退保留原生位图尺寸，截短保持完整内容的字体来源。
  * Never switch or duplicate fonts for titles; built-in missing-glyph fallback retains native bitmap sizes and the full text fixes the face during truncation.
+ * 用户修复：目录标题复用相同路径，抗锯齿边缘混合至当前行底色，不留下白边。
+ * User fix: directory titles share this path and blend antialiasing into their row background without white fringes.
  */
 
 #include "ui_kit.h"
@@ -147,17 +149,20 @@ void ui_draw_icon(
     }
 }
 
-EpdRect ui_pager_area(void) { return (EpdRect){36,1006,612,50}; }
-EpdRect ui_pager_rect(int action) {
+EpdRect ui_pager_area_at(int top) { return (EpdRect){36,top,612,50}; }
+EpdRect ui_pager_rect_at(int action,int top) {
     static const int left[]={36,116,480,576},width[]={72,88,88,72};
     return action>=UI_PAGER_FIRST&&action<=UI_PAGER_LAST?
-        (EpdRect){left[action],1006,width[action],50}:(EpdRect){0};
+        (EpdRect){left[action],top,width[action],50}:(EpdRect){0};
 }
-int ui_pager_hit(int x,int y) {
+int ui_pager_hit_at(int x,int y,int top) {
     for(int action=UI_PAGER_FIRST;action<=UI_PAGER_LAST;++action)
-        if(ui_rect_hit(ui_pager_rect(action),x,y))return action;
+        if(ui_rect_hit(ui_pager_rect_at(action,top),x,y))return action;
     return UI_PAGER_NONE;
 }
+EpdRect ui_pager_area(void) { return ui_pager_area_at(1006); }
+EpdRect ui_pager_rect(int action) { return ui_pager_rect_at(action,1006); }
+int ui_pager_hit(int x,int y) { return ui_pager_hit_at(x,y,1006); }
 int ui_pager_target(int action,int page,int pages) {
     if(pages<1)pages=1;
     if(page<0)page=0;
@@ -168,10 +173,10 @@ int ui_pager_target(int action,int page,int pages) {
     if(action==UI_PAGER_LAST)return pages-1;
     return page;
 }
-void ui_pager_draw(uint8_t *fb,const char *label,int page,int pages,bool key_mode,int pressed) {
-    ui_text_box(fb,(EpdRect){212,1006,260,50},21,label,EPD_DRAW_ALIGN_CENTER,false);
+void ui_pager_draw_at(uint8_t *fb,const char *label,int page,int pages,bool key_mode,int pressed,int top) {
+    ui_text_box(fb,(EpdRect){212,top,260,50},21,label,EPD_DRAW_ALIGN_CENTER,false);
     for(int action=UI_PAGER_FIRST;action<=UI_PAGER_LAST;++action){
-        EpdRect r=ui_pager_rect(action);
+        EpdRect r=ui_pager_rect_at(action,top);
         bool previous=action==UI_PAGER_FIRST||action==UI_PAGER_PREVIOUS;
         bool end=action==UI_PAGER_FIRST||action==UI_PAGER_LAST;
         bool down=pressed==action,outlined=key_mode&&!end;
@@ -188,6 +193,10 @@ void ui_pager_draw(uint8_t *fb,const char *label,int page,int pages,bool key_mod
                 if(dx*dx+dy*dy<=4)ui_draw_icon(fb,cx+dx,cy+dy,size,icon,enabled?0x10:0x90);
         ui_draw_icon(fb,cx,cy,size,icon,outlined?(down?0x30:0xf0):(enabled?0:0xa0));
     }
+}
+
+void ui_pager_draw(uint8_t *fb,const char *label,int page,int pages,bool key_mode,int pressed) {
+    ui_pager_draw_at(fb,label,page,pages,key_mode,pressed,1006);
 }
 
 static void draw_frosted(uint8_t *fb, EpdRect rect, bool pocket) {
@@ -406,22 +415,28 @@ int ui_text_title_fit(char *text, int preferred_px, int width, const char *font_
     return px;
 }
 
-void ui_text_title_vc(uint8_t *fb, int x, int center_y, int px, const char *text,
-                      const char *font_sample, enum EpdFontFlags align) {
+void ui_text_title_background_vc(uint8_t *fb, int x, int center_y, int px, const char *text,
+                                 const char *font_sample, enum EpdFontFlags align, uint8_t background) {
     if (!fb || !text || !*text) return;
     int above = 0, below = 0;
+    uint8_t back = background >> 4;
     if (!title_uses_active_font(font_sample ? font_sample : text) &&
         ui_font_has_text(font_sample ? font_sample : text)) {
         ui_font_measure_line_px(px, text, &above, &below);
         ui_font_draw_text_px(fb, x, center_y + (above - below) / 2, px, text, align,
-                             UI_INK_BLACK, UI_INK_WHITE, false);
+                             UI_INK_BLACK, back, false);
     } else {
         bool prior=ttf_get_antialias();ttf_set_antialias(true);
         ttf_measure_line_px(px, text, &above, &below);
         ttf_draw_text_px(fb, x, center_y + (above - below) / 2, px, text,
-                         align, UI_INK_BLACK, UI_INK_WHITE);
+                         align, UI_INK_BLACK, back);
         ttf_set_antialias(prior);
     }
+}
+
+void ui_text_title_vc(uint8_t *fb, int x, int center_y, int px, const char *text,
+                      const char *font_sample, enum EpdFontFlags align) {
+    ui_text_title_background_vc(fb, x, center_y, px, text, font_sample, align, UI_GRAY_WHITE);
 }
 
 void ui_text_bw(
@@ -1393,9 +1408,8 @@ void ui_draw_datamatrix(uint8_t* framebuffer, EpdRect rect, const char* text) {
 }
 
 void ui_clear_page(uint8_t* framebuffer) {
-    // 只清除该帧的状态栏标记，离屏锁屏预览不能改变当前页面可见性。
-    // Clear visibility only for this frame; an offscreen lock preview must not affect the live page.
-    if (s_status_framebuffer==framebuffer) s_status_framebuffer=NULL;
+    if(s_status_framebuffer==framebuffer)s_status_framebuffer=NULL;
+
     memset(framebuffer, 0xFF, (size_t)epd_width() * epd_height() / 2);
 }
 

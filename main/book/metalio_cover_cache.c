@@ -1,8 +1,15 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：2MiB 封面像素预算；低内存时回收最久未使用项，留2MiB给前台工作。
- * English: Bound cover pixels to 2 MiB and retain a 2 MiB foreground memory reserve.
+ * 中文：封面像素缓存按板级预算（S31 4MiB / 96 槽，pico 不参与）；低内存时回收最久未使用项，并始终给前台留出板级 PSRAM 预留。
+ * English: Bound cover pixels by the board budget (4 MiB / 96 slots on the S31, unused on the Pico);
+ * evict the least recently used entries under pressure while keeping the board's PSRAM reserve free.
+ *
+ * 冻结：只有 KIIKO_BOARD_HAS_COVER_CACHE 为 1 的板才编译本文件；数值不得写死。
+ * Frozen: compiled only when KIIKO_BOARD_HAS_COVER_CACHE is 1; no hard-coded budget numbers here.
  */
 #include "metalio_cover_cache.h"
+#include "kiiko_board.h"
+#if KIIKO_BOARD_HAS_COVER_CACHE
+
 #include "metalio_memory.h"
 #include "esp_heap_caps.h"
 #include <stdlib.h>
@@ -26,8 +33,9 @@ static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static void lock(void) { pthread_mutex_lock(&mutex); }
 static void unlock(void) { pthread_mutex_unlock(&mutex); }
 #endif
-#define CACHE_SLOTS 96
-#define CACHE_BUDGET (4u*1024u*1024u)
+// 槽数与像素预算来自板级宏。/ Slot count and pixel budget come from the board macros.
+#define CACHE_SLOTS KIIKO_BOARD_COVER_RAM_SLOTS
+#define CACHE_BUDGET ((size_t)KIIKO_BOARD_COVER_RAM_BUDGET_KB * 1024u)
 typedef struct {
     metalio_cover_key_t key;
     metalio_cover_meta_t meta;
@@ -94,3 +102,8 @@ void metalio_cover_cache_clear(void) {
     lock(); while(evict()) {} free(entries); entries=NULL; unlock();
 }
 metalio_cover_stats_t metalio_cover_cache_stats(void) { lock(); metalio_cover_stats_t s=stats; unlock(); return s; }
+
+#else
+// 本板不编封面缓存的实现时给一个空翻译单元，避免依赖空 TU 的扩展。/ Keep a non-empty unit when this board has no cache.
+typedef int metalio_cover_cache_unused_t;
+#endif

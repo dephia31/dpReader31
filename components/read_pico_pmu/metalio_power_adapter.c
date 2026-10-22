@@ -22,6 +22,9 @@ static int64_t charger_retry_at;
 static read_pico_pmu_key_action_t action;
 static TaskHandle_t key_task;
 static portMUX_TYPE key_lock=portMUX_INITIALIZER_UNLOCKED;
+// 锁屏提示用的短按序号；只反映已消费的短按，不构成解锁条件。
+// Short-press serial for the lock hint; it only reflects consumed short presses and never unlocks.
+static uint32_t lock_key_serial;
 static unsigned unbcd(unsigned v) { return (v&15)>9 || (v>>4)>9 ? 255 : (v>>4)*10+(v&15); }
 static unsigned bcd(unsigned v) { return (v/10<<4)|(v%10); }
 static esp_err_t rtc_read(void) {
@@ -199,8 +202,33 @@ bool read_pico_pmu_take_key_wakeup(void) {
     portENTER_CRITICAL(&key_lock);
     // S31后台已记录去抖短按/长按；持有电平不是新动作，否则锁屏长按会再次唤醒。
     // The S31 sampler queues debounced clicks/holds; a held level is not a new wake action.
-    bool wake=action!=READ_PICO_PMU_KEY_NONE; action=READ_PICO_PMU_KEY_NONE;
+    bool wake=action!=READ_PICO_PMU_KEY_NONE;
+    // 依次短按的序号供锁屏提示使用；与 rc99 一样只在短按时递增。
+    // Bump the short-press serial for the lock hint, exactly as rc99 does on a short press.
+    if (action==READ_PICO_PMU_KEY_SHORT) ++lock_key_serial;
+    action=READ_PICO_PMU_KEY_NONE;
     portEXIT_CRITICAL(&key_lock); return wake;
+}
+bool read_pico_pmu_take_key_wakeup_single(void) {
+    // 一次短按即可唤醒；长按清零，与 rc99 的同一判据一致。
+    // One short press wakes; a long press clears it, matching rc99's rule.
+    read_pico_pmu_key_action_t taken=read_pico_pmu_take_key_action();
+    if (taken!=READ_PICO_PMU_KEY_SHORT) return false;
+    portENTER_CRITICAL(&key_lock); ++lock_key_serial; portEXIT_CRITICAL(&key_lock);
+    return true;
+}
+uint32_t read_pico_pmu_lock_key_serial(void) {
+    portENTER_CRITICAL(&key_lock);
+    uint32_t serial=lock_key_serial;
+    portEXIT_CRITICAL(&key_lock); return serial;
+}
+bool read_pico_pmu_take_boot_short_press(void) {
+    // 开机证据只消费一次：上电那一次短按已由扩展口采样进入队列。
+    // Consume the boot evidence once: the powering short press is already queued by the expander sampler.
+    portENTER_CRITICAL(&key_lock);
+    bool seen=action==READ_PICO_PMU_KEY_SHORT;
+    if (seen) { action=READ_PICO_PMU_KEY_NONE; ++lock_key_serial; }
+    portEXIT_CRITICAL(&key_lock); return seen;
 }
 esp_err_t read_pico_pmu_report_sleep(void) { return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t read_pico_pmu_report_ready(void) { return ready?ESP_OK:ESP_ERR_INVALID_STATE; }

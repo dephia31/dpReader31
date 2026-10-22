@@ -48,9 +48,17 @@ extern const EpdWaveform E0470_GRAY8_WAVEFORM;
 
 /// 用户授权采用 Metalio b400605 官方裁剪；原始 48 相表仍完整保留。
 /// User-authorized Metalio b400605 trim; the original 48-phase tables remain intact.
-/// 厂家 2.0.76 起默认关闭裁剪；置 1 才在开机裁成 GC36/GL37。
-/// Vendor 2.0.76 turns this off by default; set 1 for the trimmed page tables.
+/// 裁剪按板选择：Pico 真机一直用裁剪后的快页表；Metalio 从 commit 71e9adf 起改用厂家 2.0.76
+/// 的完整 48 相（裁剪会让强光下墨色偏淡、灰阶合并）。两块板的面板型号不同，不能统一。
+/// The trim is board-specific: the Pico has always shipped the trimmed fast page tables, while
+/// Metalio switched to the vendor's full 48 phases in commit 71e9adf (trimming left ink pale in
+/// strong light and merged the gray ladder). Two different panel parts, so this cannot be shared.
+#if defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
 #define E0470_WAVEFORM_TRIM 0
+#else
+#define E0470_WAVEFORM_TRIM 1
+#endif
+
 #define E0470_TRIM_ERASE_MAX 11
 #define E0470_TRIM_SAT_CUT 5
 #define E0470_TRIM_WHITE_SAT_CUT 0

@@ -177,11 +177,8 @@ static void power_control_base(uint8_t *fb,int slot,bool glass) {
         return;
     }
     int cx=r.x+r.width/2,cy=r.y+r.height/2;
-    if(slot==1)ui_draw_icon(fb,cx,cy-20,44,UI_ICON_ROTATE_CW,UI_GRAY_BLACK);
-    else for(int i=-15;i<=15;++i){
-        epd_fill_circle(cx+i,cy-20+i,2,UI_GRAY_BLACK,fb);
-        epd_fill_circle(cx+i,cy-20-i,2,UI_GRAY_BLACK,fb);
-    }
+    // 重启和取消都用图标库的描边字形，和锁、电源同一套线宽。/ Restart and cancel both use the icon set's stroke marks, matching the lock and power line weight.
+    ui_draw_icon(fb,cx,cy-20,44,slot==1?UI_ICON_ROTATE_CW:UI_ICON_X,UI_GRAY_BLACK);
     ui_text_box(fb,(EpdRect){cx-66,cy+18,132,38},24,slot==1?"重启":"取消",EPD_DRAW_ALIGN_CENTER,false);
 }
 void ui_power_dialog_end(void) {
