@@ -72,6 +72,16 @@ int main(void) {
     for(unsigned i=0;i<4;++i)assert(!pthread_join(threads[i],NULL));
     assert(metalio_cover_cache_stats().entries==4);
     metalio_cover_cache_clear();free(pixels);free(out);
+    uint8_t source[7*19],target[7*19];for(unsigned i=0;i<sizeof(source);++i)source[i]=(uint8_t)i;
+    k=key(80);assert(metalio_cover_cache_put_rows(&k,source,19,11,7));memset(target,0xa5,sizeof(target));
+    assert(metalio_cover_cache_get_rows(&k,target,19,11,7));
+    for(unsigned y=0;y<7;++y)for(unsigned x=0;x<19;++x)assert(target[y*19+x]==(x<11?source[y*19+x]:0xa5));
+    assert(!metalio_cover_cache_get_rows(&k,target,19,12,7));
+    assert(!metalio_cover_cache_get_rows(&k,target,10,11,7));
+    assert(!metalio_cover_cache_put_rows(&k,source,19,SIZE_MAX,7));
+    assert(!metalio_cover_cache_put_rows(&k,source,SIZE_MAX,1,7));
+    metalio_cover_cache_trim(0);assert(!metalio_cover_cache_get_rows(&k,target,19,11,7));
+    metalio_cover_cache_clear();
     puts("PASS: dynamic 4MiB cap, LRU recency, copy ownership, raster metadata, file-version invalidation, 2.5MiB shared reserve, trim/OOM fallback and 4000 concurrent copy cycles");
     return 0;
 }

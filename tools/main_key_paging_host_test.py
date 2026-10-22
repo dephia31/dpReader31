@@ -15,6 +15,7 @@ u=r'''
 #include <stdlib.h>
 #include <string.h>
 #define SHELF 1
+#define UI_GRAY_WHITE 255
 #define UI_KEY_1 0
 #define UI_KEY_2 1
 #define UI_KEY_3 2
@@ -29,7 +30,6 @@ static int64_t s_shelf_key_until;
 static EpdRect s_area;
 static int outlines,presses,turns,requests=-1,s_pressed_control=-1;
 enum {UI_PAGER_NONE=-1,UI_PAGER_FIRST,UI_PAGER_PREVIOUS,UI_PAGER_NEXT,UI_PAGER_LAST};
-static bool app_settings_main_fast_refresh(void){return false;}
 static int leaves(void){return 5;}
 static EpdRect ui_pager_area(void){return(EpdRect){36,1006,612,50};}
 static void ui_fill_rect_fast(EpdRect a,int c,uint8_t*f){(void)c;(void)f;assert(a.x==36&&a.y==1006&&a.width==612&&a.height==50);}

@@ -22,7 +22,6 @@ HEADERS = {
     'esp_heap_caps.h': ('#pragma once\n#include <stdlib.h>\n#define MALLOC_CAP_SPIRAM 1\n'
                         '#define MALLOC_CAP_8BIT 2\nvoid *heap_caps_malloc(size_t n,int caps);\n'
                         'void *heap_caps_calloc(size_t n,size_t s,int caps);\nvoid heap_caps_free(void *p);\n'
-                        'static inline size_t heap_caps_get_free_size(int c){(void)c;return 8u*1024u*1024u;}\n'
                         'static inline size_t heap_caps_get_largest_free_block(int c){(void)c;return 0;}\n'),
 }
 
@@ -115,7 +114,7 @@ with tempfile.TemporaryDirectory(prefix='pico-vertical-number-') as directory:
     flags = ['cc', '-std=gnu11', '-Wall', '-Wextra', # GCC 13 会把 ttf_font.c 里既有的 snprintf 告警升级成错误。
              '-Wno-error=format-truncation',
              '-I' + str(work), '-I' + str(ROOT / 'main/font'), '-I' + str(ROOT / 'main/ui'),
-             '-I' + str(ROOT / 'main/book'), '-I' + str(ROOT / 'main'), '-I' + str(ROOT / 'tools/ui_gesture_stubs')]
+             '-I' + str(ROOT / 'main'), '-I' + str(ROOT / 'tools/ui_gesture_stubs')]
     subprocess.run(flags + [str(work / 'test.c'), str(work / 'assets.c'),
                             str(ROOT / 'main/font/ttf_font.c'), '-lm',
                             '-o', str(work / 'test')], check=True)

@@ -3,10 +3,17 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "epdiy.h"
 #include "e0470_epaper_waveform.h"
 #include "metalio_touch_decode.h"
 extern bool epd_pixel_order_selftest(const EpdWaveform *waveform);
+// 本宿主模拟Core0，任何PIE调用都必须失败；真实指令由Core1实机oracle验证。
+// This host models Core0,so any PIE call must fail; Core1 device oracles verify instructions.
+void epd_pie_mask_blocks(uint8_t* a,const uint8_t* b,unsigned blocks) {(void)a;(void)b;(void)blocks;abort();}
+uint32_t epd_pie_interlace_blocks(const uint8_t* a,const uint8_t* b,uint8_t* c,uint8_t* d,unsigned blocks) {
+    (void)a;(void)b;(void)c;(void)d;(void)blocks;abort();
+}
 static void point(uint8_t *r,unsigned i,unsigned x,unsigned y,unsigned id,unsigned event) {
     uint8_t *p=r+3+6*i;
     p[0]=(event<<6)|(x>>8); p[1]=x;

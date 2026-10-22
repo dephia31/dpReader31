@@ -9,6 +9,3 @@
 #define MALLOC_CAP_8BIT 2
 static inline void* heap_caps_malloc(size_t n, int caps) { (void)caps; return malloc(n); }
 static inline void* heap_caps_calloc(size_t n, size_t size, int caps) { (void)caps; return calloc(n, size); }
-
-static inline size_t heap_caps_get_free_size(int caps) { (void)caps; return 16u*1024u*1024u; }
-static inline size_t heap_caps_get_largest_free_block(int caps) { (void)caps; return 16u*1024u*1024u; }

@@ -25,14 +25,17 @@ enum {EPD_DRAW_ALIGN_CENTER,MODE_DU};
 #define UI_TOUCH_SLOP_PX 24
 #define UI_SWIPE_MIN_PX 120
 #define UI_GRAY_BLACK 0
-#define APP_BOOK_TRACK_COUNT 21
-#define APP_BOOK_TRACK_MIN (-4)
 static int s_view=READING,s_reader_panel=READER_PANEL_LAYOUT_SETTINGS,s_pressed_control=-1,s_reader_slider=-1,s_margin,s_px=48;
 static bool s_clear_confirm,s_indent_feedback_pending;
 static EpdRect s_area;
 static int s_mode;
 static struct {bool pending;}s_reader_tap;
 '''
+settings=(root/'main/settings.h').read_text()
+for name in ('APP_BOOK_TRACK_MIN','APP_BOOK_TRACK_MAX','APP_BOOK_TRACK_COUNT','APP_BOOK_PARAGRAPH_COUNT'):
+    unit+=re.search(r'^#define '+name+r' .*',settings,re.M)[0]+'\n'
+for name in ('app_settings_book_paragraph_value','app_settings_book_paragraph_level'):
+    unit+=function(name,root/'main/settings.c')+'\n'
 unit+=re.search(r'static struct \{\s+bool active, cancelled, repeated;[\s\S]*?\} s_indent_hold;',text)[0]+'\n'
 unit+=r'''
 static int saved,reflows,draws,pushes,invalidated;

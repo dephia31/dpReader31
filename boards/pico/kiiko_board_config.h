@@ -57,9 +57,8 @@
 /// 锁屏待机方式（浅睡 / 深睡 / 关机）三档：Metalio 独有；Pico 的待机由 PMU 决定。
 /// Lock-face standby policy (light/deep/off): Metalio only; the Pico PMU decides standby.
 #define KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY 0
-/// 阅读翻页效果档位上限：pico 0/1，Metalio 另加 2（速读黑白）。
-/// Highest reader turn effect: 0/1 here; Metalio adds 2 (fast mono).
-#define KIIKO_BOARD_READER_TURN_EFFECT_MAX 1
+/// 两板各自实现普通、水波纹、速读黑白。/ Both boards implement ordinary, ripple and Fast BW through native drivers.
+#define KIIKO_BOARD_READER_TURN_EFFECT_MAX 2
 
 /* ---- 备份与设备名 / Backup and device name ---- */
 /// 设置备份文件名前缀与默认设备名；升级后要与本机旧固件的取值一致，否则备份认不出来。
@@ -117,5 +116,3 @@
 #define KIIKO_BOARD_FAVORITES_NS "rp_favs"
 #define KIIKO_BOARD_SHELF_NS "rp_shelf"
 #define KIIKO_BOARD_MARKS_NS "rp_marks"
-
-

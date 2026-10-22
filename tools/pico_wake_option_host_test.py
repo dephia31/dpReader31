@@ -37,6 +37,7 @@ static bool read_pico_pmu_take_boot_short_press(void){bool value=boot_press;boot
 static bool lock_pin_enabled(void){return pin;}
 static void pico_boot_ready(void){++ready;}
 static void pico_boot_hold_resume(void){++held;}
+static bool app_lock_resume_frame(void *hl){(void)hl;return false;}
 static void app_lock_boot_gate(void *a,int b,int c){(void)a;(void)b;(void)c;++gate;}
 static void boot_gate(bool resuming){int hl=0;struct {int touch,sensor;}hw={0};
 '''

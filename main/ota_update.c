@@ -86,9 +86,11 @@ esp_err_t pico_ota_inspect(const char *path, pico_ota_info_t *info) {
     esp_err_t err = read_candidate(file, &header, &candidate);
     fclose(file);
     if (err != ESP_OK) {
-        // 提示里的产品名按板拼接，两块板各自保持原文案。
-        // The product name in the message is composed per board so each board keeps its own wording.
-        set_message(info->message, sizeof(info->message), "升级包不是有效的 " KIIKO_BOARD_PRODUCT_NAME " 固件");
+#if KIIKO_BOARD_METALIO47
+        set_message(info->message, sizeof(info->message), "升级包不是有效的 Metalio S31 固件");
+#else
+        set_message(info->message, sizeof(info->message), "升级包不是有效的 kiikoread 固件");
+#endif
         return err;
     }
 
@@ -98,7 +100,11 @@ esp_err_t pico_ota_inspect(const char *path, pico_ota_info_t *info) {
                     sizeof(running_desc->project_name)) ||
         !copy_field(candidate_project, sizeof(candidate_project), candidate.project_name,
                     sizeof(candidate.project_name)) || strcmp(current_project, candidate_project) != 0) {
-        set_message(info->message, sizeof(info->message), "升级包不属于当前 " KIIKO_BOARD_PRODUCT_NAME " 固件");
+#if KIIKO_BOARD_METALIO47
+        set_message(info->message, sizeof(info->message), "升级包不属于当前 Metalio S31 固件");
+#else
+        set_message(info->message, sizeof(info->message), "升级包不属于当前 kiikoread 固件");
+#endif
         return ESP_ERR_INVALID_RESPONSE;
     }
     if (!copy_field(info->candidate_version, sizeof(info->candidate_version), candidate.version,

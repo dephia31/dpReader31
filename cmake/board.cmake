@@ -1,22 +1,43 @@
-# 板级选择的统一入口。根 CMakeLists.txt 在 include(project.cmake) 之前设置正常配置用的缓存变量，
-# 并把板名导出到环境变量：IDF 的依赖扫描会以 `cmake -P` 脚本模式 include 各组件 CMakeLists，
-# 脚本模式不读 CMakeCache，只有环境变量能到那里。本文件把两处的板名取回来，并重新推导板级目录。
-#
-# Single entry point for board selection. The root CMakeLists.txt sets the cache variable used by a
-# normal configure and exports the board name to the environment: IDF's requirement scan includes
-# component CMakeLists in `cmake -P` script mode, which never reads CMakeCache, so only the
-# environment reaches it. This file resolves the name from either place and re-derives the board
-# directory.
-if(NOT KIIKO_BOARD)
-    set(KIIKO_BOARD "$ENV{KIIKO_BOARD}")
+# SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
+# 中文：只在配置期选择板型，未知设备或目标冲突立即失败。/ English: Select a board at configure time; reject unknown boards and conflicting targets.
+# 中文：需求扫描在每个组件自己的作用域中运行，板型变量必须逐次初始化。/ English: Requirement discovery gives each component its own scope; initialize board variables on every include.
+get_filename_component(KIIKO_SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+if(NOT DEFINED KIIKO_BOARD)
+    if(DEFINED ENV{KIIKO_BOARD} AND NOT "$ENV{KIIKO_BOARD}" STREQUAL "")
+        set(KIIKO_BOARD "$ENV{KIIKO_BOARD}")
+    else()
+        set(KIIKO_BOARD "pico")
+    endif()
 endif()
-if(NOT KIIKO_BOARD)
-    set(KIIKO_BOARD "pico")
+if(KIIKO_BOARD STREQUAL "metalio_s31")
+    set(KIIKO_BOARD "metalio47")
 endif()
-
-get_filename_component(kiiko_cmake_dir "${CMAKE_CURRENT_LIST_FILE}" DIRECTORY)
-get_filename_component(KIIKO_BOARD_DIR "${kiiko_cmake_dir}/../boards/${KIIKO_BOARD}" ABSOLUTE)
-
-if(NOT EXISTS "${KIIKO_BOARD_DIR}/board.cmake")
-    message(FATAL_ERROR "未知板级 / Unknown board '${KIIKO_BOARD}' (looked for ${KIIKO_BOARD_DIR}/board.cmake)")
+if(NOT KIIKO_BOARD STREQUAL "pico" AND NOT KIIKO_BOARD STREQUAL "metalio47")
+    message(FATAL_ERROR "Unknown KIIKO_BOARD=${KIIKO_BOARD}; choose pico or metalio47")
 endif()
+set(KIIKO_BOARD_ROOT "${KIIKO_SOURCE_ROOT}/boards/${KIIKO_BOARD}")
+include("${KIIKO_BOARD_ROOT}/board.cmake")
+if(KIIKO_BOARD STREQUAL "metalio47")
+    set(KIIKO_BOARD_METALIO47 1)
+else()
+    set(KIIKO_BOARD_METALIO47 0)
+endif()
+# 组件需求扫描也会独立加载本文件，不在这里修改工具链。/ Requirement discovery loads this file separately; never change its toolchain here.
+function(kiiko_board_sources output component_dir)
+    set(selected_sources)
+    foreach(source IN LISTS ARGN)
+        get_filename_component(original "${source}" ABSOLUTE BASE_DIR "${component_dir}")
+        file(RELATIVE_PATH relative "${KIIKO_SOURCE_ROOT}" "${original}")
+        set(selected "${KIIKO_BOARD_ROOT}/src/${relative}")
+        if(EXISTS "${selected}")
+            get_filename_component(original_dir "${original}" DIRECTORY)
+            if(NOT CMAKE_SCRIPT_MODE_FILE)
+                set_source_files_properties("${selected}" PROPERTIES INCLUDE_DIRECTORIES "${original_dir}")
+            endif()
+            list(APPEND selected_sources "${selected}")
+        else()
+            list(APPEND selected_sources "${source}")
+        endif()
+    endforeach()
+    set(${output} "${selected_sources}" PARENT_SCOPE)
+endfunction()

@@ -1,34 +1,8 @@
 # kiikoread
 
+Local changes awaiting release: **Settings → Display → Shutdown → Power-key boot** selects one or two presses for Pico lock/deep-sleep wake (default: two). PIN verification and the existing unlock hint remain. This preference is stored on the device but is not included in the existing configuration backup format. The white lock badge and power cancel button use icon-set artwork; reading guides stop at the text edges.
+
 > **Licensing:** New original material explicitly marked with the [Personal Study License](licenses/kiikoread-Personal-Study-1.0.txt) permits personal study and prohibits commercial use without separate written permission. **This policy does not relicense rc93 or earlier code/binaries, remove existing Apache-2.0 rights, or override third-party licenses.** See [LICENSE](LICENSE) for the exact scope.
-
-## 两块板，一份代码 / Two boards, one source tree
-
-同一棵树构建两个固件：`-DKIIKO_BOARD=pico` 得到 小纸 Pico（ESP32-S3）的 `Read_Pico.bin`，
-`-DKIIKO_BOARD=metalio_s31` 得到 Metalio E-INK4 Plus V1.5（ESP32-S31）的
-`Kiikoread_Metalio_S31.bin`。板型在构建前选定，两块板的工程名、NVS 命名空间、分区表、
-sdkconfig 与硬件能力宏都不同，**不能互刷，也不认对方的升级包**。板级层见
-[boards/README.md](boards/README.md)。
-
-One tree builds both images: `-DKIIKO_BOARD=pico` produces `Read_Pico.bin` for the Read Pico
-(ESP32-S3), `-DKIIKO_BOARD=metalio_s31` produces `Kiikoread_Metalio_S31.bin` for the Metalio
-E-INK4 Plus V1.5 (ESP32-S31). The board is fixed before compilation; project name, NVS
-namespaces, partition table, sdkconfig and capability macros all differ, so **the two images are
-not interchangeable and neither accepts the other's update package**. See
-[boards/README.md](boards/README.md).
-
-| 板型 / Board | 芯片 / Chip | 工程名 / Project | 分区表 | sdkconfig |
-| --- | --- | --- | --- | --- |
-| `pico` | ESP32-S3 | `Read_Pico` | `boards/pico/partitions.csv` | `sdkconfig.pico` |
-| `metalio_s31` | ESP32-S31 | `Kiikoread_Metalio_S31` | `boards/metalio_s31/partitions.csv` | `sdkconfig.metalio_s31` |
-
-硬件差异集中在 `boards/<板名>/kiiko_board_config.h` 的能力宏（前光、振动、音量键、TPS65185、
-USB 下载交接、锁屏待机方式、内存/缓存预算等），共享代码只按这些宏与 `kiiko_board.h` 分叉。
-
-Hardware differences are concentrated in the capability macros of
-`boards/<name>/kiiko_board_config.h` (front light, haptics, volume keys, TPS65185, USB download
-handover, lock-face standby policy, memory and cache budgets); shared code branches only on those
-macros and on `kiiko_board.h`.
 
 The public project name is **kiikoread**. The website calls the device an ink-screen reader; the GitHub URL and legacy update/backup filenames remain compatible. Firmware UI branding also uses kiikoread. The bright-white website includes screen previews, features, version selection, web USB flashing, Bin downloads and an [online user manual](flash/manual.html). Stage it with `python3 tools/stage_public_flash.py _site`; both GitHub Pages and Cloudflare Pages can serve `_site`. The PDF can be regenerated from `docs/user-manual.zh-CN.json` with `tools/build_user_manual.py --font /path/to/a/static-CJK.ttf` (Python ReportLab required).
 Official firmware binaries are stored in [GitHub Releases](https://github.com/wegooo-cell/read-pico-reader/releases). The verified site staging step retrieves the matching assets; do not publish the raw flash directory. Device OTA checks `https://kiikoread.com/update.json` first, with the existing GitHub Pages feed as a fallback. Stage the primary site with `python3 tools/stage_public_flash.py _site --ota-origin https://kiikoread.com`; keep the default origin for GitHub Pages.
@@ -68,6 +42,8 @@ The firmware checkpoints the book, position and full-screen state before lock, c
 
 ### Local reading and low-power update
 
+Pico local builds add Reading settings → Turn effect → Fast BW. Consecutive text-only pages without wallpaper threshold the body/footer at50% and submit Pico’s original20-phase DU once, without dithering. Edges become harder and gray details are lost. Illustrations, backgrounds, reader entry and manual/periodic cleanup retain their paths; cleanup follows0/5/10/15/30 pages with no hidden cap. Legacy ordinary/ripple preferences remain compatible across reboot and TF configuration restore.
+
 Reading settings uses the approved compact two-column sheet: tap Auto full refresh to cycle 5/10/15/30 pages or no forced refresh, and tap Turn effect to switch ordinary/water. Turn mode and Key controls open their own pages; power-key page turning, immersive display and hiding illustrations remain available. Manual refresh remains a key action. Reading ripple uses 8 bands with an 11,090 µs target tick; all 37 gray phases complete, while main-screen ripple retains its independent settings.
 
 The local build ports [official commit a2a63a6](https://github.com/MindReset/read_pico_firmware/commit/a2a63a6a2c606540be72156a6567392d948d65fc): park touch, accelerometer, buzzer and the IO expander, pull floating panel/TF-clock inputs down in light sleep, and prepare CPU retention. CW_INT remains an input during light sleep for key wake and is driven low only for host power-down. Preserve the ten-minute lock, PIN and reading checkpoint; a failed PMU handoff restores peripherals instead of rebooting or waiting forever. Actual current draw requires hardware measurement.
@@ -100,26 +76,16 @@ kiikoread checks the image project, version, size, and headers before writing th
 
 ## Build from source
 
-Use ESP-IDF **v6.1**; the Metalio S31 target needs the commit that carries `esp32s31` support
-(see below). One toolchain, one checkout, two build directories:
+The local multi-board tree supports `pico` (ESP32-S3) and `metalio47` (ESP32-S31 / Metalio 4.7 V1.5) from one maintained application. Use `python3 tools/build_firmware.py --board all` with the matching SDK/Python environments to generate isolated packages for both devices. See [board selection and complete build commands](docs/BOARDS.md).
+
+Use ESP-IDF **v6.1** for ESP32-S3:
 
 ```sh
-# 小纸 Pico（ESP32-S3）
-idf.py -B build-pico -DKIIKO_BOARD=pico build
-
-# Metalio E-INK4 Plus V1.5（ESP32-S31）
-idf.py -B build-metalio -DKIIKO_BOARD=metalio_s31 build
+idf.py set-target esp32s3
+idf.py build
 ```
 
-`tools/build_board.ps1 -Board pico|metalio_s31 [build|flash|monitor|menuconfig|size]` wraps the same
-calls for Windows. Each board keeps its own build directory and its own `sdkconfig.<board>`; do not
-share one build directory between them or they reconfigure each other.
-
-The board flash/PSRAM timing lives in the board's `sdkconfig.defaults` on top of the shared root
-file; `boards/pico/sdkconfig.ci` is for compile checks only. The Pico board is the MindReset
-RDP-G01-W; follow the [MindReset hardware documentation](https://dot.mindreset.tech/docs/read_0).
-The S31 image targets the Metalio E-INK4 Plus V1.5 / E0470A14-AF 34-pin panel, and its calibration
-notes are in [docs/S31_HARDWARE.md](docs/S31_HARDWARE.md).
+The board-specific flash and PSRAM timing is in `sdkconfig.defaults`. `sdkconfig.ci` is for compile checks only. Follow the [MindReset hardware documentation](https://dot.mindreset.tech/docs/read_0) for the board. A prebuilt firmware image is provided for the RDP-G01-W only.
 
 ## Books and fonts
 
@@ -151,7 +117,7 @@ Horizontal swipes turn reading pages in either tap-area mode. With vertical tap 
 
 TF-card JPG/PNG files can be up to **50 MiB**, with source dimensions up to 8,192 pixels per side. They are read as streams rather than loaded entirely into memory; decoded output stays within one screen. Progressive JPEG uses the existing reduced-resolution DC decoder, and interlaced PNG remains unsupported. These TF-file limits do not change the EPUB image-resource limit below.
 
-To back up personal settings, open **Settings → Save & restore → Save to TF card**. The device writes the board's backup (`Pico-settings.backup` on the Pico, `Metalio-S31-settings.backup` on the S31) to the TF-card root. Put that file back at the root and choose **Restore from TF card** to recover fonts, typography, display and lock settings, profile and status signature, saved Wi-Fi name and password, book progress, reading time, bookmarks, favorites, custom book names, and shelf removals. Book, font, avatar, and wallpaper files remain on the TF card. The backup contains the Wi-Fi password in plaintext, so keep the TF card private. Missing external fonts and images fall back to built-in options. Older backups remain readable and leave the current network configuration unchanged.
+To back up personal settings, open **Settings → Save & restore → Save to TF card**. The device writes `Pico-settings.backup` to the TF-card root. Put that file back at the root and choose **Restore from TF card** to recover fonts, typography, display and lock settings, profile and status signature, saved Wi-Fi name and password, book progress, reading time, bookmarks, favorites, custom book names, and shelf removals. Book, font, avatar, and wallpaper files remain on the TF card. The backup contains the Wi-Fi password in plaintext, so keep the TF card private. Missing external fonts and images fall back to built-in options. Older backups remain readable and leave the current network configuration unchanged.
 
 EPUB metadata is allocated for the actual book size. ZIP entries and chapters each have an 8,192-item limit; covers, images, and navigation also consume ZIP entries. A book may exceed 32 MB overall, while each XHTML resource remains limited to 4 MB and each decompressed image to 8 MB; available device memory and standard ZIP limits also apply.
 
@@ -162,33 +128,6 @@ EPUB body chapters begin on a new page, keeping the title with the opening text 
 The current source integrates PR #32–#34; release attachments remain tied to their published versions. Boot-phase timing is recorded in the existing RTC trail and shown in Overview's last-run area. Boot marks stop after the first frame. Vertical reading guides sit beside the glyph cells with a shared dash phase, chapter numbers align with ideographs, and dash-like symbols follow vertical rotation.
 
 For persistent black or white stripes after a power cut during a refresh, tap **Settings → Upgrade and recovery → Panel repair**. It performs several full-screen black/white drives and restores the current page including navigation. It runs only on an explicit tap and preserves normal reading rules, waveform tables and VCOM calibration. A failed final output reports failure and allows retry.
-
-## Metalio E-INK4 Plus V1.5 (ESP32-S31)
-
-The S31 build reuses the same reader UI but almost none of the Pico's hardware: the panel is
-driven over an 8-bit LCD bus with AXI GDMA, the rails and VCOM come from a TPS65185 behind a
-TCA9555, touch is an FT6336U, time comes from a PCF8563, and the board switches its USB route on
-GPIO36. There is no CW32 PMU, so the lock-face standby policy, the VCOM calibration value and the
-key handling are the board's own.
-
-Practical consequences:
-
-- VCOM lives in local NVS (default 3000 mV from Moku's comparison, not a measurement of every
-  unit). Hold a volume key while powering on to open the calibration/debug page.
-- The lock face offers light-sleep, deep-sleep and power-off standby; auto deep sleep is not
-  entered on a timer.
-- Local TF updates use `Metalio-S31-update.bin` at the card root; settings backups are
-  `Metalio-S31-settings.backup`. Neither file is interchangeable with the Pico's.
-- The board ships the vendor 2.0.76 full 48-phase waveforms; the Pico keeps its trimmed page
-  tables. Both live in `components/e0470_epaper_waveform`.
-- Build the whole 16 MB image only for a first installation of this exact board; it starts at 0x0
-  and overwrites the vendor system. Application updates never write 0x0.
-
-S31 侧沿用同一套阅读界面，但硬件几乎完全不同（8bit LCD + AXI GDMA、TPS65185 电源轨与
-VCOM、FT6336U 触摸、PCF8563 走时、GPIO36 USB 路由切换），没有 CW32 PMU。对应地：VCOM 存本机
-NVS（默认 3000mV），开机按住音量键进标定/调试页；锁屏待机可选浅睡/深睡/关机；本地升级包名为
-`Metalio-S31-update.bin`，设置备份为 `Metalio-S31-settings.backup`；波形用厂家 2.0.76 完整
-48 相。16MB 整机镜像只用于同板型首次安装（从 0x0 写入），应用升级不写 0x0。
 
 ## Licenses and credit
 

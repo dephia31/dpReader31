@@ -61,9 +61,26 @@ enum EpdDrawError update_display_fast_page(EpdiyHighlevelState* hl);
 /// 为下一次主页面输出启用固定底栏；标记书架切出与真正切页，避免同页重绘播放动画。
 /// Arm fixed navigation for the next main-screen output; tag shelf exit and actual navigation so same-page repaints do not animate.
 void display_main_transition_arm(const void* owner, bool leaving_shelf, bool changing_page);
+#if KIIKO_BOARD_METALIO47
+/// 纯绘制期间提前等待TPS唤醒，结束时取消未消费的准备；实际推屏另持Flash锁。/ Overlap TPS wake with pure paint and cancel unused preparation; actual output separately holds the Flash lock.
+bool display_page_prepare_begin(void);
+void display_page_prepare_end(bool held);
+bool display_pipeline_enabled(void);
+/// 当前设置/文件主页面按黑白输出，底栏仍从真实back保留。/ Present the armed Settings/Files root in BW, retaining navigation from actual back.
+void display_main_transition_monochrome(void);
+/// 只规整S31内容区像素，不改底栏、波形或显示历史。/ Normalize only S31 content pixels, without changing navigation, waveforms or display history.
+void display_monochrome_content(uint8_t* fb);
+/// 整个系统页二值化，不改真实back或原厂波形。/ Binarize the whole system frame without altering back history or vendor tables.
+void display_monochrome_frame(uint8_t* fb);
+/// 设置本次系统推屏策略，返回旧策略；离开作用域必须恢复。/ Set scoped system-output policy, returning the previous policy for restoration.
+bool display_system_binary_set(bool enabled);
+/// 常驻底栏的根页/子页保留灰阶，只二值化内容，返回旧值供恢复。/ Persistent root/child navigation retains gray; binarize content only and return the prior scope.
+bool display_system_navigation_set(bool visible);
+#else
 /// 系统侧滑用主页灰阶水波纹，独立于阅读文字序列；区域必须是逻辑坐标。
 /// System edge returns use main-gray ripple independently of reader text; the area uses logical coordinates.
 enum EpdDrawError update_display_main_turn(EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir);
+#endif
 /// 当前主页面最多三个横向灰阶条带，其余内容按黑白驱动；无入口许可时忽略。
 /// Register at most three horizontal gray bands on the armed main page; other content uses black/white. Ignore without permission.
 void display_main_transition_gray_bands(const EpdRect* bands, unsigned count);
@@ -74,6 +91,8 @@ void display_main_transition_disarm(void);
 /// 取消尚未使用的入口；不打断物理波形，无延迟补刷任务。
 /// Cancel unused permission without interrupting a physical waveform; no deferred completion exists.
 void display_main_transition_cancel(void);
+#if KIIKO_BOARD_METALIO47
+#endif
 enum EpdDrawError update_display_from_white(EpdiyHighlevelState* hl);
 enum EpdDrawError update_display_from_white_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode
@@ -122,6 +141,11 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
                                              e0470_turn_dir_t dir);
 /// 同步普通文字翻页沿用水波纹的全部灰阶相位，单带同时输出并恢复原节拍。/ Ordinary text uses all ripple gray phases in one synchronous band and restores pacing.
 enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir);
+#if KIIKO_BOARD_METALIO47
+/// 已验证未变正文上的面板：保留原厂GL48及完整目标灰阶，一次区域定稿；不借文字22相或速读黑白。
+/// Panels over verified unchanged text retain vendorGL48/full target grays in one regional settle, independent of text22-phase/FastBW.
+enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect area);
+#endif
 /// 动画中间帧使用灰阶波形，但不累计周期清屏计数；动画最终帧走普通刷新出口。
 /// Use grayscale for animation strips without advancing periodic cleanup; the final frame uses the normal path.
 

@@ -49,7 +49,6 @@ void host_free(void *v){if(!v)return;for(int i=0;i<8192;++i)if(allocations[i].p=
 void heap_caps_free(void *v){host_free(v);}
 size_t heap_caps_get_free_size(int c){(void)c;return capacity-live;}
 size_t heap_caps_get_largest_free_block(int c){(void)c;return capacity-live;}
-
 void lock_pin_wipe(void *p,unsigned n){volatile uint8_t *b=p;while(n--)*b++=0;}
 static enum EpdRotation display_rotation=EPD_ROT_PORTRAIT;
 int epd_width(void){return display_rotation==EPD_ROT_PORTRAIT||display_rotation==EPD_ROT_INVERTED_PORTRAIT?1216:684;}
@@ -61,8 +60,7 @@ typedef struct {uint16_t x,y;} Coord_xy;
 uint8_t ui_contrast_gray(uint8_t gray){return gray;}
 void ui_fill_rect_fast(EpdRect r,uint8_t gray,uint8_t *fb){epd_fill_rect(r,gray,fb);}
 '''
- unit+='struct host_display{int width,height;};\n#define display (\u0026(struct host_display){epd_width(),epd_height()})\n'
- for n in ('draw_axis_line','_rotate','epd_draw_pixel','epd_get_pixel','epd_draw_hline','epd_draw_vline','epd_fill_rect','epd_draw_circle','epd_fill_circle_helper','epd_fill_circle'):
+ for n in ('_rotate','epd_draw_pixel','epd_get_pixel','epd_draw_hline','epd_draw_vline','epd_fill_rect','epd_draw_circle','epd_fill_circle_helper','epd_fill_circle'):
   unit+=function(n,ROOT/'components/epdiy/src/epdiy.c')+'\n'
  for n in ('ui_read_pixel','icon_nibble','ui_draw_icon','clamp_radius','draw_arc','ui_draw_round_rect'):unit+=function(n,ROOT/'main/ui/ui_kit.c')+'\n'
  unit+=r'''
@@ -104,6 +102,22 @@ int main(int argc,char **argv){
  assert(event(&pad,UI_GESTURE_PRESS,144,1132,&dirty)==UI_PIN_CHANGED);assert(event(&pad,UI_GESTURE_TAP,144,1132,&dirty)==UI_PIN_CANCEL);
  pad.blocked=true;assert(event(&pad,UI_GESTURE_PRESS,158,544,&dirty)==UI_PIN_NONE);
  assert(event(&pad,UI_GESTURE_PRESS,144,1132,&dirty)==UI_PIN_CHANGED);assert(event(&pad,UI_GESTURE_TAP,144,1132,&dirty)==UI_PIN_CANCEL);
+ pad.blocked=false;ui_pinpad_reset(&pad,NULL,"");pad.navigation=true;
+ for(int digit=0;digit<10;++digit){
+  ui_pinpad_reset(&pad,NULL,"");int col=digit?(digit-1)%3:1,row=digit?(digit-1)/3:3;
+  int x=158+184*col,y=532+148*row;
+  assert(event(&pad,UI_GESTURE_PRESS,x,y,&dirty)==UI_PIN_CHANGED&&dirty.y+dirty.height<=1088);
+  assert(event(&pad,UI_GESTURE_TAP,x,y,&dirty)==UI_PIN_CHANGED&&pad.digits[0]=='0'+digit);
+ }
+ ui_pinpad_reset(&pad,NULL,"");
+ assert(event(&pad,UI_GESTURE_PRESS,144,1044,&dirty)==UI_PIN_CHANGED);
+ assert(event(&pad,UI_GESTURE_TAP,144,1044,&dirty)==UI_PIN_CANCEL);
+ assert(event(&pad,UI_GESTURE_PRESS,540,1044,&dirty)==UI_PIN_CHANGED);
+ assert(event(&pad,UI_GESTURE_TAP,540,1044,&dirty)==UI_PIN_CHANGED);
+ assert(event(&pad,UI_GESTURE_PRESS,340,1140,&dirty)==UI_PIN_NONE);
+ memcpy(old,fb,684*1216/2);ui_pinpad_paint_input(fb,&pad);
+ for(int y=1088;y<1216;++y)for(int x=0;x<684;++x)assert(pixel(old,x,y)==pixel(fb,x,y));
+ pad.navigation=false;
  int before=fallbacks;fail_after=0;ui_pinpad_paint(fb,&pad,ui_pinpad_full());assert(fallbacks>before);fail_after=-1;
  ui_pinpad_end(&pad);ttf_font_cache_clear();size_t base=live;
  for(int i=0;i<2;++i){fail_after=i;ui_pinpad_begin(&pad,bg,"输入密码");assert(!pad.background&&!pad.key_snapshot);ui_pinpad_end(&pad);fail_after=-1;assert(live==base);}
@@ -118,7 +132,7 @@ int main(int argc,char **argv){
 }
 '''
  (p/'test.c').write_text(unit)
- flags=['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-variable','-Wno-unused-function','-Wno-missing-field-initializers','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections','-I'+str(p),'-I'+str(ROOT/'main/ui'),'-I'+str(ROOT/'main/font'),'-I'+str(ROOT/'main'),'-I'+str(ROOT/'main/book')]
+ flags=['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-variable','-Wno-unused-function','-Wno-missing-field-initializers','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections','-I'+str(p),'-I'+str(ROOT/'main/ui'),'-I'+str(ROOT/'main/font'),'-I'+str(ROOT/'main')]
  subprocess.run(flags+['-c',str(ROOT/'main/font/ttf_font.c'),'-o',str(p/'ttf.o')],check=True)
  subprocess.run(flags+[str(p/'test.c'),str(p/'assets.c'),str(p/'ttf.o'),str(ROOT/'main/ui/ui_gesture.c'),str(ROOT/'main/ui/ui_image_dither.c'),'-Wl,-dead_strip','-lm','-o',str(p/'test')],check=True)
  if args.background:

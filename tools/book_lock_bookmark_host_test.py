@@ -21,17 +21,38 @@ u=r'''
 #define MALLOC_CAP_SPIRAM 1
 #define MALLOC_CAP_8BIT 2
 #define BYTES (684u*1216u/2u)
+#define BOOK_SEAL_CACHE_PARENT CACHE_ROOT
 #define BOOK_IMAGE_FILE_MAX (50u*1024u*1024u)
 typedef struct {int x,y,width,height;}EpdRect;
 enum {EPD_ROT_PORTRAIT=1,EPD_ROT_INVERTED_PORTRAIT=2,EPD_ROT_INVERTED_LANDSCAPE=3};
 static unsigned budget=8u*1024u*1024u;
-static size_t heap_caps_get_free_size(unsigned flags){(void)flags;return budget;}
-static void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;return budget>=n?malloc(n):NULL;}
-static int epd_get_rotation(void){return 0;}
-static int epd_width(void){return 684;}
-static int epd_height(void){return 1216;}
+static size_t used,peak;
+static size_t read_bytes,read_calls,fail_read_at;
+static size_t measured_read(void *p,size_t bytes,size_t n,FILE *f){
+ ++read_calls;if(fail_read_at&&read_calls==fail_read_at)return 0;
+ size_t count=fread(p,bytes,n,f);read_bytes+=bytes*count;return count;
+}
+#define fread measured_read
+static struct {void *p;size_t n;} allocs[64];
+static void test_free(void *p){for(unsigned i=0;i<64;++i)if(allocs[i].p==p&&p){used-=allocs[i].n;allocs[i].p=NULL;break;}free(p);}
+#define free test_free
+static size_t heap_caps_get_free_size(unsigned flags){(void)flags;return budget>used?budget-used:0;}
+static void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;if(used+n>budget)return NULL;
+ void *p=malloc(n);if(!p)return NULL;
+ for(unsigned i=0;i<64;++i)if(!allocs[i].p){allocs[i].p=p;allocs[i].n=n;used+=n;if(used>peak)peak=used;return p;}
+ abort();}
+static int rotation;
+static int epd_get_rotation(void){return rotation;}
+static int epd_width(void){return rotation==EPD_ROT_PORTRAIT||rotation==EPD_ROT_INVERTED_PORTRAIT?1216:684;}
+static int epd_height(void){return rotation==EPD_ROT_PORTRAIT||rotation==EPD_ROT_INVERTED_PORTRAIT?684:1216;}
 static uint8_t epd_get_pixel(int x,int y,int w,int h,const uint8_t *fb){assert(x>=0&&y>=0&&x<w&&y<h);int i=y*w+x;return ((fb[i/2]>>(i%2?4:0))&15)<<4;}
-static void epd_draw_pixel(int x,int y,uint8_t gray,uint8_t *fb){assert(x>=0&&y>=0&&x<684&&y<1216);int i=y*684+x;fb[i/2]=(fb[i/2]& (i%2?15:240))|((gray>>4)<<(i%2?4:0));}
+static void epd_draw_pixel(int x,int y,uint8_t gray,uint8_t *fb){
+ assert(x>=0&&y>=0&&x<684&&y<1216);int px=x,py=y;
+ if(rotation==EPD_ROT_PORTRAIT){px=epd_width()-y-1;py=x;}
+ else if(rotation==EPD_ROT_INVERTED_PORTRAIT){px=y;py=epd_height()-x-1;}
+ else if(rotation==EPD_ROT_INVERTED_LANDSCAPE){px=epd_width()-x-1;py=epd_height()-y-1;}
+ int i=py*epd_width()+px;fb[i/2]=(fb[i/2]& (i%2?15:240))|((gray>>4)<<(i%2?4:0));
+}
 
 static void *cover_alloc(size_t n){return heap_caps_malloc(n,0);}
 static void decode_yield(unsigned at){(void)at;}
@@ -41,7 +62,7 @@ for n in ('luminance','scale_axis'):u+=function(n,c)+'\n'
 u+='typedef struct{uint16_t at;uint8_t frac;}scale_step_t;\n'
 for n in ('scale_map','scale_next','bilinear4','book_cover_crop'):u+=function(n,c)+'\n'
 u+='typedef struct{const uint8_t *data;size_t size,pos;FILE *file;}png_input_t;\n'
-for n in ('png_read_mem','png_gray_input','book_png_file_layer'):u+=function(n,c)+'\n'
+for n in ('png_read_mem','png_gray_rows','png_gray_input','book_png_file_layer','book_png_file_layer_rows'):u+=function(n,c)+'\n'
 u+=r'''
 static bool book_image_file_dimensions(const char *path,bool png,unsigned *w,unsigned *h){
  (void)png;uint8_t b[24];FILE *f=fopen(path,"rb");if(!f)return false;bool ok=fread(b,1,24,f)==24&&!memcmp(b,"\211PNG\r\n\032\n",8);fclose(f);
@@ -106,6 +127,25 @@ int main(int argc,char **argv){
  // Opaque white-background PNG: reveal the current page at the edges, retaining the black border and enclosed white artwork.
  memset(fb,0xaa,BYTES);assert(book_lock_bookmark_draw(fb,argv[3]));
  assert(pixel(fb,10,300)==170&&pixel(fb,100,400)==0&&pixel(fb,342,600)==255);
+ // 冷缓存只允许256KiB工作区；热缓存零图像堆分配，底图逐次变化。
+ // Cold-cache composition fits a 256KiB external workspace; a warm cache needs no image heap.
+ char portrait[512];snprintf(portrait,sizeof(portrait),"%s/portrait.png",argv[1]);
+ remove(SEAL_CACHE);peak=0;budget=256*1024;memset(fb,0xbb,BYTES);
+ assert(book_lock_bookmark_draw(fb,portrait)&&used==0&&peak<256*1024);
+ budget=0;assert(book_lock_bookmark_draw(fb,portrait)&&used==0);
+ remove(SEAL_CACHE);peak=0;budget=256*1024;memset(fb,0xaa,BYTES);
+ assert(book_lock_bookmark_draw(fb,argv[3])&&used==0&&peak<256*1024);
+ assert(pixel(fb,10,300)==170&&pixel(fb,342,600)==255);
+ budget=0;memset(fb,0xbb,BYTES);assert(book_lock_bookmark_draw(fb,argv[3])&&used==0);
+ assert(pixel(fb,10,300)==187&&pixel(fb,342,600)==255);
+ // 截断和校验损坏必须在修改底图之前被拒绝；有内存时重建。
+ // Reject truncated/corrupt cache before touching the current background; rebuild when memory permits.
+ FILE *cached=fopen(SEAL_CACHE,"rb+");assert(cached);assert(!fseek(cached,sizeof(seal_header_t)+10,SEEK_SET));fputc(255,cached);fclose(cached);
+ memcpy(original,fb,BYTES);assert(!book_lock_bookmark_draw(fb,argv[3])&&!memcmp(fb,original,BYTES));
+ budget=256*1024;assert(book_lock_bookmark_draw(fb,argv[3])&&used==0);
+ cached=fopen(SEAL_CACHE,"wb");assert(cached);fclose(cached);budget=0;
+ memcpy(original,fb,BYTES);assert(!book_lock_bookmark_draw(fb,argv[3])&&!memcmp(fb,original,BYTES));
+ budget=256*1024;assert(book_lock_bookmark_draw(fb,argv[3])&&used==0);
  memcpy(original,fb,BYTES);budget=0;
  assert(!book_lock_bookmark_draw(fb,argv[2])&&!memcmp(fb,original,BYTES));budget=8u*1024u*1024u;
  assert(!book_lock_bookmark_draw(fb,"file.jpg")&&!memcmp(fb,original,BYTES));
@@ -114,6 +154,28 @@ int main(int argc,char **argv){
  uint8_t header[24];assert(fread(header,1,sizeof(header),good)==sizeof(header));fclose(good);
  assert(fwrite(header,1,sizeof(header),bad)==sizeof(header));fclose(bad);
  assert(!book_lock_bookmark_draw(fb,invalid)&&!memcmp(fb,original,BYTES));
+ // 同一缓存与同一底图对照原低内存双遍，包含四旋转、非均匀背景和底部阴影裁剪。
+ // Compare the same cache/background against the original low-memory two-pass path across rotations, patterned pages and clipped shadows.
+ uint8_t *expected=malloc(BYTES);assert(expected);
+ for(unsigned fixture=0;fixture<3;++fixture){
+  char odd[512];snprintf(odd,sizeof(odd),"%s/odd.png",argv[1]);
+  const char *path=fixture==0?argv[2]:fixture==1?portrait:odd;
+  budget=256*1024;assert(book_lock_bookmark_draw(fb,path));
+  for(rotation=0;rotation<4;++rotation)for(unsigned seed=0;seed<4;++seed){
+   for(unsigned at=0;at<BYTES;++at)original[at]=(uint8_t)(at*37u+seed*51u);
+   memcpy(fb,original,BYTES);budget=0;read_bytes=read_calls=0;
+   assert(book_lock_bookmark_draw(fb,path));memcpy(expected,fb,BYTES);size_t old_bytes=read_bytes,old_calls=read_calls;
+   memcpy(fb,original,BYTES);budget=256*1024;read_bytes=read_calls=0;
+   assert(book_lock_bookmark_draw(fb,path)&&!memcmp(fb,expected,BYTES)&&used==0);
+   assert(read_bytes<old_bytes&&read_calls<old_calls);
+   if(fixture==0)assert(old_bytes-read_bytes==684u*684u*2u);
+  }
+ }
+ rotation=0;budget=256*1024;assert(book_lock_bookmark_draw(fb,argv[2]));
+ memcpy(fb,original,BYTES);read_calls=read_bytes=0;fail_read_at=684+5;peak=0;
+ assert(!book_lock_bookmark_draw(fb,argv[2])&&used==0&&peak<=684u*2u*23u);
+ fail_read_at=0;free(expected);
+ puts("PASS: fused shadow/art is byte-identical to two passes for48 rotated/patterned cases including odd width; one full layer read saved and fewer SD reads; mid-draw failure does not re-overlay or retain memory");
  free(fb);free(original);
  puts("PASS: real PNG alpha/premultiplication, opaque black, aspect-fit canvas, all 16 current-page backgrounds, 400 flood/BFS comparisons, white-edge removal with enclosed whites and original alpha preserved, low-memory fallback and no internal-RAM allocation");
 }
@@ -125,8 +187,12 @@ with tempfile.TemporaryDirectory() as d:
  d=Path(d);(d/'test.c').write_text(u);(d/'fixture.png').write_bytes(png)
  white_raw=b''.join(b'\0'+b''.join(bytes((0,0,0)) if 3<=x<=28 and 3<=y<=28 and not (9<=x<=22 and 9<=y<=22) else bytes((255,255,255)) for x in range(32)) for y in range(32))
  (d/'white.png').write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',32,32,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(white_raw))+chunk(b'IEND',b''))
+ portrait=b''.join(b'\0'+b''.join(bytes((0,0,0)) if 5<=x<=26 and 5<=y<=51 else bytes((255,255,255)) for x in range(32)) for y in range(57))
+ (d/'portrait.png').write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',32,57,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(portrait))+chunk(b'IEND',b''))
+ odd=b''.join(b'\0'+b''.join(bytes(((x*17)%256,(y*19)%256,((x+y)*31)%256,(x*13+y*23)%256)) for x in range(31)) for y in range(57))
+ (d/'odd.png').write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',31,57,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(odd))+chunk(b'IEND',b''))
  vendor=r/'managed_components/espressif__libpng/libpng'
- if not vendor.exists():vendor=Path('/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng')
+ if not vendor.exists():vendor=Path(os.environ.get('KIIKO_LIBPNG_PATH','/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng'))
  (d/'pnglibconf.h').write_bytes((vendor/'scripts/pnglibconf.h.prebuilt').read_bytes())
  names='png pngerror pngget pngmem pngpread pngread pngrio pngrtran pngrutil pngset pngtrans pngwrite pngwio pngwtran pngwutil'.split()
  subprocess.run(['cc','-std=gnu11','-O2','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-misleading-indentation','-fsanitize=address,undefined','-DPNG_ARM_NEON_OPT=0','-DPNG_INTEL_SSE_OPT=0','-DCACHE_ROOT="'+str(d/'cache')+'"','-I'+str(d),'-I'+str(vendor),str(d/'test.c')]+[str(vendor/(n+'.c')) for n in names]+['-lz','-lm','-o',str(d/'test')],check=True)

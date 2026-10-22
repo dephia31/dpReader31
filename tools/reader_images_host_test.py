@@ -107,8 +107,6 @@ static bool fail_alloc(void){if(!alloc_fail_after)return true;if(alloc_fail_afte
 static void *heap_caps_malloc(size_t n,int c){(void)c;if(n>free_block)return NULL;return fail_alloc()?NULL:malloc(n);}
 static void *heap_caps_calloc(size_t n,size_t size,int c){(void)c;return fail_alloc()?NULL:calloc(n,size);}
 static void invalidate_prep(void){++invalidations;}
-static uint8_t *s_next_fb;
-static void reader_page_cache_clear(void){s_next_fb=NULL;}
 static void copy_text(char *out,size_t size,const char *in){snprintf(out,size,"%s",in);}
 static void fit_text(char *out,int px,int max){(void)px;if(max<40)out[0]=0;}
 static const char *esp_err_to_name(int err){(void)err;return "error";}
@@ -139,6 +137,8 @@ static void epd_draw_pixel(int x,int y,uint8_t gray,uint8_t *fb){
 static void ui_text_vc(uint8_t *fb,int x,int y,int px,const char *text,int align,bool inv){
  (void)fb;(void)align;(void)inv;assert(x>=body.x&&x<=body.x+body.width&&y-px/2>=body.y&&y+px/2<=body.y+body.height&&text);++notices;
 }
+static const char s_path[]="test";
+static void book_excerpt_offer(const char *path,uint32_t chapter,const html_text_t *text){(void)path;(void)chapter;(void)text;}
 static char *s_text;
 static blk_t *s_blocks;
 static html_run_t *s_runs;
@@ -146,10 +146,7 @@ static size_t s_run_count;
 static void book_layout_set_runs(const html_run_t *runs,size_t count){(void)runs;(void)count;}
 static size_t s_text_len,s_block_count,s_selected_toc=2,s_jump_offset,s_jump_page;
 static size_t s_chapter_lead_skip;
-static unsigned s_chapter_lead_height;
-static unsigned s_chapter_lead_row_height;
-static const char *s_path="/sdcard/books/test.epub";
-static void book_excerpt_offer(const char *path,const html_text_t *text){assert(path&&text);}
+static unsigned s_chapter_lead_height,s_chapter_lead_row_height;
 static unsigned s_chapter_lead_width;
 static int s_px=10,s_view=READING;
 static char s_message[128],s_chapter_heading_title[128],s_chapter_heading_label[32],s_title[128],s_font_path[128];
@@ -171,7 +168,8 @@ static esp_err_t book_chapter_load_blocks_target(size_t chapter,const char *anch
 static void book_layout_set_chapter_lead(size_t skip,unsigned height){(void)skip;(void)height;}
 static void book_layout_set_chapter_lead_width(unsigned px){(void)px;}
 static void apply_chapter_lead(const char *title,const char *label,size_t skip,unsigned height){
- (void)title;(void)label;(void)height;s_chapter_lead_skip=skip;s_chapter_lead_height=0;s_chapter_lead_width=0;
+ (void)height;
+ (void)title;(void)label;s_chapter_lead_skip=skip;s_chapter_lead_height=0;s_chapter_lead_width=0;
  book_layout_set_chapter_lead(skip,0);
 }
 static bool book_layout_build_blocks(const char *text,size_t len,const blk_t *blocks,size_t count,EpdRect r,int px){

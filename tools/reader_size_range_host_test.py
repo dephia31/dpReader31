@@ -31,11 +31,13 @@ static EpdRect reader_slider_rect(int slider){(void)slider;return (EpdRect){36,7
 static int app_settings_book_tracking(void){return 15;}
 static int app_settings_book_line_spacing(void){return s_line_spacing;}
 static int app_settings_book_paragraph_spacing(void){return 25;}
-static int app_settings_book_paragraph_value(uint8_t value){return value;}
 static int reader_margin_levels(int a,int b,int *c,int *d){(void)a;(void)b;(void)c;(void)d;return 9;}
 static int reader_margin_for_level(int a,int b,int c,int d){(void)a;(void)c;(void)d;return b;}
 static int reader_margin_input(EpdRect r,int a,int b,int c,int d){(void)r;(void)a;(void)c;(void)d;return b;}
 '''
+from home_cover_cache_host_test import function as real_function
+for name in ['app_settings_book_paragraph_value','app_settings_book_paragraph_level']:
+ unit+=real_function(name,root/'main/settings.c')+'\n'
 for name in ['slider_index','reader_slider_map','reader_slider_begin']:unit+=function(name)
 unit+=r'''
 int main(void){

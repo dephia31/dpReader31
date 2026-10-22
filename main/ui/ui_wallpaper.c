@@ -17,7 +17,6 @@
 
 #include "book_cover.h"
 #include "esp_heap_caps.h"
-#include "kiiko_board.h"
 #include "ui_image_dither.h"
 #include "ui_kit.h"
 #include "ui_wallpaper_crop.h"
@@ -150,10 +149,14 @@ void ui_wallpaper_draw_avatar(uint8_t *fb, const uint8_t *pixels, EpdRect area, 
     }
 }
 
+#if KIIKO_BOARD_METALIO47
 #ifndef UI_WALLPAPER_CACHE_PARENT
-// 卡上缓存目录跟板型走，改值会让旧壁纸缓存失效。
-// The on-card cache directory follows the board; changing it orphans existing wallpaper cache.
-#define UI_WALLPAPER_CACHE_PARENT KIIKO_BOARD_CACHE_DIR
+#define UI_WALLPAPER_CACHE_PARENT "/sdcard/.metalio_s31"
+#endif
+#else
+#ifndef UI_WALLPAPER_CACHE_PARENT
+#define UI_WALLPAPER_CACHE_PARENT "/sdcard/.readpico"
+#endif
 #endif
 #define WALL_LOCK_CACHE UI_WALLPAPER_CACHE_PARENT "/locks/wallpaper.bin"
 #define WALL_LOCK_BYTES (684u*1216u/2u)

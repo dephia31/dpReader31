@@ -35,8 +35,6 @@ def function(name, path=source):
     return text[start:at]
 
 unit = r'''
-static void reader_indent_hold_cancel(void){}
-
 typedef enum { UI_GESTURE_SWIPE_L, UI_GESTURE_SWIPE_R, UI_GESTURE_SWIPE_U, UI_GESTURE_SWIPE_D, UI_GESTURE_TAP, UI_GESTURE_CANCEL } ui_gesture_type_t;
 #include <assert.h>
 #include <stdbool.h>
@@ -78,17 +76,11 @@ typedef int esp_err_t;
 typedef struct app_desc {int unused;} app_desc_t;
 typedef struct {bool touched;} test_touch_t;
 typedef struct {int leaf;bool request_menu,consumed;int64_t now_ms;uint8_t *fb;const app_desc_t *request_app;test_touch_t *touch;} app_ctx_t;
-static bool s_shelf_key_mode,s_shelf_key_paint_pending;
-static int s_shelf_key_delta,s_shelf_key_pressed;
 typedef enum {APP_REDRAW_PAGE,APP_REDRAW_AREA,APP_REDRAW_NONE,APP_REDRAW_FULL} app_redraw_t;
 typedef struct {int x,y,width,height;} EpdRect;
 static EpdRect ui_bar_rect(int i,int count){int width=(508-(count-1)*12)/count;return(EpdRect){40+i*(width+12),1096,width,96};}
-enum {UI_PAGER_FIRST,UI_PAGER_PREVIOUS,UI_PAGER_NEXT,UI_PAGER_LAST};
-static EpdRect ui_pager_rect(int i){return (EpdRect){40+i*140,1004,100,70};}
 static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height;}
 typedef struct {char name[256],author[128],path[288];uint32_t size;uint16_t chapter;bool is_flash,has_progress;uint8_t pct;uint32_t recent;bool selected,removed,search_match,favorite;} shelf_entry_t;
-#define APP_BOOK_TRACK_MIN -4
-#define APP_BOOK_TRACK_COUNT 21
 #define BOOK_ROWS 13
 #define BOOK_GRID_ROWS 9
 #define BOOK_BULK_ROWS 6
@@ -122,7 +114,7 @@ static void app_settings_set_shelf_recent_sort(bool value){s_recent_sort=value;}
 typedef int nvs_handle_t;
 #define NVS_READONLY 0
 #define NVS_READWRITE 1
-#define SHELF_HIDDEN_NS "mt_shelf"
+#define SHELF_HIDDEN_NS "rp_shelf"
 typedef struct {char key[11],path[BOOK_STORE_PATH_MAX];} test_hidden_t;
 static test_hidden_t test_hidden[16];
 static int test_hidden_count,test_hidden_error;
@@ -226,7 +218,7 @@ static int book_progress_save(const char* p,const book_progress_t* value){(void)
 static int book_progress_set_last_path(const char* p){test_last_calls++;if(!test_last_error)snprintf(test_last_path,sizeof(test_last_path),"%s",p);return test_last_error;}
 static void save_progress(void);
 static void invalidate_prep(void){}
-static void reader_page_cache_clear(void){}
+static void pause_reader_prep(void){invalidate_prep();}
 static void invalidate_covers(void){}
 static shelf_entry_t s_managed;
 static bool s_delete_confirm,s_file_removed,s_clear_confirm;
@@ -276,12 +268,6 @@ typedef struct {int image;unsigned image_width,image_height;} blk_t;
 static blk_t* s_blocks;
 static char **s_images;
 static size_t s_image_count;
-static uint32_t s_progress_revision;
-static unsigned s_cover_generation;
-static uint32_t test_progress_revision=1;
-static uint32_t book_progress_revision(void){return test_progress_revision;}
-static void book_lock_collage_invalidate(void){}
-static void book_cover_jobs_cancel(unsigned generation){(void)generation;}
 static unsigned test_image_probes;
 static int book_chapter_image_dimensions(size_t chapter,const char *name,unsigned *width,unsigned *height){
     (void)chapter;assert(!test_draw_locked);assert(name);++test_image_probes;*width=60;*height=15;return ESP_OK;
@@ -320,8 +306,7 @@ static void app_settings_set_book_paragraph_spacing(uint8_t para){assert(para==5
 static app_redraw_t apply_reader_typography(app_ctx_t* ctx,int tracking){(void)ctx;(void)tracking;return APP_REDRAW_NONE;}
 static int app_settings_book_line_spacing(void){return 130;}
 static int app_settings_book_paragraph_spacing(void){return 50;}
-static int test_tracking=2;
-static int app_settings_book_tracking(void){return test_tracking;}
+static int app_settings_book_tracking(void){return 2;}
 static int app_settings_book_indent(void){return 2;}
 static int app_settings_book_indent_adjust(void){return 0;}
 static int app_settings_book_reading_line(void){return 0;}
@@ -376,8 +361,8 @@ static char test_wrapped[512];
 #define BOOK_MARGIN_MIN 0
 #define BOOK_MARGIN_MAX 48
 #define BOOK_MARGIN_CHOICES 9
-#define BOOK_PX_MIN 36
-#define BOOK_PX_MAX 72
+#define BOOK_PX_MIN 18
+#define BOOK_PX_MAX 90
 #define EPD_DRAW_ALIGN_LEFT 0
 static int ui_content_width(void){return 604;}
 static int ttf_text_width_px(int px,const char* text){int width=0;for(;*text;text++)if(((unsigned char)*text&0xc0)!=0x80)width+=px;return width;}
@@ -407,13 +392,6 @@ static char s_category_root[288];
 unit += function("book_layout_balanced_rect", layout_source) + "\n"
 unit += function("set_reader_view") + "\n"
 unit += function("ble_pt_action_for_usage", source.parents[2] / "components/ble_page_turner/src/ble_page_turner.c") + "\n"
-unit += r'''
-static char s_chapter_heading_title[128],s_chapter_heading_label[32];
-static size_t s_chapter_lead_skip;
-static unsigned s_chapter_lead_row_height;
-static void apply_chapter_lead(const char *title,const char *label,size_t skip,unsigned row){(void)title;(void)label;(void)skip;(void)row;}
-static void refresh_chapter_lead(void){}
-'''
 for name in ("inline_ink_gray", "reader_margin_width", "reader_margin_levels", "reader_margin_level_for", "reader_margin_for_level", "slider_index", "reader_margin_input", "reader_area", "reader_fullscreen_progress_area", "body_rect_for_tracking", "body_rect", "progress_rect", "copy_text", "reader_footer_strip_number", "favorite_key", "favorite_read_handle", "shelf_hidden_key", "shelf_hidden_read_handle", "shelf_hidden_load", "shelf_hidden_save", "shelf_rows", "row_rect", "shelf_category_add", "shelf_category_init", "shelf_category_matches", "shelf_category_remember", "shelf_category_restore", "shelf_categories_recount", "shelf_matches", "compare_books", "sort_shelf", "shelf_reserve", "delete_retry_find", "delete_retry_reserve", "delete_retry_discard", "scan_shelf_dir", "shelf_backfill_visit", "shelf_backfill_read_books", "scan_shelf", "refresh_cached_progress",
              "pending_find", "pending_reserve", "pending_restore", "pending_discard", "pending_mark_latest", "pending_drop_invalidated", "pending_flush", "reader_page_offset", "save_progress", "retry_progress", "layout_name", "manage_panel", "manage_rect", "batch_rect", "manage_back_rect", "bulk_filter_rect", "bulk_nav_rect", "bulk_nav_hit", "leaves", "selected_count", "clear_selection", "toggle_selection", "select_page", "bookmark_compact", "search_begin", "refresh_search_matches", "search_finish", "refresh_capacity", "manage_apply", "manage_action", "batch_apply", "batch_action", "bulk_turn_page", "bulk_finish", "bulk_action", "bulk_control_at", "menu_handle_enabled", "reader_manual_refresh", "apply_reader_option", "reader_return", "reader_key_action", "on_key", "on_key_long", "draw_wrapped_name", "open_requested_book", "on_enter", "book_on_exit"):
     unit += function(name) + "\n"
@@ -490,11 +468,11 @@ int main(void) {
     int wide=reader_margin_input(margin_slider,325,36,48,0);
     assert(reader_margin_width(0,48,0)>reader_margin_width(24,48,0));
     assert(reader_margin_width(narrow,48,0)>reader_margin_width(36,48,0));
-    assert(wide==42&&reader_margin_width(wide,48,0)<reader_margin_width(36,48,0));
+    assert(wide==48&&reader_margin_width(wide,48,0)<reader_margin_width(36,48,0));
     assert(reader_margin_level_for(24,72,0)==4&&reader_margin_for_level(4,24,72,0)==24);
     // 每个字体/字间距下，只展示实际宽度不同的档位，任意旧边距只读保留。
     // All fonts/tracking values expose distinct visible widths and retain existing margins on a read.
-    for(int px=36;px<=72;++px)for(int tracking=-4;tracking<=4;tracking+=2){
+    for(int px=18;px<=90;++px)for(int tracking=-4;tracking<=4;tracking+=2){
         int widths[BOOK_MARGIN_CHOICES],values[BOOK_MARGIN_CHOICES];
         int count=reader_margin_levels(px,tracking,widths,values);
         assert(count==BOOK_MARGIN_CHOICES&&values[0]==0&&values[count-1]==48);
@@ -523,19 +501,13 @@ int main(void) {
     assert(apply_reader_layout(&margin_ctx,48,-1,130,50)==APP_REDRAW_NONE);
     assert(apply_reader_layout(&margin_ctx,48,49,130,50)==APP_REDRAW_NONE);
     s_margin=test_saved_margin=24;s_reader_slider_endpoint=false;
-    reader_slider_begin(1,40);assert(s_reader_slider_endpoint&&s_reader_preview_margin==18);
-    assert(reader_slider_commit(&margin_ctx)==APP_REDRAW_PAGE&&s_margin==18&&test_saved_margin==18);
+    reader_slider_begin(1,40);assert(s_reader_slider_endpoint&&s_reader_preview_margin==0);
+    assert(reader_slider_commit(&margin_ctx)==APP_REDRAW_PAGE&&s_margin==0&&test_saved_margin==0);
     s_margin=test_saved_margin=24;s_reader_slider_endpoint=true;
     reader_slider_begin(1,183);assert(!s_reader_slider_endpoint);
     reader_slider_move(100);
     assert(reader_slider_commit(&margin_ctx)==APP_REDRAW_PAGE&&s_margin==0&&test_saved_margin==0);
     assert(body_rect().width==reader_margin_width(0,48,0));
-    for(int v=0;v<APP_BOOK_TRACK_COUNT;v++){
-        test_tracking=v;EpdRect track=reader_slider_rect(4);
-        reader_slider_begin(4,track.x);assert(s_reader_preview_tracking==(v?v-1:0));
-        reader_slider_begin(4,track.x+track.width-1);assert(s_reader_preview_tracking==(v+1<APP_BOOK_TRACK_COUNT?v+1:v));
-    }
-    test_tracking=2;
     s_margin=test_saved_margin=24;test_reflow_failures=1;
     assert(apply_reader_layout(&margin_ctx,48,0,130,50)==APP_REDRAW_NONE);
     assert(s_margin==24&&test_saved_margin==24&&!test_draw_locked);
@@ -630,7 +602,7 @@ int main(void) {
     snprintf(test_progress[3].path,BOOK_STORE_PATH_MAX,"%s/book005.txt",test_roots[0].path);
     for(int i=1;i<4;i++)test_progress[i].value=(book_progress_t){.file_size=1,.px=48,.pct=7};
     favorite_key(outside,test_favorite_key);
-    strcpy(test_recent_path,outside);++test_progress_revision;
+    strcpy(test_recent_path,outside);
     refresh_cached_progress(&ctx);assert(s_count==66&&s_visible_count==66);
     assert(!strcmp(s_shelf[0].path,outside)&&!strcmp(s_shelf[0].name,"读过")&&
            !strcmp(s_shelf[0].author,"作者")&&s_shelf[0].favorite&&s_shelf[0].has_progress&&
@@ -653,7 +625,7 @@ int main(void) {
     book_progress_t retained;
     assert(book_progress_load(outside,1,&retained)&&retained.pct==42&&retained.byte_off==17);
     scan_shelf(&ctx);refresh_cached_progress(&ctx);assert(s_count==65&&shelf_hidden_load(outside));
-    assert(shelf_hidden_save(outside,false));scan_shelf(&ctx);refresh_cached_progress(&ctx);
+    assert(shelf_hidden_save(outside,false));refresh_cached_progress(&ctx);
     assert(s_count==66&&!shelf_hidden_load(outside));
     assert(shelf_hidden_save(test_progress[3].path,true));scan_shelf(&ctx);assert(s_count==65);
     assert(shelf_hidden_save(test_progress[3].path,false));
@@ -811,8 +783,6 @@ int main(void) {
     assert(test_reflows==4&&test_image_preparations==2);
     assert(apply_reader_option(&ctx,2)==APP_REDRAW_PAGE&&!test_hide_images&&test_images_visible&&s_page==1);
     test_hold_action=APP_READER_KEY_HOME;test_nav_target=-1;
-    assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_PAGE && test_nav_target==-1 && s_view==SHELF);
-    s_view=READING;s_reader_return_home=true;
     assert(on_key_long(&ctx,UI_KEY_2)==APP_REDRAW_NONE && test_nav_target==0);
     test_hold_action=APP_READER_KEY_REFRESH;
     test_hold_refresh=test_power_turn=false;s_reader_fullscreen=test_reader_immersive=false;

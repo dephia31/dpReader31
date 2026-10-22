@@ -204,7 +204,11 @@ esp_err_t pico_boot_save_resume(const pico_resume_t *resume) {
     return store();
 }
 void pico_boot_hold_resume(void) {
-    if (s_resume_pending) (void)pico_boot_save_resume(&s_resume);
+    if (s_resume_pending) {
+        s_record.resume=s_resume;s_record.resume_valid=1;
+        s_record.reserved[0]=s_resume_frame;
+        (void)store();
+    }
 }
 esp_err_t pico_boot_mark_frame_cached(void) {
     if(!s_record.resume_valid || s_recovery)return ESP_ERR_INVALID_STATE;

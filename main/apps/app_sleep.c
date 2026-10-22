@@ -312,13 +312,25 @@ static void sleep_try(app_ctx_t* ctx) {
     app_sleep_mode_t mode = app_settings_sleep_mode();
     sleep_show_notice(ctx, mode);
     app_lock_wait_key_idle(800);
+#if KIIKO_BOARD_METALIO47
     if (mode == APP_SLEEP_LIGHT) {
         epd_poweroff();
         app_light_sleep_wait(s_ui.pickup_ok ? ctx->acc : NULL);
         app_lock_ignore_for(APP_LOCK_IGNORE_BOOT_MS);
         return;
+#else
+    if (mode != APP_SLEEP_LIGHT) {
+        esp_err_t error = app_enter_host_sleep(mode);
+        if (error != ESP_OK) ESP_LOGW(TAG, "host sleep failed: %s, light sleep", esp_err_to_name(error));
+#endif
     }
+#if KIIKO_BOARD_METALIO47
     app_enter_host_sleep(mode);
+#else
+    epd_poweroff();
+    app_light_sleep_wait(s_ui.pickup_ok ? ctx->acc : NULL);
+    app_lock_ignore_for(APP_LOCK_IGNORE_BOOT_MS);
+#endif
 }
 
 static app_redraw_t sleep_on_hit(app_ctx_t* ctx, int hit) {

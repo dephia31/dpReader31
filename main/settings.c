@@ -16,9 +16,13 @@
 
 #include "settings.h"
 #include "kiiko_board_config.h"
-// 翻页效果档位上限跟板型走；S31 另有速读黑白一档。
-// Turn-effect ceiling follows the board; the S31 adds a fast monochrome level.
 #define READER_TURN_EFFECT_MAX KIIKO_BOARD_READER_TURN_EFFECT_MAX
+static bool reader_full_pages_valid(uint8_t pages) {
+#if KIIKO_BOARD_METALIO47
+    if (pages == 20) return true;
+#endif
+    return pages == 0 || pages == 5 || pages == 10 || pages == 15 || pages == 30;
+}
 #include "book/book_font_size.h"
 
 #include <stdio.h>
@@ -94,15 +98,20 @@
 
 static app_sleep_mode_t s_sleep = APP_SLEEP_DEEP;
 static bool s_staged_shutdown;
-#if KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY
-static uint8_t s_lock_sleep;
-#endif
 static uint8_t s_wake_presses = 2;
+#if KIIKO_BOARD_METALIO47
+static uint8_t s_lock_sleep;
+#else
+#endif
 static bool s_home_full_refresh;
 static app_home_component_t s_home_component = APP_HOME_FOLDER;
 static uint8_t s_home_goal_minutes = 30;
 static app_main_refresh_mode_t s_main_refresh;
-static char s_device_name[64] = KIIKO_BOARD_PRODUCT_NAME;
+#if KIIKO_BOARD_METALIO47
+static char s_device_name[64] = "Metalio S31";
+#else
+static char s_device_name[64] = "kiikoread";
+#endif
 static char s_avatar[288];
 static char s_status_signature[96];
 static char s_font[FONT_PATH_MAX];
@@ -132,6 +141,9 @@ static uint8_t s_reader_hold_action = APP_READER_KEY_HOME;
 static uint8_t s_reader_keys[3] = {APP_READER_KEY_PREV, APP_READER_KEY_TOOLS, APP_READER_KEY_NEXT};
 static bool s_reader_vertical_turn;
 static bool s_ble_turner;
+#if KIIKO_BOARD_METALIO47
+static app_ai_action_t s_ai_short=APP_AI_REFRESH;
+#endif
 static bool s_shelf_recent_sort;
 // 书内自带字体默认开启：多数带字体的书排版就是靠它才对得上版。
 // Embedded book faces are on by default: most books that ship a face only typeset correctly
@@ -200,9 +212,10 @@ void app_settings_init(void) {
         s_sleep = (app_sleep_mode_t)raw;
     }
     raw = 0;
-#if KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY
+#if KIIKO_BOARD_METALIO47
     if (nvs_get_u8(h, "lock_lp", &raw) == ESP_OK && raw <= 2) s_lock_sleep = raw;
     raw = 0;
+#else
 #endif
     if (nvs_get_u8(h, NVS_KEY_SHUTDOWN_MODE, &raw) == ESP_OK)
         s_staged_shutdown = raw == 1;
@@ -225,12 +238,16 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_AUTO_LOCK, &raw) == ESP_OK && (raw == 1 || raw == 5 || raw == 10)) s_auto_lock_minutes = raw;
     size_t value_len = sizeof(s_device_name);
     if (nvs_get_str(h, NVS_KEY_DEVICE_NAME, s_device_name, &value_len) != ESP_OK || !s_device_name[0])
-        strlcpy(s_device_name, KIIKO_BOARD_PRODUCT_NAME, sizeof(s_device_name));
+#if KIIKO_BOARD_METALIO47
+        strlcpy(s_device_name, "Metalio S31", sizeof(s_device_name));
+#else
+        strlcpy(s_device_name, "kiikoread", sizeof(s_device_name));
+#endif
     // 仅迁移旧默认名字，保留用户填写的姓名。/ Migrate only the old default, preserving custom names.
 #if KIIKO_BOARD_METALIO47
-    if (!strcmp(s_device_name, "Pico") || !strcmp(s_device_name, "kiikoread")) strlcpy(s_device_name, KIIKO_BOARD_PRODUCT_NAME, sizeof(s_device_name));
+    if (!strcmp(s_device_name, "Pico") || !strcmp(s_device_name, "kiikoread")) strlcpy(s_device_name, "Metalio S31", sizeof(s_device_name));
 #else
-    if (!strcmp(s_device_name, "Pico")) strlcpy(s_device_name, KIIKO_BOARD_PRODUCT_NAME, sizeof(s_device_name));
+    if (!strcmp(s_device_name, "Pico")) strlcpy(s_device_name, "kiikoread", sizeof(s_device_name));
 #endif
     value_len = sizeof(s_avatar);
     if (nvs_get_str(h, NVS_KEY_AVATAR, s_avatar, &value_len) != ESP_OK ||
@@ -288,8 +305,7 @@ void app_settings_init(void) {
         (s_book_background[0] && strncmp(s_book_background, "/sdcard/pictures/", 17))) s_book_background[0] = 0;
     uint8_t reader_full_pages = 15;
     if (nvs_get_u8(h, NVS_KEY_READER_FULL, &reader_full_pages) == ESP_OK &&
-        (reader_full_pages == 0 || reader_full_pages == 5 || reader_full_pages == 10 ||
-         reader_full_pages == 15 || reader_full_pages == 30))
+        reader_full_pages_valid(reader_full_pages))
         s_reader_full_pages = reader_full_pages;
     uint8_t reader_turn_effect = 0;
     if (nvs_get_u8(h, NVS_KEY_READER_TURN, &reader_turn_effect) == ESP_OK && reader_turn_effect <= READER_TURN_EFFECT_MAX)
@@ -318,6 +334,10 @@ void app_settings_init(void) {
     uint8_t hide_images = 0, recent_sort = 0, ble_turner = 0, book_fonts = 1, book_vertical = 0;
     if (nvs_get_u8(h, NVS_KEY_HIDE_IMAGES, &hide_images) == ESP_OK) s_reader_hide_images = hide_images == 1;
     if (nvs_get_u8(h, NVS_KEY_BLE_TURNER, &ble_turner) == ESP_OK) s_ble_turner = ble_turner == 1;
+#if KIIKO_BOARD_METALIO47
+    uint8_t ai_short=APP_AI_REFRESH;
+    s_ai_short=nvs_get_u8(h,"ai_short",&ai_short)==ESP_OK&&ai_short<APP_AI_ACTION_COUNT?(app_ai_action_t)ai_short:APP_AI_REFRESH;
+#endif
     if (nvs_get_u8(h, NVS_KEY_SHELF_RECENT, &recent_sort) == ESP_OK) s_shelf_recent_sort = recent_sort == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_FONTS, &book_fonts) == ESP_OK) s_book_fonts = book_fonts == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_VERTICAL, &book_vertical) == ESP_OK) s_book_vertical = book_vertical == 1;
@@ -404,13 +424,14 @@ void app_settings_set_sleep_mode(app_sleep_mode_t mode) {
 }
 
 bool app_settings_staged_shutdown(void) { return s_staged_shutdown; }
-#if KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY
+#if KIIKO_BOARD_METALIO47
 uint8_t app_settings_lock_sleep(void) { return s_lock_sleep; }
 void app_settings_set_lock_sleep(uint8_t mode) {
     if (mode > 2 || mode == s_lock_sleep) return;
     nvs_put_u8("lock_lp", mode);
     s_lock_sleep = mode;
 }
+#else
 #endif
 void app_settings_set_staged_shutdown(bool staged) {
     if (staged == s_staged_shutdown) return;
@@ -658,8 +679,7 @@ bool app_settings_set_book_background_path(const char *path) {
 
 uint8_t app_settings_reader_full_pages(void) { return s_reader_full_pages; }
 void app_settings_set_reader_full_pages(uint8_t pages) {
-    if ((pages != 0 && pages != 5 && pages != 10 && pages != 15 && pages != 30) ||
-        pages == s_reader_full_pages) return;
+    if (!reader_full_pages_valid(pages) || pages == s_reader_full_pages) return;
     s_reader_full_pages = pages;
     nvs_put_u8(NVS_KEY_READER_FULL, pages);
 }
@@ -699,6 +719,18 @@ void app_settings_set_book_vertical(bool on) {
     s_book_vertical = on;
     nvs_put_u8(NVS_KEY_BOOK_VERTICAL, on ? 1 : 0);
 }
+#if KIIKO_BOARD_METALIO47
+app_ai_action_t app_settings_ai_short(void){return s_ai_short;}
+esp_err_t app_settings_set_ai_short(app_ai_action_t action){
+    if((unsigned)action>=APP_AI_ACTION_COUNT)return ESP_ERR_INVALID_ARG;
+    if(action==s_ai_short)return ESP_OK;
+    nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
+    if(err!=ESP_OK)return err;
+    err=nvs_set_u8(h,"ai_short",(uint8_t)action);
+    if(err==ESP_OK)err=nvs_commit(h);
+    nvs_close(h);if(err==ESP_OK)s_ai_short=action;return err;
+}
+#endif
 bool app_settings_ble_turner(void) { return s_ble_turner; }
 app_reader_key_action_t app_settings_reader_key_action(unsigned key) {
     return key < 3 ? (app_reader_key_action_t)s_reader_keys[key] : APP_READER_KEY_NONE;
@@ -855,11 +887,15 @@ bool app_settings_set_fonts_dir(const char* path) { return set_media_dir(s_fonts
 #ifndef APP_SETTINGS_BACKUP_ROOT
 #define APP_SETTINGS_BACKUP_ROOT "/sdcard"
 #endif
-// 备份文件名前缀是兼容面：必须与本板已发布固件写入的名字逐字节一致。
-// The backup filename prefix is a compatibility surface: keep it byte-identical to what this board shipped.
-#define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/" KIIKO_BOARD_BACKUP_PREFIX ".backup"
-#define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/" KIIKO_BOARD_BACKUP_PREFIX ".backup.tmp"
-#define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/" KIIKO_BOARD_BACKUP_PREFIX ".backup.previous"
+#if KIIKO_BOARD_METALIO47
+#define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/Metalio-S31-settings.backup"
+#define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/Metalio-S31-settings.backup.tmp"
+#define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/Metalio-S31-settings.backup.previous"
+#else
+#define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/Pico-settings.backup"
+#define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/Pico-settings.backup.tmp"
+#define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/Pico-settings.backup.previous"
+#endif
 
 // All fields are bytes, so the v1 disk layout is independent of structure padding.
 // 所有字段均为字节，v1 磁盘格式不依赖编译器的结构体填充。
@@ -1168,9 +1204,7 @@ static bool backup_valid(const settings_backup_v1_t *backup) {
         f[BK_SYS_SIZE] < 100 || f[BK_SYS_SIZE] > 200 || f[BK_SYS_SIZE] % 10 ||
         f[BK_SYS_CONTRAST] < 100 || f[BK_SYS_CONTRAST] > 140 || f[BK_SYS_CONTRAST] % 10 ||
         f[BK_LOCK] > 3 || f[BK_BOOK_PX] < BOOK_READER_PX_MIN || f[BK_BOOK_PX] > BOOK_READER_PX_MAX ||
-        f[BK_SHAKE] > 1 || (f[BK_FULL_PAGES] != 0 && f[BK_FULL_PAGES] != 5 &&
-                            f[BK_FULL_PAGES] != 10 && f[BK_FULL_PAGES] != 15 &&
-                            f[BK_FULL_PAGES] != 30) ||
+        f[BK_SHAKE] > 1 || !reader_full_pages_valid(f[BK_FULL_PAGES]) ||
         f[BK_TURN] > READER_TURN_EFFECT_MAX || f[BK_POWER_TURN] > 1 || f[BK_IMMERSIVE] > 1 ||
         f[BK_TRACKING] > (backup_version(backup)>=20 ? APP_BOOK_TRACK_COUNT-1 : backup_version(backup)==19 ? 20 : 4) || f[BK_READING_LINE] > 2 ||
         f[BK_LINE_SPACING] < 110 || f[BK_LINE_SPACING] > 150 ||
@@ -1205,7 +1239,11 @@ esp_err_t app_settings_backup_restore(void) {
     uint8_t indent = 2, rule_offset = 4, staged_shutdown = 0;
     settings_backup_indent_adjust_t adjust = {.encoded = 20};
     settings_backup_weight_t weight = {.encoded = 2};
-    settings_backup_profile_t profile = {.device_name = KIIKO_BOARD_PRODUCT_NAME};
+#if KIIKO_BOARD_METALIO47
+    settings_backup_profile_t profile = {.device_name = "Metalio S31"};
+#else
+    settings_backup_profile_t profile = {.device_name = "kiikoread"};
+#endif
     settings_backup_keys_t keys = {.actions = {APP_READER_KEY_PREV, APP_READER_KEY_TOOLS, APP_READER_KEY_NEXT}};
     settings_backup_wifi_t wifi = {0};
     bool has_wifi = false;

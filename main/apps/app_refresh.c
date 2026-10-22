@@ -249,8 +249,13 @@ static app_redraw_t demo_touch(app_ctx_t* ctx, const cst836u_touch_t* touch) {
             draw_pattern_page(
                 ctx->fb,
                 hit == DEMO_ACT_GRAY8
+#if KIIKO_BOARD_METALIO47
                     ? "8 灰阶 48 相 8-Gray 48P　点按返回 Tap to Return"
                     : "16 灰阶 48 相 16-Gray 48P　点按返回 Tap to Return"
+#else
+                    ? "8 灰阶 30 相 8-Gray 30P　点按返回 Tap to Return"
+                    : "16 灰阶 36 相 16-Gray 36P　点按返回 Tap to Return"
+#endif
             );
             s_demo_pattern = true;
             display_hold_white_exit(true);

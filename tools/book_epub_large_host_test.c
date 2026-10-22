@@ -19,9 +19,6 @@ int main(int argc, char **argv) {
     book_epub_t *book = NULL;
     assert(book_epub_open(argv[1], &book) == ESP_OK && book);
     assert(book_epub_chapter_count(book) == 5000);
-    assert(book_epub_suspend_io(book) == ESP_OK);
-    assert(book_epub_chapter_count(book) == 5000);
-    assert(book_epub_resume_io(book) == ESP_OK);
     assert(book_epub_navigation_count(book) == 5000);
     assert(book_epub_navigation_chapter(book, 4999) == 4999);
     char title[160];

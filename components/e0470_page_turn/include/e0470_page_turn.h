@@ -42,8 +42,8 @@ void e0470_page_turn_release(void);
 
 /// `area` 是逻辑坐标；无可用 GL16 时返回 `EPD_DRAW_NO_PHASES_AVAILABLE`，不刷屏。
 /// `area` uses logical coordinates; unavailable GL16 phases return without scanning.
-/// 阅读8带按一拍一带启动：默认完整48相共55拍（裁剪表37相为44拍）；调用方选择节拍并负责FAST扫描与HV轨保活。
-/// Reader launches 8 bands one per tick: 55 ticks with the default full 48 phases (44 for the trimmed 37); the caller selects pacing and owns FAST scanning and HV rail keepalive.
+/// 阅读8带按一拍一带启动，37相共44拍；调用方选择11090us并负责FAST扫描与HV轨保活。
+/// Reader launches 8 bands one per tick, totaling 44 ticks for 37 phases; the caller selects 11090us and owns FAST scanning and HV rail keepalive.
 enum EpdDrawError e0470_page_turn(
     EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir
 );
@@ -54,7 +54,6 @@ enum EpdDrawError e0470_page_turn_with_waveform(
     const EpdWaveform* waveform, unsigned bands
 );
 
-/// 显式序列的一拍一带入口；保留波形、指定条带数与当前节拍：8带/默认48相共55拍，裁剪37相为44拍。/ Compact explicit sequence: retain waveform, requested bands and current pacing; eight bands take 55 ticks with the default 48 phases (44 trimmed).
 /// 同步普通翻页用1带，水波纹用2..32带。/ Use one synchronous band for ordinary turns, 2..32 for ripple.
 /// 显式序列的一拍一带入口；保留波形、指定条带数与当前节拍，8带37相共44拍。/ Compact explicit sequence: retain waveform, requested bands and current pacing; eight bands/37 phases take 44 ticks.
 enum EpdDrawError e0470_page_turn_with_waveform_compact(
@@ -62,11 +61,20 @@ enum EpdDrawError e0470_page_turn_with_waveform_compact(
     const EpdWaveform* waveform, unsigned bands
 );
 
-/// 同次扫描：外侧柔和、封面/材质校准。仅倒置竖屏全宽32列对齐，成功才提交真实back；临时2KiB，失败保持原back。
-/// Simultaneous soft chrome/calibrated art: inverted portrait, full width, 32-column aligned; commit real back only on success, using temporary 2 KiB.
-enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* hl, EpdRect area,
-    EpdRect strong_area, const EpdWaveform* soft_waveform,
-    const EpdWaveform* strong_waveform, enum EpdDrawMode strong_mode);
+#if KIIKO_BOARD_METALIO47
+/// S31阅读专用：尾部两带同步启动和收尾，每像素相位完整；主页/侧滑保持原条带入口。
+/// S31 reader only: launch/finish the last pair together with every pixel phase intact; main pages/edge-back retain the original entry.
+enum EpdDrawError e0470_reader_ripple_with_waveform(
+    EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir,
+    const EpdWaveform* waveform, unsigned bands
+);
+
+/// S31普通文字单带：一次提交整轮，复用内部LUT；仅跳过实际全保持前导相，保留一相准备及所有有效/尾相。
+/// S31 single-band text: batch through the internal LUT; omit only actual all-hold leading phases, retaining one setup phase and every active/tail phase.
+enum EpdDrawError e0470_text_turn_with_waveform(
+    EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir, const EpdWaveform* waveform
+);
+#endif
 
 /// 倒置竖屏的上下柔和区与中间校准区同时逐相输出；区域须全逻辑宽、32列对齐。
 /// Inverted portrait: output soft chrome and calibrated middle art in the same phases; full logical width and 32-column alignment are required.

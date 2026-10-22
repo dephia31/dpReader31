@@ -39,11 +39,9 @@
 #include "boot_state.h"
 #include "app_registry.h"
 #include "book_cover.h"
-#include "kiiko_board.h"
-#if KIIKO_BOARD_HAS_COVER_CACHE
-/* S31 的 PSRAM 封面缓存；Pico 只有卡上缓存，不需要这个头。 */
-/* The S31's PSRAM cover cache; the Pico only has the card cache and needs no such header. */
+#if KIIKO_BOARD_METALIO47
 #include "metalio_cover_cache.h"
+#else
 #endif
 #include "book_cover_jobs.h"
 #include "ui_image_dither.h"
@@ -577,7 +575,11 @@ static void render_root(uint8_t *fb) {
     if(s_avatar_ready)ui_wallpaper_draw_avatar(fb,s_avatar,(EpdRect){588,88,60,60},30);
     else {epd_fill_circle(618,118,30,0x30,fb);label(fb,618,118,30,"K",EPD_DRAW_ALIGN_CENTER,0xff);}
     HOME_STAGE("header");
+#if KIIKO_BOARD_METALIO47
+    const uint8_t card_gray=0xff;
+#else
     const uint8_t card_gray=app_settings_main_fast_refresh()?0xff:0xee;
+#endif
     ui_fill_round_rect(fb,(EpdRect){36,184,612,378},28,card_gray);
     home_frame(fb,(EpdRect){36,184,612,378},28);
     for(int side=0;side<2;++side) {
@@ -764,6 +766,18 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
     if(redraw==APP_REDRAW_AREA&&s_clock_pending) {
         s_clock_pending=false;
         ui_fill_rect_fast((EpdRect){24,18,156,44},0xff,ctx->fb);ui_nav_clock_draw(ctx->fb);
+#if KIIKO_BOARD_METALIO47
+        if(display_pipeline_enabled()) {
+            EpdRect dirty={24,18,156,44};
+            if(s_view==HOME_ROOT&&app_settings_home_component()!=APP_HOME_FOLDER) {
+                date_now(&s_date);ui_home_clock_style_t style=clock_style(app_settings_home_component());
+                clock_draw_region(ctx->fb,(EpdRect){24,640,320,350},&s_date,app_settings_main_fast_refresh(),style,(EpdRect){24,640,320,326},s_widget_phase);
+                dirty=ui_rect_union(dirty,style==UI_HOME_CLOCK_PS1995?(EpdRect){78,684,198,198}:component_clock_graphics());
+            }
+            enum EpdDrawError result=present_clock_area(ctx,dirty);
+            guard_draw_result(ctx->hl,result);if(result==EPD_DRAW_SUCCESS)s_clock_minute=minute;return true;
+        }
+#endif
         enum EpdDrawError result=update_display_area_diff_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,(EpdRect){24,18,156,44});
         if(result==EPD_DRAW_SUCCESS&&s_view==HOME_ROOT&&app_settings_home_component()!=APP_HOME_FOLDER) {
             date_now(&s_date);ui_home_clock_style_t style=clock_style(app_settings_home_component());
@@ -819,11 +833,9 @@ static void on_enter(app_ctx_t *ctx) {
     rp_boot_mark("excerpt");
 }
 static void on_media_lost(app_ctx_t *ctx) {
-#if KIIKO_BOARD_HAS_COVER_CACHE
-    // 卡没了，PSRAM 里按卡路径索引的封面也失效；Pico 没有这层缓存。
-    // The card is gone, so the PSRAM covers keyed by card paths are stale too; the Pico has no
-    // such layer.
+#if KIIKO_BOARD_METALIO47
     metalio_cover_cache_clear();
+#else
 #endif
     app_home_release_clock_cache();
     (void)ctx;clear_cover_cache();memset(&s_current,0,sizeof(s_current));memset(s_recent,0,sizeof(s_recent));

@@ -121,18 +121,8 @@ Desktop.ini
 /flash/Pico-update.bin
 /flash/Pico-update-*.bin
 
-# ä¸¤å—æ¿å…±ç”¨åŒä¸€æ£µæ ‘ï¼šæ¿çº§æ„å»ºç›®å½•ä¸ç”Ÿæˆç‰©ã€‚/ Two boards share this tree: per-board build output.
-build*/
-.env*
-local-flasher/runs/
-device-*.bin
-*fullflash*.bin
-
-# æ¯å—æ¿çš„ sdkconfig ä»¥ sdkconfig.<æ¿å> å…¥åº“ï¼Œè£¸ sdkconfig åªæ˜¯å†å²é—ç•™ã€‚
-# Per-board sdkconfig files are tracked as sdkconfig.<board>; the bare name is legacy.
-/sdkconfig
-
-# ·¢²¼Õ¾µãÓë±¾µØ·¢²¼Ä¿Â¼²»½ø±¾²Ö¿â£ºÍøÒ³Ë¢»úÓëÀúÊ·¹Ì¼şÁôÔÚ read-pico-reader¡£
-# The website and local release bundles stay out of this repo; they live in read-pico-reader.
-/_release/
+# Public website is maintained in read-pico-reader; this private repo carries firmware.
 /flash/
+/build-*/
+/sdkconfig.pico
+/sdkconfig.metalio47

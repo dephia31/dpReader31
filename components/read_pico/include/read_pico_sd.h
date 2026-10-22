@@ -42,8 +42,11 @@ esp_err_t read_pico_sd_get_info(read_pico_sd_info_t* info);
 /// 更新空间快照，不重挂载、不写卡；勿在 render 中调用。
 /// Refresh allocation statistics without remounting or writing; never call from render.
 esp_err_t read_pico_sd_refresh_space(void);
+#if KIIKO_BOARD_METALIO47
+#else
 /// 异步只读统计；保持已挂载快照，完成后get_info返回更新结果。/ Read-only background accounting; get_info remains mounted and later exposes the result.
 esp_err_t read_pico_sd_start_space_refresh(void);
+#endif
 /// 调用前关闭所有字体、阅读及上传句柄；这是拔卡失效后恢复挂载的唯一入口。
 /// / Close all font, reader and upload handles first; this is the only recovery entry after removal invalidation.
 esp_err_t read_pico_sd_remount(void);

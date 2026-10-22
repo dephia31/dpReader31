@@ -277,10 +277,18 @@ static void draw_touch_page(
     if (info != NULL) {
         snprintf(
             line, sizeof(line),
+#if KIIKO_BOARD_METALIO47
             "控制器 FT6336U　固件 Firmware %02X", info->fw
+#else
+            "控制器 Controller CST836U　固件 Firmware %02X", info->fw
+#endif
         );
     } else {
+#if KIIKO_BOARD_METALIO47
         snprintf(line, sizeof(line), "控制器 FT6336U");
+#else
+        snprintf(line, sizeof(line), "控制器 Controller CST836U");
+#endif
     }
     int y = ui_draw_header(framebuffer, TOUCH_TITLE, line);
 

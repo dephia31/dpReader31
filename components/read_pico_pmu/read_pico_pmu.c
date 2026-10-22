@@ -313,7 +313,19 @@ esp_err_t read_pico_pmu_cmd(uint16_t code, const uint8_t* payload, uint8_t plen)
     if (code == PMU_CMD_CONFIG_GET && resp.status == PMU_STATUS_OK) {
         parse_config(resp.payload);
     } else if (code == PMU_CMD_TIME_GET && resp.status == PMU_STATUS_OK) {
+#if KIIKO_BOARD_METALIO47
+#else
+        if (resp.payload_length < 8 || rd16(&resp.payload[4]) >= 1000) {
+            s_snap.time_ok = false;
+            s_snap.last_err = ESP_ERR_INVALID_RESPONSE;
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+#endif
         s_snap.unix_sec = rd32(&resp.payload[0]);
+#if KIIKO_BOARD_METALIO47
+#else
+        s_snap.unix_millis = rd16(&resp.payload[4]);
+#endif
         s_snap.time_synced = resp.payload[6];
         s_snap.time_ok = true;
     } else if (code == PMU_CMD_ALARM_GET && resp.status == PMU_STATUS_OK) {

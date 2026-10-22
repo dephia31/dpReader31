@@ -12,3 +12,7 @@ bool app_book_resume_context(char *path, size_t capacity, bool *fullscreen);
 
 void app_book_cover_mode_changed(void);
 void app_home_cover_mode_changed(void);
+
+#if KIIKO_BOARD_METALIO47
+bool app_book_ai_bookmark(void);
+#endif

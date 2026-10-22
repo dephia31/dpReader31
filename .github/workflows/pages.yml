@@ -9,7 +9,6 @@ on:
       - flash/manual.html
       - flash/manual/**
       - flash/new-features/**
-      - flash/simulator/**
       - flash/assets/**
       - flash/site.css
       - flash/site.js
@@ -52,6 +51,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.repository == 'wegooo-cell/read-pico-reader'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -163,10 +163,13 @@ const sc7a20h_sensor_config_t* sc7a20h_get_config(sc7a20h_handle_t h);
 /// / CTRL1 ODR=0000, ~0.5 uA. Last config is kept for power_up.
 esp_err_t sc7a20h_power_down(sc7a20h_handle_t h);
 esp_err_t sc7a20h_power_up(sc7a20h_handle_t h);
+#if KIIKO_BOARD_METALIO47
 // Metalio V1.5共享GPIO2：参考开漏低有效、无中断路由和专用待机。
 // Metalio V1.5 shared GPIO2: reference open-drain active-low polling and idle.
 esp_err_t sc7a20h_shared_irq_polling(sc7a20h_handle_t h);
 esp_err_t sc7a20h_shared_irq_idle(sc7a20h_handle_t h);
+#else
+#endif
 bool sc7a20h_powered(sc7a20h_handle_t h);
 
 esp_err_t sc7a20h_read(sc7a20h_handle_t h, sc7a20h_sample_t* sample);

@@ -4,7 +4,7 @@ English: Actual bilinear mapping and streamed PNG bounds, corrupt input and allo
 SPDX-License-Identifier: Apache-2.0
 """
 from pathlib import Path
-import re,struct,subprocess,tempfile,zlib
+import os,re,struct,subprocess,tempfile,zlib
 root=Path(__file__).resolve().parents[1]
 source=(root/'main/book/book_cover.c').read_text()
 def fn(name):
@@ -33,7 +33,7 @@ for name in ('luminance','scale_axis'):unit+=fn(name)+'\n'
 unit+='typedef struct {uint16_t at;uint8_t frac;} scale_step_t;\n'
 for name in ('scale_map','scale_next','bilinear4','book_cover_crop'):unit+=fn(name)+'\n'
 unit+='typedef struct {const uint8_t *data;size_t size,pos;FILE *file;} png_input_t;\n'
-for name in ('png_read_mem','png_gray_input'):unit+=fn(name)+'\n'
+for name in ('png_read_mem','png_gray_rows','png_gray_input'):unit+=fn(name)+'\n'
 unit+=r'''
 #undef free
 int main(int argc,char **argv){
@@ -80,7 +80,7 @@ with tempfile.TemporaryDirectory() as tmp:
     native_png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',684,1216,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(native_raw))+chunk(b'IEND',b'')
     (tmp/'native.png').write_bytes(native_png)
     vendor=root/'managed_components/espressif__libpng/libpng'
-    if not vendor.exists():vendor=Path('/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng')
+    if not vendor.exists():vendor=Path(os.environ.get('KIIKO_LIBPNG_PATH','/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng'))
     assert vendor.exists(),'Build IDF once to resolve libpng'
     (tmp/'pnglibconf.h').write_bytes((vendor/'scripts/pnglibconf.h.prebuilt').read_bytes())
     names='png pngerror pngget pngmem pngpread pngread pngrio pngrtran pngrutil pngset pngtrans pngwrite pngwio pngwtran pngwutil'.split()

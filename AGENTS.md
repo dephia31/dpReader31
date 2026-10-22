@@ -8,31 +8,30 @@ Agent entry for this tree. Humans can read it too. Product overview, hardware, p
 
 Newcomers (human or agent): read [docs/ONBOARDING.md](docs/ONBOARDING.md). Taking over an in-flight task: read [docs/HANDOFF.md](docs/HANDOFF.md) first.
 
+## 当前工作：双板型本地整合 / Current work: local multi-board integration
+
+用户2026-10-18明确要求同一源码选择pico/metalio47编译，取代两套独立维护应用源码的要求。共享阅读/UI保留同一份文件，平台驱动由boards选择；不得把S31供电/波形/引脚/分区用于S3。Metalio源仍受私有发布边界约束，当前整合仅本地构建，不向公开仓库或官网发布，除非用户明确授权。
+The user explicitly requested one source tree for pico/metalio47 on 2026-10-18. Shared reader/UI code lives once; boards select platform drivers. Never apply S31 power, waveforms, pins or partitions to S3. Metalio publication remains private; this integration is local until the user authorizes publication.
+
+构建入口tools/build_firmware.py，--board pico|metalio47|all；独立SDK/配置/构建/输出目录。芯片、项目名和分区必须匹配。Metalio原始GC48/GL48/DU20不得手改，供电和VCOM保留既有顺序；不得写永久TPS OTP或ESP eFuse。用户2026-10-19已明确授权直接调试连接的S31实现300ms，可按原MAC/精确分区/启动槽/已验证回退备份保护流程刷写本地调试与交付应用；该授权不包括其他设备、清数据或发布。调试USB命令入口不得留在最终交付固件。
+Use tools/build_firmware.py with --board pico|metalio47|all and separate SDK/config/build/output directories. Validate chip/project/partitions. Preserve Metalio's raw GC48/GL48/DU20, power/VCOM sequencing, and never write permanent TPS OTP or ESP eFuses. On 2026-10-19 the user explicitly authorized direct debugging of the connected S31 toward 300ms, including local diagnostic/delivery application writes guarded by the approved MAC, exact partitions/boot slot and verified recovery backup. This does not authorize other devices, erasing data or publication. Remove the diagnostic USB command reader from the final delivery firmware.
+
 ## 构建 / Build
 
-需要 ESP-IDF v6.1。`components/read_pico/read_pico_flash_hpm.c` 依赖 v6 才有的 `esp_flash_chips/spi_flash_override.h`；S31 目标还需要带 `esp32s31` 支持的那个 v6.1 提交。
+双板型统一入口是 `tools/build_firmware.py --board pico|metalio47|all`，先读 [docs/BOARDS.md](docs/BOARDS.md)。必须使用独立SDK/配置/依赖锁和产物目录；共享功能修改主源码，生成的设备视图不可作为维护源码。已有主机测试用 `board_source_view.py --tests` 生成指定设备视图后运行；CI分别选择Pico和S31，使用匹配SDK并隔离构建。
+Use the board build driver and isolated SDK/config/lock/artifact directories. Edit maintained sources, not generated device views. Legacy host tests run in the board test view. CI separately builds Pico and S31 with matching SDKs and isolated outputs.
 
-Requires ESP-IDF v6.1. `components/read_pico/read_pico_flash_hpm.c` needs `esp_flash_chips/spi_flash_override.h` (v6 only); the S31 target also needs the v6.1 commit that carries `esp32s31` support.
+Pico需要 ESP-IDF v6.1。`components/read_pico/read_pico_flash_hpm.c` 依赖 v6 才有的 `esp_flash_chips/spi_flash_override.h`。
 
-一套代码两块板，板型在构建前用 `-DKIIKO_BOARD` 选定，构建目录与 sdkconfig 都按板分开：
-
-One tree, two boards. The board is chosen before configuration with `-DKIIKO_BOARD`; each board keeps its own build directory and sdkconfig:
+Requires ESP-IDF v6.1. `components/read_pico/read_pico_flash_hpm.c` needs `esp_flash_chips/spi_flash_override.h` (v6 only).
 
 ```
-idf.py -B build-pico    -DKIIKO_BOARD=pico build         # Read_Pico.bin（ESP32-S3）
-idf.py -B build-metalio -DKIIKO_BOARD=metalio_s31 build  # Kiikoread_Metalio_S31.bin（ESP32-S31）
+idf.py set-target esp32s3
+idf.py build
 ```
 
-Windows 上可用 `tools/build_board.ps1 -Board pico|metalio_s31 [build|flash|monitor|menuconfig|size]`。
-
-On Windows, `tools/build_board.ps1 -Board pico|metalio_s31 [build|flash|monitor|menuconfig|size]` wraps the same calls.
-
-- 板级层在 `boards/<板名>/`（`board.cmake` 决定目标/sdkconfig/分区表/工程名，`kiiko_board_config.h` 是身份与能力宏，`board_hw.c` 是板级门面）。约定见 [boards/README.md](boards/README.md)。
-- 根 `sdkconfig.defaults` 放两板共性，`boards/<板名>/sdkconfig.defaults` 在后、板级值优先；`sdkconfig.<板名>` 入库保证产物可复现。
-- `boards/pico/sdkconfig.ci`：默认时序，只验证能否编过。/ Default timing; compile-only CI check.
-- 共享代码不要直接写板名判断：用 `kiiko_board.h` 的能力宏（前光、振动、音量键、TPS65185、USB 下载、锁屏待机、内存/缓存预算）。S31 分支沿用上游已有的 `#if KIIKO_BOARD_METALIO47`。
-
-Board layer lives in `boards/<board>/` (`board.cmake` picks target/sdkconfig/partition table/project name, `kiiko_board_config.h` holds identity and capability macros, `board_hw.c` is the board facade); see [boards/README.md](boards/README.md). The root `sdkconfig.defaults` holds the shared half and the board file is appended after it, so board values win; `sdkconfig.<board>` is committed so artifacts are reproducible. Shared code must not branch on a board name directly: use the `kiiko_board.h` capability macros (front light, haptics, volume keys, TPS65185, USB download, lock-face standby, memory and cache budgets). The S31 branch keeps upstream's existing `#if KIIKO_BOARD_METALIO47`.
+- `sdkconfig.defaults`：真机 120 MHz flash / PSRAM 时序，依赖板上 Zbit 型号。/ Board timing for 120 MHz flash / PSRAM; depends on the Zbit part.
+- `sdkconfig.ci`：默认时序，只验证能否编过。/ Default timing; compile-only CI check.
 
 不要在没有对应 flash 的机器上把 CI 配置当产品默认。/ Do not ship the CI timing as the product default.
 
@@ -52,6 +51,9 @@ Per the user's 2026-10-09 decision, publish every future official firmware versi
 GitHub Release 与官网刷机、TF 下载和联网 OTA 同步发布。保留官网现有刷机清单、固件及版本下载地址；OTA 清单继续使用固件允许的官方 HTTPS 域名。核对三种交付的版本、大小、校验值和基础包兼容性，避免影响正在刷机或升级的用户。本地测试仍只生成本地包，不创建正式 Release。
 Publish GitHub Releases alongside the web flasher, TF downloads and online OTA. Preserve existing website manifests, firmware and versioned download URLs; keep OTA URLs on the official HTTPS origin accepted by the firmware. Verify matching versions, sizes, checksums and base-layout compatibility across the deliveries so ongoing flashes and updates remain valid. Local tests remain local bundles without official Releases.
 
+用户2026-10-21要求每次保留上一正式版的官网刷机与TF下载入口。替换正式清单前，使用tools/archive_current_release.py归档原Release的四件套和校验值；releases.json保留历次归档，manifest.previous_version指向上一版，发布工具校验该入口存在。不得以本地同号测试包代替原正式字节。TF包是完整应用镜像；引导程序、分区表及用户存储不由TF升级写入，整机四件套继续通过USB安装。
+The user requires a previous-release web/TF entry for every publication. Archive the original Release parts with tools/archive_current_release.py before replacing metadata; retain earlier releases.json entries and verify manifest.previous_version. Never substitute a same-version local test. TF updates use a complete application image; bootloader, partition table and user storage remain untouched, with full base installation through USB.
+
 ## 目录职责 / Layout
 
 用户2026-10-21明确指定GitHub Pages为默认OTA清单及应用来源，rc97真机已下载并校验原rc98成功。新固件优先GitHub清单、官网清单备用；原已发布rc97/98仍依照其原内置顺序请求。官网网页刷机独立保持，正式Bin及历史包继续归档GitHub Release；旧OTA不能直接使用会重定向的Release附件URL。保留双槽、HTTPS与完整SHA校验；不得因官网证书问题重现而自动改回官网应用地址，也不得外推为任意镜像或关闭TLS校验。后续更改默认来源先获得用户指示并验证旧信任库与实际下载。
@@ -68,9 +70,7 @@ The user selected GitHub Pages as the default OTA metadata/image source on 2026-
 | `main/font/` | stb_truetype 字形缓存。`fallback.h` 是生成位图，勿手改。/ Glyph cache. Do not edit `fallback.h` by hand. |
 | `main/factory/` | 设备功能自检与出厂 VCOM 标定。/ Device self-test and factory VCOM. |
 | `main/display.*` `sleep.*` `settings.*` | 刷屏封装、睡眠/锁屏、NVS 设置。/ Present helpers, sleep/lock, NVS. |
-| `components/read_pico/` | 板级 BSP：I2C、EPD 板定义与扫描时序、TF 卡、蜂鸣器、flash HPM。两板同名接口各一份实现，metalio 版在 `metalio/` 下。/ Board BSP. Both boards export the same interface with their own implementation; the S31 files live in `metalio/`. |
-| `components/kiiko_board/` | 板级选择层公共头：身份与能力宏、板级门面声明。板级实现在 `boards/<板名>/`。/ Board-selection public header: identity, capability macros and the board facade; the per-board implementation lives in `boards/<name>/`. |
-| `components/metalio_hw/` | S31 专属硬件：TPS65185 电源/VCOM、FCA9555、前光、振动、USB 路由、休眠引脚事务（仅 metalio_s31 板参与构建）。/ S31-only hardware: TPS65185 rails/VCOM, FCA9555, front light, haptics, USB route and sleep pin transactions (built for metalio_s31 only). |
+| `components/read_pico/` | 板级 BSP：I2C、EPD 板定义与扫描时序、TF 卡、蜂鸣器、flash HPM。/ Board BSP. |
 | `components/read_pico_search/` | 离线拼音/首字母/英文书名匹配，设备和网页共用；字表由工具生成。/ Shared offline pinyin, initials and English matching with a generated table. |
 | `components/read_pico_pmu/` | CW32L010 协议主机端。线格式在 `read_pico_pmu_protocol.h`。/ PMU host. |
 | `components/epdiy/` | 上游裁剪 fork（LCD 路径）。改动清单在其 LICENSE。不要为注释去改它。/ Trimmed upstream fork. Leave it alone for comment work. |
@@ -173,7 +173,7 @@ Defined in [`main/app/app.h`](main/app/app.h). The loop presents via `app_presen
 | 冻结 / Frozen | 文件头里的产品决策。agent 不得改行为去“优化”它。 | Product decisions in the file banner. Do not “improve” them. |
 | 均衡配置 | `APP_REFRESH_BALANCED`：整页 GL16，周期 GC16 压灰底，动态区 DU。 | Default refresh profile: GL16 pages, periodic GC16, DU for motion. |
 | ALL_DU | 实验档：整机都走 DU，只看速度。 | Experimental profile: everything is DU. |
-| 锁屏 | 电源键短按后的锁页。浅睡按键或拿起回原页。 | Lock face after a short power-key press. |
+| 锁屏 | 电源键短按后的锁页。2026-10-19用户改为双击电源键才唤醒，有密码时继续验证。 | Lock face after a short press; per the 2026-10-19 user decision, double-press power to wake, then verify an enabled PIN. |
 | 软睡 | `SOFT_SLEEP`：PMU 拉低 EN，再短按开机，不是硬复位。 | Soft sleep: PMU drops EN; a short press powers on without a hard reset. |
 | VCOM | 面板公共电压（绝对值 mV）。出厂写入 PMU，主机只读。 | Panel common voltage (absolute mV). Factory-written in the PMU; host is read-only. |
 
@@ -229,13 +229,11 @@ Every comment is bilingual. Comments only; no logic changes.
 - 大 `.c` 用 `/* ---- 区块名 / Section ---- */` 分区。/ Large `.c` files use section banners.
 - 术语见表，不在注释里重复解释。/ Use the glossary; do not redefine terms.
 
-## Previous official release / 上一正式版
-
-用户2026-10-21要求修复官网OTA，不切换GitHub固件镜像。发布前及证书续期后按 `docs/OTA_MAINTENANCE.md` 检查原正式固件的信任链兼容性、完整下载与Range续传，并用已发布设备实测。不要以浏览器访问成功替代设备证书验证，不关闭TLS/SHA校验。
-The user requires repairing the official OTA origin without a GitHub firmware mirror. Follow `docs/OTA_MAINTENANCE.md` before releases and after certificate renewal; validate released trust stores, downloads/resumes and an actual released device, retaining TLS/SHA verification.
-
 每个正式版本同时保留USB全量包与TF升级包，官网按所选版本分别提供下载入口。TF应用Bin保留兼容文件名Pico-update.bin，ZIP可附说明与校验值；不得将USB全量包当作TF升级镜像。
 Retain both USB full base packages and TF application upgrades for each official release, with separate version-matched website downloads. Keep Pico-update.bin for TF compatibility; ZIPs may include instructions/checksums. Never present a USB base bundle as a TF upgrade image.
 
-Every official publication must archive the original previous Release with `tools/archive_current_release.py` before replacing the latest manifest. Keep its web-flashing/TF choices and immutable binary hashes, as well as all earlier archives. `manifest.previous_version` is checked during website staging. TF images replace the complete application in the inactive slot; full base installation remains USB.
-每次发布必须先归档上一正式版原字节，保留网页刷机与TF入口，不能用本地同号测试包替换；TF升级完整应用，不写引导程序和分区表。
+用户2026-10-21明确要求修复官网OTA，不切换GitHub固件镜像。OTA固件URL保持https://kiikoread.com/；备用清单不能自行更换固件下载源，证书链问题须在官网或经确认的兼容固件中修复，保持TLS/SHA校验。
+The user explicitly requires the official OTA origin, not a GitHub firmware mirror. Keep firmware URLs on https://kiikoread.com/; do not change the download origin through fallback metadata. Repair certificate compatibility on the site or in approved firmware while retaining TLS and SHA checks.
+
+发布前及证书续期后按 `docs/OTA_MAINTENANCE.md` 运行原正式固件信任链、完整下载和Range检查，并用已发布设备验收；浏览器可用不能代替设备校验。临时Cloudflare令牌不入仓库。
+Before publication and after certificate renewal, run the released-trust-store, download and Range checks in `docs/OTA_MAINTENANCE.md`, plus a released-device acceptance test. Browser success is insufficient; never commit temporary Cloudflare credentials.

@@ -9,6 +9,7 @@
 #include "../main/apps/app_transfer.c"
 #include <assert.h>
 #include "../components/read_pico_transfer/transfer_signature.h"
+int metalio_haptic_click(void){return ESP_OK;}
 static bool test_usb_active;
 static esp_err_t test_usb_stop_error;
 esp_err_t usb_storage_start(void) { test_usb_active = true; return ESP_OK; }
@@ -203,7 +204,8 @@ int main(void) {
     assert(s_network_count == 8 && !s_scan_pending);
     test_configured = s_saved_configured = true;
     tap(&ctx, (EpdRect){540, UI_NAV_TOP + 16, 20, 20});
-    assert(test_nav_index == 3);
+    // 底栏由真实app_loop统一处理，子页手势本身不派发导航。/ app_loop owns navigation; page gestures do not dispatch it.
+    assert(test_nav_index == -1);
     test_nav_index = -1;
     assert(s_view == TRANSFER_NETWORKS);
     tap(&ctx, network_control_rect(11));
@@ -300,8 +302,19 @@ int main(void) {
     tap(&ctx, (EpdRect){540, UI_NAV_TOP + 16, 20, 20});
     assert(test_stop_count == stops_before && test_nav_index == -1);
     test_busy = false;
+#if KIIKO_BOARD_METALIO47
+    // 从READY到首个UPLOADING也不推屏，后续进度与错误/完成状态保持正确。
+    // Suppress the first READY-to-UPLOADING scan while retaining progress and completion/error ownership.
+    s_status.state=READ_PICO_TRANSFER_READY;test_status.state=READ_PICO_TRANSFER_UPLOADING;
+    test_status.cur_total=100000;test_status.cur_bytes=32000;ctx.now_ms+=3000;
+    assert(on_tick(&ctx)==APP_REDRAW_NONE&&s_status.state==READ_PICO_TRANSFER_UPLOADING&&s_status.cur_bytes==32000);
+    test_status.cur_bytes=64000;ctx.now_ms+=3000;
+    assert(on_tick(&ctx)==APP_REDRAW_NONE&&s_status.cur_bytes==64000);
+    test_status.state=READ_PICO_TRANSFER_READY;ctx.now_ms+=3000;
+    assert(on_tick(&ctx)!=APP_REDRAW_NONE);
+#endif
     test_status.changed_count = 1;
-    ctx.now_ms = 3000;
+    s_poll_ms=0;ctx.now_ms = 3000;
     assert(on_tick(&ctx) == APP_REDRAW_AREA);
     assert(s_status.changed_count == 1);
     s_session_started = true;

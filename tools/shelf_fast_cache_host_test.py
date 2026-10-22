@@ -48,10 +48,6 @@ typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {unsigned x,y,width,height;} book_crop_t;
 enum {SHELF,MANAGE};
 static int s_view=SHELF,rows=9,contrast=100,phase_shift,style=2;
-static unsigned s_cover_generation;
-static int s_cover_prefetch_leaf;
-static void book_cover_jobs_cancel(unsigned g){(void)g;}
-static void metalio_cover_cache_clear(void){}
 static bool fast=true,alloc_fail;
 static size_t free_psram=4*1024*1024,allocated_bytes;
 static void release_guard_cache(void){}

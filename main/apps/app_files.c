@@ -717,6 +717,9 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
     s_render_secondary=previous || !main_page_visible(ctx);
     render_content(ctx,fb);
     s_render_secondary=previous;
+#if KIIKO_BOARD_METALIO47
+    display_monochrome_content(fb);
+#endif
 }
 
 static void on_enter(app_ctx_t *ctx) {
@@ -729,6 +732,11 @@ static void on_enter(app_ctx_t *ctx) {
     s_page = 0; s_scan_pending = true;
     read_pico_sd_start_probe();
     const esp_err_t info_status=read_pico_sd_get_info(&s_sd);
+#if KIIKO_BOARD_METALIO47
+    if (info_status==ESP_OK && s_sd.mounted) {
+        (void)read_pico_sd_refresh_space(); read_pico_sd_get_info(&s_sd);
+    }
+#endif
     s_space_poll_ms=ctx->now_ms;
     s_sd_format_confirm = false;
     s_sd_notice[0] = 0;
@@ -761,11 +769,19 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     }
     if (!s_scan_pending) {
         if (s_folder<0 && s_sd.mounted && !(ctx->touch && ctx->touch->touched) && ctx->now_ms-s_space_poll_ms>=
+#if KIIKO_BOARD_METALIO47
+            15000
+#else
             (s_sd.space_valid?15000:500)
+#endif
             ) {
             s_space_poll_ms=ctx->now_ms;
             read_pico_sd_info_t previous=s_sd;
+#if KIIKO_BOARD_METALIO47
+            (void)read_pico_sd_refresh_space();
+#else
             (void)read_pico_sd_start_space_refresh();
+#endif
             read_pico_sd_get_info(&s_sd);
             if (previous.space_valid!=s_sd.space_valid || previous.filesystem_bytes!=s_sd.filesystem_bytes || previous.free_bytes!=s_sd.free_bytes)
                 return APP_REDRAW_PAGE;
@@ -774,6 +790,9 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     }
     if (read_pico_sd_get_info(&s_sd) == ESP_ERR_NOT_FINISHED) return APP_REDRAW_NONE;
     s_scan_pending = false;
+#if KIIKO_BOARD_METALIO47
+    if (s_sd.mounted) { (void)read_pico_sd_refresh_space(); read_pico_sd_get_info(&s_sd); }
+#endif
     s_space_poll_ms=ctx->now_ms;
     for (int i = 0; i < 3; ++i) s_counts[i] = count_root(i);
     if (s_folder >= 0) scan_folder(s_folder);
@@ -900,6 +919,11 @@ static app_redraw_t rename_paint(app_ctx_t *ctx, bool field) {
     return update.area.width ? APP_REDRAW_AREA : APP_REDRAW_NONE;
 }
 static bool files_present(app_ctx_t *ctx, app_redraw_t redraw) {
+#if KIIKO_BOARD_METALIO47
+    if(redraw==APP_REDRAW_AREA){
+        display_monochrome_content(ctx->fb);
+    }
+#endif
     bool pager=s_pager_paint_pending;s_pager_paint_pending=false;
     if(pager&&redraw==APP_REDRAW_AREA&&!ctx->request_app&&
         (s_view==FILE_VIEW_LIST||s_view==FILE_VIEW_MOVE)){
@@ -1114,7 +1138,11 @@ static void files_before_lock(app_ctx_t *ctx) { (void)ctx;s_pager_pressed=UI_PAG
 static void files_exit(app_ctx_t *ctx) { files_before_lock(ctx); ui_keyboard_end(); }
 
 const app_desc_t app_files = {
+#if KIIKO_BOARD_METALIO47
+    .binary_ui = true,
+#else
     .binary_ui = false,
+#endif
     .title = "文件管理 Files", .detail = "TF 卡文件与传输", .enter_full = false,
     .owns_keys = true, .menu_handle_enabled = no_menu_handle,
     .main_page_visible = main_page_visible, .edge_back_enabled = files_edge_back,

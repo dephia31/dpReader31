@@ -55,7 +55,7 @@ static void sc7a20h_power_down(void *h){(void)h;}
 static void sc7a20h_int1_begin(void *h){(void)h;}
 static void app_settings_set_last_wake(uint8_t wake){last_wake=wake;}
 '''
-unit+=function('app_light_sleep_wait_timed',ROOT/'main/sleep.c')+'\n'
+unit+=function('app_light_sleep_wait_timed',ROOT/'boards/pico/src/main/sleep.c')+'\n'
 unit+=r'''
 int main(void){
  for(fault=0;fault<=5;++fault)for(unsigned real=0;real<2;++real){

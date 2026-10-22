@@ -1,10 +1,7 @@
 # Third-party notices / 第三方许可
 
-当前为独立 Metalio S31 本地移植工程。下列 Pico 说明记录 RC90 来源；设备硬件实现来自
-用户提供的 Metalio 2.0.76-debug 参考源码，本地调整详见 components/epdiy/LICENSE。
-This local project targets Metalio S31. Pico notices below describe the RC90
-base; Metalio hardware reference code retains its MIT notice in
-[Metalio notice](licenses/Metalio-MIT.txt).
+本仓库的[个人学习许可政策](LICENSE)只涉及明确标注的新增原创内容；以下第三方许可、既有授权和历史版本均不因此改变。新限制不得用于撤销第三方授予的权利。
+The [personal-study license policy](LICENSE) covers only explicitly marked new original material. It does not change the following third-party licenses, existing grants or historical releases, or revoke rights granted by third parties.
 
 This is an independent reader firmware for MindReset's Read Pico board. It is
 based on the [MindReset demo firmware](https://github.com/MindReset/read_pico_firmware),
@@ -16,10 +13,10 @@ remain in the source. This project is not an official MindReset release.
 
 | Material / 组件 | License / 许可 | Notice / 声明 |
 | --- | --- | --- |
-| MindReset Read Pico firmware and board components | Apache-2.0 | [LICENSE](LICENSE); source file headers |
-| Metalio E-Ink4-Plus display, RISC-V pixel routines and reference waveform tables, supplied 2.0.76-debug source | MIT | [Metalio notice](licenses/Metalio-MIT.txt); [driver modifications](components/epdiy/LICENSE) |
-| [Lucide](https://lucide.dev/icons/) — the whole UI icon set, vendored as SVG sources in `tools/icons/lucide/` and compiled into `main/assets/ui_icons.h` by `tools/gen_ui_icons.py` | ISC | [Lucide notice](licenses/Lucide-ISC.txt) |
-| [AnimateIcons](https://github.com/Avijit07x/animateicons) — pager, circular back, Bookmark and Bookmark Plus paths | MIT and underlying Lucide ISC | [MIT notice](licenses/AnimateIcons-MIT.txt), [source notices](tools/icons/animateicons/UPSTREAM_NOTICES.md) |
+| MindReset Read Pico firmware and board components | Apache-2.0 | [Original Apache-2.0 license](licenses/Apache-2.0.txt); source file headers |
+| [MokuMMk/MokuReader](https://github.com/MokuMMk/MokuReader/commit/1d7951ec303c320a154282f4e6a579f687d0dc4f) — power and PIN liquid-glass rendering adapted into `main/ui/ui_glass.c` and `ui_pinpad.c` | Apache-2.0 (upstream file notices retained) | Gaussian blur, bezel refraction and highlights; local adaptations bound/release PSRAM workspaces and pack control snapshots |
+| [Lucide](https://lucide.dev/icons/) — UI icon paths, vendored as SVG sources in `tools/icons/lucide/` and compiled into `main/assets/ui_icons.h` by `tools/gen_ui_icons.py` | ISC | [Lucide notice](flash/licenses/LUCIDE-ISC.txt) |
+| [AnimateIcons](https://github.com/Avijit07x/animateicons) — pagination and circular-back paths; pinned source in `tools/icons/animateicons/` | MIT and underlying Lucide ISC | [MIT notice](licenses/AnimateIcons-MIT.txt), [upstream notices](tools/icons/animateicons/UPSTREAM_NOTICES.md), Lucide notice above |
 | [JPEGDEC](https://github.com/bitbank2/JPEGDEC) — progressive JPEG decoding, vendored and patched in `components/jpegdec/` | Apache-2.0 | [Component license](components/jpegdec/LICENSE), [Fork notes](components/jpegdec/FORK.md) |
 | [epdiy](https://github.com/vroland/epdiy), including the locally modified driver | LGPL-3.0-or-later | [Modification notes](components/epdiy/LICENSE), [LGPLv3](licenses/LGPL-3.0.txt), [GPLv3](licenses/GPL-3.0.txt) |
 | [pypinyin](https://github.com/mozillazg/python-pinyin) dictionary data used by offline book search | MIT | [pypinyin notice](components/read_pico_search/LICENSE.pypinyin) |
@@ -29,8 +26,9 @@ remain in the source. This project is not an official MindReset release.
 | [ESP Web Tools](https://github.com/esphome/esp-web-tools) browser flasher | Apache-2.0 | [Bundled web tool license](flash/vendor/LICENSE) |
 | Espressif TinyUSB component | Apache-2.0 | [Component license](components/espressif__esp_tinyusb/LICENSE) |
 
-License terms apply to their respective material. The repository's top-level
-Apache-2.0 license does not replace those component licenses.
+License terms apply to their respective material. The repository's
+[license-scope statement](LICENSE) and new personal-study license do not
+replace these component licenses or restrict their independently granted rights.
 
 各组件继续适用各自的许可，不能把整个固件简称为其中某一个组件的许可。
 
@@ -51,5 +49,3 @@ their own fonts on a TF card. The repository and flashing site do not provide
 additional font packages.
 
 BLE 蓝牙翻页器的报告解析与按键映射参考 CrossMux 的 BleKeyboardHost，保留组件头部来源说明与 CrossMux MIT 许可。JPEGDEC 使用 BitBank Apache-2.0，具体适配与修正见 `components/jpegdec/FORK.md`。
-
-2026-10-17 test30：本地移植的新增 Kiikoread 源码遵循各文件 SPDX 标记；LicenseRef-Kiikoread-Personal-Study-1.0 的完整文本保存在 [许可文件](licenses/kiikoread-Personal-Study-1.0.txt)。原 Apache-2.0 来源及组件声明继续保留。

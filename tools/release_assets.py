@@ -20,6 +20,18 @@ def hydrate(source: Path, output: Path) -> None:
     release = json.loads(catalog.read_text())
     assert re.fullmatch(r'v\d+\.\d+\.\d+-rc\d+', release['tag'])
     assert release['tag'] == 'v' + json.loads((source / 'manifest.json').read_text())['version']
+    _hydrate_files(source, output, release)
+    # 中文：旧固定网址继续从原 Release 取字节，不能被当前版本别名覆盖。
+    # English: Keep immutable older URLs backed by their original Release, not current aliases.
+    seen = set(release['files'])
+    for historical in release.get('historical', []):
+        assert re.fullmatch(r'v\d+\.\d+\.\d+-rc\d+', historical['tag'])
+        expected = 'Pico-update-' + historical['tag'][1:] + '.bin'
+        assert set(historical['files']) == {expected} and expected not in seen
+        seen.add(expected)
+        _hydrate_files(source, output, historical)
+
+def _hydrate_files(source: Path, output: Path, release: dict) -> None:
     fetched = {}
     for name, info in release['files'].items():
         assert re.fullmatch(r'[A-Za-z0-9_.-]+\.bin', name)

@@ -29,8 +29,10 @@ typedef int esp_err_t;
 static struct {bool quick_ok,status_ok;uint32_t flags;unsigned battery_mv,soc_permille,charge_state;}state;
 static int64_t battery_at,clock_us;
 static bool charger_initialized=true;
-static int64_t charger_retry_at;
+static int64_t charger_retry_at,charge_valid_at;
 static int64_t esp_timer_get_time(void){return clock_us;}
+static bool current_ok,all_fault;
+static int current_ma;
 static unsigned mv=4000,soc=65,raw=8,ctrl=0x20,otg;
 static int fail_address,fail_reg=-1,reads,writes,write_fail,readback_bad;
 static const char *esp_err_to_name(int err){(void)err;return "mock";}
@@ -40,9 +42,9 @@ static esp_err_t metalio_write8(unsigned a,unsigned r,uint8_t value){
  if(readback_bad){if(r==0x16)ctrl^=0x20;else otg^=0x40;}return ESP_OK;
 }
 static esp_err_t metalio_read(unsigned a,unsigned r,void *out,size_t n){
- ++reads;if((int)a==fail_address||(int)r==fail_reg)return ESP_FAIL;
- unsigned value= a==0x55?(r==8?mv:soc):r==0x1e?raw:r==0x16?ctrl:r==0x18?otg:0x42;
- assert((a==0x55&&(r==8||r==0x2c)&&n==2)||(a==0x6b&&(r==0x38||r==0x1e||r==0x16||r==0x18)&&n==1));
+ ++reads;if(all_fault||(int)a==fail_address||(int)r==fail_reg||(a==0x55&&r==0x0c&&!current_ok))return ESP_FAIL;
+ unsigned value= a==0x55?(r==8?mv:r==0x0c?(uint16_t)current_ma:soc):r==0x1e?raw:r==0x16?ctrl:r==0x18?otg:0x42;
+ assert((a==0x55&&(r==8||r==0x2c||r==0x0c)&&n==2)||(a==0x6b&&(r==0x38||r==0x1e||r==0x16||r==0x18)&&n==1));
  uint8_t *p=out;p[0]=value&255;if(n==2)p[1]=value>>8;return ESP_OK;
 }
 static int volume_lock,volume_events[8];
@@ -69,6 +71,13 @@ int main(void){
  battery_at=clock_us=0;ctrl=0x20;otg=0;
  sample();assert(state.status_ok&&state.battery_mv==4000&&state.soc_permille==650);
  assert((state.flags&PMU_STATUS_BATTERY_VALID)&&(state.flags&PMU_STATUS_CHARGING_ACTIVE));
+ // 相同电压可有任意有效SOC，电压变化也不改变百分比；I2C失败不得以电压补算。
+ // Valid SOC is independent of voltage; failed gauge reads never fall back to a voltage curve.
+ for(unsigned value=0;value<=100;value++){
+  soc=value;mv=4000;sample();assert((state.flags&PMU_STATUS_BATTERY_VALID)&&state.soc_permille==value*10);
+ }
+ soc=37;for(mv=2500;mv<=5000;mv+=100){sample();assert((state.flags&PMU_STATUS_BATTERY_VALID)&&state.soc_permille==370);}
+ mv=4000;fail_reg=0x2c;sample();assert(!(state.flags&PMU_STATUS_BATTERY_VALID));fail_reg=-1;soc=65;sample();
  int before=reads;clock_us+=1999999;battery();assert(reads==before);clock_us++;battery();assert(reads>before);
  for(unsigned stage=0;stage<4;stage++){
   raw=stage<<3;ctrl=0x20;otg=0;sample();assert(!!(state.flags&PMU_STATUS_CHARGING_ACTIVE)==(stage!=0));
@@ -80,7 +89,23 @@ int main(void){
  fail_address=0;soc=101;sample();assert(!(state.flags&PMU_STATUS_BATTERY_VALID));
  soc=0;sample();assert((state.flags&PMU_STATUS_BATTERY_VALID)&&state.soc_permille==0);
  soc=100;sample();assert(state.soc_permille==1000);
- fail_address=0x6b;mv=2000;sample();assert(!state.status_ok&&!(state.flags&PMU_STATUS_BATTERY_VALID));
+ fail_address=0x6b;mv=2000;sample();assert(state.status_ok&&!(state.flags&PMU_STATUS_BATTERY_VALID)&&(state.flags&PMU_STATUS_CHARGING_ACTIVE));
+ // 实际电流独立补足CHG_STAT漏报；明确停止与OTG优先，I2C未知只短暂保留。
+ // Actual current covers missing CHG_STAT; explicit stop/OTG wins, and unknown I2C only retains evidence briefly.
+ fail_address=0;mv=4000;soc=50;raw=0;ctrl=0x20;otg=0;current_ok=true;current_ma=6;
+ sample();assert(state.flags&PMU_STATUS_CHARGING_ACTIVE);
+ raw=8;current_ma=-6;sample();assert(state.flags&PMU_STATUS_CHARGING_ACTIVE);
+ raw=0;sample();assert(!(state.flags&PMU_STATUS_CHARGING_ACTIVE));
+ raw=0;current_ma=5;sample();assert(!(state.flags&PMU_STATUS_CHARGING_ACTIVE));
+ current_ma=6;ctrl=0;sample();assert(!(state.flags&PMU_STATUS_CHARGING_ACTIVE));
+ ctrl=0x20;otg=0x40;sample();assert(!(state.flags&PMU_STATUS_CHARGING_ACTIVE));
+ otg=0;fail_reg=0x1e;sample();assert(state.flags&PMU_STATUS_CHARGING_ACTIVE);
+ fail_reg=-1;fail_address=0x6b;sample();assert(state.flags&PMU_STATUS_CHARGING_ACTIVE);
+ current_ok=false;all_fault=true;sample();assert(state.status_ok&&(state.flags&PMU_STATUS_CHARGING_ACTIVE));
+ sample();assert(state.flags&PMU_STATUS_CHARGING_ACTIVE);
+ sample();assert(!state.status_ok&&!(state.flags&PMU_STATUS_CHARGING_ACTIVE));
+ all_fault=false;fail_address=0;raw=8;sample();assert(state.flags&PMU_STATUS_CHARGING_ACTIVE);
+ raw=0;sample();assert(!(state.flags&PMU_STATUS_CHARGING_ACTIVE));
  metalio_volume_sample(0xffff,0);metalio_volume_sample(0xfeff,10);metalio_volume_sample(0xfeff,34);assert(!metalio_take_volume());
  metalio_volume_sample(0xfeff,35);assert(metalio_take_volume()==-1&&!metalio_take_volume());
  metalio_volume_sample(0xffff,50);metalio_volume_sample(0xffff,75);

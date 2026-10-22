@@ -13,7 +13,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "esp_err.h"
-#include "kiiko_board.h"
 
 /// 默认深睡。浅睡：按键回原页；拿起唤醒默认关。软睡：SOFT_SLEEP 拉低 EN，再短按开机。关机：EN=0，长按开机。
 /// Default is deep. Light: key returns to the page; pickup-wake defaults off. Soft sleep: SOFT_SLEEP drops EN, then a short press boots. Off: EN=0, long-press to boot.
@@ -25,21 +24,21 @@ typedef enum {
 
 void app_settings_init(void);
 app_sleep_mode_t app_settings_sleep_mode(void);
-#if KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY
+#if KIIKO_BOARD_METALIO47
+typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_AI_DISABLED,APP_AI_ACTION_COUNT} app_ai_action_t;
+/// AI键短按独立保存在S31设置；仅成功提交才改变当前映射。/ Persist S31 AI taps, changing the live mapping only after a successful commit.
+app_ai_action_t app_settings_ai_short(void);
+esp_err_t app_settings_set_ai_short(app_ai_action_t action);
 /// S31锁屏：0保留内存待机（默认），1硬件浅睡，2硬件深睡；USB/拿起唤醒时保留待机。
 /// S31 lock: retained(default), hardware light, hardware deep; USB/pickup retain awake standby.
 uint8_t app_settings_lock_sleep(void);
 void app_settings_set_lock_sleep(uint8_t mode);
+#else
 #endif
 void app_settings_set_sleep_mode(app_sleep_mode_t mode);
 const char* app_sleep_mode_name(app_sleep_mode_t mode);
-#if KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY
-/// 电源菜单“关机”：false彻底断电，true进入当前选择的锁屏待机方式。
-/// Power-menu shutdown: false powers off, true enters the selected lock standby policy.
-#else
-/// 电源菜单里的“关机”：false 为彻底断电，true 为先浅睡 10 分钟再由 PMU 软睡断电。
+/// 电源菜单“关机”：false 为彻底断电，true 为先浅睡 10 分钟再由 PMU 软睡断电。
 /// Power-menu shutdown: false powers fully off; true light-sleeps for 10 minutes, then PMU soft-sleeps.
-#endif
 bool app_settings_staged_shutdown(void);
 void app_settings_set_staged_shutdown(bool staged);
 /// 电源键开机次数：1 单击开机，2 双击开机；默认 2，放在包里不易误开机。
@@ -127,9 +126,10 @@ const char *app_settings_book_background_path(void);
 bool app_settings_set_book_background_path(const char *path);
 /// 阅读时每 5/10/15/30 页全刷；0 关闭周期全刷，手动全刷仍可用。
 /// Full-screen cleanup every 5/10/15/30 turns; 0 disables periodic cleanup only.
+/// S31另支持20页，所有翻页效果均遵循所选间隔。/ S31 also supports20; every turn effect respects the selected interval.
 uint8_t app_settings_reader_full_pages(void);
 void app_settings_set_reader_full_pages(uint8_t pages);
-/// 阅读翻页效果：0普通，1水波纹；S31额外提供2速读黑白。/ Reader turn effect:0 ordinary,1 ripple; S31 additionally supports2 fast BW.
+/// 阅读翻页效果：0普通，1水波纹，2速读黑白；旧0/1配置不变。/ Reader effect:0 ordinary,1 ripple,2 fast BW; preserve legacy0/1 settings.
 uint8_t app_settings_reader_turn_effect(void);
 void app_settings_set_reader_turn_effect(uint8_t effect);
 /// 阅读正文里短按电源键翻下一页；默认关闭。/ Short power press turns forward only in reader body; off by default.

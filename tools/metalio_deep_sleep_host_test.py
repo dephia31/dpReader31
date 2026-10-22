@@ -69,7 +69,7 @@ static void metalio_poweroff(void){++off_calls;}
 static void epd_lcd_deinit(void){++lcd_deinit;}
 static void metalio_hold_for_deep_sleep(void){++hold_calls;}
 static void esp_deep_sleep_start(void){++sleep_calls;assert(wake_source&&paused&&font_closed&&sd_closed&&hold_calls&&lcd_deinit);deep_success=true;longjmp(deep,1);}
-static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(acc==(void*)1&&ms==0);return ++waits<=wait_timeouts?APP_WAKE_TIMEOUT:APP_WAKE_KEY;}
+static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc&&ms==0);return ++waits<=wait_timeouts?APP_WAKE_TIMEOUT:APP_WAKE_KEY;}
 '''
 for name in ('metalio_io_read','metalio_prepare_key_wake','metalio_restore_key_io'):
     unit+=function(name,root/'components/metalio_hw/metalio_hw.c')+'\n'

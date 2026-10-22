@@ -340,9 +340,6 @@ enum {UI_ICON_WIFI,UI_ICON_BLUETOOTH,UI_ICON_ZAP};
 #define READ_PICO_TRANSFER_MODE_STA 1
 typedef struct {bool time_synced;time_t unix_sec;} pmu_snapshot_t;
 typedef struct {bool network_ready;int mode;} read_pico_transfer_status_t;
-static uint32_t s_power_signature;
-static uint32_t power_signature(void){return 0;}
-static void ui_status_mark_visible(uint8_t *fb){(void)fb;}
 static pmu_snapshot_t pmu;
 static int pct;
 static bool wifi,bluetooth,s_system_ttf;

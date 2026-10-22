@@ -1,9 +1,4 @@
-menu "Kiikoread board configuration"
-
-# 两块板的 I2C 接线不同：每板用自己的 sdkconfig.defaults 固定这些值，这里的 default 只是
-# Pico 的安全回退；GPIO 上限放到 63 是因为 S31 的可选引脚更多。
-# The I2C wiring differs per board: each board pins these values in its own sdkconfig.defaults and
-# the defaults here are only the Pico fallback. The GPIO range reaches 63 for the S31.
+menu "Read Pico board configuration"
 
 config READ_PICO_I2C_PORT
     int "I2C controller"
@@ -13,12 +8,12 @@ config READ_PICO_I2C_PORT
 config READ_PICO_I2C_SCL_GPIO
     int "I2C SCL GPIO"
     default 40
-    range 0 63
+    range 0 48
 
 config READ_PICO_I2C_SDA_GPIO
     int "I2C SDA GPIO"
     default 39
-    range 0 63
+    range 0 48
 
 config READ_PICO_I2C_FREQ_HZ
     int "I2C frequency (Hz)"
@@ -26,13 +21,13 @@ config READ_PICO_I2C_FREQ_HZ
     range 10000 400000
 
 config READ_PICO_IOE_INT_GPIO
-    int "IO expander interrupt GPIO"
+    int "FCA9555 interrupt GPIO"
     default 41
-    range 0 63
+    range 0 48
 
 config READ_PICO_TP_INT_GPIO
-    int "Touch controller interrupt GPIO"
+    int "CST836U interrupt GPIO"
     default 43
-    range 0 63
+    range 0 48
 
 endmenu

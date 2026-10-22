@@ -13,13 +13,11 @@ static int test_stat(const char *path, struct stat *out) {
     return stat(stat_alias[0] && !strcmp(path, stat_alias) ? stat_target : path, out);
 }
 static int fail_write, fail_close, fatfs_replace, fail_commit, fail_remove, fail_restore;
-static unsigned write_calls;
 static int test_remove(const char *path) {
     if (fail_remove) { errno = EACCES; return -1; }
     return remove(path);
 }
 static size_t test_write(const void *p, size_t size, size_t n, FILE *f) {
-    ++write_calls;
     if (fail_write) return 0;
     return fwrite(p, size, n, f);
 }
@@ -57,45 +55,6 @@ static int receive(void *ctx, char *buf, size_t n) {
     if (fail_after && ++receive_calls == fail_after) return -1;
     if (n > (size_t)remaining) n = remaining;
     memset(buf, 'a', n); remaining -= n; return (int)n;
-}
-typedef struct { size_t offset, total, fragment; unsigned calls, fail_at; } fragment_t;
-static int fragmented_receive(void *opaque, char *buf, size_t n) {
-    fragment_t *f = opaque;
-    if (++f->calls == f->fail_at) return -1;
-    if (n > f->fragment) n = f->fragment;
-    if (n > f->total - f->offset) n = f->total - f->offset;
-    for (size_t i = 0; i < n; ++i) buf[i] = (char)((f->offset+i)*37u+11u);
-    f->offset += n;
-    return (int)n;
-}
-static void test_coalesced_receive(void) {
-    char root[] = "/tmp/transfer-block-XXXXXX", target[256], part[264];
-    assert(mkdtemp(root));
-    snprintf(target,sizeof(target),"%s/test.bin",root);
-    snprintf(part,sizeof(part),"%s.part",target);
-    char *buf = malloc(32768); assert(buf);
-    const size_t totals[] = {0,1,4095,4096,32767,32768,32769,131123};
-    const size_t fragments[] = {1,37,1460,4096,32768};
-    for (unsigned t = 0; t < sizeof(totals)/sizeof(totals[0]); ++t) {
-        for (unsigned c = 0; c < sizeof(fragments)/sizeof(fragments[0]); ++c) {
-            fragment_t f = {.total=totals[t],.fragment=fragments[c]};
-            write_calls = 0;
-            assert(receive_file(target,part,f.total,buf,32768,fragmented_receive,&f,NULL)==0);
-            assert(write_calls == (f.total+32767)/32768);
-            FILE *in=fopen(target,"rb"); assert(in);
-            for (size_t i=0;i<f.total;++i) assert(fgetc(in)==(int)((i*37u+11u)&255));
-            assert(fgetc(in)==EOF&&!fclose(in)&&!remove(target));
-        }
-    }
-    for(unsigned fault=1;fault<=6;++fault) {
-        fragment_t f={.total=32769,.fragment=8192,.fail_at=fault};
-        write_calls=0;
-        int rc=receive_file(target,part,f.total,buf,32768,fragmented_receive,&f,NULL);
-        assert(rc==(fault<=5?408:0));
-        struct stat st; assert(stat(part,&st)==-1&&errno==ENOENT);
-        if(!rc)assert(!remove(target));
-    }
-    free(buf);assert(!rmdir(root));
 }
 static void write_fixture(const char *path, const char *text) {
     FILE *f = fopen(path, "wb"); assert(f);
@@ -163,7 +122,6 @@ static void test_directory_upload(void) {
     cleanup_calls = 0; cleaned_path[0] = 0;
 }
 int main(void) {
-    test_coalesced_receive();
     test_directory_upload();
     char alias_root[] = "/tmp/transfer-alias-XXXXXX", canonical[448], requested[448];
     assert(mkdtemp(alias_root));

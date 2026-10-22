@@ -54,7 +54,7 @@ int main(void) {
     assert(bw && bw->phases == 20);
     for (int f = 0; f < bw->phases; ++f) {
         assert(e0470_phase_action(bw, f, 0, 0) == 0);
-        assert(e0470_phase_action(bw, f, 15, 15) == 0 || e0470_phase_action(bw,f,15,15)==2);
+        assert(e0470_phase_action(bw, f, 15, 15) == 0);
     }
     int original_diagonal = 0;
     for (int f = 0; f < bands->phases; ++f)
@@ -66,49 +66,79 @@ int main(void) {
                 else assert(action == original);
             }
     assert(original_diagonal > 0 && display_main_gray_waveform() == local);
-    const EpdWaveformPhases *exit_table=e0470_waveform_phases(display_main_shelf_exit_waveform(),MODE_DU);
-    assert(exit_table&&exit_table->phases==20);
-    for(int f=0;f<20;++f)for(int from=0;from<16;++from)for(int to=0;to<16;++to)
-        assert(e0470_phase_action(exit_table,f,to,from)==(from==to?0:e0470_phase_action(bw,f,to,from)));
-    const EpdWaveform *profiles[]={display_main_gray_waveform(),display_main_water_waveform(),display_main_normal_waveform()};
-    for(unsigned i=0;i<3;++i){
-        const EpdWaveformPhases *table=e0470_waveform_phases(profiles[i],MODE_GL16);
-        assert(table&&table->phases==E0470_GL16_FRAMES&&!table->phase_times);
-        for(int f=0;f<E0470_GL16_FRAMES;++f)for(int from=0;from<16;++from)for(int to=0;to<16;++to)
-            assert(e0470_phase_action(table,f,to,from)==(from==to?0:e0470_phase_action(gray_table,f,to,from)));
+    // 书架退出完整复用DU并给变白像素补四相，禁止中灰到白反向压黑。
+    // Shelf exit retains full DU plus four whitening phases, forbidding reverse darkening on gray-to-white.
+    const EpdWaveform* exit_wave=display_main_shelf_exit_waveform();
+    const EpdWaveformPhases* exit_table=e0470_waveform_phases(exit_wave,MODE_DU);
+    assert(exit_wave!=&E0470_WAVEFORM && exit_wave->temp_intervals==E0470_WAVEFORM.temp_intervals);
+    assert(exit_table && exit_table->phases==24 && !exit_table->phase_times);
+    int white_pushes=0;
+    for(int f=0;f<exit_table->phases;++f)for(int from=0;from<16;++from)for(int to=0;to<16;++to){
+        int expected=from==to?0:f<bw->phases?e0470_phase_action(bw,f,to,from):to==15?2:0;
+        int action=e0470_phase_action(exit_table,f,to,from);
+        assert(action==expected);
+        if(to==15)assert(action==0 || action==2);
+        if(to==0)assert(action==0 || action==1);
+        if(from==0 && to==15)white_pushes+=action==2;
     }
-    assert(!memcmp(saved_bw,bw->luts,sizeof(saved_bw))&&!memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));
-    const EpdWaveform* soft=display_main_shelf_soft_waveform();
-    const EpdWaveformPhases* chrome=e0470_waveform_phases(soft,MODE_GL16);
-    assert(soft!=&E0470_WAVEFORM&&chrome&&chrome->phases==48);
-    for(int f=0;f<48;++f)for(int to=0;to<16;++to)for(int from=0;from<16;++from){
-        int expected=to==from?0:(to==0||to==15)?(f<20?e0470_phase_action(bw,f,to,from):0):e0470_phase_action(gray_table,f,to,from);
-        assert(e0470_phase_action(chrome,f,to,from)==expected);
+    assert(white_pushes==22 && display_main_shelf_exit_waveform()==exit_wave);
+    // 柔和水波纹只改黑白端点和等灰，中间灰完整保留37相，防止丢失灰阶细节。
+    // Soft water changes only monochrome endpoints and equal grays, retaining all 37 midgray phases to preserve detail.
+    const EpdWaveform* water_wave=display_main_water_waveform();
+    const EpdWaveformPhases* water_table=e0470_waveform_phases(water_wave,MODE_GL16);
+    assert(water_wave!=&E0470_WAVEFORM && water_wave->temp_intervals==E0470_WAVEFORM.temp_intervals);
+    assert(water_table && water_table->phases==37 && !water_table->phase_times);
+    for(int f=0;f<water_table->phases;++f)for(int from=0;from<16;++from)for(int to=0;to<16;++to){
+        int expected=from==to?0:to==0 || to==15?
+            (f<bw->phases?e0470_phase_action(bw,f,to,from):to==15 && f<24?2:0):
+            e0470_phase_action(gray_table,f,to,from);
+        int action=e0470_phase_action(water_table,f,to,from);
+        assert(action==expected);
+        if(to==15)assert(action==0 || action==2);
+        if(to==0)assert(action==0 || action==1);
     }
-    for(int mode=MODE_GC16;mode<=MODE_GL16;mode+=MODE_GL16-MODE_GC16){
-        const EpdWaveform* shelf=display_main_shelf_waveform(mode);
-        const EpdWaveformPhases* table=e0470_waveform_phases(shelf,mode);
-        const EpdWaveformPhases* original=e0470_waveform_phases(&E0470_FULL_WAVEFORM,mode);
-        assert(table&&table->phases==48&&shelf==display_main_shelf_waveform(mode));
-        for(int f=0;f<48;++f)for(int to=0;to<16;++to)for(int from=0;from<16;++from){
+    assert(display_main_water_waveform()==water_wave);
+    const EpdWaveformPhases* first_table=e0470_waveform_phases(display_main_bw_waveform(),MODE_DU);
+    assert(first_table && first_table->phases == 20);
+    for (int from=0;from<16;++from) for (int to=0;to<16;++to) for (int f=0;f<20;++f)
+        assert(e0470_phase_action(first_table,f,to,from)==(from==to?0:e0470_phase_action(bw,f,to,from)));
+    assert(!memcmp(saved_bw,bw->luts,sizeof(saved_bw)) && !memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));
+    const EpdWaveform *normal_wave=display_main_normal_waveform();
+    const EpdWaveformPhases *normal_table=e0470_waveform_phases(normal_wave,MODE_GL16);
+    assert(normal_table&&normal_table->phases==water_table->phases&&display_main_normal_waveform()==normal_wave);
+    int softened=0;
+    for(int from=0;from<16;++from)for(int to=0;to<16;++to){
+        int old_counts[4]={0},new_counts[4]={0},differences=0,first=-1,last=-1;
+        for(int phase=0;phase<water_table->phases;++phase){
+            int a=e0470_phase_action(water_table,phase,to,from),b=e0470_phase_action(normal_table,phase,to,from);
+            ++old_counts[a];++new_counts[b];differences+=a!=b;
+            if(a){if(first<0)first=phase;last=phase;}
+            if(to==from||to==0||to==15||a==0||a==3)assert(a==b);
+        }
+        assert(!memcmp(old_counts,new_counts,sizeof(old_counts))&&differences<=4);
+        if(first>=0){assert(e0470_phase_action(water_table,first,to,from)==e0470_phase_action(normal_table,first,to,from));
+            assert(e0470_phase_action(water_table,last,to,from)==e0470_phase_action(normal_table,last,to,from));}
+        softened+=differences>0;
+    }
+    assert(softened>0&&!memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));
+    printf("PASS: ordinary main %d softened gray-edge paths retain all37 phases, counts, holds, endpoints; ripple and vendor outputs preserved\n",softened);
+    // 普通书架留白从各级灰只向白；其余十五级完整保留原GL16/GC16与同时输出相数。
+    // Ordinary shelf whitespace drives only white from every gray; all other targets retain original GL16/GC16 actions and simultaneous phase counts.
+    for(int index=0;index<2;++index){
+        enum EpdDrawMode mode=index?MODE_GC16:MODE_GL16;
+        const EpdWaveform *shelf=display_main_shelf_waveform(mode);
+        const EpdWaveformPhases *source=e0470_waveform_phases(&E0470_WAVEFORM,mode);
+        const EpdWaveformPhases *table=e0470_waveform_phases(shelf,mode);
+        assert(shelf!=&E0470_WAVEFORM&&table&&table->phases==source->phases);
+        assert(display_main_shelf_waveform(mode)==shelf);
+        for(int f=0;f<table->phases;++f)for(int from=0;from<16;++from)for(int to=0;to<16;++to){
             int action=e0470_phase_action(table,f,to,from);
-            assert(action==e0470_phase_action(to==15?(from==15?gray_table:chrome):original,f,to,from));
-            if(to==15)assert(action==0||action==2);
+            if(to!=15)assert(action==e0470_phase_action(source,f,to,from));
+            else{assert(action==0||action==2);assert(action==e0470_phase_action(normal_table,f,to,from));}
         }
     }
-    assert(!memcmp(saved_bw,bw->luts,sizeof(saved_bw))&&!memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));
-    puts("PASS: shelf GL/GC48 art, DU20 endpoints without extra pushes, equal-held chrome, white-only erase and original LUTs");
-    const EpdWaveformPhases* page=e0470_waveform_phases(display_main_page_gray_waveform(),MODE_GL16);
-    const EpdWaveformPhases* binary=e0470_waveform_phases(display_main_page_bw_waveform(),MODE_DU);
-    int white_pushes=0,binary_white=0;
-    for(int f=0;f<48;++f)for(int to=0;to<16;++to)for(int from=0;from<16;++from){
-        int action=e0470_phase_action(page,f,to,from);
-        assert(action==(to==from&&to!=15?0:e0470_phase_action(gray_table,f,to,from)));
-        if(to==15&&from==15){assert(action==0||action==2);white_pushes+=action==2;}
-    }
-    for(int f=0;f<20;++f){int action=e0470_phase_action(binary,f,15,15);assert(action==0||action==2);binary_white+=action==2;}
-    assert(white_pushes>=3&&binary_white>0);
-    puts("PASS: page white maintenance stays separate from fixed-navigation/slider equal holds");
+    assert(!memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));
+    puts("PASS: shelf white pixels never reverse-darken; all 15 art targets, GL16/GC16 counts and vendor LUTs preserved");
     // 点阵亮度随输入单调增加且稳定，不引入中灰；阅读插图原16灰输出仍保留。
     // Dot brightness increases monotonically and remains stable with no intermediate grays; existing 16-gray reader output is retained.
     int previous_white = 0, previous_cover_white = 0;
@@ -147,25 +177,23 @@ int main(void) {
     }
     assert(!memcmp(saved_bw,original_bw->luts,sizeof(saved_bw))&&!memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));
     puts("PASS: all256 UI pairs restore complete original soft grays including light cards; directional white erase/equal holds/vendor LUTs retained; optical validation pending");
-    // 设置滚动保留全部中灰迁移及等灰保持，白色只去掉额外四相，原DU擦除逐相不变。
-    // Settings scrolling preserves every midgray transition and equal hold, omitting only four extra white phases while retaining native DU erasure phase by phase.
+    // 设置滚动复用原八相灰阶跟随表：全256对只向目标推动，等灰保持，不退回阈值黑白。
+    // Settings scrolling reuses the eight-phase gray follow table: all256 pairs are directional, equal grays hold and targets are never thresholded.
     const EpdWaveform *scroll_wave=display_settings_scroll_waveform();
-    const EpdWaveformPhases *scroll=e0470_waveform_phases(scroll_wave,MODE_GL16);
-    assert(scroll&&scroll->phases==soft_ui->phases&&scroll->phase_times==soft_ui->phase_times);
-    assert(scroll_wave->temp_intervals==display_main_normal_waveform()->temp_intervals);
-    unsigned removed_white=0;
+    const EpdWaveformPhases *scroll=e0470_waveform_phases(scroll_wave,MODE_DU);
+    assert(scroll_wave==&E0470_FOLLOW_WAVEFORM&&scroll==short_table&&scroll->phases==8);
     for(int to=0;to<16;++to)for(int from=0;from<16;++from)for(int f=0;f<scroll->phases;++f) {
         int actual=e0470_phase_action(scroll,f,to,from);
-        int prior=e0470_phase_action(soft_ui,f,to,from);
-        if(to==15&&from!=15){
-            int expected=f<original_bw->phases?e0470_phase_action(original_bw,f,to,from):0;
-            assert(actual==expected);
-            if(actual!=prior){assert(actual==0&&prior==2&&f>=20&&f<24);++removed_white;}
-        } else assert(actual==prior);
-        if(to==from)assert(actual==0);
+        int delta=to>from?to-from:from-to;
+        int budget=to>from?8:7;
+        int pushes=(delta*budget+14)/15;
+        int expected=f<pushes?(to>from?2:1):0;
+        assert(actual==expected);
     }
-    assert(removed_white==15*4&&display_settings_scroll_waveform()==scroll_wave);
+    assert(e0470_phase_action(scroll,0,7,8)==1);
+    assert(e0470_phase_action(scroll,1,7,8)==0);
+    assert(display_settings_scroll_waveform()==scroll_wave);
     assert(!memcmp(saved_bw,original_bw->luts,sizeof(saved_bw))&&!memcmp(saved_gray,gray_table->luts,sizeof(saved_gray)));
-    puts("PASS: settings scroll retains AA gray transitions, native DU white erasure, equal holds and all37 phases; removes only four added white pulses per changing white pair; other profiles unchanged");
+    puts("PASS: settings scrolling uses the existing8-phase directional gray table; all256 pairs, AA target-dependent budgets/equal holds/no reversal, no extra allocation; other profiles unchanged, optical validation pending");
     return 0;
 }

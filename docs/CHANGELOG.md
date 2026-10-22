@@ -3,8 +3,52 @@
 按版本简述对用户可见的变化；使用方法见 [README](../README.zh-CN.md)。
 User-visible changes by release; see [README](../README.md) for usage.
 
+## 本地整合 / Local integration / 2026-10-22
+
+- 整合 Moku 的双板级身份/能力/预算清单与板级门面，兼容 `metalio_s31` 构建别名，保留现有共享阅读代码、S31 专属修复和独立芯片/分区校验。CI 分别编译两板，网页完整性测试改用独立固定输入，私有仓库不部署官网。
+  Integrate Moku's board identities/capabilities/budgets and facade, alias `metalio_s31`, retaining shared reader logic, current S31 fixes and strict chip/layout checks. Build both boards in CI and run self-contained web integrity regressions without deploying the public site.
+
+
+- S31阅读按键示意按实体位置改为左圆、后两横；自动全刷恢复不全刷/5/10/15/20/30页，删除短灰阶及速读的十页强制上限，20页档支持重启与备份恢复。关闭书内图片的文字与开关分列，避免大字号覆盖。
+  Match S31 reader key diagrams to its circle/bar/bar hardware; honor Off/5/10/15/20/30 cleanup intervals without short-gray/FastBW caps, including persistence/backup. Reserve separate hide-image text and switch columns at every UI scale.
+
+- 修正S31传输接收窗口与无线缓冲不匹配：DMA16/动态RX32/BA32配32KiB TCP窗口，加入有界乱序缓存与选择确认。文件传输和临时扫描的BLE租约真正阻止重启，退出后保留最近设备重连；仅联网仍允许共存。增加实际网络配置、内部内存及固件身份诊断，修正不等于已验证吞吐提升，需实机对照。
+  Match S31 DMA16/dynamicRX32/BA32 to a32KiB TCP window with bounded out-of-order/SACK support. Enforce BLE leases for file-transfer/temporary scans and preserve peer reconnect; network-only retains coexistence. Expose actual profile,internal heap and firmware identity; throughput improvement still requires device comparison.
+
+- S31大文件上传双缓冲交叠网络接收与顺序写卡，资源不足沿用单缓冲；失败先收齐写入任务再清理临时文件，保留旧文件与USB独占。TCP接收窗口扩大，USB读卡块由8KiB增至16KiB，卡时钟仍保守20MHz；实际速度待同卡同网络测量。
+  Overlap S31 large-upload reception and ordered SD writes with two bounded slots and single-buffer resource fallback; join before fault cleanup and preserve old-file/USB ownership. Increase TCP receive capacity and MSC blocks from8to16KiB,retaining20MHz USB card timing; real throughput requires same-card/network measurement.
+- 同步拼贴缓存FAT替换与无效进度计数修复，冷生成先查尺寸、跳过屏外封面；深睡恢复暂时缺卡时保持物理锁图，真实参考恢复前不做差分提示。锁图只在成功推屏后、密码覆盖前保存，保留S31灭灯、密码与USB流程。入书/目录返回正文单次完整清理，后续正文刷新不变；阅读辅助线限定到横竖排文字范围。
+  Repair FAT collage replacement/foreign-progress counts and probe sizes before decoding visible art. Retain physical deep-lock art while media is pending,withholding difference hints until references are known; persist successful art before PIN. Keep S31 light/PIN/USB rules; clean reader entry/TOC returns once and bound horizontal/vertical guides to text spans.
+
+- 根据实机反馈撤回图形区域四灰22相实验：恢复书架/封面/亚克力与菜单原灰阶路径，阅读字体/设置的滑轮和开关用原厂GL48完整灰阶区域定稿，避免浅灰消失、封面发黑与目标灰阶不一致。保留正文22相、原有缓存/面板叠加与完整故障恢复；图形扫描时间回到完整灰阶，后续短波形须单独实屏标定。
+  Withdraw graphical four-gray22-phase output after optical defects. Restore native cover/acrylic/menu grays and vendorGL48 regional settling for reader controls, retaining text22-phase,caches/overlay reuse and full recovery. Complete-gray scan latency returns; shorter graphical waveforms require separate panel validation.
+
+- S31 AI快捷菜单改为上移的横向五圆键、下方标签和右上选中点；修正标题误反白。AI、电源仅在按钮和滑条内部模糊，下拉层提亮玻璃并模糊底字；AI标签不加单独底色，控件文字和图标最后清晰绘制，保留单次开合与缓存局刷。电量百分比核实为BQ27220 SOC直读，补齐电压变化不改变SOC及计量读错不回退电压估算的回归。
+  Move S31 AI choices into a higher horizontal icon/label row with an inset selected dot; fix inverted title ink. Confine power frost to controls,preserve the clear page,and draw AI labels directly on glass without backing; retain one presentation and cached input. Verify direct BQ27220 SOC with voltage-independence and failed-SOC/no-estimate regressions.
+
+- S31长按AI键打开液态玻璃短按功能菜单，支持全刷、书签、前光、首页或关闭短按；选择后保存并收起，默认全刷。开合各一次区域更新，保留原图与已有完整灰阶；锁屏、USB、升级和传输写入保留保护。
+  Hold S31 AI for a glass tap-action chooser: refresh(default),bookmark,frontlight,home or disabled. Persist without executing,then dismiss in one bounded update,retaining the original underlay,grays and guarded lock/USB/update/transfer paths.
+
+- S31锁屏单击电源键后局部提示“双击电源键解锁”，三秒后还原锁屏图；双击与密码规则保留。上下音量键在四个主页面复用屏幕左右键，包含书架分页控制，阅读与子页继续沿用原映射。
+  S31 shows a local three-second double-press hint after one locked power press, preserving authentication. Volume keys share root side-key navigation/shelf paging while reader and child mappings remain page-owned.
+
 ## 待发布 / Unreleased
 
+- Pico新增可选「速读黑白」，纯文字正文和页脚二值化后一次提交本板原厂DU；保留原普通/水波纹、插图/背景和自动全刷规则，兼容已有设置及TF配置备份。字缘更硬、灰色细节减少，速度与残影需实机确认。
+  Add optional Pico Fast BW using one native-DU batch for binary text/footer targets, retaining ordinary/ripple, image/background and cleanup paths plus existing settings/TF backup compatibility. Harder edges and fewer gray details require panel speed/ghosting validation.
+
+- 拼贴锁屏只解码画面内可见封面，减少首次合成运算；修复旧非书籍记录干扰缓存和TF缓存覆盖失败，复用完整拼贴时不再重复生成，保持原灰阶与排版。
+  Decode only visible collage covers and reduce first-render work. Ignore foreign progress when validating cached artwork and safely replace FAT caches; reuse complete collages while preserving grayscale and layout.
+
+- Pico深睡启动保留原锁屏画面，挂卡就绪后恢复缓存，不再超时覆盖成小锁；修复重复等待丢失缓存标记和TF已有锁图无法覆盖保存。未使用的旧内嵌锁屏位图不再占用应用空间，保持原分区与解锁规则。
+  Preserve Pico lock art across deep boot, restoring references when media is ready without a timeout badge. Retain cached checkpoints across repeated waits and replace existing FAT lock snapshots safely. Unlink obsolete unused embedded art while keeping partitions and unlock rules.
+
+- Pico设置列表上下滑动改用已有八相灰阶差分，保留文字抗锯齿目标和头像灰阶，不追加清白或松手定稿；题头与灰底栏保持，实屏深浅与残影仍需对照验证。
+  Pico settings scrolling uses existing eight-phase gray differences, retaining antialiased targets and avatar grays without white prepasses or release settling. Keep headers/gray navigation; optical tones and ghosting still require panel comparison.
+- 锁屏白底徽标和关机取消按钮统一使用图标库素材；Pico新增单击或双击电源键唤醒选项，默认双击，保留密码验证与原解锁提示。
+  Use icon-set artwork for the white lock badge and power cancel mark. Pico can wake with one or two power presses, defaulting to two, retaining PIN verification and the existing unlock hint.
+- 阅读辅助虚线只覆盖实际文字范围，保留缩进与行尾空白，横排和竖排共用固定虚线节奏。
+  Limit reading guides to actual text spans, keeping indentation and trailing space clear with a shared page-relative rhythm in horizontal and vertical layouts.
 - 联网OTA优先使用GitHub Pages清单与固件下载，官网清单保留备用；保留断点续传、失败重试、完整校验及空闲分区写入保护。
   Prefer GitHub Pages OTA metadata/images, retaining website metadata fallback, Range resumes, retries, full verification and inactive-slot protection.
 
@@ -38,6 +82,146 @@ User-visible changes by release; see [README](../README.md) for usage.
   Double-press power to unlock, then verify an enabled PIN. Avoid resource-loading text while waiting after deep sleep. Retain calibrated ordinary text gray transitions and larger existing line prefill; keep automatic full-refresh settings.
 - 官网保留上一正式版的网页刷机与TF下载入口；TF包为完整应用镜像，USB包包含引导程序、分区表、应用和启动选择数据，均提供SHA-256校验。升级保持原双槽分区。
   Retain the previous official web/TF choice. TF contains the complete application; USB contains the base components with SHA-256 checksums. Keep the dual-slot layout.
+
+## 本地整合 / Local integration / 2026-10-21
+
+- Pico设置列表滚动去掉额外四相补白，保留原DU擦除及文字、头像的灰阶；每次手势仍只输出一次，题头与灰底底栏保持稳定。
+  Omit four added whitening phases during Pico Settings scrolling while retaining native DU erasure and text/avatar grays. Keep one output per gesture with stable headers and gray navigation.
+- Pico从首页、书架或目录进入阅读正文时，用一次完整GC16显示目标页并清理旧画面；普通文字翻页恢复校准GL16的前导擦除，保留等灰保持、连续预读及正文/进度合并输出。
+  Present Pico reader entry from Home, shelf or TOC with one complete target-page GC16. Restore calibrated GL16 erasure on ordinary text turns while retaining equal-gray holds, prefetch and fused body/progress output.
+- Pico设置、文件管理及其二级页面恢复文字抗锯齿；主页显示与周期残影清理恢复原rc96规则，普通阅读恢复原rc97直接灰阶差分，保留连续翻页预读与防欠载行预填。
+  Restore antialiased Pico system text, rc96 presentation/cleanup, and rc97 direct ordinary text differences while retaining continuous-turn prefetch and underrun protection.
+- Pico普通文字翻页将正文和变化的阅读进度合并为一次灰阶差分输出，减少正文后的串行等待；保留原抗锯齿目标、周期全刷及图片、水波纹的刷新规则。
+  Fuse Pico ordinary text and changed reading progress into one gray-difference output, reducing serial footer work while retaining antialiased targets, periodic cleanup, image and ripple paths.
+- 充电百分比与图标采用同一有效充电状态，避免PMU状态枚举滞后时高段电量无法增长；原低电提示与电池保护保持。
+  Use the same valid charging state for the percentage and icon, allowing upper-SOC increases despite a lagging PMU state enum while retaining low-power alerts and protection.
+- 锁屏单击电源键后提示「双击电源键解锁」，短暂支持点屏提示后恢复触摸休眠；原双击电源键及密码验证规则保持。
+  Show a double-press-power hint after a single press, briefly enabling touch hints before returning touch to sleep; retain physical double-press and PIN checks.
+
+- 墨水屏普通文字翻页保留完整灰阶迁移和擦除，以改善非全刷后字重加深及抗锯齿边缘；阅读扫描提高现有行预填，减少首轮供数不足引起的保护性整屏恢复。保留单轮输出、原相数与自动全刷设置；灰阶观感需实屏确认。
+  Ordinary text turns retain calibrated gray transitions and erasure to improve heavier strokes and AA edges between full refreshes. Reader scans use the existing larger line prefill to reduce first-scan underrun recovery. Keep one output, phase counts and automatic full-refresh settings; optical quality requires panel confirmation.
+
+- 透明书封在有少量PSRAM时合并阴影与PNG图案的顺序读取，减少一遍完整TF缓存读取，保留原透明度、阴影和像素效果；低内存仍可使用原路径，途中读卡失败不在半成品上重复叠图。
+  Fuse transparent-cover shadow/art reads using a small PSRAM row ring, saving one full SD-layer read while retaining original alpha,shadow and pixels. Keep the original low-memory path and avoid recompositing over incomplete frames after I/O failure.
+- 锁屏图片生成失败、缺卡或深睡缓存无效时统一显示白底居中圆锁，不显示资源加载提示；旧兜底缓存失效重建，密码与双击解锁规则保留。
+  Unavailable lock art,missing media or invalid deep-resume caches show a centered round lock on white rather than resource-loading text. Invalidate old fallback caches while retaining PIN and double-press rules.
+- 阅读正文展开下拉菜单时，玻璃后文字轻微增加模糊，保持按钮和状态栏清晰；仅展开时处理，点按仍局部刷新，收起还原原文。
+  Slightly soften text behind quick-menu glass over the reader body,retaining crisp buttons/status. Process only on open,keep local input updates and restore the original text on close.
+
+- 设置、文件管理及配网二级页右滑返回与阅读翻页共用识别逻辑：内容区不再限定从左侧边缘起手，去除额外的两倍方向限制。主页刷新模式、系统对比度等选择页同样适用；保留键盘自身手势、底栏、不可中断任务保护和本板原左向右返回动画。
+  Settings, Files and network children reuse reading swipe recognition for back: start anywhere in content without the former left-edge or double-axis restriction, including home-refresh and system-contrast selectors. Retain keyboard gestures, navigation, noninterruptible-job guards and each board's existing left-to-right back animation.
+
+## 本地整合 / Local integration / 2026-10-20
+
+- Pico设置与文件管理二级页恢复原卡片、选中项和输入区底色，浅灰恢复完整灰阶驱动；黑白目录翻页在同次输出内加强旧墨擦白，保留常驻灰底栏、局部反馈和单次差分，不追加整屏补刷。
+  Restore original Pico Settings/Files child card, selection and input backgrounds with complete light-gray drive. Strengthen old-ink whitening within the same binary directory update, retaining fixed gray navigation, local feedback and single-pass differences without another whole-screen settle.
+
+- S31本地普通翻页改为与当前水波纹相同的四级22相，整页同步提交，不作条带动画；保留正文/进度合并及十页内原厂GC48清理。撤回实机导致欠载的128行文字备行，恢复192行。未启用实验或失败降级仍用完整GL48；速读黑白DU20、图片和手动全刷保持独立路径。
+  Local S31 Ordinary now shares Ripple's four-level22-phase sequence in one synchronous output, retaining fused progress and vendorGC48 within ten turns. Revert the128-row reader prefill that underruns on hardware to192 rows. Builds without the experiment and failed-scan fallback retain fullGL48; DU20 FastBW,images and manual full retain their paths.
+
+- S31阅读水波纹改为8带、末两带同步收尾，短波形调度由31拍减为28拍；各带完整相位保持。完整波形回退也合并正文与页脚，避免动画后再补刷进度条。主页/侧滑动画保持原调度，实际观感与耗时待实机确认。
+  Use eight S31 reader-ripple bands with the final pair finishing together, reducing short-wave scheduling from31 to28 ticks while retaining every phase per band. Full-waveform fallback also fuses the body/footer to avoid a trailing progress scan. Main/edge-back scheduling stays unchanged; optical results and latency await hardware validation.
+
+- S31普通阅读翻页改为整轮提交，复用内部1KiB相位查表和扫描配置，去掉逐相重新提交及外部64KiB相位缓存依赖。原灰阶、抗锯齿、所有有效/尾相和白底维护保留，失败不提交参考帧；水波纹/插图/周期清理仍使用各自路径。
+  Batch S31 ordinary reading through the existing internal1KiB phase LUT and scan setup, removing repeated phase submissions and dependence on the external64KiB phase cache. Retain grays,AA,all active/tail phases and white maintenance, committing history only after success; ripple,images and cleanup retain their paths.
+
+- 首页组件/阅读目标、设置、文件目录及配网传输二级页恢复常驻灰底栏；分页、系统键盘和设置密码键盘上移，底栏触摸可直接切页，升级写入等不可中断阶段保留保护。二级切换与侧滑仅刷新底栏上方内容，底栏恢复固定图标、局部选中横条的刷新规则。
+  Home widgets/goals, Settings, file directories and network/transfer children retain gray navigation. Paging, system keyboards and the settings PIN pad move above it; tabs respond directly while noninterruptible update stages remain guarded. Child transitions/edge returns scan content above the fixed icons and locally updated selection marker.
+
+- Pico文件目录和设置列表在三种主页模式下统一使用快刷差分，资料卡头像和底栏保留灰阶；去除二级页面及首次切换水波纹时的周期全刷，侧滑返回改用系统柔和灰阶水波纹，减少选中灰底及底栏黑闪。手动全刷、阅读自动全刷和真正扫描故障恢复保留。
+  Pico file directories and settings lists share fast differences in all home modes while retaining avatar/navigation grays. Child navigation and first ripple selection no longer accrue periodic full output; edge returns use soft system-gray ripple to reduce selection/nav flashes. Explicit full output, reader auto-cleanup and real scan-failure recovery remain.
+
+- Pico深睡恢复在锁屏缓存缺失、损坏或尚未挂卡时显示锁屏底图，不再把等待双击电源解锁显示为「准备资源」；挂载等待超时后不读取卡上缓存。有效缓存仍直接恢复前后帧，密码与双击唤醒规则保持。
+  Pico deep resumes show a lock fallback when cached art is absent, corrupt or media is not ready, instead of disguising double-press unlock waiting as resource loading. Skip cached-art I/O after mount timeout; valid caches still restore both references, preserving PIN and double-press rules.
+
+- Pico系统子页使用全高内容区，重排文件操作/分页、字体列表和系统键盘；左边缘右滑复用本板既有水波纹，从逻辑全屏左向右展开，仅侧滑触发。普通进入、按钮/按键返回和分页保留原路径；四个主页底栏保留灰底，系统和阅读保留原灰阶。
+  Pico system children use the full viewport with relocated file actions/paging, font lists and keyboards. Left-edge back swipes reuse the board's existing left-to-right ripple over logical full-screen bounds; taps, buttons, keys and paging retain ordinary paths. Main navigation keeps its gray background and existing system/reader grayscale.
+- Pico充电闪电采用固定黑底与白色描边，低电量仍清晰；电量/充电变化只更新可见头栏，覆盖层或沉浸阅读不插入更新。高段百分比加入中位数与按时间收敛，避免插拔后电压回落造成瞬时跳数；真正低电/低压立即采用有效原始读数。原PMU查表与原始诊断保持，绝对容量精度仍需放电校准。
+  Pico charge icons use a fixed black well and white bolt, with power changes updating only visible headers outside overlays/immersive reading. Upper-SOC median/time convergence smooths cable-related jumps; valid low-SOC/voltage samples bypass smoothing. Preserve PMU tables/raw diagnostics; absolute accuracy still needs discharge calibration.
+- Pico挂卡先发布可读状态，容量统计延后到文件管理后台请求；统计不再伪装成重新挂载，重挂/格式化与统计互斥，适用于大容量FAT卡。未知空间显示统计中，保留真实错误与拔卡检测。
+  Pico publishes readable mounts before file-manager background allocation accounting, which no longer reports a remount. Serialize accounting with remount/format, preserve removal/errors, and show pending space rather than false free capacity on large FAT media.
+- S31返回主页恢复底栏时，浅灰底从白用既有轻量驱动，旧文字先沿原DU擦白，不再使用灰阶黑复位；保留底栏灰底、黑色图标文字与内容区水波纹，普通返回同样适用。
+  Restore S31 navigation with existing light-gray driving from white and original DU whitening for old ink, avoiding gray black resets. Retain the gray background, black icons/text and content ripple; ordinary back uses the same policy.
+
+- S31设置/文件内容黑白、底栏恢复原灰阶底色；主页面切换遵循所选水波纹模式。修正侧滑动画的物理/逻辑屏幕尺寸混用，避免裁剪失败后误入整屏恢复，二级页面仅从左边缘向右返回使用LTR条带动画，点按进入/左上角或物理返回/分页仍普通刷新。充电图标黑底白描边，并用实际电流与有界异常保留改善漏显示。
+  S31 Settings/Files keep BW content and the original gray navigation background; main-tab changes honor Water mode. Correct physical/logical bounds that caused edge animation crop failures and full recovery. Only rightward child back swipes animate LTR; child taps,top-left/physical back and paging remain ordinary. Keep the black charging well/white outline with current-assisted detection and bounded fault retention.
+
+
+- S31二级页面扩展到完整高度：目录操作、分页、系统键盘及传输底部控件重新定位；字体列表和样式预览不再裁于旧底栏。侧滑返回使用柔和端点并将周期清理合入同轮十条带扫描，减少额外黑闪，保持灰阶与故障恢复。
+  Expand S31 child layouts to the full viewport, anchoring file actions,paging,keyboards and transfer footers below the old navigation boundary. Back swipes use soft endpoints and incorporate periodic cleanup into one ten-band pass, retaining gray targets and recovery.
+
+- S31普通文字翻页按真实前后帧跳过全保持前导相，保留一相准备及GL48全部有效驱动/尾相，进度继续一次输出；不固定裁相、不降低普通阅读灰阶。
+  S31 ordinary text skips only actual all-hold leading phases, retaining one setup phase and every active/tail GL48 phase with fused progress. No fixed trim or reduced ordinary-reading grayscale.
+
+- S31新增显式本地文字水波纹实验包：四级目标、22相/8带，正文进度一次输出，最多十页原厂GC48清理；保留普通构建、主页面和图片完整灰阶，扫描失败后本次开机降回原文字路径。实验灰阶尚需实屏验证。
+  Add an explicit local S31 text-ripple experiment: four target levels,22 phases/8 bands and fused reading progress, with vendor GC48 within ten turns. Regular builds/main pages/images retain full grayscale; scan failures disable the experiment for that boot. Optical tones still require panel validation.
+
+- S31切页把TPS唤醒等待与绘制重叠，整帧差分复用Core1供屏任务，1KiB预置查表减少逐行运算；空闲根页保留128行、射频活动保留192行预填，保留原波形、相位下限和每次断轨。DMA供数按官方缓存安全配置运行，队列指针表固定内部RAM并修复过量分配；扩大内部DMA缓冲并分段描述符，提高中断优先级并过滤准备/停止期旧中断，全显示输出与SDK Flash操作互斥，未完成扫描仍恢复。
+  Overlap S31 TPS wake waiting with paint, reuse the Core1 feeder for whole-frame differences and pre-position the existing1KiB LUT. Retain128 idle-root rows and192 rows during radio activity, with original waveforms,phase minima and power-off after output. Use official cache-safe DMA settings and a correctly sized internal-RAM queue pointer table; enlarge internal DMA buffers with bounded descriptor chains,prioritize feeding and reject stale prepare/stopped interrupts. Incomplete scans still recover.
+- 书架处理后的灰阶封面共用既有LRU，源像素、旋转、尺寸、对比度和点阵相位变化时重建，低内存直接绘制；首页分钟更新合并状态栏与静态表盘，减少重复扫描。
+  Cache finished grayscale shelf artwork within the existing LRU, rebuilding on source,rotation,size,contrast or dither-phase changes and drawing directly on low memory. Fuse Home minute header/clock updates to avoid duplicate scans.
+
+- S31本地PIE验证：显式实验包的Core1供屏掩码采用128位向量运算，对齐差分支持同核向量路径，Core0主任务及未对齐/尾部保持C，不强迁移任务。保留原始波形、扫描节拍和供电；运算微基准不等同于界面切换耗时，常规构建默认关闭PIE，交付构建关闭USB测试命令。
+  Local S31 PIE validation: explicit experiments use128-bit Core1 masks/aligned differences, retaining C onCore0 and for unaligned/tail inputs without migrating tasks. Preserve waveforms,scan cadence and power; kernel microbenchmarks are not UI latency. Normal builds disable PIE,and delivery excludes USB test commands.
+
+- S31下拉菜单按Pico用完整灰阶显示玻璃，启用圆钮只显示状态点，保留折射底图和黑色图标；保留2×2布局、前光和双滑块的局部跟手反馈。网络状态栏单独灰阶更新，不扩大滑块刷新区域。
+  Present S31 quick-menu glass in full grayscale like Pico; active keys retain refracted backgrounds/black icons and show a badge. Keep the2×2 layout,frontlight and local slider feedback. Update network status separately in grayscale without expanding slider updates.
+
+- 玻璃控件复用四个对称位置的折射计算，整数模糊热路径单独优化；保留原有灰阶像素、形状、布局与关闭释放规则，不增加常驻缓存。
+  Share refraction geometry across four symmetric glass pixels and optimize the integer blur hot path, preserving pixels, shapes, layout and release-on-close without retained caches.
+- S31完全相同的主页面重绘不再唤醒屏幕高压；空闲普通/黑白切页减少备行等待，传输或欠载后保留保守余量。原始波形、相位下限、供电顺序与手动全刷保持。
+  Avoid waking S31 display HV for identical main-page repaints. Reduce prefill waiting for idle ordinary/BW transitions while retaining conservative margins during transfers or after underruns, with original waveforms, minimum phase timing, power sequencing and manual full refresh.
+- 修复差分区域右边缘误用左边缘像素奇偶、导致边界多算或漏算的问题，补充裁剪与半字节边界回归。
+  Fix difference bounds testing the left edge's parity at the right edge, which could enlarge or truncate the result, with crop/nibble regression coverage.
+
+## 本地整合 / Local integration / 2026-10-19
+
+- 加快首页时钟：小屋与IKEA缓存字体无关的房体/刻度，数字和指针保持实时；猫咪眼睛不再重复解码底图，Kehai圆环轨迹与圆点复用分钟底图的局部区域。月相、星号、融化时钟及放大时间页共用有界PSRAM缓存，保留原灰阶与抗锯齿；缓存不足直接绘制，进入阅读前释放。
+  Speed up Home clocks: cache font-independent House/IKEA bodies and ticks while keeping numerals/hands live. Cat eyes reuse their decoded face, and Kehai trail/dot crops reuse a minute base. Moon, Asterisk, Dali and enlarged time views share bounded PSRAM caches with unchanged grayscale/AA; draw directly when scratch is unavailable and release it before reading.
+- 原版墨水屏的主页差分刷新合并底栏横条，省去一次单独推屏；固定图标与标签保持，周期清理、失败恢复及原波形相位不变。
+  Fuse the original board's navigation marker with differing main content to remove a separate scan, retaining fixed icons/labels, periodic cleanup, recovery and all original waveform phases.
+
+- 下拉菜单直接复用当前画面，顶部缓存用于收起还原，不再重复重画整页；玻璃模糊每个源像素只解包一次，保持原有灰阶、折射及圆键局刷。
+  Open quick controls over the existing page and restore a top-only snapshot on close instead of repainting the page. Unpack each glass source pixel once, preserving grayscale, refraction and local key feedback.
+- 恢复TF目录中的「设为书籍目录」「设为字体目录」，重启后保留；移动或改名时更新引用，删除后回退默认目录。设置保存失败时保留原选择，目录按钮与分页控件分开。
+  Restore custom book/font roots in the TF browser and persist them across restarts. Rebase moved/renamed roots, fall back after deletion, and retain the prior choice if saving fails; keep root buttons separate from pagination.
+
+- 下拉菜单锁屏前先还原底页，透明书封不再包含菜单；点全刷自动收起菜单，只全刷还原后的页面。保留圆键的局部点按反馈。
+  Restore the underlying page before quick-menu locking so transparent covers exclude the menu. Full refresh dismisses the menu and refreshes the restored page, retaining local button feedback.
+- 继续阅读书摘按当前已保存章节校验并更新，正文切入成功后提取完整短句；不再长期沿用整本书第一次缓存的句子。标题、目录、图片说明及无完整句子的章节不使用旧章书摘；首页不额外打开或解析书籍。
+  Validate Continue Reading excerpts against the saved chapter and extract a complete sentence after successful chapter entry. Never reuse a book's first quote across chapters or old chapter excerpts for headings, navigation, images or chapters without complete prose. Home does not open or parse books for this.
+
+- 透明书封按行解码并缓存PNG叠加层，锁屏仍使用当前已显示页面；减少与书内字体、插图争用的大块连续内存。保留原alpha与边缘连通去白规则，缓存校验失败时重建。
+  Stream and cache the PNG cover layer over the actual displayed page, avoiding full-layer allocations competing with embedded fonts/illustrations. Preserve alpha and edge-connected white removal; rebuild invalid caches.
+- 设置最下方增加「恢复出厂设置」，二次确认后重置偏好、资料卡、Wi-Fi、蓝牙配对和锁屏密码；保留TF文件、阅读记录、硬件校准及分区。失败会提示重试。
+  Add a twice-confirmed Factory Reset at the bottom of Settings, resetting preferences/profile/Wi-Fi/Bluetooth/PIN while retaining TF files, reading history, calibration and partitions. Report failures for retry.
+- 单击电源键仍锁屏；锁屏后两次短按释放间隔60–600ms才唤醒，有密码时再进入验证。拿起、单击和睡眠异常不直接解锁；主机深睡的硬件上电阶段仍受设备启动延迟影响。
+  Keep single-press locking; require two short releases 60–600ms apart to wake, then verify an enabled PIN. Pickup/single presses/sleep faults do not unlock. Host power-up from deep sleep remains subject to board boot latency.
+- 普通纯文字翻页使用与水波纹相同的灰阶扫描时序，全部相位同步输出，不追加补灰刷新；保留周期全刷、图片和背景路径。最终观感与耗时需真机确认。
+  Ordinary text turns share ripple gray scanning, outputting all phases synchronously without another gray pass. Retain periodic full refresh, illustrations and backgrounds. Optical quality and elapsed time require hardware confirmation.
+
+- Metalio首页继续阅读卡片改为纯白。设置主列表与文件管理内容使用黑白目标和完整DU20，切入与设置列表滚动不再等待灰阶补刷；固定底栏沿用已显示像素，首页/书架灰阶与设置子页的图片预览保留。
+  Keep the Metalio Continue Reading card white. Root settings and file content use binary targets and complete DU20, avoiding gray completion passes for entry/settings scrolling. Retain displayed navigation, Home/Bookshelf grays and image previews in settings subpages.
+
+- S31月相、星号和达利时钟复用现有可释放的分钟缓存，裁剪/方向/样式变化时重绘。普通空闲切页减少备行等待，欠载后恢复保守余量；原始波形、相位脉宽及屏幕供电顺序保持。
+  Reuse the existing releasable minute cache for S31 Moon/Asterisk/Dali clocks, redrawing changed clips/rotation/styles. Reduce prefill waiting for idle ordinary transitions, restoring the conservative margin after underruns; retain raw waveforms, phase pulses and power sequencing.
+
+- Metalio普通主页切换复用书架外框的定向黑白端点，保留完整中灰相位，减轻白底先压黑；周期整理与底栏横条合并同轮扫描，低内存回退不误记已完成整理。文件管理首帧已扫描完时不再重复统计并整页刷新，保留挂载与分配失败重试。
+  Metalio ordinary root transitions share directional shelf-chrome endpoints while retaining complete midgray phases. Fuse periodic cleanup with the footer marker and retain cleanup debt after memory fallback. Avoid a duplicate completed file-entry scan/present while preserving mount/allocation retries.
+
+- 保留S31原厂GC48/GL48/DU20与供电时序；新增切页分段耗时日志供实机验收。当前普通灰阶配置48相、每相至少12ms，不能将完整刷新标为300ms以内。
+  Retain S31 vendor GC48/GL48/DU20 and power timing, with stage timings for hardware acceptance. The current ordinary gray profile has 48 phases at a minimum 12ms each; complete refresh is not claimed below 300ms.
+
+## 本地整合 / Local integration / 2026-10-18
+
+- Metalio同步正式rc97的锁屏读取失败放行与重试、紧凑启动检查点和旧记录迁移；共用启动记录实现但保留各板命名空间。补齐快捷蓝牙关闭取消、合成帧直接全刷及书架白底，保留S31前光双滑块、振动、字体事务与独立电源/睡眠流程。
+  Align Metalio with rc97 lock-setting recovery and compact startup checkpoints, sharing record logic while preserving board namespaces. Complete quick Bluetooth off/cancellation, composed-frame full refresh and white shelf chrome, retaining S31 light sliders, haptics, font transactions and power/sleep handling.
+
+- Metalio文件管理、设置及其传输/图片子页隐藏底栏；左侧32px边缘向右滑返回上一层并使用一次十条带水波纹。主页水波纹模式也适用于文件/设置及二级页切换，保留灰阶、上传/升级门禁和定期清理。
+  Metalio file/settings children and their transfer/image pages hide navigation. Swipe right from the left32px edge to return with one ten-band ripple. Water mode also applies to Files/Settings and child-page changes, retaining grays, upload/update guards and periodic cleanup.
+
+- 新增板型选择层，同一份阅读器/UI源码可选择 `pico`、`metalio47` 或一次生成两个本地固件包；驱动、波形、供电、编译目标、设置空间与分区按设备隔离，校验镜像身份和烧录地址。Metalio保留V1.5硬件适配及本地OTA策略，原始波形表不变。构建说明见 [双板型构建](BOARDS.md)。
+  Add board selection for one maintained reader/UI source and separate Pico/S3 and Metalio 4.7/S31 builds, with isolated drivers, waveforms, power, targets, settings and partitions. Validate image identities and flash plans. Retain Metalio V1.5 hardware and OTA policy; raw waveform tables remain unchanged. See [board builds](BOARDS.md).
 
 ## 0.3.3-rc97 / 2026-10-18
 

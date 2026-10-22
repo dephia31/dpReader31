@@ -1,3 +1,4 @@
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/board.cmake")
 idf_build_get_property(target IDF_TARGET)
 set(IDF_VERSION "${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}.${IDF_VERSION_PATCH}")
 
@@ -109,7 +110,7 @@ if(CONFIG_TINYUSB_MTP_ENABLED)
          "mtp/tinyusb_mtp_write.c")
 endif() # CONFIG_TINYUSB_MTP_ENABLED
 
-set(kiiko_selected_sources ${srcs})
+kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" ${srcs})
 idf_component_register(SRCS ${kiiko_selected_sources}
                        INCLUDE_DIRS "include"
                        PRIV_INCLUDE_DIRS "include_private"

@@ -30,6 +30,8 @@ static SemaphoreHandle_t mutex;
 // Match reference boot rails: P05 display, P12 touch reset, P14 VOUT high.
 static uint8_t outputs[2]={0x20,0x14};
 static bool tps_on;
+static bool tps_prepared;
+static int64_t tps_wake_us;
 static int tps_last_vcom_mv=-1;
 static bool fl_ready;
 static uint8_t saved_brightness=30,saved_warmth=50;
@@ -169,6 +171,7 @@ void metalio_volume_clear(void) {
     portEXIT_CRITICAL(&volume_lock);
 }
 void metalio_tps_off(void) {
+    tps_prepared=false;
     // E0470A14-AF：XOE 关闭至少 12us 后才撤掉屏幕电压。
     // E0470A14-AF requires XOE low at least 12us before display rail shutdown.
     gpio_set_level(GPIO_NUM_18,0); gpio_set_level(GPIO_NUM_19,0);
@@ -197,13 +200,25 @@ int metalio_tps_vcom_mv(void) {
 // VCOM low, 50 ms, REVID, UPSEQ0/1, raise PWRUP and VCOM_CTRL together, wait for the
 // expander PWR_GOOD, ENABLE=0x3F, then write VCOM (after VCOM_CTRL is high), wait for
 // PG=0xFA. XOE is opened through the ctrl state afterwards.
-esp_err_t metalio_tps_on(int mv) {
-    if (mv<0 || mv>5110) return ESP_ERR_INVALID_ARG;
-    if (tps_on) return ESP_OK;
+esp_err_t metalio_tps_prepare(void) {
+    if(tps_on||tps_prepared)return ESP_OK;
     esp_err_t err=metalio_io_set(0,false);
     if (err==ESP_OK) err=metalio_io_set(1,false);
     if (err==ESP_OK) err=metalio_io_set(2,true);
-    vTaskDelay(pdMS_TO_TICKS(50));
+    if(err!=ESP_OK){metalio_tps_off();return err;}
+    tps_wake_us=esp_timer_get_time();tps_prepared=true;
+    return ESP_OK;
+}
+void metalio_tps_cancel_prepare(void) { if(tps_prepared)metalio_tps_off(); }
+esp_err_t metalio_tps_on(int mv) {
+    if (mv<0 || mv>5110) return ESP_ERR_INVALID_ARG;
+    if (tps_on) return ESP_OK;
+    esp_err_t err=metalio_tps_prepare();
+    if(err!=ESP_OK)return err;
+    // 不缩短厂家50ms；把尚未经过的等待向上取整，避免tick截断。/ Retain the vendor50ms, rounding remaining ticks upward.
+    int64_t remaining=50000-(esp_timer_get_time()-tps_wake_us);
+    if(remaining>0)vTaskDelay((remaining+portTICK_PERIOD_MS*1000-1)/(portTICK_PERIOD_MS*1000));
+    tps_prepared=false;
     uint8_t revision=0;
     if (err==ESP_OK) {
         for (unsigned attempt=0;attempt<3;attempt++) {

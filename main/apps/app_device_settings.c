@@ -43,7 +43,11 @@
 #include "app_transfer_mode.h"
 #include "settings.h"
 #include "factory_reset.h"
+#include "book_cover_jobs.h"
+#if KIIKO_BOARD_METALIO47
 #include "sleep.h"
+#else
+#endif
 #include "lock_pin_flow.h"
 #include "ui_pinpad.h"
 #include "book_lock_collage.h"
@@ -63,7 +67,6 @@
 #include "ui_nav.h"
 #include "ui_wallpaper.h"
 #include "ui_avatar.h"
-#include "book_cover_jobs.h"
 #include "read_pico_search.h"
 #include "book_store.h"
 #include "book_cover.h"
@@ -77,14 +80,9 @@
 #include "display_main_waveform.h"
 #include "e0470_epaper_waveform.h"
 #include "pmu_selftest.h"
-#include "kiiko_board.h"
-#if KIIKO_BOARD_HAS_FRONTLIGHT || KIIKO_BOARD_HAS_VOLUME_KEYS || KIIKO_BOARD_HAS_USB_DOWNLOAD
+#if KIIKO_BOARD_METALIO47
 #include "metalio_hw.h"
-#endif
-#if !KIIKO_BOARD_HAS_USB_DOWNLOAD
-/* BOOT 页在 Pico 上靠 RTC 选项位请求下载模式；S31 用 GPIO36 的 USJ 交接，没有这个寄存器。 */
-/* The Pico BOOT page asks for download mode through an RTC option bit; the S31 uses the GPIO36
- * USJ handover and has no such register. */
+#else
 #include "soc/rtc_cntl_reg.h"
 #endif
 
@@ -96,12 +94,17 @@ typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
                SETTINGS_SYSTEM_SIZE, SETTINGS_SYSTEM_CONTRAST, SETTINGS_MAIN_REFRESH, SETTINGS_LOCK_STYLE,
                SETTINGS_WALLPAPER, SETTINGS_WALLPAPER_PREVIEW,
                SETTINGS_CONFIG, SETTINGS_UPGRADE, SETTINGS_BOOT, SETTINGS_FACTORY_RESET,
-#if KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY
-               SETTINGS_LOCK_SLEEP,
-#endif
+#if KIIKO_BOARD_METALIO47
+               SETTINGS_POWER_SLEEP, SETTINGS_LOCK_SLEEP, SETTINGS_AUTO_LOCK, SETTINGS_PROFILE, SETTINGS_AVATAR,
+#else
                SETTINGS_POWER_SLEEP, SETTINGS_AUTO_LOCK, SETTINGS_PROFILE, SETTINGS_AVATAR,
+#endif
                SETTINGS_BLUETOOTH, SETTINGS_BLE_SCAN,
+#if KIIKO_BOARD_METALIO47
                SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT, SETTINGS_FRONTLIGHT } settings_page_t;
+#else
+               SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT } settings_page_t;
+#endif
 static settings_page_t s_page;
 static int settings_content_end(void) {
     return UI_NAV_REFRESH_END;
@@ -134,7 +137,15 @@ static void pin_setup_open(app_ctx_t *ctx, bool disable) {
 }
 static app_redraw_t pin_paint(app_ctx_t *ctx, EpdRect area) {
     ui_pinpad_paint(ctx->fb, &s_pinpad, area);
+#if KIIKO_BOARD_METALIO47
+    bool previous=display_system_binary_set(true);
+    bool previous_nav=display_system_navigation_set(true);
+#endif
     guard_draw_result(ctx->hl, update_display_area_diff_with(ctx->hl, &E0470_WAVEFORM, MODE_GL16, area));
+#if KIIKO_BOARD_METALIO47
+    display_system_navigation_set(previous_nav);
+    display_system_binary_set(previous);
+#endif
     return APP_REDRAW_DONE;
 }
 static app_redraw_t pin_setup_tick(app_ctx_t *ctx) {
@@ -179,9 +190,10 @@ static bool s_config_confirm;
 // tick rather than a touch callback.
 static bool s_panel_repair_pending;
 static bool s_boot_pending;
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
+#if KIIKO_BOARD_METALIO47
 static bool s_boot_connected;
 static char s_boot_notice[96];
+#else
 #endif
 static bool s_upgrade_confirm, s_upgrade_online, s_local_pending, s_upgrade_restart;
 static pico_ota_info_t s_local_update;
@@ -322,7 +334,6 @@ static void draw_upgrade_notes(uint8_t *fb) {
 static EpdRect upgrade_confirm_button(bool online, bool accept) {
     return (EpdRect){accept ? 364 : 60, online ? 842 : 613, 260, 64};
 }
-
 #if KIIKO_BOARD_METALIO47
 // 中文：本地TF升级与显示同属UI任务；先归还缓存并关面板轨，再擦写应用槽。
 // English: Local TF installation runs on the display's UI task; release caches/rails before flash writes.
@@ -336,8 +347,9 @@ static esp_err_t install_local_update(void) {
     epd_poweroff();
     return pico_ota_install(PICO_OTA_UPDATE_PATH, s_upgrade_notice, sizeof(s_upgrade_notice));
 }
-#endif
 
+#else
+#endif
 static void upgrade_open(void) {
     (void)pico_ota_inspect(PICO_OTA_UPDATE_PATH, &s_local_update);
     pico_online_get_status(&s_update);
@@ -359,9 +371,7 @@ static int settings_main_row_height(void) {
 }
 #define SETTINGS_ROW_H settings_main_row_height()
 #define SETTINGS_WIRELESS_ROWS 3
-#if KIIKO_BOARD_HAS_FRONTLIGHT
-// S31 显示组多一行「前光与振动」。
-// The S31 display group carries an extra frontlight-and-haptics row.
+#if KIIKO_BOARD_METALIO47
 #define SETTINGS_DISPLAY_ROWS 7
 #else
 #define SETTINGS_DISPLAY_ROWS 6
@@ -890,9 +900,7 @@ static bool s_avatar_ready, s_avatar_pending;
 static char s_main_wifi[33];
 static bool s_main_wifi_saved;
 static void render_content(app_ctx_t *ctx, uint8_t *fb) {
-#if KIIKO_BOARD_HAS_FRONTLIGHT
-    // 前光页不滚列表，整页一次画完并保留固定底栏。
-    // The frontlight page never scrolls; it paints in one pass and keeps fixed navigation.
+#if KIIKO_BOARD_METALIO47
     if(s_page==SETTINGS_FRONTLIGHT) {
         epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb); back_header(fb,"前光与振动");
         char value[48]; snprintf(value,sizeof(value),"%u%%",metalio_brightness());
@@ -900,10 +908,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         snprintf(value,sizeof(value),"%u%%",metalio_warmth()); row(fb,530,"暖光比例",value);
         row(fb,620,"冷光","暖光"); row(fb,750,"前光",metalio_frontlight_enabled()?"开启":"关闭");
         row(fb,850,"触摸振动",metalio_haptic_enabled()?"开启":"关闭");
-        // 底栏由外层 render() 统一补画，这里只结束内容区。
-        // The outer render() adds navigation; this branch only ends the content area.
-        return;
+        settings_navigation(fb); return;
     }
+#else
 #endif
     (void)ctx;
     if (s_page == SETTINGS_PIN_ENTRY) { ui_pinpad_paint(fb, &s_pinpad, ui_pinpad_full()); return; }
@@ -1230,7 +1237,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             if (active) epd_fill_circle(609, box.y + box.height / 2, 8, UI_GRAY_BLACK, fb);
         }
         ui_text(fb, 48, 760, 23, "操作后重新计时，传输和升级期间暂停", EPD_DRAW_ALIGN_LEFT, false);
-#if KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY
+#if KIIKO_BOARD_METALIO47
         ui_text(fb, 48, 810, 23, "省电选项见“关机睡眠”", EPD_DRAW_ALIGN_LEFT, false);
 #else
         ui_text(fb, 48, 810, 23, "锁屏先浅睡，10 分钟后进入深睡", EPD_DRAW_ALIGN_LEFT, false);
@@ -1241,42 +1248,25 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #if KIIKO_BOARD_METALIO47
     if (s_page == SETTINGS_POWER_SLEEP) {
         back_header(fb, "关机睡眠");
-        section(fb, 236, "选择电源菜单中“关机”的方式");
-        const char *shutdown_labels[] = {"彻底关机", "锁屏待机"};
-        const char *shutdown_details[] = {"完全断电，长按电源键开机",
-                                          "按下方锁屏省电方式待机"};
+        section(fb, 248, "选择电源菜单中“关机”的方式");
+        const char *labels[] = {"彻底关机", "锁屏待机"};
+        const char *details[] = {"完全断电，长按电源键开机",
+                                 "按下方方式保留锁屏"};
         for (int i = 0; i < 2; ++i) {
-            int y = 278 + i * 136;
+            EpdRect box = {36, 300 + i * 154, 612, 132};
             bool active = app_settings_staged_shutdown() == (i == 1);
-            settings_card(fb, (EpdRect){36, y, 612, 124}, 22, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
-            ui_text(fb, 64, y + 20, 29, shutdown_labels[i], EPD_DRAW_ALIGN_LEFT, false);
-            ui_text(fb, 64, y + 72, 20, shutdown_details[i], EPD_DRAW_ALIGN_LEFT, false);
-            if (active) epd_fill_circle(609, y + 62, 8, UI_GRAY_BLACK, fb);
+            settings_card(fb, box, 22, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
+            ui_text(fb, 64, box.y + 23, 29, labels[i], EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 64, box.y + 79, 20, details[i], EPD_DRAW_ALIGN_LEFT, false);
+            if (active) epd_fill_circle(609, box.y + 66, 8, UI_GRAY_BLACK, fb);
         }
-        ui_text(fb, 54, 558, 21, "彻底关机完全断电；锁屏待机按下方方式保留。", EPD_DRAW_ALIGN_LEFT, false);
-        // 用户修订：开机按键次数可选，单击更快、双击防误触；深睡唤醒与锁屏解锁共用。
-        // User revision: the boot press count is selectable; one press is faster, two resist accidental wake. Deep-sleep wake and lock unlock share it.
-        section(fb, 616, "按电源键开机");
-        const char *wake_labels[] = {"单击开机", "双击开机"};
-        const char *wake_details[] = {"按一次电源键就开机，更快", "连续按两次，放在包里不易误开机"};
-        for (int i = 0; i < 2; ++i) {
-            int y = 656 + i * 112;
-            bool active = app_settings_wake_presses() == (uint8_t)(i + 1);
-            settings_card(fb, (EpdRect){36, y, 612, 100}, 22, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
-            ui_text(fb, 64, y + 14, 27, wake_labels[i], EPD_DRAW_ALIGN_LEFT, false);
-            ui_text(fb, 64, y + 60, 20, wake_details[i], EPD_DRAW_ALIGN_LEFT, false);
-            if (active) epd_fill_circle(609, y + 50, 8, UI_GRAY_BLACK, fb);
-        }
-        ui_text(fb, 54, 894, 21, "深睡唤醒与锁屏解锁都按这个次数。", EPD_DRAW_ALIGN_LEFT, false);
-        // 锁屏待机三档单独成页，这一行只显示当前取值。
-        // The lock standby levels live on their own page; this row only shows the current one.
-        section(fb, 934, "锁屏后使用的待机方式");
+        ui_text(fb, 54, 664, 21, "浅睡按键返回，深睡重启恢复。", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 708, 21, "壁纸与票根均可锁屏。", EPD_DRAW_ALIGN_LEFT, false);
         const char *modes[]={"保留待机", "浅睡省电", "深睡省电"};
-        row(fb, 966, "锁屏省电方式", modes[app_settings_lock_sleep()]);
+        row(fb, 774, "锁屏省电方式", modes[app_settings_lock_sleep()]);
         settings_navigation(fb);
         return;
     }
-#if KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY
     if (s_page == SETTINGS_LOCK_SLEEP) {
         back_header(fb, "锁屏省电方式");
         section(fb, 248, "锁屏后使用的待机方式");
@@ -1298,7 +1288,6 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_navigation(fb);
         return;
     }
-#endif
 #else
     if (s_page == SETTINGS_POWER_SLEEP) {
         back_header(fb, "关机睡眠");
@@ -1338,7 +1327,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     if (s_page == SETTINGS_BOOT) {
         back_header(fb, "电脑刷机");
         settings_card(fb, (EpdRect){36, 254, 612, 298}, 22, UI_GRAY_WHITE, 0x70);
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
+#if KIIKO_BOARD_METALIO47
         ui_text(fb, 60, 288, 29, "准备 BOOT 下载口", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 60, 350, 22, "用于本机 S31 固件更新或故障恢复", EPD_DRAW_ALIGN_LEFT, false);
         ui_draw_button(fb, (EpdRect){60, 438, 564, 78}, s_boot_pending ? "正在准备" :
@@ -1349,14 +1338,13 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             "连接 USB 后准备下载口，再到电脑检查连接", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 48, 670, 20, "电脑将触发下载模式；等待时可返回退出。", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 48, 714, 20, "电脑确认 S31 身份后，才表示进入 ROM。", EPD_DRAW_ALIGN_LEFT, false);
-        ui_nav_draw(fb, 3); return;
 #else
         ui_text(fb, 60, 288, 29, "进入 BOOT 模式", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 60, 350, 22, "用于官网完整刷机或故障恢复", EPD_DRAW_ALIGN_LEFT, false);
         ui_draw_button(fb, (EpdRect){60, 438, 564, 78}, s_boot_pending ? "正在进入" : "进入 BOOT 模式", false);
         ui_text(fb, 48, 620, 22, "请用 USB 连接电脑，再打开官网刷机页", EPD_DRAW_ALIGN_LEFT, false);
-        settings_navigation(fb); return;
 #endif
+        settings_navigation(fb); return;
     }
     if (s_page == SETTINGS_UPGRADE) {
         back_header(fb, "系统升级");
@@ -1546,6 +1534,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         int avatar_y=profile_y+(profile_h-82)/2;
         bool avatar_ok=s_avatar_ready;
         if (avatar_ok) ui_wallpaper_draw_avatar(fb,s_avatar_pixels,(EpdRect){57,avatar_y,82,82},20);
+#if KIIKO_BOARD_METALIO47
+        if (app_settings_main_fast_refresh() && avatar_ok) ui_image_bw_rect(fb,(EpdRect){57,avatar_y,82,82});
+#endif
         if (!avatar_ok) {
             ui_fill_round_rect(fb,(EpdRect){57,avatar_y,82,82},20,0x30);
             ui_text_fixed_vc(fb,98,avatar_y+41,49,"K",EPD_DRAW_ALIGN_CENTER,true);
@@ -1570,16 +1561,17 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     snprintf(contrast,sizeof(contrast),"%u%%",app_settings_system_contrast());
     unsigned minutes=app_settings_auto_lock_minutes();
     if(minutes)snprintf(idle,sizeof(idle),"%u 分钟",minutes);else strcpy(idle,"关闭");
-#if KIIKO_BOARD_HAS_FRONTLIGHT
+#if KIIKO_BOARD_METALIO47
     const char *display_labels[]={"系统字体","系统对比度","主页刷新模式","首页强刷","自动休眠锁屏","关机睡眠","前光与振动"};
+#else
+    const char *display_labels[]={"系统字体","系统对比度","主页刷新模式","首页强刷","自动休眠锁屏","关机睡眠"};
+#endif
     const char *display_values[]={font_name,contrast,
         app_settings_main_refresh_mode()==APP_MAIN_REFRESH_FAST?"快刷":app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER?"水波纹":"普通",
+#if KIIKO_BOARD_METALIO47
         app_settings_home_full_refresh()?"开启":"关闭",idle,app_settings_staged_shutdown()?"锁屏待机":"彻底断电","亮度与色温"};
     const int display_icons[]={2,7,15,11,14,9,7};
 #else
-    const char *display_labels[]={"系统字体","系统对比度","主页刷新模式","首页强刷","自动休眠锁屏","关机睡眠"};
-    const char *display_values[]={font_name,contrast,
-        app_settings_main_refresh_mode()==APP_MAIN_REFRESH_FAST?"快刷":app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER?"水波纹":"普通",
         app_settings_home_full_refresh()?"开启":"关闭",idle,app_settings_staged_shutdown()?"先浅后深":"彻底断电"};
     const int display_icons[]={2,7,15,11,14,9};
 #endif
@@ -1593,15 +1585,13 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const int personal_icons[]={4,5,16,10};
     setting_group(fb,SETTINGS_PERSONAL_Y-49,"个性化功能",SETTINGS_PERSONAL_Y,
                   personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
+    const char *maintenance_labels[]={"系统升级","保存与恢复","屏幕修复","BOOT 刷机","恢复出厂设置"};
 #if KIIKO_BOARD_METALIO47
-    const char *maintenance_labels[]={"系统升级","保存与恢复","屏幕修复","BOOT 刷机","恢复出厂设置"};
     const char *maintenance_values[]={"本地 TF 卡","配置","清除条纹","电脑刷机","重置系统"};
-    const int maintenance_icons[]={12,8,17,13,11};
 #else
-    const char *maintenance_labels[]={"系统升级","保存与恢复","屏幕修复","BOOT 刷机","恢复出厂设置"};
     const char *maintenance_values[]={"OTA / TF 卡","配置","清除条纹","电脑刷机","重置系统"};
-    const int maintenance_icons[]={12,8,17,13,11};
 #endif
+    const int maintenance_icons[]={12,8,17,13,11};
     setting_group(fb,SETTINGS_MAINTENANCE_Y-49,"升级和恢复",SETTINGS_MAINTENANCE_Y,
                   maintenance_icons,maintenance_labels,maintenance_values,SETTINGS_MAINTENANCE_ROWS);
     // 主列表也要有一行提示位：确认、修复结果都写在这里，不然点了没有任何回音。
@@ -1612,10 +1602,21 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     ui_text(fb, 36, 91, 52, "设置", EPD_DRAW_ALIGN_LEFT, false);
     if (s_notice[0]) ui_text_fixed_vc(fb, 36, 138, 20, s_notice, EPD_DRAW_ALIGN_LEFT, false);
     settings_navigation(fb);
+#if KIIKO_BOARD_METALIO47
+    if(app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL){
+        // 与书架共用逐相输出：状态栏/题头柔和，内容白像素不反向压黑；不影响其他模式。
+        // Reuse shelf scan phases: soft status/title and no reverse-blackening on content whites, without changing other modes.
+        const EpdRect content={0,160,UI_LOCK_WIDTH,UI_NAV_REFRESH_END-160};
+        display_main_transition_gray_bands(&content,1);
+    }
+#endif
 }
 
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     render_content(ctx,fb);
+#if KIIKO_BOARD_METALIO47
+    display_monochrome_content(fb);
+#endif
     settings_navigation(fb);
 }
 
@@ -1726,7 +1727,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
             if (area.y<160) { area.height-=160-area.y; area.y=160; }
             if(area.height>0)guard_draw_result(ctx->hl,update_display_area_diff_with(ctx->hl,
 #if KIIKO_BOARD_METALIO47
-                app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL?display_main_shelf_soft_waveform():display_main_gray_waveform(),MODE_GL16,area));
+                display_main_bw_waveform(),MODE_DU,area));
 #else
                 app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL?display_main_normal_waveform():display_main_gray_waveform(),MODE_GL16,area));
 #endif
@@ -1795,7 +1796,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     (void)ctx;
     if (s_boot_pending) {
         s_boot_pending = false;
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
+#if KIIKO_BOARD_METALIO47
         esp_err_t err=app_enter_download();
         s_boot_connected=metalio_download_connected();
         if (err==ESP_OK) s_boot_notice[0]=0;
@@ -1999,21 +2000,33 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 
     if (s_page == SETTINGS_BOOT) {
         if (ev->type != UI_GESTURE_TAP || s_boot_pending) return APP_REDRAW_NONE;
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
+#if KIIKO_BOARD_METALIO47
         if (ev->y0 < 190 && ev->x0 < 170) { app_cancel_download(); s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
         if (ui_rect_hit((EpdRect){60, 438, 564, 78}, ev->x0, ev->y0)) { s_boot_notice[0]=0; s_boot_pending = true; return APP_REDRAW_PAGE; }
-        int tab = ui_nav_hit(ev->x0, ev->y0);
 #else
         if (ev->y0 < 190 && ev->x0 < 170) { s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
         if (ui_rect_hit((EpdRect){60, 438, 564, 78}, ev->x0, ev->y0)) { s_boot_pending = true; return APP_REDRAW_PAGE; }
-        int tab = settings_nav_hit(ev->x0, ev->y0);
 #endif
+        int tab = settings_nav_hit(ev->x0, ev->y0);
         if (tab >= 0) ui_nav_request(ctx, tab);
         return APP_REDRAW_NONE;
     }
     if (s_page == SETTINGS_UPGRADE) {
         if (ev->type != UI_GESTURE_TAP || s_local_pending || s_upgrade_restart) return APP_REDRAW_NONE;
         int y = ev->y0;
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_FRONTLIGHT) {
+        if(y<190) { s_page=SETTINGS_MAIN; return APP_REDRAW_PAGE; }
+        unsigned brightness=metalio_brightness(), warmth=metalio_warmth();
+        if(y>=390 && y<458) brightness=ev->x0<342?(brightness>=10?brightness-10:0):(brightness<=90?brightness+10:100);
+        else if(y>=620 && y<688) warmth=ev->x0<342?(warmth>=10?warmth-10:0):(warmth<=90?warmth+10:100);
+        else if(y>=750 && y<818) { metalio_frontlight_toggle(); return APP_REDRAW_PAGE; }
+        else if(y>=850 && y<918) { metalio_haptic_set_enabled(!metalio_haptic_enabled()); return APP_REDRAW_PAGE; }
+        else return APP_REDRAW_NONE;
+        metalio_frontlight_save(brightness,warmth); return APP_REDRAW_PAGE;
+    }
+#else
+#endif
         if (y < 190 && ev->x0 < 170) {
             s_upgrade_job = UPGRADE_JOB_NONE;
             s_upgrade_offer_pending = false;
@@ -2137,9 +2150,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     int tab = settings_nav_hit(ev->x0, ev->y0);
     if (tab >= 0) { ui_nav_request(ctx, tab); return APP_REDRAW_NONE; }
     int y = ev->y0;
-#if KIIKO_BOARD_HAS_FRONTLIGHT
-    // 前光页：加减各 10%，开关与振动即时生效并落盘。
-    // Frontlight page: step 10 percent, toggle light and haptics, persisting on each tap.
+#if KIIKO_BOARD_METALIO47
     if(s_page==SETTINGS_FRONTLIGHT) {
         if(y<190) { s_page=SETTINGS_MAIN; return APP_REDRAW_PAGE; }
         unsigned brightness=metalio_brightness(), warmth=metalio_warmth();
@@ -2150,6 +2161,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else return APP_REDRAW_NONE;
         metalio_frontlight_save(brightness,warmth); return APP_REDRAW_PAGE;
     }
+#else
 #endif
     if (s_page == SETTINGS_PROFILE) {
         if (y < 190) { s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
@@ -2314,10 +2326,28 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if (y >= 518 && y < 588) { time_open(); return APP_REDRAW_PAGE; }
         return APP_REDRAW_NONE;
     }
-    if (s_page == SETTINGS_POWER_SLEEP) {
 #if KIIKO_BOARD_METALIO47
-        if(ui_rect_hit((EpdRect){36,966,612,68},ev->x0,ev->y0)) { s_page=SETTINGS_LOCK_SLEEP; return APP_REDRAW_PAGE; }
-#endif
+    if (s_page == SETTINGS_POWER_SLEEP) {
+        if(ui_rect_hit((EpdRect){36,774,612,70},ev->x0,ev->y0)) { s_page=SETTINGS_LOCK_SLEEP; return APP_REDRAW_PAGE; }
+        if (y >= 300 && y < 432) {
+            app_settings_set_staged_shutdown(false);
+            return APP_REDRAW_PAGE;
+        }
+        if (y >= 454 && y < 586) {
+            app_settings_set_staged_shutdown(true);
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
+    if (s_page == SETTINGS_LOCK_SLEEP) {
+        for(int i=0;i<3;i++) if(ui_rect_hit((EpdRect){36,300+i*148,612,128},ev->x0,ev->y0)) {
+            app_settings_set_lock_sleep((uint8_t)i);
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
+#else
+    if (s_page == SETTINGS_POWER_SLEEP) {
         if (y >= 278 && y < 402) {
             app_settings_set_staged_shutdown(false);
             return APP_REDRAW_PAGE;
@@ -2326,31 +2356,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             app_settings_set_staged_shutdown(true);
             return APP_REDRAW_PAGE;
         }
-#if KIIKO_BOARD_METALIO47
-        if (y >= 656 && y < 756) {
-            app_settings_set_wake_presses(1);
-            return APP_REDRAW_PAGE;
-        }
-        if (y >= 768 && y < 868) {
-            app_settings_set_wake_presses(2);
-            return APP_REDRAW_PAGE;
-        }
-#else
         if (y >= 692 && y < 804) {
             app_settings_set_wake_presses(1);
             return APP_REDRAW_PAGE;
         }
         if (y >= 816 && y < 928) {
             app_settings_set_wake_presses(2);
-            return APP_REDRAW_PAGE;
-        }
-#endif
-        return APP_REDRAW_NONE;
-    }
-#if KIIKO_BOARD_HAS_LOCK_SLEEP_POLICY
-    if (s_page == SETTINGS_LOCK_SLEEP) {
-        for(int i=0;i<3;i++) if(ui_rect_hit((EpdRect){36,300+i*148,612,128},ev->x0,ev->y0)) {
-            app_settings_set_lock_sleep((uint8_t)i);
             return APP_REDRAW_PAGE;
         }
         return APP_REDRAW_NONE;
@@ -2531,7 +2542,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else if(row==2)s_page=SETTINGS_MAIN_REFRESH;
         else if(row==3)app_settings_set_home_full_refresh(!app_settings_home_full_refresh());
         else if(row==4)s_page=SETTINGS_AUTO_LOCK;
-#if KIIKO_BOARD_HAS_FRONTLIGHT
+#if KIIKO_BOARD_METALIO47
         else if(row==5)s_page=SETTINGS_POWER_SLEEP;
         else s_page=SETTINGS_FRONTLIGHT;
 #else
@@ -2562,7 +2573,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             snprintf(s_notice,sizeof(s_notice),"屏幕修复中…");
             return APP_REDRAW_PAGE;
         }
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
+#if KIIKO_BOARD_METALIO47
         else {s_boot_pending=false;s_boot_notice[0]=0;s_page=SETTINGS_BOOT;}
 #else
         else {s_boot_pending=false;s_page=SETTINGS_BOOT;}
@@ -2573,10 +2584,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 }
 
 static app_redraw_t on_key(app_ctx_t *ctx, int key) {
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
-    if (s_page==SETTINGS_BOOT) { s_boot_pending=false; app_cancel_download(); }
-#endif
     s_reset_confirm=s_reset_pending=false;
+#if KIIKO_BOARD_METALIO47
+    if (s_page==SETTINGS_BOOT) { s_boot_pending=false; app_cancel_download(); }
+#else
+#endif
     if(s_font_sync_confirm) {
         s_font_sync_confirm=false;s_notice[0]=0;
         if(key!=1)return APP_REDRAW_PAGE;
@@ -2607,10 +2619,11 @@ static app_redraw_t on_key(app_ctx_t *ctx, int key) {
     return APP_REDRAW_NONE;
 }
 static void settings_exit(app_ctx_t *ctx) {
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
-    s_boot_pending=false; app_cancel_download();
-#endif
     s_reset_confirm=s_reset_pending=false;
+#if KIIKO_BOARD_METALIO47
+    s_boot_pending=false; app_cancel_download();
+#else
+#endif
     bookmark_preview_release();s_bookmark_picker=false;
     s_font_sync_confirm=false;s_font_sync_path[0]=0;
     pin_setup_close();
@@ -2619,10 +2632,11 @@ static void settings_exit(app_ctx_t *ctx) {
     (void)ctx; ui_keyboard_end(); pico_online_cancel_join(); ble_pt_scan_stop(); s_ble_learning = 0;
 }
 static void on_before_lock(app_ctx_t *ctx) {
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
-    s_boot_pending=false; app_cancel_download();
-#endif
     s_reset_confirm=s_reset_pending=false;
+#if KIIKO_BOARD_METALIO47
+    s_boot_pending=false; app_cancel_download();
+#else
+#endif
     s_font_sync_confirm=false;s_font_sync_path[0]=0;
     if (s_page == SETTINGS_PIN_ENTRY) { pin_setup_close(); s_page = SETTINGS_LOCK_PIN; }
     s_upgrade_job = UPGRADE_JOB_NONE;
@@ -2677,17 +2691,14 @@ static bool settings_present(app_ctx_t *ctx, app_redraw_t redraw) {
         // 只驱动变化像素，滚动次数不触发黑白清屏；题头与底栏保持稳定。
         // Drive changed pixels only; scroll counts never trigger a wipe, and header/nav stay stable.
 #if KIIKO_BOARD_METALIO47
-        // S31柔和表沿用本机DU20端点/完整GL48中灰，无Pico额外相位；局刷不补等白。
-        // Use local DU20 endpoints/full GL48 midgrays, without Pico extra phases or white maintenance on partial controls.
-        const EpdWaveform *wave=app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL
-            ? display_main_shelf_soft_waveform():&E0470_WAVEFORM;
+        guard_draw_result(ctx->hl,update_display_area_diff_with(ctx->hl,display_main_bw_waveform(),MODE_DU,area));
 #else
-        // 滚动已限定列表区域；取消主页替换许可，保留抗锯齿并去掉额外补白，不在松手后追加刷新。
-        // Scroll already targets only the list: cancel main-profile substitution, retain AA and omit extra whitening, without a release refresh.
+        // 列表仅一次短灰阶差分；保留抗锯齿目标，取消主页替换、清白预刷与松手补刷。
+        // Present the list once with short gray differences; retain AA targets without main substitution, white prepasses or release settling.
         display_main_transition_cancel();
         const EpdWaveform *wave=display_settings_scroll_waveform();
+        guard_draw_result(ctx->hl, update_display_area_diff_with(ctx->hl,wave,MODE_DU,area));
 #endif
-        guard_draw_result(ctx->hl, update_display_area_diff_with(ctx->hl,wave,MODE_GL16,area));
         return true;
     }
     if (s_page != SETTINGS_UPGRADE) return false;
@@ -2707,7 +2718,11 @@ static bool settings_present(app_ctx_t *ctx, app_redraw_t redraw) {
 }
 
 const app_desc_t app_device_settings = {
+#if KIIKO_BOARD_METALIO47
+    .binary_ui = true,
+#else
     .binary_ui = false,
+#endif
     .title = "设置 Settings", .detail = "显示、连接与设备", .enter_full = false,
     .owns_keys = true, .menu_handle_enabled = no_menu_handle,
     .main_page_visible = main_page_visible, .edge_back_enabled = settings_edge_back,

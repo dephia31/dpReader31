@@ -14,6 +14,9 @@
 #include "app_config.h"
 #include "settings.h"
 #include "e0470_epaper_waveform.h"
+uint8_t app_settings_reader_turn_effect(void) {return 0;}
+bool display_reader_fast_text_prepare(EpdiyHighlevelState *hl,EpdRect area) {(void)hl;(void)area;assert(false);return false;}
+const EpdWaveform* display_reader_fast_text_waveform(void) {assert(false);return NULL;}
 app_main_refresh_mode_t app_settings_main_refresh_mode(void) {return APP_MAIN_REFRESH_NORMAL;}
 // 所有真实推屏和欠载恢复都必须持有 OTA 互斥锁，包括递归兜底。
 // Every physical scan and underrun recovery must hold OTA exclusion, including recursive fallback.

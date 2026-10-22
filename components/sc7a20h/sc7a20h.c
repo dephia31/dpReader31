@@ -11,7 +11,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-
 #include "kiiko_board.h"
 
 #include "driver/gpio.h"
@@ -237,11 +236,9 @@ esp_err_t sc7a20h_power_up(sc7a20h_handle_t h) {
     if (h == NULL) return ESP_ERR_INVALID_STATE;
     return sc7a20h_apply_config(h, &h->cfg);
 }
-
-// S31 专用：INT1 与按键共享 GPIO2 时只轮询、不路由中断；Pico 走自己的锁屏/拿起路径。
-// S31 only: poll the shared INT1/GPIO2 line without routing interrupts; the Pico keeps its own
-// lock/pickup path.
+// S31共享中断脚只轮询，Pico保留自身路径。/ Poll S31 shared IRQ; Pico retains its own path.
 #if KIIKO_BOARD_METALIO47
+
 esp_err_t sc7a20h_shared_irq_polling(sc7a20h_handle_t h) {
     if (h == NULL || h->dev == NULL) return ESP_ERR_INVALID_STATE;
     // 原厂Sc7a20h::DisableInterrupts：CTRL3=0、AOI1_CFG=0、CTRL5=0、CTRL6=3。

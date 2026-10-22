@@ -18,6 +18,10 @@
  * Frozen (user revision 2026-10-16): main roots cycle via side keys; middle hold refreshes fully, and a shelf middle tap toggles paging control.
  * Defer the root middle tap until release, suppress it after a hold, and cancel held input on root exit.
  * Reader/subpages retain their mappings and gestures; the menu handle still fires on contact.
+ * 用户修订：S31上下音量键在主页面复用左右键派发，阅读和二级页仍交给页面。
+ * User revision: S31 volume edges share root side-key dispatch; reading and children remain page-owned.
+ * 用户修订：AI长按打开玻璃短按映射选择器；正常开合各一次区域推屏，选择不执行动作，锁屏/USB/升级保留保护。
+ * User revision: hold AI for a glass tap-action chooser; one bounded output per normal transition, selection never executes, and lock/USB/update guards remain.
  * 用户修订：四个主页面底栏作为统一导航路由在按下时报点即响应，模态和阅读手势保持原归属。
  * User revision: root-tab routing commits on initial contact; modal controls and reader gestures retain their owners.
  * 用户修订：系统页面切换使用 GL16，不再每次 GC16 全刷；锁屏、手动强刷和周期清残影仍可全刷。
@@ -30,8 +34,6 @@
  * Frozen: Return consumes the latest page origin, restoring its page and menu position.
  * 用户采用顶部快捷层：仅顶部32px起手下滑72px才接管，覆盖时冻结页内输入/轮询，WiFi直接连接最近保存网络/再次断开，蓝牙开启并异步连接最近成功的翻页器，全刷和锁屏复用原路径。用户要求三个模式均真实灰阶并加深轮廓；关闭还原顶部底图并局部整理，不修改底栏。
  * User adopts the top quick layer: capture only a 72px downward swipe starting within the top 32px; suspend page input/ticks while covered. WiFi connects saved credentials or disconnects on the next tap; Bluetooth enables and queues a connection to the most recently successful turner. Reuse full refresh and lock. Per the user, all modes retain grays with clearer outlines. Closing restores the bounded top underlay and locally settles it, retaining navigation.
- * S31：蓝牙开关独立于联网状态，全刷时收起快捷层；关闭后按当前页重绘兜底。
- * S31: the Bluetooth switch is independent of the network state, full refresh dismisses the layer, and a failed underlay restore falls back to redrawing the current page.
  * 用户修订：快捷层只在展开/收起重绘顶部；圆键按下立即局部DU反馈，状态变化不重排底页或生成玻璃。
  * User revision: only opening/closing repaints the top; key presses receive immediate local DU feedback without underlay re-layout or glass regeneration.
  * 用户2026-10-19修订：下拉菜单锁屏前先收起并还原底页；点全刷自动收起，仅对还原后的页面全刷。
@@ -45,9 +47,9 @@
  */
 
 #include "app_loop.h"
-#include "kiiko_board.h"
-#if KIIKO_BOARD_HAS_ANTI_FADE
+#if KIIKO_BOARD_METALIO47
 #include "anti_fade.h"
+#else
 #endif
 #include "auto_lock.h"
 #include "crash_note.h"
@@ -90,8 +92,10 @@
 #include "ui_quick_menu.h"
 #include "ui_click_feedback.h"
 #include "usb_storage.h"
-#if KIIKO_BOARD_HAS_FRONTLIGHT || KIIKO_BOARD_HAS_HAPTIC || KIIKO_BOARD_HAS_VOLUME_KEYS
+#if KIIKO_BOARD_METALIO47
 #include "metalio_hw.h"
+#include "ui_ai_menu.h"
+#else
 #endif
 #include "local_latency_probe.h"
 
@@ -113,24 +117,36 @@ static const app_desc_t* s_presented_main;
 static ui_quick_menu_t s_quick;
 static unsigned s_quick_status;
 static int s_quick_pressed=-1;
-#if KIIKO_BOARD_HAS_FRONTLIGHT
+#if KIIKO_BOARD_METALIO47
+static ui_ai_menu_t s_ai;
 static unsigned s_quick_slider_dirty;
 static unsigned s_quick_slider_drawn[2];
+#else
 #endif
 static void quick_reset(void) {
+#if KIIKO_BOARD_METALIO47
+    ui_ai_menu_end(&s_ai);metalio_ai_clear();
+    ui_quick_menu_reset(&s_quick);ui_quick_menu_end();s_quick_pressed=-1;s_quick_slider_dirty=0;
+#else
     ui_quick_menu_reset(&s_quick);
     ui_quick_menu_end();
     s_quick_pressed=-1;
-#if KIIKO_BOARD_HAS_FRONTLIGHT
-    s_quick_slider_dirty=0;
+#endif
+}
+static bool ai_overlay_open(void){
+#if KIIKO_BOARD_METALIO47
+    return s_ai.open;
+#else
+    return false;
 #endif
 }
 static bool s_nav_contact_down,s_nav_polled;
 // 锁屏占用整屏后旧主页面底栏不再是物理基准；解锁第一帧必须完整绘制。
 // A lock screen replaces the old navigation baseline; the first unlocked frame must render complete navigation.
 static void main_lock_boundary(void) {
-#if KIIKO_BOARD_HAS_FRONTLIGHT
+#if KIIKO_BOARD_METALIO47
     metalio_frontlight_commit();
+#else
 #endif
     ui_click_feedback_reset();
     quick_reset();
@@ -142,7 +158,7 @@ static unsigned quick_status(void) {
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
     bool wifi = status.mode == READ_PICO_TRANSFER_MODE_STA && status.state != READ_PICO_TRANSFER_STOPPED;
-#if KIIKO_BOARD_HAS_FRONTLIGHT
+#if KIIKO_BOARD_METALIO47
     return (wifi ? 1u : 0u) | (app_settings_ble_turner() ? 2u : 0u) | (status.network_ready ? 4u : 0u) | (metalio_frontlight_enabled()?8u:0u);
 #else
     return (wifi ? 1u : 0u) | (app_settings_ble_turner() ? 2u : 0u) | (status.network_ready ? 4u : 0u);
@@ -157,34 +173,14 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
     bool motion=ui_click_feedback_nav_finish(ctx->fb,&motion_area);
     ui_click_feedback_begin(ctx->fb);
     display_main_transition_cancel();
-#if KIIKO_BOARD_HAS_FRONTLIGHT
-    // S31 把导航还原与快捷层合成一次 DU，不安排第二次推屏。
-    // The S31 joins the navigation restoration and the quick layer into one DU scan.
-    (void)started;
-    EpdRect area=ui_quick_menu_rect();
-    if(!full) {
-        if(s_quick.open) {
-            s_quick_status=quick_status();s_quick_slider_dirty=0;s_quick_pressed=-1;
-            s_quick_slider_drawn[0]=metalio_frontlight_position(false);
-            s_quick_slider_drawn[1]=metalio_frontlight_position(true);
-            // Compose over the last presented page without re-rendering books/covers.
-            ui_quick_menu_draw(ctx->fb,s_quick_status&1u,s_quick_status&2u,s_quick_status&8u,s_quick_slider_drawn[0],s_quick_slider_drawn[1]);
-        } else {
-            bool restored=ui_quick_menu_restore(ctx->fb);ui_quick_menu_end();
-            if(!restored&&current->render)current->render(ctx,ctx->fb);
-        }
-    }
-    // Join any pending navigation restoration into this same scan, never a second scan.
-    if(motion){int bottom=motion_area.y+motion_area.height;if(bottom>area.height)area.height=bottom;}
-    enum EpdDrawError error=full?update_display_full(ctx->hl)
-        :update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,area);
-    guard_draw_result(ctx->hl,error);
-    if(error!=EPD_DRAW_SUCCESS){quick_reset();app_present(ctx,current,APP_REDRAW_FULL);}
-#else
     unsigned status=quick_status();
     if(full&&s_quick.open){
         // 复用合成帧，只还原按压键；不重排底页或重算玻璃。/ Reuse the composed frame, restoring pressed keys without re-rendering or reblurring.
+#if KIIKO_BOARD_METALIO47
+        static const unsigned bits[]={1u,2u,0u,8u};
+#else
         static const unsigned bits[]={1u,2u,0u,0u};
+#endif
         for(int i=0;i<4;++i){
             bool active=(status&bits[i])!=0,was_active=(s_quick_status&bits[i])!=0;
             if(i==s_quick_pressed||active!=was_active){
@@ -193,17 +189,38 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
         }
         if((status^s_quick_status)&6u)ui_quick_menu_draw_status(ctx->fb);
     }else{
+#if KIIKO_BOARD_METALIO47
+        if(s_quick.open){
+            s_quick_slider_dirty=0;
+            s_quick_slider_drawn[0]=metalio_frontlight_position(false);
+            s_quick_slider_drawn[1]=metalio_frontlight_position(true);
+            ui_quick_menu_draw(ctx->fb,status&1u,status&2u,status&8u,s_quick_slider_drawn[0],s_quick_slider_drawn[1],
+                current==&app_book&&app_book_reader_body_visible());
+        }else{
+            bool restored=ui_quick_menu_restore(ctx->fb);ui_quick_menu_end();
+            if(!restored&&current->render)current->render(ctx,ctx->fb);
+        }
+#else
         if(s_quick.open)ui_quick_menu_draw(ctx->fb,status&1u,status&2u,current==&app_book&&app_book_reader_body_visible());
         else{
             bool restored=ui_quick_menu_restore(ctx->fb);ui_quick_menu_end();
             if(!restored&&current->render)current->render(ctx,ctx->fb);
         }
+#endif
     }
     s_quick_status=status;s_quick_pressed=-1;
     const int64_t composed=esp_timer_get_time();
     (void)started;(void)composed;
+#if KIIKO_BOARD_METALIO47
+    EpdRect area=ui_quick_menu_rect();
+    // 玻璃开合沿用Pico的完整灰阶；跟随短表仅用于后续按压和滑块，不能替代材质灰阶。
+    // Match Pico's full grayscale on open/close; short FOLLOW output remains for later presses/sliders, not material rendering.
+    enum EpdDrawError error=full?update_display_full(ctx->hl)
+        :update_display_area_full_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,area);
+#else
     enum EpdDrawError error=full?update_display_full(ctx->hl)
         :update_display_area_full_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,ui_quick_menu_rect());
+#endif
     guard_draw_result(ctx->hl,error);
     if(motion&&!full&&error==EPD_DRAW_SUCCESS){
         error=update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,motion_area);
@@ -213,12 +230,14 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
         s_quick.open?"open":"close",(long long)((composed-started)/1000),
         (long long)((esp_timer_get_time()-composed)/1000));
     if(error!=EPD_DRAW_SUCCESS){quick_reset();app_present(ctx,current,APP_REDRAW_FULL);}
-#endif
 }
 
 // 先收起菜单并恢复底页，再执行全刷或锁屏；保留底图直到还原完成。
 // Dismiss before refresh/lock; retain the underlay until restoration finishes.
 static void quick_dismiss(app_ctx_t *ctx,const app_desc_t *current,bool full) {
+#if KIIKO_BOARD_METALIO47
+    metalio_frontlight_commit();
+#endif
     ui_quick_menu_reset(&s_quick);
     quick_present(ctx,current,full);
 }
@@ -234,7 +253,7 @@ static void local_probe_quick(app_ctx_t *ctx,const app_desc_t *current,bool open
 }
 #endif
 
-#if KIIKO_BOARD_HAS_FRONTLIGHT
+#if KIIKO_BOARD_METALIO47
 // Compose changed buttons and slider bands, then present one bounded differential.
 static EpdRect quick_join(EpdRect a,EpdRect b) {
     if(!a.height)return b;
@@ -245,30 +264,19 @@ static EpdRect quick_join(EpdRect a,EpdRect b) {
     return (EpdRect){x,y,right-x,bottom-y};
 }
 static void quick_controls_present(app_ctx_t *ctx,const app_desc_t *current) {
+#else
+// 菜单打开期间只改圆键和必要的状态栏；按下不排字、不重画页面或重算玻璃。
+// While open, update only keys and the necessary status strip; pressing never shapes text, renders a page or regenerates glass.
+static void quick_buttons_present(app_ctx_t *ctx,const app_desc_t *current) {
+#endif
     if(!s_quick.open)return;
+#if KIIKO_BOARD_METALIO47
     unsigned status=quick_status(),changed=(status^s_quick_status)&11u;
     int pressed=ui_quick_menu_pressed(&s_quick);EpdRect dirty={0};
     static const unsigned bits[]={1u,2u,0u,8u};
     for(unsigned i=0;i<4;++i)if((changed&bits[i])||((pressed==(int)i)!=(s_quick_pressed==(int)i))) {
         EpdRect r;if(ui_quick_menu_draw_button(ctx->fb,i,(status&bits[i])!=0,pressed==(int)i,&r))dirty=quick_join(dirty,r);
-    }
-    for(unsigned i=0;i<2;++i){
-        unsigned value=metalio_frontlight_position(i!=0);
-        if(value==s_quick_slider_drawn[i])continue;
-        EpdRect band=ui_quick_slider_change_rect(i!=0,s_quick_slider_drawn[i],value);
-        if(band.height){ui_quick_menu_draw_slider(ctx->fb,i!=0,value);dirty=quick_join(dirty,band);}
-        s_quick_slider_drawn[i]=value;
-    }
-    s_quick_slider_dirty=0;
-    if(dirty.height){enum EpdDrawError error=update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,dirty);
-        guard_draw_result(ctx->hl,error);if(error!=EPD_DRAW_SUCCESS){quick_reset();app_present(ctx,current,APP_REDRAW_FULL);return;}}
-    s_quick_status=status;s_quick_pressed=pressed;
-}
 #else
-// 菜单打开期间只改圆键和必要的状态栏；按下不排字、不重画页面或重算玻璃。
-// While open, update only keys and the necessary status strip; pressing never shapes text, renders a page or regenerates glass.
-static void quick_buttons_present(app_ctx_t *ctx,const app_desc_t *current) {
-    if(!s_quick.open)return;
     unsigned status=quick_status();
     int pressed=ui_quick_menu_pressed(&s_quick);
     enum EpdDrawError error=EPD_DRAW_SUCCESS;
@@ -282,19 +290,44 @@ static void quick_buttons_present(app_ctx_t *ctx,const app_desc_t *current) {
             guard_draw_result(ctx->hl,error);
             if(error!=EPD_DRAW_SUCCESS)break;
         }
+#endif
     }
+#if KIIKO_BOARD_METALIO47
+    for(unsigned i=0;i<2;++i){
+        unsigned value=metalio_frontlight_position(i!=0);
+        if(value==s_quick_slider_drawn[i])continue;
+        EpdRect band=ui_quick_slider_change_rect(i!=0,s_quick_slider_drawn[i],value);
+        if(band.height){ui_quick_menu_draw_slider(ctx->fb,i!=0,value);dirty=quick_join(dirty,band);}
+        s_quick_slider_drawn[i]=value;
+#else
     bool network_changed=(status&5u)==5u,was_network=(s_quick_status&5u)==5u;
     if(error==EPD_DRAW_SUCCESS&&(((status^s_quick_status)&2u)||network_changed!=was_network)){
         ui_quick_menu_draw_status(ctx->fb);
         error=update_display_area_diff_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,(EpdRect){0,0,UI_LOCK_WIDTH,76});
         guard_draw_result(ctx->hl,error);
+#endif
     }
+#if KIIKO_BOARD_METALIO47
+    s_quick_slider_dirty=0;
+    enum EpdDrawError error=EPD_DRAW_SUCCESS;
+    if(dirty.height){error=update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,dirty);
+        guard_draw_result(ctx->hl,error);}
+    bool network=(status&5u)==5u,was_network=(s_quick_status&5u)==5u;
+    if(error==EPD_DRAW_SUCCESS&&(((status^s_quick_status)&2u)||network!=was_network)){
+        // 状态栏与Pico一样单独走灰阶，不让它把滑块局刷扩展到整个玻璃层。
+        // Like Pico, refresh status separately in grayscale without expanding slider feedback over the glass layer.
+        ui_quick_menu_draw_status(ctx->fb);
+        error=update_display_area_diff_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,(EpdRect){0,0,UI_LOCK_WIDTH,76});
+        guard_draw_result(ctx->hl,error);
+    }
+    if(error!=EPD_DRAW_SUCCESS){quick_reset();app_present(ctx,current,APP_REDRAW_FULL);return;}
+#else
     if(error!=EPD_DRAW_SUCCESS){
         quick_reset();app_present(ctx,current,APP_REDRAW_FULL);return;
     }
+#endif
     s_quick_status=status;s_quick_pressed=pressed;
 }
-#endif
 
 static void quick_toggle_wifi(void) {
     read_pico_transfer_status_t status;
@@ -323,7 +356,7 @@ static bool navigation_page_ready(app_ctx_t* ctx,const app_desc_t* app) {
     return app->persistent_navigation || main_page_ready(ctx,app);
 }
 static bool navigation_input_ready(app_ctx_t* ctx,const app_desc_t* app) {
-    return navigation_page_ready(ctx,app) && (!app->navigation_enabled || app->navigation_enabled(ctx));
+    return !ai_overlay_open() && navigation_page_ready(ctx,app) && (!app->navigation_enabled || app->navigation_enabled(ctx));
 }
 
 static void main_present_finished(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t redraw) {
@@ -350,6 +383,32 @@ static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t
 #define LATENCY_PRESENT_DONE() do {} while(0)
 #endif
     enum EpdDrawError result = EPD_DRAW_SUCCESS;
+#if KIIKO_BOARD_METALIO47
+    bool returning=ctx->request_back_ripple;
+    const bool root_water=app->binary_ui && s_presented_main && s_presented_main!=app && navigation_page_ready(ctx,app) &&
+        app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER;
+    if ((app->binary_ui || returning) && (redraw == APP_REDRAW_PAGE || redraw == APP_REDRAW_FULL)) {
+        ctx->request_back_ripple = false;
+        ui_click_feedback_reset();
+        ui_click_feedback_begin(ctx->fb);
+        display_main_transition_cancel();
+        ui_text_set_system_scale(true);
+        bool prepared=redraw==APP_REDRAW_PAGE?display_page_prepare_begin():false;
+        if (app->render) app->render(ctx, ctx->fb);
+        // 动画和高层区域都使用旋转后逻辑坐标；物理全屏会触发裁剪错误与整屏恢复。
+        // Animation/high-level areas use rotated logical coordinates; a physical full screen causes crop failure and full recovery.
+        const EpdRect screen={0,0,epd_rotated_display_width(),
+            navigation_page_ready(ctx,app)?UI_NAV_MARKER_SCAN_END:epd_rotated_display_height()};
+        result = redraw == APP_REDRAW_FULL ? update_display_full(ctx->hl) : returning || root_water
+            ? update_display_water_turn(ctx->hl,screen,returning?E0470_TURN_LTR:E0470_TURN_RTL)
+            : update_display_area_diff_with(ctx->hl,display_main_bw_waveform(),MODE_DU,screen);
+        if(redraw==APP_REDRAW_PAGE)display_page_prepare_end(prepared);
+        guard_draw_result(ctx->hl, result);
+        main_present_finished(ctx, app, redraw);
+        LATENCY_PRESENT_DONE();
+        return;
+    }
+#else
     if(ctx->request_back_ripple && (redraw==APP_REDRAW_PAGE || redraw==APP_REDRAW_FULL)) {
         // 返回目标只合成一次，跳过旧控件复位扫描；显式全刷优先，水波纹沿用Pico原有入口。
         // Compose the destination once without an old-control restore scan; explicit full refresh wins, otherwise reuse Pico water.
@@ -363,6 +422,7 @@ static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t
         guard_draw_result(ctx->hl,result);main_present_finished(ctx,app,redraw);
         LATENCY_PRESENT_DONE();return;
     }
+#endif
     if (redraw == APP_REDRAW_PAGE && ui_click_feedback_active() && !ui_click_feedback_nav_pending()) {
         // 切页固定底栏之前先复位真实按压像素，避免把放大的图标当作长期基准。
         // Restore physical pressed pixels before freezing navigation, so an enlarged icon never becomes its baseline.
@@ -382,8 +442,20 @@ static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t
     // Background directory/cover completion and scrolling remain on this main page and must not flash navigation via ordinary page output.
     if ((redraw == APP_REDRAW_PAGE || redraw == APP_REDRAW_AREA) &&
         s_presented_main == app && navigation_page_ready(ctx, app)
+#if KIIKO_BOARD_METALIO47
+        && !app->binary_ui
+#endif
         ) display_main_transition_arm(app, false, false);
+#if KIIKO_BOARD_METALIO47
+    if(navigation_page_ready(ctx,app)&&(app_index_of(app)==2||app_index_of(app)==3) &&
+       app_settings_main_refresh_mode()!=APP_MAIN_REFRESH_WATER)display_main_transition_monochrome();
+    const bool prepare_page=redraw==APP_REDRAW_PAGE&&navigation_page_ready(ctx,app);
+    const bool prepare_held=prepare_page?display_page_prepare_begin():false;
+#endif
     if (app->present != NULL && app->present(ctx, redraw)) {
+#if KIIKO_BOARD_METALIO47
+        if(prepare_page)display_page_prepare_end(prepare_held);
+#endif
         main_present_finished(ctx, app, redraw);
         LATENCY_PRESENT_DONE();
         return;
@@ -417,6 +489,9 @@ static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t
             break;
     }
     guard_draw_result(ctx->hl, result);
+#if KIIKO_BOARD_METALIO47
+    if(prepare_page)display_page_prepare_end(prepare_held);
+#endif
     main_present_finished(ctx, app, redraw);
     LATENCY_PRESENT_DONE();
 #undef LATENCY_PRESENT_DONE
@@ -425,15 +500,34 @@ static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t
 // 将系统页策略限制在实际推屏作用域；下拉玻璃、锁屏及阅读不继承它。
 // Scope system policy to presentation so quick-menu glass, lock and reader do not inherit it.
 void app_present(app_ctx_t* ctx,const app_desc_t* app,app_redraw_t redraw) {
+#if KIIKO_BOARD_METALIO47
+    bool previous=display_system_binary_set(app->binary_ui);
+    bool previous_nav=display_system_navigation_set(navigation_page_ready(ctx,app));
+#endif
     app_present_impl(ctx,app,redraw);
+#if KIIKO_BOARD_METALIO47
+    display_system_navigation_set(previous_nav);
+    display_system_binary_set(previous);
+#endif
 }
 
 // 反馈只推控件附近，失败后重新绘制当前页面；不占用底栏切页许可。
 // Push feedback only near its control, repainting the current page on failure without consuming navigation permission.
 static void click_present(app_ctx_t *ctx, const app_desc_t *current, EpdRect area) {
+#if KIIKO_BOARD_METALIO47
+    if(navigation_page_ready(ctx,current)&&(app_index_of(current)==2||app_index_of(current)==3))display_monochrome_content(ctx->fb);
+#endif
+#if KIIKO_BOARD_METALIO47
+    bool previous=display_system_binary_set(current->binary_ui);
+    bool previous_nav=display_system_navigation_set(navigation_page_ready(ctx,current));
+#endif
     enum EpdDrawError error = update_display_click_feedback(ctx->hl,area);
     guard_draw_result(ctx->hl, error);
     if (error != EPD_DRAW_SUCCESS) app_present(ctx, current, APP_REDRAW_FULL);
+#if KIIKO_BOARD_METALIO47
+    display_system_navigation_set(previous_nav);
+    display_system_binary_set(previous);
+#endif
 }
 
 // 中断边界先清页面装饰再清识别器。/ Clear decoration before resetting recognition.
@@ -531,6 +625,56 @@ static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *current,int
         ui_nav_request(ctx,(tab+(key==UI_KEY_1?3:1))%4);
     return APP_REDRAW_NONE;
 }
+
+#if KIIKO_BOARD_METALIO47
+// 同一主键路径保留书架分页模式与导航保护。/ Share root keys, including shelf paging and navigation guards.
+static app_redraw_t volume_key_action(app_ctx_t *ctx,const app_desc_t *current,int volume) {
+    if(!volume || ctx->request_app || ctx->request_menu || ctx->request_return ||
+       usb_storage_active() || pico_online_busy())return APP_REDRAW_NONE;
+    int key=volume<0?UI_KEY_1:UI_KEY_3;
+    if(main_page_ready(ctx,current))return main_key_action(ctx,current,key,false);
+    return current->owns_keys && current->on_key?current->on_key(ctx,key):APP_REDRAW_NONE;
+}
+#endif
+
+#if KIIKO_BOARD_METALIO47
+// 所有控件先在内存合成；正常展开/收起各只有一次有界差分，不做额外清白/全刷。
+// Compose all controls in memory; each normal open/close uses one bounded difference, without a white prepass/full refresh.
+static void ai_push(app_ctx_t *ctx,const app_desc_t *current,EpdRect area){
+    display_main_transition_cancel();
+    bool binary=display_system_binary_set(false);
+    bool nav=display_system_navigation_set(false);
+    int64_t at=esp_timer_get_time();(void)at;
+    enum EpdDrawError result=update_display_area_diff_with(ctx->hl,display_main_gray_waveform(),MODE_GL16,area);
+    display_system_navigation_set(nav);display_system_binary_set(binary);
+    ESP_LOGI(TAG,"AI menu display=%lldms result=%d",(long long)((esp_timer_get_time()-at)/1000),(int)result);
+    guard_draw_result(ctx->hl,result);
+    if(result!=EPD_DRAW_SUCCESS){
+        (void)ui_ai_menu_restore(&s_ai,ctx->fb);ui_ai_menu_end(&s_ai);
+        app_present(ctx,current,APP_REDRAW_FULL);
+    }
+}
+static void ai_dismiss(app_ctx_t *ctx,const app_desc_t *current,bool present){
+    if(!s_ai.open)return;
+    EpdRect rect=s_ai.rect;bool restored=ui_ai_menu_restore(&s_ai,ctx->fb);ui_ai_menu_end(&s_ai);
+    if(!restored){if(current->render)current->render(ctx,ctx->fb);if(present)app_present(ctx,current,APP_REDRAW_PAGE);}
+    else if(present)ai_push(ctx,current,rect);
+}
+static app_redraw_t ai_short_action(app_ctx_t *ctx,const app_desc_t *current){
+    app_ai_action_t action=app_settings_ai_short();
+    if(action==APP_AI_DISABLED)return APP_REDRAW_NONE;
+    if(action==APP_AI_BOOKMARK){
+        if(current!=&app_book || !app_book_reader_body_visible())return APP_REDRAW_NONE;
+        if(app_book_ai_bookmark())(void)metalio_haptic_click();
+        return APP_REDRAW_PAGE;
+    }
+    (void)metalio_haptic_click();
+    if(action==APP_AI_REFRESH)return APP_REDRAW_FULL;
+    if(action==APP_AI_FRONTLIGHT){metalio_frontlight_toggle();return APP_REDRAW_NONE;}
+    if(action==APP_AI_HOME)ui_nav_request(ctx,0);
+    return APP_REDRAW_NONE;
+}
+#endif
 
 static void switch_to(
     app_ctx_t* ctx, const app_desc_t** current, const app_desc_t* next
@@ -658,11 +802,7 @@ static void prepare_lock(app_ctx_t *ctx, const app_desc_t *current, bool feedbac
         resume.reader = 1;
         resume.fullscreen = fullscreen;
     }
-    // 深睡准入标志由 sleep.c 两板共用，成功后置位；pico 侧置位不会改变其原有路径。
-    // The deep-sleep admission flag is shared by sleep.c for both boards; setting it does not alter the Pico path.
 #if KIIKO_BOARD_METALIO47
-    // S31 深睡准入要求已有成功写盘的恢复点；Pico 只保存，不额外登记。
-    // The S31 deep-sleep admission needs a persisted checkpoint; the Pico just saves it.
     app_lock_set_resume_ready(pico_boot_save_resume(&resume) == ESP_OK);
 #else
     (void)pico_boot_save_resume(&resume);
@@ -731,11 +871,10 @@ void app_loop_run(const app_loop_config_t* config) {
     bool menu_open = false;
     ui_gesture_t gesture = {0};
     ui_power_dialog_t power_dialog = {0};
-    bool power_dialog_open = false;
 #if KIIKO_BOARD_METALIO47
-    // S31 进主循环前先释放可能残留的电源菜单缓存。
-    // Release any leftover power-menu cache before the S31 main loop starts.
-    ui_power_dialog_end();
+    bool power_dialog_open = false; ui_power_dialog_end();
+#else
+    bool power_dialog_open = false;
 #endif
     int menu_pressed = UI_MENU_HIT_NONE;
     menu_feedback_t feedback = {0};
@@ -798,21 +937,22 @@ void app_loop_run(const app_loop_config_t* config) {
         const bool released = !touch.touched && was_touched;
         debounce_touch(&latest, &touch, released);
         ctx.now_ms = esp_timer_get_time() / 1000;
-#if !KIIKO_BOARD_HAS_PMU
+#if KIIKO_BOARD_METALIO47
         // S31无后台CW32快照，轮询BQ/充电器（适配器内部每2秒限流）。
         // S31 polls its gauge/charger; the adapter rate-limits I2C to once per two seconds.
         if (read_pico_pmu_ready()) (void)read_pico_pmu_poll();
+#else
 #endif
         if (err == ESP_OK && (touch.touched || released)) last_input_ms = ctx.now_ms;
         if (ctx.now_ms - last_network_poll_ms >= 500) {
             last_network_poll_ms = ctx.now_ms;
             read_pico_transfer_service_poll();
             app_time_service_poll(!touch.touched && ctx.now_ms - last_input_ms >= 10000 &&
-                !current->holds_pmu && !usb_storage_active() &&
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
-                !app_download_active() &&
+#if KIIKO_BOARD_METALIO47
+                !current->holds_pmu && !usb_storage_active() && !app_download_active() && !pico_online_busy() && !ble_pt_connected());
+#else
+                !current->holds_pmu && !usb_storage_active() && !pico_online_busy() && !ble_pt_connected());
 #endif
-                !pico_online_busy() && !ble_pt_connected());
         }
         ctx.pressed = pressed;
         ctx.released = released;
@@ -849,14 +989,53 @@ void app_loop_run(const app_loop_config_t* config) {
             }
         }
 
-        if (!power_input_owned && !menu_open) {
+#if KIIKO_BOARD_METALIO47
+        // 实体AI输入先于页面触摸派发；覆盖时冻结底页，关层的抬手也不可穿透。
+        // Route physical AI before page touches; freeze the underlay and consume the closing release.
+        bool ai_owned=s_ai.open;
+        int ai_event=metalio_take_ai();
+        if(ai_event || s_ai.open){
+            read_pico_transfer_status_t ai_transfer;read_pico_transfer_get_status(&ai_transfer);
+            bool ai_allowed=!power_input_owned && !menu_open && !s_quick.open && !current->holds_pmu &&
+                current->render && !usb_storage_active() && !app_download_active() && !pico_online_busy() &&
+                ai_transfer.state!=READ_PICO_TRANSFER_UPLOADING && !ctx.request_app && !ctx.request_menu && !ctx.request_return;
+            if(s_ai.open&&!ai_allowed){ai_dismiss(&ctx,current,true);ai_owned=true;}
+            if(ai_event && ai_allowed && !touch.touched && !ui_click_feedback_active() && !ui_click_feedback_nav_pending()){
+                held_key=-1;cancel_gesture(&ctx,current,&gesture);last_input_ms=ctx.now_ms;ai_owned=true;
+                if(s_ai.open)ai_dismiss(&ctx,current,true);
+                else if(ai_event==METALIO_AI_LONG){
+                    int64_t at=esp_timer_get_time();(void)at;
+                    if(ui_ai_menu_begin(&s_ai,ctx.fb,app_settings_ai_short(),current==&app_book&&app_book_reader_body_visible())){
+                        ESP_LOGI(TAG,"AI menu compose=%lldms",(long long)((esp_timer_get_time()-at)/1000));
+                        (void)metalio_haptic_click();ai_push(&ctx,current,s_ai.rect);
+                    }
+                }else if(ai_event==METALIO_AI_SHORT){
+                    present_page(&ctx,current,&gesture,ai_short_action(&ctx,current));
+                }
+            }
+            if(s_ai.open){
+                ai_owned=true;
+                int choice=ui_ai_menu_feed(&s_ai,&ctx,err==ESP_OK);
+                if(choice==UI_AI_CLOSE)ai_dismiss(&ctx,current,true);
+                else if(choice>=0){
+                    last_input_ms=ctx.now_ms;
+                    if(app_settings_set_ai_short((app_ai_action_t)choice)==ESP_OK){
+                        (void)metalio_haptic_click();ai_dismiss(&ctx,current,true);
+                    }else ai_push(&ctx,current,ui_ai_menu_save_error(&s_ai,ctx.fb));
+                }
+            }
+        }
+        if(ai_owned){quick_input_owned=true;ctx.consumed=true;held_key=-1;cancel_gesture(&ctx,current,&gesture);}
+#endif
+        if (!power_input_owned && !menu_open && !quick_input_owned) {
+#if KIIKO_BOARD_METALIO47
+            if (err != ESP_OK) { ui_quick_menu_cancel_input(&s_quick); metalio_frontlight_commit(); quick_input_owned=s_quick.open; }
+#else
             if (err != ESP_OK) {
                 ui_quick_menu_cancel_input(&s_quick);
-#if KIIKO_BOARD_HAS_FRONTLIGHT
-                metalio_frontlight_commit();
-#endif
                 quick_input_owned=s_quick.open;
             }
+#endif
             else {
                 ui_quick_action_t action;
                 quick_input_owned = ui_quick_menu_feed(&s_quick, &ctx,
@@ -866,24 +1045,22 @@ void app_loop_run(const app_loop_config_t* config) {
                     cancel_gesture(&ctx, current, &gesture);
                     ctx.consumed = true;
                 }
-                if (action == UI_QUICK_OPEN || action == UI_QUICK_CLOSE) {
-#if KIIKO_BOARD_HAS_FRONTLIGHT
-                    metalio_frontlight_commit();
+#if KIIKO_BOARD_METALIO47
+                if (action == UI_QUICK_OPEN || action == UI_QUICK_CLOSE) { metalio_frontlight_commit(); quick_present(&ctx, current, false); }
+#else
+                if (action == UI_QUICK_OPEN || action == UI_QUICK_CLOSE) quick_present(&ctx, current, false);
 #endif
-                    quick_present(&ctx, current, false);
-                }
                 else if (action == UI_QUICK_WIFI) {
                     quick_toggle_wifi();
                 } else if (action == UI_QUICK_BLUETOOTH) {
+                    bool enable=!app_settings_ble_turner();
+                    app_settings_set_ble_turner(enable);
+                    if(enable)ble_pt_reconnect_recent();
+                    else {ble_pt_cancel_recent();ble_pt_sync(false);}
+                } else if (action == UI_QUICK_FULL) quick_dismiss(&ctx, current, true);
 #if KIIKO_BOARD_METALIO47
-                    app_settings_set_ble_turner(true);
-                    ble_pt_reconnect_recent();
-                } else if (action == UI_QUICK_FULL) quick_present(&ctx, current, true);
                 else if(action==UI_QUICK_FRONTLIGHT) {
-                    metalio_frontlight_toggle();
-#if KIIKO_BOARD_HAS_HAPTIC
-                    (void)metalio_haptic_click();
-#endif
+                    metalio_frontlight_toggle(); (void)metalio_haptic_click();
                 } else if(action==UI_QUICK_BRIGHTNESS || action==UI_QUICK_WARMTH) {
                     const bool warm=action==UI_QUICK_WARMTH;
                     unsigned old=metalio_frontlight_position(warm);
@@ -896,15 +1073,10 @@ void app_loop_run(const app_loop_config_t* config) {
                     metalio_frontlight_commit();
                 }
 #else
-                    bool enable=!app_settings_ble_turner();
-                    app_settings_set_ble_turner(enable);
-                    if(enable)ble_pt_reconnect_recent();
-                    else {ble_pt_cancel_recent();ble_pt_sync(false);}
-                } else if (action == UI_QUICK_FULL) quick_dismiss(&ctx, current, true);
                 else if (action == UI_QUICK_LOCK) quick_lock_requested = true;
 #endif
             }
-#if KIIKO_BOARD_HAS_FRONTLIGHT
+#if KIIKO_BOARD_METALIO47
             quick_controls_present(&ctx,current);
 #else
             quick_buttons_present(&ctx,current);
@@ -992,7 +1164,7 @@ void app_loop_run(const app_loop_config_t* config) {
         }
         // 主页面底栏在首次单指报点就确认；抬手、轻滑和停留不再重复切页。
         // Commit root navigation on the first single contact; lift, small motion and holds never repeat it.
-        bool nav_press_owned=s_nav_polled&&touch.touched&&touch.count==1&&navigation_input_ready(&ctx,current)&&ui_nav_hit(touch.x,touch.y)>=0;
+        bool nav_press_owned=!quick_input_owned&&s_nav_polled&&touch.touched&&touch.count==1&&navigation_input_ready(&ctx,current)&&ui_nav_hit(touch.x,touch.y)>=0;
         if(nav_press_owned)ctx.consumed=true;
         if (err == ESP_OK && pressed && !nav_press_owned && touch.count == 1 && !power_input_owned &&
             !quick_input_owned && !menu_open && !usb_storage_active() &&
@@ -1109,10 +1281,9 @@ void app_loop_run(const app_loop_config_t* config) {
         }
 
         ctx.now_ms = esp_timer_get_time() / 1000;
-#if KIIKO_BOARD_HAS_FRONTLIGHT
-        // 快捷层展开期间保留预览值，收起后才落盘。
-        // Keep the previewed light while the quick layer is open; persist only after it closes.
+#if KIIKO_BOARD_METALIO47
         if(!s_quick.open) metalio_frontlight_commit();
+#else
 #endif
         rails_idle_check(ctx.now_ms);
 
@@ -1123,6 +1294,9 @@ void app_loop_run(const app_loop_config_t* config) {
             last_lock_poll_ms = ctx.now_ms;
             read_pico_pmu_key_action_t key_action = quick_lock_requested ? READ_PICO_PMU_KEY_SHORT : read_pico_pmu_take_key_action();
             if (key_action != READ_PICO_PMU_KEY_NONE) {
+#if KIIKO_BOARD_METALIO47
+                ai_dismiss(&ctx,current,key_action==READ_PICO_PMU_KEY_SHORT);
+#endif
                 last_input_ms = ctx.now_ms;
                 bool quick_was_open = s_quick.open;
                 if (quick_was_open) quick_dismiss(&ctx,current,false);
@@ -1203,7 +1377,7 @@ void app_loop_run(const app_loop_config_t* config) {
         // 设置里存的字体在 SD 卡上，开机时卡可能还没挂好，这里定期重试。
         // The saved font lives on the card; retry until the mount is ready.
         // The saved font lives on the card; retry until the mount is ready.
-        if (!power_dialog_open && !s_quick.open && !usb_storage_active() && current != &app_transfer &&
+        if (!power_dialog_open && !s_quick.open && !ai_overlay_open() && !usb_storage_active() && current != &app_transfer &&
             ctx.now_ms - last_font_retry_ms >= FONT_RETRY_INTERVAL_MS) {
             last_font_retry_ms = ctx.now_ms;
             if (try_load_saved_sd_font(!media_invalidated)) {
@@ -1247,13 +1421,14 @@ void app_loop_run(const app_loop_config_t* config) {
                     main_key_action(&ctx,current,key,true):current->on_key_long(&ctx,key));
             }
         }
-#if KIIKO_BOARD_HAS_VOLUME_KEYS
-        // 独立设备音量键沿进入翻页契约。/ Metalio volume-key edges enter the page-turn contract.
+#if KIIKO_BOARD_METALIO47
+        // 音量键主页面与屏幕左右键一致，子页/阅读仍使用自身映射。/ Volume follows root side keys and page-owned child/reader mappings.
         int volume=metalio_take_volume();
-        if(volume && !power_dialog_open && !menu_open && !s_quick.open && current->owns_keys && current->on_key) {
+        if(volume && !power_dialog_open && !power_input_owned && !menu_open && !s_quick.open && !ai_overlay_open() && !quick_input_owned) {
             cancel_gesture(&ctx,current,&gesture); last_input_ms=ctx.now_ms;
-            present_page(&ctx,current,&gesture,current->on_key(&ctx,volume<0?UI_KEY_1:UI_KEY_3));
+            present_page(&ctx,current,&gesture,volume_key_action(&ctx,current,volume));
         }
+#else
 #endif
         // 蓝牙翻页器：BLE 栈只在这里跟随设置启停。必须走 ble_pt_sync()——自己写
         // 「设置与状态不一致就 start()」会让启动失败的那次判断每轮都成立，变成每秒
@@ -1262,28 +1437,26 @@ void app_loop_run(const app_loop_config_t* config) {
         // ble_pt_sync(). Rolling our own "state differs from setting, so start()" makes a failed
         // start true on every tick, re-initialising dozens of times a second until memory runs
         // out; sync() carries the memory gate, the failure back-off and the crash-loop lock.
+        // WiFi 在 C6、BLE 在 S3；传输仍与 BLE 竞争 S3 内部内存，网络占用先拆 BLE，结束后恢复。
+        // WiFi runs on C6 and BLE on S3; both consume S3 internal memory, so network leases pause BLE and release it afterwards.
         read_pico_transfer_status_t transfer;
         read_pico_transfer_get_status(&transfer);
         const bool wifi_busy = transfer.state != READ_PICO_TRANSFER_STOPPED ||
             pico_online_busy();
 #if KIIKO_BOARD_METALIO47
-        // S31的WiFi/BLE在同一芯片，通过SDK软件共存；蓝牙开关独立于联网状态。
-        // Native S31 radios share SDK arbitration; the BLE setting is independent of WiFi.
         ble_pt_sync(app_settings_ble_turner());
 #else
-        // WiFi 在 C6、BLE 在 S3；传输仍与 BLE 竞争 S3 内部内存，网络占用先拆 BLE，结束后恢复。
-        // WiFi runs on C6 and BLE on S3; both consume S3 internal memory, so network leases pause BLE and release it afterwards.
         ble_pt_sync(app_settings_ble_turner() && !wifi_busy);
 #endif
         ble_pt_poll();
-        if (s_quick.open || quick_input_owned) {
+        if (s_quick.open || ai_overlay_open() || quick_input_owned) {
             // 覆盖层期间丢弃页内蓝牙输入，关闭后不重放翻页或学习事件。
             // Discard page BLE input while covered, without replaying turns or learning edges after closing.
             ble_pt_event_t key_event; ble_pt_raw_t raw_event;
             while (ble_pt_pop_key(&key_event)) {}
             while (ble_pt_pop_raw(&raw_event)) {}
         }
-#if KIIKO_BOARD_HAS_FRONTLIGHT
+#if KIIKO_BOARD_METALIO47
         if (s_quick.open && quick_status() != s_quick_status) quick_controls_present(&ctx, current);
 #else
         if (s_quick.open && quick_status() != s_quick_status) quick_buttons_present(&ctx,current);
@@ -1301,10 +1474,12 @@ void app_loop_run(const app_loop_config_t* config) {
             !ui_click_feedback_active() && !ctx.request_app && !ctx.request_menu && !ctx.request_return &&
             ui_nav_refresh_power(ctx.fb)) {
 #if KIIKO_BOARD_METALIO47
-            // S31 状态栏电量与充电图标统一走 FOLLOW 差分，避免灰阶波形重算。
-            // The S31 header battery and charging bolt stay on the FOLLOW diff instead of a gray waveform.
+            bool previous=display_system_binary_set(current->binary_ui);
+            bool previous_nav=display_system_navigation_set(navigation_page_ready(&ctx,current));
             guard_draw_result(ctx.hl,update_display_area_diff_with(ctx.hl,&E0470_FOLLOW_WAVEFORM,
                 MODE_DU,ui_nav_status_area()));
+            display_system_navigation_set(previous_nav);
+            display_system_binary_set(previous);
 #else
             // 普通/水波纹保留状态栏灰阶边缘，快刷保持原黑白局刷。
             // Retain gray header edges in ordinary/water modes and short binary updates in fast mode.
@@ -1317,7 +1492,7 @@ void app_loop_run(const app_loop_config_t* config) {
         uint32_t ble_input = ble_pt_input_serial();
         if (ble_input != last_ble_input) { last_ble_input = ble_input; last_input_ms = ctx.now_ms; }
         unsigned requested_idle = app_settings_auto_lock_minutes();
-#if KIIKO_BOARD_HAS_USB_DOWNLOAD
+#if KIIKO_BOARD_METALIO47
         bool idle_blocked = usb_storage_active() || app_download_active() || wifi_busy || current == &app_transfer ||
 #else
         bool idle_blocked = usb_storage_active() || wifi_busy || current == &app_transfer ||
@@ -1328,6 +1503,11 @@ void app_loop_run(const app_loop_config_t* config) {
         idle_minutes = requested_idle;
         if (!idle_blocked && ctx.now_ms >= s_lock_ignore_until_ms &&
             auto_lock_due(ctx.now_ms, last_input_ms, idle_minutes)) {
+#if KIIKO_BOARD_METALIO47
+            // 不因配置层常亮阻止自动锁屏；透明锁屏须先恢复真实底页，避免缓存玻璃面板。
+            // A chooser never disables idle lock; restore the physical underlay before transparent lock artwork can cache it.
+            ai_dismiss(&ctx,current,true);
+#endif
             held_key = -1;
             cancel_gesture(&ctx, current, &gesture);
             if (menu_pressed >= 0) menu_feedback(&ctx, current, menu_leaf, menu_pressed, false, &feedback);
@@ -1425,11 +1605,11 @@ void app_loop_run(const app_loop_config_t* config) {
         // The pressed pose is already visible; settle by timer independently of navigation.
         if(ui_click_feedback_nav_pending()) {
             if(err!=ESP_OK || touch.count>1 || menu_open || power_dialog_open || s_quick.open ||
-                usb_storage_active() || !navigation_page_ready(&ctx,current))ui_click_feedback_reset();
+                usb_storage_active() || ai_overlay_open() || !navigation_page_ready(&ctx,current))ui_click_feedback_reset();
             else if(ui_click_feedback_nav_tick(ctx.fb,esp_timer_get_time()/1000,&click_area))
                 click_present(&ctx,current,click_area);
         }
-#if KIIKO_BOARD_HAS_ANTI_FADE
+#if KIIKO_BOARD_METALIO47
         // 锁屏/PIN阻塞主循环，唤醒后last_input已重置；不创建定时唤醒。
         // Sleep/PIN block this loop and reset last_input on wake; no timer wakeup is created.
         bool fade_blocked=idle_blocked||menu_open||power_dialog_open||s_quick.open||quick_input_owned||
@@ -1439,6 +1619,7 @@ void app_loop_run(const app_loop_config_t* config) {
             display_request_full_refresh();
             app_present(&ctx,current,APP_REDRAW_PAGE);
         }
+#else
 #endif
         // 连续列表相位期间缩短等待；每次仍读触摸，并给其他任务让出一个调度周期。
         // Reduce waits during continuous list phases; poll touch each time and yield one scheduling tick.

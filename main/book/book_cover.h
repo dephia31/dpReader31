@@ -44,9 +44,8 @@ bool book_cover_load_list_gray(const char *path, const char *title, const char *
                                uint8_t out[BOOK_COVER_W * BOOK_COVER_H], bool allow_decode,
                                bool *pending, unsigned *width, unsigned *height);
 
+#if KIIKO_BOARD_METALIO47
 // S31 shared fast thumbnails and bounded idle disk-to-RAM prefetch.
-// pico 没有 RAM 封面缓存：下面这些入口都恒返回 false 或空操作，调用点无需 #if。
-// The Pico has no RAM cover cache: these entries always miss or do nothing, so call sites need no #if.
 bool book_cover_fast_cache_get(const char *path,const char *title,const char *author,unsigned style,
                                unsigned width,unsigned height,unsigned contrast,unsigned phase,
                                uint8_t *bits,size_t bytes,bool *white_edge);
@@ -54,6 +53,8 @@ void book_cover_fast_cache_put(const char *path,const char *title,const char *au
                                unsigned width,unsigned height,unsigned contrast,unsigned phase,
                                const uint8_t *bits,size_t bytes,bool white_edge);
 bool book_cover_prefetch_cached(const char *path,const char *title,const char *author,bool list);
+#else
+#endif
 /// 快刷已处理的点阵封面；按书源身份、尺寸、对比度与抖动相位失效，像素带校验。
 /// Finished fast-cover pixels: invalidate by source, geometry, contrast and dither phase; validate payload.
 typedef struct { unsigned width, height, stride, contrast, phase; } book_fast_cover_key_t;
@@ -74,6 +75,7 @@ void book_cover_store_generated(const char *path,const char *title,const char *a
 /// Persist asynchronous pixels only under their original source identity, never a replaced book's key.
 void book_cover_fast_cache_write_checked(const char *path,const char *title,const char *author,book_fast_cover_key_t key,const uint8_t *pixels,bool edge,int64_t size,int64_t modified);
 
+#if KIIKO_BOARD_METALIO47
 /// RAM 专用命中；前台未命中时不打开 TF 缓存文件。/ RAM-only lookup; no TF open on foreground misses.
 bool book_cover_peek_gray(const char *path,const char *title,const char *author,bool list,
                          uint8_t *out,unsigned *width,unsigned *height);
@@ -82,6 +84,8 @@ bool book_cover_fast_cache_peek(const char *path,const char *title,const char *a
 bool book_cover_prefetch_fast_cached(const char *path,const char *title,const char *author,
                                     book_fast_cover_key_t key);
 
+#else
+#endif
 /// PNG预乘灰度及alpha；输出缓冲各width*height字节。/ Premultiplied PNG gray and alpha; each output buffer holds width*height bytes.
 bool book_png_file_layer(const char *path,unsigned width,unsigned height,uint8_t *gray,uint8_t *alpha);
 /// 流式透明层：仅保留源行窗口和一条输出行。/ Stream premultiplied gray/alpha through bounded row buffers.

@@ -20,6 +20,8 @@ typedef enum {APP_REDRAW_NONE,APP_REDRAW_AREA,APP_REDRAW_PAGE,APP_REDRAW_FULL,AP
 enum EpdDrawError {EPD_DRAW_SUCCESS,EPD_DRAW_OTHER_ERROR};
 enum {READING,SHELF,MANAGE,EDIT,SEARCH,TOC,READER_PANEL_NONE,READER_PANEL_BACKGROUND_PREVIEW};
 enum {MODE_DU,MODE_GL16,MODE_GC16,APP_PAGE_REFRESH_MODE=MODE_GL16};
+#define UI_LOCK_WIDTH 684
+#define UI_LOCK_HEIGHT 1216
 #define TAG "test"
 #define ESP_LOGI(...) ((void)0)
 #define portMAX_DELAY 0
@@ -86,7 +88,9 @@ static enum EpdDrawError update_display_area_with(void *hl,const int *wave,int m
 #define display_main_normal_waveform() (&E0470_WAVEFORM)
 #define update_display_water_turn(...) push(18)
 #define E0470_TURN_RTL 0
-#define update_display_text_turn(...) push(19)
+static enum EpdDrawError update_display_text_turn(void *hl,EpdRect area,int dir) {
+ (void)hl;(void)dir;assert(tick==2);return push_area(20,&E0470_FULL_WAVEFORM,MODE_DU,area);
+}
 #define update_display_fast_page(...) push(19)
 '''
 unit+='static bool s_shelf_key_paint_pending;\n'
@@ -172,6 +176,28 @@ int main(void){
  reset();s_view=s_presented_view=SHELF;s_shelf_key_paint_pending=true;
  present(&ctx,APP_REDRAW_AREA);assert(calls==1&&selected==13&&!s_shelf_key_paint_pending&&!prepares);
  reset();ctx.request_app=true;present(&ctx,APP_REDRAW_AREA);assert(calls==0);ctx.request_app=false;
+ // 新速读与普通共用连续文字资格，全文/页脚一次；清理和图像不被短路。
+ // Fast BW shares consecutive-text eligibility, fusing the footer; cleanup and images take priority.
+ for(int full=0;full<2;++full)for(int hide_status=0;hide_status<2;++hide_status) {
+  reset();tick=2;s_reader_fullscreen=full;immersive=hide_status;s_reader_footer_pending=!full;s_area=reader_area();
+  assert(present(&ctx,APP_REDRAW_AREA)&&calls==1&&selected==20&&s_reader_text_frame);
+  same_area(areas[0],(EpdRect){0,full?(hide_status?0:80):160,684,
+             (full?1216:1192)-(full?(hide_status?0:80):160)});
+ }
+ for(int kind=0;kind<9;++kind) {
+  reset();tick=2;
+  if(kind==0)s_reader_cleanup=true;
+  if(kind==1){images=1;s_reader_image_refresh_pending=true;}
+  if(kind==2)background=true;
+  if(kind==3)s_reader_turn_pending=false;
+  if(kind==4)s_reader_panel=99;
+  if(kind==5)s_toolbar=true;
+  if(kind==6)s_clear_confirm=true;
+  if(kind==7)s_presented_view=SHELF;
+  present(&ctx,kind==8?APP_REDRAW_FULL:APP_REDRAW_AREA);assert(selected!=20);
+ }
+ reset();tick=2;fail=1;present(&ctx,APP_REDRAW_AREA);assert(selected==20&&!s_reader_text_frame);
+ puts("PASS: FastBW fuses body/footer, preserves full/periodic/entry/image/background/panel routes and rejects failed history");
  puts("PASS: reader entry cleans once with complete GC16 including images/backgrounds, retaining failure retry; ordinary text/progress fuse erase-preserving gray differences; periodic GC16, ripple, local controls, clock and cancellation retain their paths");
 }
 '''

@@ -2,26 +2,6 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 中文：热点传书。两块板的实现对时间同步的处理不同：Pico 沿用官方固件原样（不含联网对时），
- * Metalio S31 另带 HTTP Date 与 SNTP 对时助手（transfer_http_time.c / transfer_ntp_time.c）。
- * 这两份助手只在 S31 参与构建；Pico 的 app 分区本来就已经顶满 4MB，不能为了它们挤掉别的功能。
- *
- * English: hotspot transfer. The boards differ in time synchronisation: the Pico keeps the official
- * firmware behaviour (no network time), while the Metalio S31 adds HTTP Date and SNTP helpers
- * (transfer_http_time.c / transfer_ntp_time.c). Those helpers build on the S31 only; the Pico's
- * application partition is already full and must not lose other features for them.
- *
- * 冻结：两块板各自的浏览器页面流程与凭据存储保持不变。
- * Frozen: each board keeps its own browser flow and credential storage.
- */
-#include "kiiko_board.h"
-
-#if KIIKO_BOARD_METALIO47
-/* ---- Metalio S31 ---- */
-/*
- * SPDX-FileCopyrightText: 2026 mindreset
- * SPDX-License-Identifier: Apache-2.0
- *
  * 热点与已有WiFi、HTTP接收和临时文件提交；容量策略由页面注入。
  * AP/STA networking, HTTP reception and file commit; page injects capacity policy.
  * 冻结：分类上传限制书籍/图片/字体格式；目录中的「添加文件」接受任意格式，保留 UTF-8 名字并先验容量。
@@ -46,18 +26,25 @@
 #include <sys/time.h>
 #include <dirent.h>
 #include <unistd.h>
+#if KIIKO_BOARD_METALIO47
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "transfer_http_time.h"
 #include "transfer_ntp_time.h"
+#include "esp_app_desc.h"
 // HTTP 服务独占写入，供 /info 诊断真实接收与写卡瓶颈，不含文件名。
 // Owned by the HTTP task; report measured receive/storage costs without file names.
 static struct {
     unsigned bytes, elapsed_ms, receive_ms, write_ms, writes, block;
     int error;
 } s_receive_metrics;
+#endif
+#else
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#endif
 #endif
 
 #define IMAGE_UPLOAD_LIMIT (20u * 1024u * 1024u)
@@ -296,10 +283,16 @@ static int commit_file(const char *part, const char *path) {
 typedef int (*receive_cb_t)(void *, char *, size_t);
 typedef void (*progress_cb_t)(size_t);
 enum { TRANSFER_COMMITTED_BACKUP_RETAINED = 299 };
+#if KIIKO_BOARD_METALIO47
+#ifdef ESP_PLATFORM
+#include "transfer_stream_writer.h"
+#endif
+#endif
 static int receive_file(const char *path, const char *part, size_t total, char *buf,
                         size_t cap, receive_cb_t recv, void *ctx, progress_cb_t progress) {
     FILE *f = fopen(part, "wb");
     if (!f) return 507;
+#if KIIKO_BOARD_METALIO47
     // 在已有接收缓冲中合并小包，按整块写卡；不再分配第二份 stdio 缓冲。
     // Coalesce small packets in the owned receive buffer; no duplicate stdio allocation.
     (void)setvbuf(f, NULL, _IONBF, 0);
@@ -309,8 +302,30 @@ static int receive_file(const char *path, const char *part, size_t total, char *
     const int64_t started_us = esp_timer_get_time();
     int64_t receive_us = 0, write_us = 0;
     unsigned writes = 0;
+    unsigned write_slot=0;
+    transfer_writer_t *writer=transfer_writer_start(f,buf,cap,total);
+    if(writer)buf=transfer_writer_acquire(writer,write_slot);
+#endif
+#else
+    // HTTP 常按小包到达；扩大文件缓冲可显著减少 TF 卡零碎写入。
+    // HTTP arrives in small packets; a larger file buffer cuts fragmented SD writes.
+#ifdef ESP_PLATFORM
+    char *write_buffer = heap_caps_malloc(8192, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
+    char *write_buffer = malloc(8192);
+#endif
+    if (write_buffer && setvbuf(f, write_buffer, _IOFBF, 8192) != 0) {
+        free(write_buffer);
+        write_buffer = NULL;
+    }
+    int error = 0;
+    size_t done = 0;
 #endif
     while (done < total) {
+#if KIIKO_BOARD_METALIO47
+#ifdef ESP_PLATFORM
+        if(writer && atomic_load(&writer->error)){error=507;break;}
+#endif
         size_t room = cap - pending;
         size_t n = total - done < room ? total - done : room;
 #ifdef ESP_PLATFORM
@@ -320,27 +335,55 @@ static int receive_file(const char *path, const char *part, size_t total, char *
 #ifdef ESP_PLATFORM
         receive_us += esp_timer_get_time() - phase_us;
 #endif
+#else
+        size_t n = total - done < cap ? total - done : cap;
+        int got = recv(ctx, buf, n);
+#endif
         if (got <= 0 || (size_t)got > n) { error = 408; break; }
+#if KIIKO_BOARD_METALIO47
+#else
+        if (fwrite(buf, 1, (size_t)got, f) != (size_t)got) { error = 507; break; }
+#endif
         done += (size_t)got;
+#if KIIKO_BOARD_METALIO47
         pending += (size_t)got;
         if (pending == cap || done == total) {
 #ifdef ESP_PLATFORM
             phase_us = esp_timer_get_time();
             ++writes;
 #endif
-            size_t written = fwrite(buf, 1, pending, f);
 #ifdef ESP_PLATFORM
-            write_us += esp_timer_get_time() - phase_us;
+            if(writer) {
+                transfer_writer_submit(writer,write_slot,pending);
+                write_slot^=1;
+                buf=transfer_writer_acquire(writer,write_slot);
+            } else
 #endif
-            if (written != pending) { error = 507; break; }
+            {
+                size_t written=fwrite(buf,1,pending,f);
+#ifdef ESP_PLATFORM
+                write_us+=esp_timer_get_time()-phase_us;
+#endif
+                if(written!=pending){error=507;break;}
+            }
             pending = 0;
         }
+#else
+#endif
         if (progress) progress(done);
     }
+#if KIIKO_BOARD_METALIO47
 #ifdef ESP_PLATFORM
+    if(writer) {
+        int write_error=transfer_writer_finish(writer,write_slot,&write_us,&writes);
+        if(write_error)error=write_error;
+    }
     int64_t close_us = esp_timer_get_time();
 #endif
+#else
+#endif
     if (fclose(f) != 0) error = 507;
+#if KIIKO_BOARD_METALIO47
 #ifdef ESP_PLATFORM
     write_us += esp_timer_get_time() - close_us;
     s_receive_metrics.bytes = (unsigned)done;
@@ -353,6 +396,9 @@ static int receive_file(const char *path, const char *part, size_t total, char *
     ESP_LOGI("transfer", "receive bytes=%u time_ms=%u net_ms=%u write_ms=%u writes=%u block=%u error=%d",
              (unsigned)done, (unsigned)((esp_timer_get_time()-started_us)/1000),
              (unsigned)(receive_us/1000), (unsigned)(write_us/1000), writes, (unsigned)cap, error);
+#endif
+#else
+    free(write_buffer);
 #endif
     if (!error) {
         int committed = commit_file(part, path);
@@ -497,6 +543,7 @@ static int list_books(const char *root, const char *query, size_t page, transfer
     return status;
 }
 
+#if KIIKO_BOARD_METALIO47
 #ifndef READ_PICO_TRANSFER_HOST_TEST
 #include "read_pico_transfer.h"
 #include "transfer_signature.h"
@@ -578,6 +625,12 @@ extern const char upload_end[] asm("_binary_upload_html_end");
 void read_pico_transfer_get_status(read_pico_transfer_status_t *out) {
     if (!out) return;
     portENTER_CRITICAL(&s_lock); *out = s_status; portEXIT_CRITICAL(&s_lock);
+}
+bool read_pico_transfer_radio_busy(void) {
+    portENTER_CRITICAL(&s_lock);
+    bool busy=s_config_busy||s_status.state!=READ_PICO_TRANSFER_STOPPED;
+    portEXIT_CRITICAL(&s_lock);
+    return busy||ble_pt_running();
 }
 
 static bool claim_config(void) {
@@ -1127,6 +1180,10 @@ static esp_err_t respond_error(httpd_req_t *req, int code) {
     return ESP_FAIL;
 }
 
+#ifdef KIIKO_LOCAL_NETWORK_PROBE
+#include "transfer_network_probe.h"
+#endif
+
 static esp_err_t index_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     return httpd_resp_send(req, upload_start, upload_end - upload_start - 1);
@@ -1145,12 +1202,33 @@ static esp_err_t info_handler(httpd_req_t *req) {
     cJSON_AddStringToObject(json, "wifi_ssid", status.wifi_ssid);
     cJSON_AddStringToObject(json, "root", s_root);
     cJSON_AddStringToObject(json, "wifi_band", "2.4GHz");
+    const esp_app_desc_t *app=esp_app_get_description();
+    cJSON_AddStringToObject(json,"project",app->project_name);
+    cJSON_AddStringToObject(json,"version",app->version);
+    char elf[65];
+    for(unsigned i=0;i<32;++i)snprintf(elf+i*2,3,"%02x",app->app_elf_sha256[i]);
+    cJSON_AddStringToObject(json,"elf_sha256",elf);
+    cJSON_AddBoolToObject(json,"ble_running",ble_pt_running());
+    cJSON_AddBoolToObject(json,"network_only",s_cfg.network_only);
+    cJSON_AddNumberToObject(json,"heap_internal_free",heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(json,"heap_internal_min",heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(json,"heap_internal_largest",heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(json,"tcp_window",CONFIG_LWIP_TCP_WND_DEFAULT);
+    cJSON_AddNumberToObject(json,"wifi_dynamic_rx",CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM);
+    cJSON_AddNumberToObject(json,"wifi_static_rx",CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM);
+    cJSON_AddNumberToObject(json,"wifi_rx_ba",CONFIG_ESP_WIFI_RX_BA_WIN);
+
+#ifdef KIIKO_LOCAL_NETWORK_PROBE
+    transfer_network_probe_info(json);
+#endif
     wifi_ps_type_t ps;
     if (esp_wifi_get_ps(&ps) == ESP_OK) cJSON_AddNumberToObject(json, "wifi_ps", ps);
     wifi_ap_record_t ap;
     if (status.mode == READ_PICO_TRANSFER_MODE_STA && esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
         cJSON_AddNumberToObject(json, "wifi_rssi", ap.rssi);
         cJSON_AddNumberToObject(json, "wifi_channel", ap.primary);
+        cJSON_AddBoolToObject(json,"ap_supports_11n",ap.phy_11n);
+        cJSON_AddBoolToObject(json,"ap_supports_11ax",ap.phy_11ax);
     }
     cJSON *metrics = cJSON_AddObjectToObject(json, "last_receive");
     if (metrics) {
@@ -2013,10 +2091,12 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     if (!claim_config()) return ESP_ERR_INVALID_STATE;
     if (s_wifi || s_netif || s_http) { release_config(); return ESP_ERR_INVALID_STATE; }
-    // S31保留原生WiFi/BLE共存，并用同一配置锁与后台对时互斥。/ Retain native S31 coexistence and serialize configuration against background sync.
-    const esp_err_t reserve = ble_pt_network_acquire();
-    if (reserve != ESP_OK) { release_config(); return reserve; }
-    s_ble_network_reserved = true;
+    // 传输服务持有临时BLE租约；仅联网保持共存，对时与配置仍串行。/ Transfer owns a temporary BLE lease; network-only retains coexistence and configuration stays serialized.
+    if(!cfg->network_only) {
+        const esp_err_t reserve=ble_pt_network_acquire();
+        if(reserve!=ESP_OK){release_config();return reserve;}
+        s_ble_network_reserved=true;
+    }
     s_cfg = *cfg;
     if (cfg->root_dir) strcpy(s_root, cfg->root_dir);
     else s_root[0] = 0;
@@ -2137,6 +2217,9 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     }
     err = esp_wifi_start(); if (err != ESP_OK) goto fail;
     s_started = true;
+#ifdef KIIKO_LOCAL_NETWORK_PROBE
+    transfer_network_probe_start();
+#endif
     if (cfg->mode == READ_PICO_TRANSFER_MODE_STA && !cfg->network_only) {
         esp_err_t power_err = esp_wifi_set_ps(WIFI_PS_NONE);
         if (power_err != ESP_OK) ESP_LOGW("transfer", "disable wifi power save: %s", esp_err_to_name(power_err));
@@ -2159,447 +2242,7 @@ fail:
     read_pico_transfer_stop(); release_config(); set_error(err); return err;
 }
 #endif
-
 #else
-/* ---- 小纸 Pico（官方固件原样）/ Read Pico (upstream as-is) ---- */
-/*
- * SPDX-FileCopyrightText: 2026 mindreset
- * SPDX-License-Identifier: Apache-2.0
- *
- * 热点与已有WiFi、HTTP接收和临时文件提交；容量策略由页面注入。
- * AP/STA networking, HTTP reception and file commit; page injects capacity policy.
- * 冻结：分类上传限制书籍/图片/字体格式；目录中的「添加文件」接受任意格式，保留 UTF-8 名字并先验容量。
- * Frozen: Typed uploads limit book/image/font formats; Add File accepts any format within the TF root, preserving UTF-8 names and checking capacity first.
- * 为传入升级包等其他文件增加目录上传；分类上传仍保持原有限额和失败清理。
- * Directory uploads also accept upgrade packages; typed uploads retain their limits and failed-part cleanup.
- * 冻结：热点网页或停服设备触屏可配置网络，不自动切模式；凭据只存单个NVS blob，状态不含密码。
- * 冻结：显式对时优先复用已连接的 STA；停服时才短暂连接，用毕释放；凭据只保存在原 NVS blob。
- * Frozen: Explicit time sync reuses connected STA; only a stopped service connects briefly and releases WiFi; credentials stay in the original NVS blob.
- * 已连接后仍启动临时 WiFi 会返回状态错误，因此改为按连接状态分流。
- * Starting temporary WiFi while already connected returned invalid state, so sync now routes by connection state.
- */
-#include "read_pico_search.h"
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <dirent.h>
-#include <unistd.h>
-#ifdef ESP_PLATFORM
-#include "esp_heap_caps.h"
-#endif
-
-#define IMAGE_UPLOAD_LIMIT (20u * 1024u * 1024u)
-#define FONT_UPLOAD_LIMIT (32u * 1024u * 1024u)
-
-/* ---- 请求与存储 / Requests and storage ---- */
-static int hex_value(unsigned char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
-static bool decode_name_limit(const char *encoded, char *out, size_t cap, unsigned kind) {
-    if (!cap) return false;
-    size_t n = 0;
-    while (*encoded) {
-        unsigned char c = (unsigned char)*encoded++;
-        if (c == '%') {
-            if (!encoded[0] || !encoded[1]) return false;
-            int a = hex_value(encoded[0]), b = hex_value(encoded[1]);
-            if (a < 0 || b < 0) return false;
-            c = (unsigned char)((a << 4) | b); encoded += 2;
-        }
-        if (n + 1 >= cap || c < 32 || c == 127 || strchr("/\\:*?\"<>|", c)) return false;
-        out[n++] = (char)c;
-    }
-    out[n] = 0;
-    if (!n || out[0] == '.' || out[0] == ' ' || out[n - 1] == ' ' || strstr(out, "..")) return false;
-    const char *ext = strrchr(out, '.');
-    if (!ext || (kind == 1 ? (strcasecmp(ext, ".jpg") && strcasecmp(ext, ".jpeg") && strcasecmp(ext, ".png"))
-               : kind == 2 ? (strcasecmp(ext, ".ttf") && strcasecmp(ext, ".otf"))
-                           : (strcasecmp(ext, ".txt") && strcasecmp(ext, ".epub")))) return false;
-    // 拒绝非规范 UTF-8、代理项与越界码点。/ Reject noncanonical UTF-8, surrogates and out-of-range code points.
-    for (size_t i = 0; i < n;) {
-        uint32_t cp; unsigned more; unsigned char c = (unsigned char)out[i++];
-        if (c < 128) continue;
-        if (c >= 0xc2 && c <= 0xdf) { cp = c & 31; more = 1; }
-        else if (c >= 0xe0 && c <= 0xef) { cp = c & 15; more = 2; }
-        else if (c >= 0xf0 && c <= 0xf4) { cp = c & 7; more = 3; }
-        else return false;
-        unsigned width = more;
-        while (more--) {
-            if (i == n || ((unsigned char)out[i] & 0xc0) != 0x80) return false;
-            cp = (cp << 6) | ((unsigned char)out[i++] & 63);
-        }
-        if ((width == 2 && cp < 0x800) || (width == 3 && cp < 0x10000) ||
-            (cp >= 0xd800 && cp <= 0xdfff) || cp > 0x10ffff) return false;
-    }
-    return true;
-}
-
-static bool decode_name(const char *encoded, char out[121]) { return decode_name_limit(encoded, out, 121, false); }
-
-static bool raw_book_name(const char *entry, char *name, size_t cap) {
-    size_t len = strlen(entry);
-    if (!len || len >= cap || len > 255) return false;
-    static const char digits[] = "0123456789ABCDEF";
-    char encoded[766];
-    for (size_t i = 0; i < len; ++i) {
-        unsigned char c = (unsigned char)entry[i];
-        encoded[i * 3] = '%'; encoded[i * 3 + 1] = digits[c >> 4]; encoded[i * 3 + 2] = digits[c & 15];
-    }
-    encoded[len * 3] = 0;
-    return decode_name_limit(encoded, name, cap, false);
-}
-
-// 两个存储根都是FAT；变更使用目录真实拼写，不明别名拒绝操作，避免漏清阅读记录。
-// Both storage roots use FAT; use directory spelling and reject unknown aliases to protect progress identity.
-static bool ascii_name_equal(const char *a, const char *b) {
-    while (*a && *b) {
-        unsigned char x = (unsigned char)*a++, y = (unsigned char)*b++;
-        if (x >= 'A' && x <= 'Z') x += 'a' - 'A';
-        if (y >= 'A' && y <= 'Z') y += 'a' - 'A';
-        if (x != y) return false;
-    }
-    return *a == *b;
-}
-
-static int resolve_mutation_path(const char *root, const char *name,
-                                 char *path, size_t cap) {
-    if (snprintf(path, cap, "%s/%s", root, name) >= (int)cap) return 400;
-    // 主文件优先；只有备份的中断状态也保留原始名字。/ Prefer the main file; preserve spelling when only a backup remains.
-    for (int pass = 0; pass < 2; ++pass) {
-        DIR *dir = opendir(root);
-        if (!dir) return 507;
-        bool found = false;
-        int result = 0;
-        struct dirent *entry;
-        while (errno = 0, (entry = readdir(dir)) != NULL) {
-            const char *suffix = ".rename-backup";
-            size_t len = strlen(entry->d_name), tail = pass ? strlen(suffix) : 0;
-            if (len <= tail || len - tail > 255 || (pass && strcmp(entry->d_name + len - tail, suffix))) continue;
-            char actual[256]; memcpy(actual, entry->d_name, len - tail); actual[len - tail] = 0;
-            if (!ascii_name_equal(actual, name)) continue;
-            if (found || snprintf(path, cap, "%s/%s", root, actual) >= (int)cap) { result = 400; break; }
-            found = true;
-        }
-        if (!entry && errno) result = 507;
-        if (closedir(dir)) result = 507;
-        if (result || found) return result;
-        if (!pass) {
-            struct stat st;
-            if (!stat(path, &st)) return 400;
-            if (errno != ENOENT) return 507;
-        }
-    }
-    struct stat st;
-    if (!stat(path, &st)) return 400;
-    if (errno != ENOENT) return 507;
-    if (strlen(name) + strlen(".rename-backup") <= 255) {
-        char backup[480];
-        if (snprintf(backup, sizeof(backup), "%s.rename-backup", path) >= (int)sizeof(backup)) return 400;
-        if (!stat(backup, &st)) return 400;
-        if (errno != ENOENT) return 507;
-    }
-    return 0;
-}
-
-// 网页只接受 TF 卡内相对路径；每段单独检查，不能通过编码后的斜杠绕出根目录。
-// Accept only TF-relative paths; validate every segment after URL decoding.
-static bool sd_relative_valid(const char *relative, bool allow_root) {
-    size_t length = strlen(relative);
-    if (!length) return allow_root;
-    if (length > 238 || relative[0] == '/' || relative[length - 1] == '/') return false;
-    const char *segment = relative;
-    for (const char *p = relative;; ++p) {
-        unsigned char ch = (unsigned char)*p;
-        if (ch && ch != '/') {
-            if (ch < 32 || ch == 127 || strchr("\\:*?\"<>|", ch)) return false;
-            continue;
-        }
-        size_t n = (size_t)(p - segment);
-        if (!n || n > 240 || (n == 1 && segment[0] == '.') ||
-            (n == 2 && segment[0] == '.' && segment[1] == '.') ||
-            segment[0] == ' ' || segment[n - 1] == ' ' || segment[n - 1] == '.') return false;
-        if (!ch) return true;
-        segment = p + 1;
-    }
-}
-
-static bool sd_decode_relative(const char *encoded, char relative[240], bool allow_root) {
-    size_t n = 0;
-    while (*encoded) {
-        unsigned char ch = (unsigned char)*encoded++;
-        if (ch == '%') {
-            if (!encoded[0] || !encoded[1]) return false;
-            int hi = hex_value(encoded[0]), lo = hex_value(encoded[1]);
-            if (hi < 0 || lo < 0) return false;
-            ch = (unsigned char)((hi << 4) | lo);
-            encoded += 2;
-        }
-        if (!ch || n + 1 >= 240) return false;
-        relative[n++] = (char)ch;
-    }
-    relative[n] = 0;
-    return sd_relative_valid(relative, allow_root);
-}
-
-static bool sd_absolute(const char *relative, char *out, size_t cap) {
-    return snprintf(out, cap, "/sdcard%s%s", relative[0] ? "/" : "", relative) < (int)cap;
-}
-
-
-static int check_length(size_t total, size_t limit, uint64_t available) {
-    if (!total) return 400;
-    if (limit && total > limit) return 413;
-    if (total > available) return 507;
-    return 0;
-}
-
-static bool temporary_basename(const char *entry, const char *suffix, char name[121]) {
-    size_t len = strlen(entry), tail = strlen(suffix);
-    if (len <= tail || len - tail > 120 || strcmp(entry + len - tail, suffix)) return false;
-    // 目录项已解码；重新百分号编码后复用校验，保留文件名里的字面百分号。
-    // Directory entries are already decoded; encode before validation to preserve literal percent signs.
-    static const char digits[] = "0123456789ABCDEF";
-    char encoded[361];
-    for (size_t i = 0; i < len - tail; ++i) {
-        unsigned char c = (unsigned char)entry[i];
-        encoded[i * 3] = '%'; encoded[i * 3 + 1] = digits[c >> 4]; encoded[i * 3 + 2] = digits[c & 15];
-    }
-    encoded[(len - tail) * 3] = 0;
-    return decode_name(encoded, name);
-}
-
-static int cleanup_interrupted(const char *root, unsigned *removed, unsigned *restored) {
-    *removed = *restored = 0;
-    // 先恢复缺失的旧书，再删未提交片段；不递归、不删除已有完整书或其备份。
-    // Restore missing old books before removing uncommitted parts; never recurse or delete complete books or their backups.
-    for (int pass = 0; pass < 2; ++pass) {
-        DIR *dir = opendir(root);
-        if (!dir) return -1;
-        int result = 0;
-        struct dirent *entry;
-        while (errno = 0, (entry = readdir(dir)) != NULL) {
-            char name[121], path[320], target[288];
-            if (!temporary_basename(entry->d_name, pass ? ".part" : ".rename-backup", name)) continue;
-            if (snprintf(path, sizeof(path), "%s/%s", root, entry->d_name) >= (int)sizeof(path) ||
-                snprintf(target, sizeof(target), "%s/%s", root, name) >= (int)sizeof(target)) { result = -1; break; }
-            struct stat st;
-            if (stat(path, &st)) { result = -1; break; }
-            if (!S_ISREG(st.st_mode)) continue;
-            if (!pass) {
-                if (!stat(target, &st)) continue;
-                if (errno != ENOENT || rename(path, target)) { result = -1; break; }
-                ++*restored;
-            } else {
-                if (remove(path)) { result = -1; break; }
-                ++*removed;
-            }
-        }
-        if (!entry && errno) result = -1;
-        if (closedir(dir)) result = -1;
-        if (result) return result;
-    }
-    return 0;
-}
-
-static int commit_file(const char *part, const char *path) {
-    if (rename(part, path) == 0) return 0;
-    // FatFs 不支持直接覆盖；保留旧书直至新文件成功就位。/ FatFs cannot replace directly; retain the old book until commit.
-    if (errno != EEXIST && errno != EACCES) return -1;
-    struct stat st;
-    if (stat(path, &st) || !S_ISREG(st.st_mode)) return -1;
-    char backup[320];
-    if (snprintf(backup, sizeof(backup), "%s.rename-backup", path) >= (int)sizeof(backup)) return -1;
-    if (!stat(backup, &st) || errno != ENOENT) return -1;
-    if (rename(path, backup)) return -1;
-    if (rename(part, path)) { rename(backup, path); return -1; }
-    // 新书已提交；备份删除失败只能报告警告，不能跳过进度失效回调。
-    // The new book is committed; failed backup removal is a warning and must not skip progress invalidation.
-    return remove(backup) ? 1 : 0;
-}
-
-typedef int (*receive_cb_t)(void *, char *, size_t);
-typedef void (*progress_cb_t)(size_t);
-enum { TRANSFER_COMMITTED_BACKUP_RETAINED = 299 };
-static int receive_file(const char *path, const char *part, size_t total, char *buf,
-                        size_t cap, receive_cb_t recv, void *ctx, progress_cb_t progress) {
-    FILE *f = fopen(part, "wb");
-    if (!f) return 507;
-    // HTTP 常按小包到达；扩大文件缓冲可显著减少 TF 卡零碎写入。
-    // HTTP arrives in small packets; a larger file buffer cuts fragmented SD writes.
-#ifdef ESP_PLATFORM
-    char *write_buffer = heap_caps_malloc(8192, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-#else
-    char *write_buffer = malloc(8192);
-#endif
-    if (write_buffer && setvbuf(f, write_buffer, _IOFBF, 8192) != 0) {
-        free(write_buffer);
-        write_buffer = NULL;
-    }
-    int error = 0;
-    size_t done = 0;
-    while (done < total) {
-        size_t n = total - done < cap ? total - done : cap;
-        int got = recv(ctx, buf, n);
-        if (got <= 0 || (size_t)got > n) { error = 408; break; }
-        if (fwrite(buf, 1, (size_t)got, f) != (size_t)got) { error = 507; break; }
-        done += (size_t)got;
-        if (progress) progress(done);
-    }
-    if (fclose(f) != 0) error = 507;
-    free(write_buffer);
-    if (!error) {
-        int committed = commit_file(part, path);
-        if (committed < 0) error = 507;
-        else if (committed > 0) return TRANSFER_COMMITTED_BACKUP_RETAINED;
-    }
-    if (error) remove(part);
-    return error;
-}
-
-typedef int (*file_changed_cb_t)(const char *);
-typedef struct {
-    int status;
-    bool changed, progress_cleanup_failed, storage_cleanup_failed;
-} file_result_t;
-
-static file_result_t changed_result(const char *path, file_changed_cb_t callback) {
-    bool failed = callback && callback(path) != 0;
-    return (file_result_t){.status = failed ? 500 : 200, .changed = true, .progress_cleanup_failed = failed};
-}
-
-static void record_file_change(unsigned *count, file_result_t result, bool retry) {
-    if (result.changed || (retry && result.status == 200)) ++*count;
-}
-
-static int destination_status(const char *path, bool overwrite) {
-    struct stat st;
-    if (!stat(path, &st)) return !S_ISREG(st.st_mode) ? 400 : overwrite ? 0 : 409;
-    return errno == ENOENT ? 0 : 507;
-}
-
-static file_result_t upload_managed(const char *path, const char *part, size_t total, size_t limit,
-        uint64_t available, bool overwrite, char *buf, size_t cap, receive_cb_t recv, void *ctx,
-        progress_cb_t progress, file_changed_cb_t changed) {
-    int status = destination_status(path, overwrite);
-    if (!status) status = check_length(total, limit, available);
-    if (!status) status = receive_file(path, part, total, buf, cap, recv, ctx, progress);
-    if (status && status != TRANSFER_COMMITTED_BACKUP_RETAINED) return (file_result_t){.status = status};
-    file_result_t result = changed_result(path, changed);
-    result.storage_cleanup_failed = status == TRANSFER_COMMITTED_BACKUP_RETAINED;
-    return result;
-}
-
-// 通用文件在目标目录创建独占临时文件，不会覆盖用户原有的同名 .part 文件。
-// General uploads reserve a unique part in the destination directory, preserving existing user .part files.
-static file_result_t upload_directory_file(const char *root, const char *relative, size_t total,
-        uint64_t available, bool overwrite, char *buf, size_t cap, receive_cb_t recv, void *ctx,
-        progress_cb_t progress, file_changed_cb_t changed) {
-    if (!sd_relative_valid(relative, false)) return (file_result_t){.status = 400};
-    char parent[256], path[256], part[288];
-    const char *name = strrchr(relative, '/');
-    size_t prefix = name ? (size_t)(name - relative) : 0;
-    name = name ? name + 1 : relative;
-    if (snprintf(parent, sizeof(parent), "%s%s%.*s", root, prefix ? "/" : "",
-                 (int)prefix, relative) >= (int)sizeof(parent)) return (file_result_t){.status = 400};
-    struct stat st;
-    if (stat(parent, &st) || !S_ISDIR(st.st_mode)) return (file_result_t){.status = 404};
-    int status = resolve_mutation_path(parent, name, path, sizeof(path));
-    if (!status) status = destination_status(path, overwrite);
-    if (!status && total > available) status = 507;
-    if (status) return (file_result_t){.status = status};
-    if (snprintf(part, sizeof(part), "%s/.pico-upload-XXXXXX", parent) >= (int)sizeof(part))
-        return (file_result_t){.status = 400};
-    int fd = mkstemp(part);
-    if (fd < 0) return (file_result_t){.status = 507};
-    if (close(fd)) { remove(part); return (file_result_t){.status = 507}; }
-    // 空文件也有效；图书快捷上传仍由原来的长度策略拒绝空内容。
-    // Empty general files are valid; typed book uploads still reject empty content.
-    status = receive_file(path, part, total, buf, cap, recv, ctx, progress);
-    if (status && status != TRANSFER_COMMITTED_BACKUP_RETAINED) {
-        remove(part);
-        return (file_result_t){.status = status};
-    }
-    const char *ext = strrchr(name, '.');
-    file_result_t result = changed_result(path,
-        ext && (!strcasecmp(ext, ".epub") || !strcasecmp(ext, ".txt")) ? changed : NULL);
-    result.storage_cleanup_failed = status == TRANSFER_COMMITTED_BACKUP_RETAINED;
-    return result;
-}
-
-static file_result_t delete_managed(const char *path, file_changed_cb_t changed) {
-    struct stat st;
-    bool exists = stat(path, &st) == 0;
-    if (!exists && errno != ENOENT) return (file_result_t){.status = 507};
-    if (exists && !S_ISREG(st.st_mode)) return (file_result_t){.status = 400};
-    char backup[480];
-    const char *name = strrchr(path, '/'); name = name ? name + 1 : path;
-    // 后缀会超过文件名上限时不探测备份，避免长书名删除被ENAMETOOLONG阻止。
-    // Skip impossible backup names so ENAMETOOLONG cannot prevent deleting a long book name.
-    if (strlen(name) + strlen(".rename-backup") <= 255) {
-        if (snprintf(backup, sizeof(backup), "%s.rename-backup", path) >= (int)sizeof(backup)) return (file_result_t){.status = 400};
-        bool backed_up = stat(backup, &st) == 0;
-        if (!backed_up && errno != ENOENT) return (file_result_t){.status = 507};
-        if (backed_up) {
-            if (!S_ISREG(st.st_mode)) return (file_result_t){.status = 400};
-            if (exists) {
-                if (remove(backup)) return (file_result_t){.status = 507};
-            } else {
-                if (rename(backup, path)) return (file_result_t){.status = 507};
-                exists = true;
-            }
-        }
-    }
-    if (!exists) return (file_result_t){.status = 404};
-    if (remove(path)) return (file_result_t){.status = 507};
-    return changed_result(path, changed);
-}
-
-#define BOOK_LIST_PAGE_SIZE 16
-typedef struct { char name[256]; uint64_t size; } transfer_book_entry_t;
-typedef struct {
-    transfer_book_entry_t items[BOOK_LIST_PAGE_SIZE];
-    size_t count, total;
-} transfer_book_page_t;
-
-static bool name_contains(const char *name, const char *query) {
-    return read_pico_search_match(name, query);
-}
-
-static int list_books(const char *root, const char *query, size_t page, transfer_book_page_t *out) {
-    memset(out, 0, sizeof(*out));
-    if (page > SIZE_MAX / BOOK_LIST_PAGE_SIZE) return 400;
-    DIR *dir = opendir(root);
-    if (!dir) return 507;
-    int status = 0;
-    struct dirent *entry;
-    while (errno = 0, (entry = readdir(dir)) != NULL) {
-        char name[256], path[448];
-        if (!raw_book_name(entry->d_name, name, sizeof(name)) || !name_contains(name, query)) continue;
-        if (snprintf(path, sizeof(path), "%s/%s", root, name) >= (int)sizeof(path)) { status = 507; break; }
-        struct stat st;
-        if (stat(path, &st)) { status = 507; break; }
-        if (!S_ISREG(st.st_mode) || st.st_size < 0) continue;
-        size_t index = out->total++;
-        if (index >= page * BOOK_LIST_PAGE_SIZE && out->count < BOOK_LIST_PAGE_SIZE) {
-            transfer_book_entry_t *item = &out->items[out->count++];
-            strcpy(item->name, name); item->size = (uint64_t)st.st_size;
-        }
-    }
-    if (!entry && errno) status = 507;
-    if (closedir(dir)) status = 507;
-    return status;
-}
-
 #ifndef READ_PICO_TRANSFER_HOST_TEST
 #include "read_pico_transfer.h"
 #include "transfer_signature.h"
@@ -4206,5 +3849,4 @@ fail:
     read_pico_transfer_stop(); release_config(); set_error(err); return err;
 }
 #endif
-
 #endif

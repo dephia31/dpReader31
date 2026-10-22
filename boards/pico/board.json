@@ -1,0 +1,13 @@
+{
+  "id": "pico",
+  "name": "kiikoread 墨水屏",
+  "idf_target": "esp32s3",
+  "project": "Read_Pico",
+  "image_chip_id": 9,
+  "bootloader_offset": 0,
+  "version": "0.3.3-rc99",
+  "sdkconfig": "sdkconfig.defaults",
+  "partitions": "partitions.csv",
+  "settings_namespace": "read_pico",
+  "online_ota": true
+}

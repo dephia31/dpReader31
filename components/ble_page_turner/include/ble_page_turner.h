@@ -127,10 +127,11 @@ void ble_pt_sync(bool wanted);
 bool ble_pt_take_start_failure(char *out, size_t cap);
 
 /// 用户明确把蓝牙关掉时调用：清掉失败计数与原因，下次开启重新给机会。
-/// 与 sync(false) 不同——sync(false) 也会被「睡眠暂停」触发，那种情况下不能清，
-/// 否则崩溃自锁会被 睡眠周期悄悄解开。
+/// 与 sync(false) 不同——sync(false) 也会被「WiFi 抢占射频」触发，那种情况下不能清，
+/// 否则崩溃自锁会被 WiFi 的开关悄悄解开。
 /// Call this when the user explicitly switches Bluetooth off: it clears the failure count and
-/// reason so the next enable gets a fresh chance. Unlike sync(false), which sleep suspension also triggers and where clearing would let sleep quietly disarm the self-lock.
+/// reason so the next enable gets a fresh chance. Unlike sync(false), which WiFi taking over the
+/// radio also triggers and where clearing would let a WiFi toggle quietly disarm the self-lock.
 void ble_pt_reset_failure(void);
 
 /// 完全拆栈，把 NimBLE 占的内存（host 在 PSRAM）还给堆。用户关掉蓝牙时用这个，
@@ -140,17 +141,15 @@ void ble_pt_reset_failure(void);
 /// than disconnect() when the user turns Bluetooth off, so memory-hungry work such as EPUB
 /// inflate can allocate again. Waits at most timeout_ms (capped at 2s).
 esp_err_t ble_pt_stop(uint32_t timeout_ms);
+#if KIIKO_BOARD_METALIO47
 /// S31睡眠前关闭无线，醒后恢复目标；不改用户开关。/ Suspend radios while preserving user settings.
-/// 仅 S31 有关机/锁屏待机流程；Pico 的睡眠由 PMU 交接，不经过这里。
-/// The suspend/resume pair belongs to the S31's locked-standby flow; the Pico hands sleep to the
-/// PMU and never calls them.
-#if defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
 esp_err_t ble_pt_suspend_for_sleep(void);
 void ble_pt_resume_after_sleep(void);
+#else
 #endif
 bool ble_pt_running(void);
-/// 登记原生S31网络会话；SDK仲裁WiFi/BLE共存，不拆连接。
-/// Track native S31 networking while the SDK arbitrates WiFi/BLE coexistence.
+/// WiFi 分配前释放蓝牙并禁止重启，结束后释放占用；失败不允许继续分配网络。
+/// Stop BLE before WiFi allocations and inhibit restarts until released; abort networking on failure.
 esp_err_t ble_pt_network_acquire(void);
 void ble_pt_network_release(void);
 
@@ -177,9 +176,8 @@ esp_err_t ble_pt_connect(const char *addr);
 /// 请求连接最近成功使用的翻页器；不阻塞，待栈可用时处理，保留网络占用和失败退避。
 /// Queue the most recently successful turner without blocking; wait for stack availability and preserve network leases/backoff.
 void ble_pt_reconnect_recent(void);
-/// 取消已排队但尚未开始的自动重连；离开蓝牙页时用。两板共用。
-/// Cancel a queued automatic reconnect that has not started yet; used when leaving the BLE page.
-/// Shared by both boards.
+/// 主动关闭取消未启动的最近设备请求，不清除配对与故障保护计数。
+/// Explicit off cancels an unstarted recent-peer request without clearing bonds or failure guards.
 void ble_pt_cancel_recent(void);
 void ble_pt_disconnect(void);
 bool ble_pt_connected(void);
@@ -222,7 +220,11 @@ bool ble_pt_take_passkey(uint32_t *out);
 
 uint8_t ble_pt_bond_count(void);
 const ble_pt_bond_t *ble_pt_bond(uint8_t index);
+#if KIIKO_BOARD_METALIO47
 esp_err_t ble_pt_forget(const char *addr);
+#else
+void ble_pt_forget(const char *addr);
+#endif
 
 /* ---- 输入 / Input ---- */
 

@@ -19,7 +19,6 @@ const EpdWaveform E0470_WAVEFORM = {0}, E0470_FOLLOW_WAVEFORM = {1},
     E0470_FULL_WAVEFORM = {2}, E0470_GRAY8_WAVEFORM = {3};
 static const EpdWaveform main_gray = {4}, main_exit = {5}, main_water = {6}, main_bw = {7}, main_acrylic = {8}, main_acrylic_clean = {9};
 static const EpdWaveform reader_soft = {10};
-static const EpdWaveform settings_soft={11};
 const EpdWaveform* display_reader_text_waveform(void) {return &reader_soft;}
 static app_main_refresh_mode_t main_mode=APP_MAIN_REFRESH_FAST;
 app_main_refresh_mode_t app_settings_main_refresh_mode(void) {return main_mode;}
@@ -29,9 +28,7 @@ const EpdWaveform* display_main_shelf_exit_waveform(void) {return &main_exit;}
 const EpdWaveform* display_main_gray_waveform(void) {return &main_gray;}
 const EpdWaveform* display_main_water_waveform(void) {return &main_water;}
 const EpdWaveform* display_main_normal_waveform(void) { return display_main_water_waveform(); }
-const EpdWaveform* display_main_page_gray_waveform(void){return display_main_normal_waveform();}
-const EpdWaveform* display_main_shelf_soft_waveform(void){return &settings_soft;}
-const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode mode){assert(mode==MODE_GL16||mode==MODE_GC16);return &main_acrylic;}
+const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode mode) {assert(mode==MODE_GL16||mode==MODE_GC16);return &main_acrylic;}
 const EpdWaveform* display_main_bw_waveform(void) {return &main_bw;}
 const EpdWaveform* display_main_acrylic_waveform(void) {return &main_acrylic;}
 const EpdWaveform* display_main_acrylic_clean_waveform(void) {return &main_acrylic_clean;}
@@ -55,7 +52,7 @@ static int nav_draws, water_calls, water_fails;
 static EpdRect last_water_area;
 static int clean_calls;
 static bool protect_shelf_chrome;
-static int region_calls,region_unavailable;
+static int region_calls, region_unavailable;
 static EpdRect last_strong_area;
 // 所有真实推屏和欠载恢复都必须持有 OTA 互斥锁，包括递归兜底。
 // Every physical scan and underrun recovery must hold OTA exclusion, including recursive fallback.
@@ -82,7 +79,6 @@ void epd_lcd_set_prefill_lines(int lines) {prefill = lines;}
 void epd_poweron(void) {}
 bool read_pico_epd_release_drive(void) {return true;}
 void epd_poweroff(void) {}
-enum EpdDrawError epd_clear_checked(void) {return EPD_DRAW_SUCCESS;}
 void epd_clear(void) { assert(ota_display_depth);++clears; memset(panel, 255, BYTES);}
 void epd_hl_set_all_white(EpdiyHighlevelState* state) {memset(state->front_fb, 255, BYTES);}
 void epd_hl_waveform(EpdiyHighlevelState* state, const EpdWaveform* waveform) {state->waveform = waveform;}
@@ -90,7 +86,7 @@ enum EpdDrawError e0470_page_turn(EpdiyHighlevelState* state, EpdRect area, e047
     assert(ota_display_depth);
     (void)dir; ++water_calls;
     last_water_area=area;
-    assert(area.y>=0 && area.y%32==0 && (area.y+area.height==UI_NAV_REFRESH_END || area.y+area.height==UI_NAV_MARKER_SCAN_END) && scan==READ_PICO_EPD_SCAN_FAST);
+    assert(area.y>=0 && area.y%32==0 && area.y+area.height==UI_NAV_REFRESH_END && scan==READ_PICO_EPD_SCAN_FAST);
     if(water_fails)return (enum EpdDrawError)water_fails;
     const size_t stride=W/2;
     for(int y=0;y<H;++y){memcpy(panel+y*stride+area.y/2,state->front_fb+y*stride+area.y/2,area.height/2);memcpy(state->back_fb+y*stride+area.y/2,state->front_fb+y*stride+area.y/2,area.height/2);}
@@ -122,8 +118,9 @@ static enum EpdDrawError draw(EpdiyHighlevelState* state, enum EpdDrawMode mode,
         changed = memcmp(state->front_fb + offset, state->back_fb + offset, (x1 - x0) / 2) != 0;
     }
     if (!changed) return EPD_DRAW_SUCCESS;
+    if(full&&protect_shelf_chrome&&!clears)assert(x0>=192&&x1<=992);
     ++calls; full_calls += full;
-    bool nav_driven = full && x1 > UI_NAV_REFRESH_END && state->waveform!=&main_gray && state->waveform!=&main_water;
+    bool nav_driven = full && x1 > UI_NAV_REFRESH_END;
     for (int y = 0; y < H; ++y) for (int x = UI_NAV_REFRESH_END; x < x1; ++x) {
         const size_t at = (size_t)y * W / 2 + x / 2;
         const unsigned shift = (x & 1) ? 4 : 0;
@@ -195,7 +192,7 @@ enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* state, EpdRect area,
     EpdRect strong, const EpdWaveform* soft, const EpdWaveform* calibrated,
     enum EpdDrawMode strong_mode) {
     assert(ota_display_depth && scan==READ_PICO_EPD_SCAN_FULL);
-    assert(soft==&settings_soft && calibrated==&main_acrylic);
+    assert(soft==&main_water && calibrated==&main_acrylic);
     assert(area.y==0 && area.height==UI_NAV_MARKER_SCAN_END);
     assert(strong.y>=0 && strong.y+strong.height<=UI_NAV_REFRESH_END && !(strong.y&31) && !(strong.height&31));
     if(protect_shelf_chrome)assert(strong.y==192 && strong.height==800);
@@ -394,8 +391,8 @@ int main(void) {
                                         (EpdRect){0, UI_NAV_TOP, H, 24}) == EPD_DRAW_SUCCESS);
     assert(calls == before + 1 && !nav_draws); assert_final();
 
-    // UI页面共享24次计数；不足60秒不全刷，局部反馈不加入。
-    // UI pages share the 24-update counter; no cleanup before 60s, and local feedback is excluded.
+    // 主页面计数独立：不会积累或消耗其他页面的原有清理次数。
+    // Main tabs neither accrue nor consume the original cleanup cadence for other pages.
     reset();
     for (int i = 1; i < APP_UI_FAST_GC16_EVERY; ++i) {
         target((unsigned)i); assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
@@ -403,7 +400,7 @@ int main(void) {
     assert(!gc_calls); int old_full = full_calls;
     for (unsigned i = 0; i < 40; ++i) {target(i); begin(&owner_a); assert_final();}
     assert(!gc_calls && full_calls == old_full);
-    now_us+=APP_UI_GC16_MIN_INTERVAL_US;target(100); assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
+    target(100); assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
     assert(gc_calls == 1 && full_calls == old_full + 1); assert_final();
 
     // 其他旋转、取消未用许可保持原来整页出口。
@@ -564,12 +561,12 @@ int main(void) {
     assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);
     calls=gray_calls=gc_calls=full_calls=nav_draws=0;
     for (int step=1;step<=24;++step) {
-        now_us+=3000000;gray_target((unsigned)step);begin(&owner_a);assert_final();
+        gray_target((unsigned)step);begin(&owner_a);assert_final();
         assert(hl.waveform==&E0470_WAVEFORM && !bw_calls && !allocations && !nav_draws);
         assert(last_area.y==0 && last_area.height==UI_NAV_REFRESH_END);
         assert(gray_calls==step && full_calls==step/APP_UI_FAST_GC16_EVERY && !water_calls);
         assert(gc_calls==step/APP_UI_FAST_GC16_EVERY);
-        assert(last_wave==(step%APP_UI_FAST_GC16_EVERY ? &main_water : &E0470_FULL_WAVEFORM));
+        assert(last_wave==(step%APP_UI_FAST_GC16_EVERY ? &main_water : &E0470_WAVEFORM));
         assert(last_mode==(step%APP_UI_FAST_GC16_EVERY ? MODE_GL16 : MODE_GC16));
         for(int y=0;y<H;++y)for(int x=UI_NAV_REFRESH_END/2;x<W/2;++x)assert(back[y*(W/2)+x]==0x73);
     }
@@ -584,12 +581,12 @@ int main(void) {
     display_main_transition_arm(&owner_a,false,false);
     assert(update_display_area_with(&hl,&E0470_WAVEFORM,MODE_GL16,
         (EpdRect){0,UI_NAV_REFRESH_END-11,H,24})==EPD_DRAW_SUCCESS);
-    assert_final();assert(full_calls==24/APP_UI_FAST_GC16_EVERY && !nav_draws && last_wave==&main_water && last_mode==MODE_GL16);
+    assert_final();assert(full_calls==2 && !nav_draws && last_wave==&main_water && last_mode==MODE_GL16);
     display_main_transition_arm(&owner_a,false,false);
     assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(nav_draws==1);
     // 普通柔和输出在内容或横条扫描失败时从白底重建，绝不提交半帧。
     // Soft ordinary output rebuilds from white after a body or marker scan failure instead of committing an intermediate frame.
-    for(int stage=0;stage<1;++stage){
+    for(int stage=0;stage<2;++stage){
         reset();main_mode=APP_MAIN_REFRESH_NORMAL;gray_target(3);front[550]=0;memcpy(final,front,BYTES);
         failures=1;fail_after=stage;fail_error=EPD_DRAW_OTHER_ERROR;
         display_main_transition_arm(&owner_a,false,true);
@@ -609,7 +606,7 @@ int main(void) {
     reset();main_mode=APP_MAIN_REFRESH_NORMAL;protect_shelf_chrome=true;
     const EpdRect shelf_art={0,192,H,800};
     for(int step=1;step<=24;++step){
-        now_us+=3000000;gray_target((unsigned)step);display_main_transition_arm(&owner_a,false,true);
+        gray_target((unsigned)step);display_main_transition_arm(&owner_a,false,true);
         display_main_transition_gray_bands(&shelf_art,1);
         assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
         assert(last_strong_area.y==192&&last_strong_area.height==800&&!nav_draws&&!clears&&calls==step&&region_calls==step);
@@ -617,19 +614,11 @@ int main(void) {
     assert(gc_calls==24/APP_UI_FAST_GC16_EVERY);protect_shelf_chrome=false;
     // 设置页复用书架入口：160以上题头柔和，列表白底与灰阶同轮；普通周期整理仍不驱动外围/底栏。
     // Settings reuse shelf entry: soft chrome above160, simultaneous white-list/grays, and periodic cleanup stays off chrome/navigation.
-    // 真实hl_update不得把显式设置柔和表替换回普通主页表；该调用不分配、不强刷。
-    // The real hl_update must preserve the explicit settings soft profile, without allocating or forcing a full scan.
-    for(int mode=APP_MAIN_REFRESH_NORMAL;mode<=APP_MAIN_REFRESH_WATER;++mode){
-        reset();main_mode=mode;front[80*(W/2)+500/2]=0;memcpy(final,front,BYTES);
-        display_main_transition_arm(&owner_a,false,false);
-        assert(update_display_area_diff_with(&hl,&settings_soft,MODE_GL16,(EpdRect){0,160,H,512})==EPD_DRAW_SUCCESS);
-        assert(last_wave==&settings_soft&&last_mode==MODE_GL16&&calls==1&&!full_calls&&!clears&&!nav_draws&&!allocations);assert_final();
-    }
     const EpdRect settings_content={0,160,H,UI_NAV_REFRESH_END-160};
     for(int origin=0;origin<4;++origin){
         reset();main_mode=APP_MAIN_REFRESH_NORMAL;
         for(int step=1;step<=24;++step){
-            now_us+=3000000;gray_target((unsigned)step);
+            gray_target((unsigned)step);
             display_main_transition_arm(&owner_a,origin==1,true);
             display_main_transition_gray_bands(&settings_content,1);
             assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
@@ -681,7 +670,7 @@ int main(void) {
     reset();main_mode=APP_MAIN_REFRESH_WATER;gray_target(2);
     display_main_transition_arm(&owner_a,false,true);
     assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
-    assert(water_calls==1&&!gray_calls&&last_water_area.y==0&&last_water_area.height==UI_NAV_MARKER_SCAN_END);
+    assert(water_calls==1&&!gray_calls&&last_water_area.y==0&&last_water_area.height==UI_NAV_REFRESH_END);
     assert(!clears&&!allocations&&!bw_calls&&!nav_draws);
     reset();main_mode=APP_MAIN_REFRESH_WATER;gray_target(2);water_fails=EPD_DRAW_OTHER_ERROR;
     display_main_transition_arm(&owner_a,false,true);assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();

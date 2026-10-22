@@ -168,7 +168,12 @@ static bool control_overlap(EpdRect a,EpdRect b) {
 static void power_control_base(uint8_t *fb,int slot,bool glass) {
     EpdRect r=slot?power_button_rect(slot):power_track_rect();
     int radius=slot?UI_POWER_BUTTON_R:UI_POWER_TRACK_H/2;
-    if(!glass||!ui_glass_panel(fb,r,radius,25,160)){
+#if KIIKO_BOARD_METALIO47
+    bool drawn=glass&&ui_glass_panel_frost(fb,r,radius,52,160,true);
+#else
+    bool drawn=glass&&ui_glass_panel(fb,r,radius,25,160);
+#endif
+    if(!drawn){
         ui_fill_round_rect(fb,r,radius,slot?0xf0:0xd0);
         ui_draw_control_frame(fb,r,radius,0x70);
     }
@@ -206,6 +211,8 @@ void ui_power_dialog_draw_controls(uint8_t *fb,const ui_power_dialog_t *dialog,E
 void ui_power_dialog_draw(uint8_t *fb,const ui_power_dialog_t *dialog) {
     if(!fb||!dialog)return;
     ui_power_dialog_end();
+    // 只在三个控件内部处理玻璃，保留控件外的原页面像素。
+    // Frost only the three controls, preserving the original page outside them.
     size_t bytes=control_bytes(power_track_rect())+2*control_bytes(power_button_rect(1));
     s_control_backdrop=heap_caps_malloc(bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
     for(int slot=0;slot<3;++slot){

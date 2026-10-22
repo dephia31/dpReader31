@@ -1,12 +1,8 @@
-# 两板共用的 SDK 配置。板级覆盖在 boards/<板名>/sdkconfig.defaults，追加在本文件之后，
-# 因此板级值优先；两块板各自还有独立的 sdkconfig.<板名>，避免互相改写。
-# SDK configuration shared by both boards. boards/<name>/sdkconfig.defaults is appended after
-# this file and therefore wins; each board also keeps its own sdkconfig.<name> so the two never
-# rewrite each other's configuration.
-
+CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
 CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_16M.csv"
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 # 实验性组合：MSPI 的 flash 与 PSRAM 共用时钟域，CPU 240MHz 下 IDF 只标定了
@@ -19,10 +15,22 @@ CONFIG_SPIRAM_MODE_OCT=y
 # 「flash model has not been verified」直接 abort 并循环重启，所以必须关掉，
 # 等于没有这层保护。别改成 y。
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y
+CONFIG_ESPTOOLPY_FLASHFREQ_120M=y
+# 显式启用 HPM（AUTO 会因为"依赖具体 flash 型号"报 #warning，-Werror 下编不过）。
+# 本机 flash 靠写状态寄存器进入高性能模式，不需要调 dummy cycle，所以关掉 HPM-DC。
+CONFIG_SPI_FLASH_HPM_ENA=y
+CONFIG_SPI_FLASH_HPM_DC_DISABLE=y
+CONFIG_SPIRAM_SPEED_120M=y
+CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR=n
 CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
+# 渲染线程逐行流式读 PSRAM 里的 framebuffer，cache 越大预取越不容易失效
+CONFIG_ESP32S3_DATA_CACHE_64KB=y
 # 多层 EPUB/PNG 调用留安全余量；大型缓存不得放栈上。/ Reserve nested EPUB/PNG stack headroom; keep large caches off-stack.
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 # 1ms tick：EPD 上电流程里按毫秒轮询 PGOOD，100Hz 的 tick 会把每次等待放大到 10ms
 CONFIG_FREERTOS_HZ=1000
@@ -34,6 +42,16 @@ CONFIG_FATFS_API_ENCODING_UTF_8=y
 # 传书热点；优先把网络缓冲放PSRAM，避免占用显示所需内部内存。
 # Transfer AP prefers PSRAM network buffers, preserving internal display memory.
 CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+# Read Pico only serves one browser client and scans nearby access points. The
+# high-throughput defaults reserve tens of kilobytes at esp_wifi_init(), which
+# can starve the hosted WiFi control path after the reader UI has been used.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=4
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=8
+CONFIG_ESP_WIFI_STATIC_TX_BUFFER=y
+CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=4
+CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=8
+CONFIG_ESP_WIFI_RX_BA_WIN=4
 CONFIG_ESP_WIFI_MGMT_SBUF_NUM=16
 CONFIG_ESP_WIFI_IRAM_OPT=n
 CONFIG_ESP_WIFI_RX_IRAM_OPT=n
@@ -68,11 +86,24 @@ CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT=6
 CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT=6
 CONFIG_BT_NIMBLE_ACL_BUF_COUNT=6
 CONFIG_BT_NIMBLE_ATT_MAX_PREP_ENTRIES=4
+# 控制器只能用内部 RAM——它跑在硬件路径上，读不到 PSRAM。这组值是 CrossMux 在同一块
+# 板子上验证过的：BLE_MAX_ACT 是"同时允许几个控制器活动"，扫描与建立连接各占一个，
+# 压到 1 会让扫描和连接互相排斥，起不来。文件/图片/壁纸列表等搬进 PSRAM 之后 DIRAM
+# 空闲约 148KB，这里不需要再省。
+# The controller must stay in internal RAM (it sits on the hardware path and cannot read PSRAM).
+# These are the values CrossMux verified on this same board: BLE_MAX_ACT is how many controller
+# activities may coexist, scanning and connection setup each take one, and squeezing it to 1 makes
+# them mutually exclusive so the stack cannot come up. After the file, image and wallpaper lists
+# moved into PSRAM, DIRAM has about 148 KB free, so there is nothing left to economise here.
+CONFIG_BT_CTRL_BLE_MAX_ACT=3
 CONFIG_BT_CTRL_BLE_ADV_REPORT_FLOW_CTRL_NUM=50
+CONFIG_BT_CTRL_ADV_DUP_FILT_MAX=10
 CONFIG_BLE_MESH=n
 
 CONFIG_TINYUSB_MSC_ENABLED=y
 CONFIG_TINYUSB_MSC_BUFSIZE=8192
+CONFIG_TINYUSB_DESC_PRODUCT_STRING="Read Pico SD"
+CONFIG_TINYUSB_DESC_MANUFACTURER_STRING="MindReset"
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
 # rc76: keep transfer listings and TLS allocations out of internal task RAM.
@@ -84,3 +115,13 @@ CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 # 建立链路的回调链跑在 NimBLE 任务上，通知解析里 4096 字节会触到栈上限。
 # The bring-up callback chain runs on the NimBLE task; 4096 bytes reaches its limit inside report parsing.
 CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=8192
+CONFIG_BT_NIMBLE_TASK_STACK_SIZE=8192
+
+# RTC 睡眠计时采用更稳定的内部快钟分频；清醒仍用 RTC+高精度计时器。
+# Use the steadier divided fast oscillator for RTC; retain RTC+high-resolution time while awake.
+CONFIG_RTC_CLK_SRC_INT_RC=n
+CONFIG_RTC_CLK_SRC_INT_8MD256=y
+CONFIG_RTC_CLK_CAL_CYCLES=8190
+CONFIG_LIBC_TIME_SYSCALL_USE_RTC_HRT=y
+CONFIG_LWIP_SNTP_MAX_SERVERS=3
+CONFIG_LWIP_SNTP_STARTUP_DELAY=n

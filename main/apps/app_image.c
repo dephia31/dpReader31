@@ -27,7 +27,11 @@
 
 #define IMAGE_MAX 96
 #define IMAGE_BYTES_MAX BOOK_IMAGE_FILE_MAX
+#if KIIKO_BOARD_METALIO47
+#define IMAGE_ROWS 8
+#else
 #define IMAGE_ROWS ((UI_LOCK_HEIGHT - 254) / 101)
+#endif
 extern const uint8_t display_test_png_start[] asm("_binary_display_test_png_start");
 extern const uint8_t display_test_png_end[] asm("_binary_display_test_png_end");
 
@@ -185,6 +189,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 }
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     render_content(ctx,fb);
+#if KIIKO_BOARD_METALIO47
+    display_monochrome_frame(fb);
+#endif
 }
 
 

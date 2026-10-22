@@ -433,13 +433,21 @@ static app_redraw_t bench_run(app_ctx_t* ctx, bool cold) {
 static app_redraw_t pick(int index) {
     if (font_is_current(index)) return APP_REDRAW_NONE;
     bench_reset();
+#if KIIKO_BOARD_METALIO47
     const char *path = TTF_FONT_BUILTIN;
     if (index != 0) {
+#else
+    if (index == 0) {
+        app_settings_set_font_path("");
+        ttf_font_open_builtin();
+    } else {
+#endif
         const ttf_font_item_t* item = ttf_font_item(index - 1);
         if (item == NULL) return APP_REDRAW_NONE;
         read_pico_sd_info_t sd = {0};
         read_pico_sd_get_info(&sd);
         if (!sd.present || !sd.mounted) return APP_REDRAW_FULL;
+#if KIIKO_BOARD_METALIO47
         path = item->path;
     }
     char previous[TTF_FONT_PATH_MAX];
@@ -453,6 +461,13 @@ static app_redraw_t pick(int index) {
     if (strcmp(app_settings_font_path(), path)) {
         (void)ttf_font_open(previous);
         return APP_REDRAW_FULL;
+#else
+        app_settings_set_font_path(item->path);
+        esp_err_t err = ttf_font_open(item->path);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "font switch %s: %s", item->path, esp_err_to_name(err));
+        }
+#endif
     }
     ESP_LOGI(TAG, "font %s", ttf_font_path());
     return APP_REDRAW_FULL;

@@ -1,20 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：按阅读位置保留当前页与前后页；槽数与单帧上限来自板级宏，低内存时只复用已有缓冲或同步绘制。
- * English: Retain the current page and its neighbours around the reader; slot count and per-frame
- * bound come from the board macros, and under memory pressure only existing buffers are reused or the
- * page is drawn synchronously.
- *
- * 冻结：本文件两板共用，数值一律取板级宏，不得在实现里写死。
- * Frozen: shared by both boards; every number comes from the board macros, never hard-coded here.
+ * 中文：按阅读位置保留上一页和后续页；低内存时只复用已有缓冲或同步绘制。
+ * English: Retain previous/future pages around the reader; reuse buffers or draw synchronously on pressure.
  */
 #include "reader_page_cache.h"
-#include "kiiko_board.h"
 #include "metalio_memory.h"
 #include <stdlib.h>
 #include <string.h>
-// 页缓存槽数与单帧上限来自板级宏。/ Page-cache slots and the per-frame bound come from the board macros.
 #define FRAME_SLOTS KIIKO_BOARD_PAGE_CACHE_SLOTS
-#define FRAME_BYTES_MAX ((size_t)KIIKO_BOARD_PAGE_CACHE_MAX_KB * 1024u)
+#define FRAME_BYTES_MAX (KIIKO_BOARD_PAGE_CACHE_MAX_KB * 1024u)
 typedef struct {uint8_t *pixels;size_t page,bytes;uint32_t generation;bool ready,writing;} frame_t;
 static frame_t s_frames[FRAME_SLOTS];
 static size_t distance(size_t a,size_t b) {return a>b?a-b:b-a;}

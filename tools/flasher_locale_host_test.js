@@ -4,7 +4,8 @@
  */
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const page=fs.readFileSync(process.argv[2]||'flash/index.html','utf8');
-const scripts=[...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].slice(0,2).map(x=>x[1]);
+// 中文：执行实际外置桥接脚本，跳转脚本不属于安装器补丁。/ English: Execute the external bridge; the redirect is separate from installer patches.
+const scripts=page.includes('src="./installer-bridge.js"')?[fs.readFileSync('flash/installer-bridge.js','utf8')]:[...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].slice(0,2).map(x=>x[1]);
 let options,writes=0,interval;const watched=[];
 class Element{attachShadow(){this.shadowRoot={querySelectorAll:()=>[],ownerDocument:doc,texts:[]};return this.shadowRoot;}}
 const doc={getElementById:()=>null,createTreeWalker(root){let at=0;return{nextNode:()=>root.texts[at++]||null}}};

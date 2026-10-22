@@ -1,8 +1,0 @@
-build/
-firmware/
-Data/
-web/dist/
-src/book_preview.c
-src/assets.S
-*.app/
-node_modules/

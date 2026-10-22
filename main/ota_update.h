@@ -2,9 +2,8 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 中文：检查并安装 TF 卡根目录中的 OTA 应用镜像；板型与镜像名由板级配置决定。
- * English: inspect and install an OTA application image from the TF-card root; the board and the
- * image name come from the board configuration.
+ * 中文：检查并安装 TF 卡根目录中的 Pico OTA 应用镜像。
+ * English: inspect and install a Pico OTA application image from the TF-card root.
  */
 #pragma once
 
@@ -13,7 +12,6 @@
 #include <stdint.h>
 
 #include "esp_err.h"
-#include "kiiko_board_config.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,8 +20,6 @@ extern "C" {
 #if KIIKO_BOARD_METALIO47
 #define PICO_OTA_UPDATE_PATH "/sdcard/Metalio-S31-update.bin"
 #else
-// 卡上升级镜像沿用已发布的兼容文件名，改掉会让已有文件与说明失效。
-// Keep the published compatible filename; renaming invalidates existing files and instructions.
 #define PICO_OTA_UPDATE_PATH "/sdcard/Pico-update.bin"
 #endif
 

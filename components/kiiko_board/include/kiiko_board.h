@@ -21,7 +21,7 @@
 #include <stdint.h>
 
 #include "esp_err.h"
-#include "kiiko_board_config.h"
+#include "../../../main/kiiko_board_config.h"
 
 /* ---- 能力宏兜底 / Capability fallbacks ---- */
 /* 板级头没写的按「本板没有」处理，共享代码因此可以无条件 #if。 */

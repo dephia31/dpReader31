@@ -3,7 +3,7 @@ Actual quick-layer, pressed-tile and Han scaling pixel/memory checks.
 SPDX-License-Identifier: Apache-2.0
 """
 from pathlib import Path
-import re, subprocess, tempfile
+import re, subprocess, tempfile, sys
 root = Path(__file__).resolve().parents[1]
 
 def body(path):
@@ -20,12 +20,12 @@ def function(path, name):
 
 code=r'''
 #include <assert.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 #include "ui/ui_nav_layout.h"
 #include "ui/ui_image_dither.h"
 #include "assets/ui_icons.h"
@@ -45,16 +45,17 @@ static int rotation;
 #define H 684
 #define BYTES (W*H/2)
 static uint8_t frame[BYTES],saved[BYTES],again[BYTES];
-static int live,allocs,max_bytes;
-static size_t live_bytes,peak_bytes;
+static int live,allocs,max_bytes,fail_after=-1;
+static size_t source_reads;
+static size_t current_bytes,peak_bytes;
+static struct {void *ptr;size_t bytes;} memory[16];
 static bool oom,fast;
-static int fail_after=-1;
 static int epd_width(void){return W;}
 static int epd_height(void){return H;}
 static int epd_get_rotation(void){return rotation;}
 static int epd_rotated_display_width(void){return rotation&1?H:W;}
 static int epd_rotated_display_height(void){return rotation&1?W:H;}
-static uint8_t epd_get_pixel(int x,int y,int w,int h,const uint8_t *fb){assert(w==W&&h==H&&x>=0&&x<w&&y>=0&&y<h);unsigned value=fb[(size_t)y*w/2+x/2];return (uint8_t)((x&1?value>>4:value&15)<<4);}
+static uint8_t epd_get_pixel(int x,int y,int w,int h,const uint8_t *fb){++source_reads;assert(w==W&&h==H&&x>=0&&x<w&&y>=0&&y<h);unsigned value=fb[(size_t)y*w/2+x/2];return (uint8_t)((x&1?value>>4:value&15)<<4);}
 static void epd_draw_pixel(int x,int y,uint8_t gray,uint8_t *fb){
  if(x<0||y<0||x>=epd_rotated_display_width()||y>=epd_rotated_display_height())return;
  int px=x,py=y;
@@ -63,6 +64,7 @@ static void epd_draw_pixel(int x,int y,uint8_t gray,uint8_t *fb){
  fb[i]=(uint8_t)((fb[i]&~(15u<<shift))|((gray>>4)<<shift));
 }
 static void epd_fill_rect(EpdRect r,uint8_t gray,uint8_t *fb){for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x)epd_draw_pixel(r.x+x,r.y+y,gray,fb);}
+static void epd_draw_circle(int cx,int cy,int r,uint8_t gray,uint8_t *fb){for(int y=-r;y<=r;++y)for(int x=-r;x<=r;++x)if(x*x+y*y<=r*r&&x*x+y*y>(r-1)*(r-1))epd_draw_pixel(cx+x,cy+y,gray,fb);}
 static void epd_fill_circle(int cx,int cy,int r,uint8_t gray,uint8_t *fb){for(int y=-r;y<=r;++y)for(int x=-r;x<=r;++x)if(x*x+y*y<=r*r)epd_draw_pixel(cx+x,cy+y,gray,fb);}
 static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t gray){
  for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x){
@@ -71,82 +73,126 @@ static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t gray){
   if(dx*dx+dy*dy<=radius*radius)epd_draw_pixel(r.x+x,r.y+y,gray,fb);
  }
 }
-static void ui_draw_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t gray){(void)radius;for(int x=0;x<r.width;++x){epd_draw_pixel(r.x+x,r.y,gray,fb);epd_draw_pixel(r.x+x,r.y+r.height-1,gray,fb);}for(int y=0;y<r.height;++y){epd_draw_pixel(r.x,r.y+y,gray,fb);epd_draw_pixel(r.x+r.width-1,r.y+y,gray,fb);}}
 static uint8_t ui_contrast_gray(uint8_t v){return v;}
-enum {EPD_DRAW_ALIGN_LEFT,EPD_DRAW_ALIGN_RIGHT};
-static int texts;
-static __attribute__((unused)) void ui_text_fixed(uint8_t *fb,int x,int y,int size,const char *text,int align,bool bold){++texts;(void)bold;int width=(int)strlen(text)*size/3;if(align==EPD_DRAW_ALIGN_RIGHT)x-=width;epd_fill_rect((EpdRect){x,y-size,width,size},0,fb);}
 static void ui_nav_status(uint8_t *fb){epd_fill_rect((EpdRect){36,29,52,16},0,fb);}
 static bool app_settings_main_fast_refresh(void){return fast;}
-static void *heap_caps_malloc(size_t n,unsigned caps){assert(caps==3&&n<=300000);++allocs;if((int)n>max_bytes)max_bytes=(int)n;if(oom||fail_after==0)return NULL;if(fail_after>0)--fail_after;++live;size_t *p=malloc(n+sizeof(size_t));assert(p);*p=n;live_bytes+=n;if(live_bytes>peak_bytes)peak_bytes=live_bytes;return p+1;}
-static void heap_caps_free(void *p){if(p){--live;size_t *base=(size_t*)p-1;live_bytes-=*base;free(base);}assert(live>=0);}
+static void *heap_caps_malloc(size_t n,unsigned caps){
+ assert(caps==3&&n<=114228);++allocs;if((int)n>max_bytes)max_bytes=(int)n;
+ if(oom||fail_after==0)return NULL;if(fail_after>0)--fail_after;
+ void *p=malloc(n);assert(p);++live;current_bytes+=n;if(current_bytes>peak_bytes)peak_bytes=current_bytes;
+ for(int i=0;i<16;++i)if(!memory[i].ptr){memory[i].ptr=p;memory[i].bytes=n;return p;}abort();
+}
+static void heap_caps_free(void *p){
+ if(!p)return;for(int i=0;i<16;++i)if(memory[i].ptr==p){--live;current_bytes-=memory[i].bytes;memory[i].ptr=NULL;free(p);assert(live>=0);return;}abort();
+}
 '''
 code+='static void ui_fill_rect_fast(EpdRect r,uint8_t gray,uint8_t *fb){epd_fill_rect(r,gray,fb);}\n'
 header=(root/'main/ui/ui_quick_menu.h').read_text()
 code+='\n'.join(re.findall(r'^#define UI_QUICK[^\n]*',header,re.M))+'\n'
 for name in ('ui_read_pixel','ui_image_bw_rect','icon_nibble','ui_draw_icon'):
     code+=function('main/ui/ui_kit.c',name)
-for name in ('epd_draw_circle',):code+=function('components/epdiy/src/epdiy.c',name)
-code+=function('main/ui/ui_kit.c','ui_inset_rect')+function('main/ui/ui_kit.c','ui_draw_control_frame')
+for name in ('clamp_radius','draw_arc','ui_draw_round_rect','ui_inset_rect','ui_draw_control_frame'):
+    code+=function('main/ui/ui_kit.c',name)
+code+='static uint8_t pixel(uint8_t *fb,int x,int y){return ui_read_pixel(fb,x,y)*17u;}\n'
 code+=body('main/ui/ui_glass.c')+body('main/ui/ui_quick_menu.c')+body('main/ui/ui_click_feedback.c')
 code+='#define UI_NAV_BACK_ICON_PX 48\n#define READER_SHEET_BACK_PX 52\n'
 code+=function('main/ui/ui_nav.c','ui_nav_back')+function('main/apps/app_book.c','draw_sheet_back')
 code+=r'''
 static void patterned(void){for(size_t i=0;i<BYTES;++i)frame[i]=(uint8_t)(i*13u+7u);memcpy(saved,frame,BYTES);}
-int main(void){
+int main(int argc,char **argv){
+ // 阅读背景只略增同一七抽头的模糊；普通路径像素/缓存和控件仍按原规则。
+ // Slight reader frost reuses seven taps; ordinary pixels/caches and controls retain their rules.
+ rotation=3;memset(frame,255,BYTES);
+ EpdRect frost_area={100,300,200,50};
+ for(int y=300;y<350;++y)for(int x=100;x<300;++x)epd_draw_pixel(x,y,(x%8<2)?0:255,frame);
+ memcpy(saved,frame,BYTES);assert(ui_glass_panel(frame,frost_area,0,0,0));
+ int old_variation=0,new_variation=0;
+ for(int x=130;x<270;++x)old_variation+=abs((int)pixel(frame,x,325)-pixel(frame,x+1,325));
+ memcpy(frame,saved,BYTES);int before_frost=allocs;
+ assert(ui_glass_panel_frost(frame,frost_area,0,0,0,true)&&allocs==before_frost+1);
+ for(int x=130;x<270;++x)new_variation+=abs((int)pixel(frame,x,325)-pixel(frame,x+1,325));
+ fprintf(stderr,"reader frost variation %d -> %d\n",old_variation,new_variation);assert(new_variation<old_variation);
+ for(int y=0;y<1216;++y)for(int x=0;x<684;++x)
+  if(x<100||x>=300||y<300||y>=350)assert(pixel(frame,x,y)==pixel(saved,x,y));
+
+ // 优化前的完整像素校验；短图、边界夹取和四旋转必须逐位一致，每个源像素只读取一次。
+ // Pre-optimization whole-frame goldens cover short panels, clamped edges and four rotations; read each source pixel only once.
+ const EpdRect cases[]={{18,88,648,168},{31,102,108,108},{3,9,3,1},{1,2,11,2},{0,0,1,1},{20,44,41,7},{20,44,41,8}};
+ const int radius[]={56,54,1,8,1,10,10},white[]={25,25,0,100,-1,101,25};
+ const uint32_t golden[]={2950348408u,3794443602u,1916862657u,3172911537u};
  for(rotation=0;rotation<4;++rotation){
+  uint32_t hash=2166136261u;
+  for(unsigned i=0;i<sizeof(cases)/sizeof(cases[0]);++i){
+   patterned();size_t reads=source_reads;
+   assert(ui_glass_panel(frame,cases[i],radius[i],white[i],160));
+   assert(source_reads-reads==(size_t)cases[i].width*cases[i].height);
+   for(size_t j=0;j<BYTES;++j){hash^=frame[j];hash*=16777619u;}
+  }
+  assert(hash==golden[rotation]);
+ }
+ for(rotation=0;rotation<4;++rotation){
+  // 检查实际收藏图标像素，不能只验证选择了哪个枚举。
+  // Check actual favorite pixels, not merely which enum was selected.
+  memset(frame,255,BYTES);ui_draw_icon(frame,620,114,48,UI_ICON_BOOKMARK,0x38);
+  assert(ui_read_pixel(frame,620,110)==15);
+  memcpy(saved,frame,BYTES);ui_draw_icon(frame,620,114,48,UI_ICON_ANIMATE_BOOKMARK_PLUS,0x38);
+  assert(ui_read_pixel(frame,620,110)<=4);
+  assert(ui_read_pixel(frame,616,110)<=4&&ui_read_pixel(frame,624,110)<=4);
+  assert(ui_read_pixel(frame,620,106)<=4&&ui_read_pixel(frame,620,114)<=4);
+  assert(ui_read_pixel(frame,596,90)==15);
+  for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x)
+   if(x<584||x>=648||y<76||y>=146)assert(ui_read_pixel(frame,x,y)==ui_read_pixel(saved,x,y));
   for(int policy=0;policy<3;++policy){
-   patterned();texts=0;ui_quick_menu_draw(frame,true,false,true,30,50);
-   if(!(rotation&1)){assert(!live&&!memcmp(frame,saved,BYTES));continue;}
-   assert(live==2&&texts==0&&live_bytes==149760);int grays=0;
+   patterned();int before=allocs;ui_quick_menu_draw(frame,true,false,false);
+   assert(allocs==before+7&&live==2&&current_bytes==113616&&peak_bytes<=203688);int grays=0;
    for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x){
-    uint8_t p=pixel(frame,x,y);if(y>=UI_QUICK_HEIGHT)assert(p==pixel(saved,x,y));else grays+=p!=0&&p!=255;
+    bool mask=y<76||(x>=18&&x<666&&y>=88&&y<256);
+    uint8_t p=pixel(frame,x,y);
+    if(!mask)assert(p==pixel(saved,x,y));
+    else grays+=p!=0&&p!=255;
    }
-   assert(grays>1000);int retained_allocs=allocs;memcpy(again,frame,BYTES);
-   for(unsigned button=0;button<4;button++){EpdRect dirty;
-    assert(ui_quick_menu_draw_button(frame,button,true,true,&dirty));
-    assert(allocs==retained_allocs&&live==2);
-    for(int y=0;y<1216;y++)for(int x=0;x<684;x++)if(x<dirty.x||x>=dirty.x+dirty.width||y<dirty.y||y>=dirty.y+dirty.height)assert(pixel(frame,x,y)==pixel(again,x,y));
-    assert(ui_quick_menu_draw_button(frame,button,button==0||button==3,false,&dirty));
-    assert(!memcmp(frame,again,BYTES));
+   assert(grays>1000);
+   assert(pixel(frame,18,88)==pixel(saved,18,88)&&pixel(frame,665,88)==pixel(saved,665,88));
+   memcpy(again,frame,BYTES);memcpy(frame,saved,BYTES);ui_quick_menu_draw(frame,true,false,false);assert(!memcmp(frame,again,BYTES));
+   // 每次触控只恢复圆键，底图/其他圆键不变；连按不分配、不重算玻璃。
+   // Each contact restores only its key; rapid presses allocate nothing or regenerate glass.
+   int input_allocs=allocs;
+   for(int button=0;button<4;++button){
+    EpdRect dirty;int cx=(button*2+1)*UI_LOCK_WIDTH/8;
+    for(int tap=0;tap<20;++tap){
+     assert(ui_quick_menu_draw_button(frame,button,button==0,true,&dirty));
+     assert(dirty.x==cx-54&&dirty.y==102&&dirty.width==108&&dirty.height==108);
+     assert(memcmp(frame,again,BYTES));
+     if(tap==0)for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x)
+      if(x<dirty.x||x>=dirty.x+dirty.width||y<dirty.y||y>=dirty.y+dirty.height)
+       assert(ui_read_pixel(frame,x,y)==ui_read_pixel(again,x,y));
+     assert(ui_quick_menu_draw_button(frame,button,button==0,false,&dirty));
+     assert(!memcmp(frame,again,BYTES));
+    }
+    if(button<2){
+     assert(ui_quick_menu_draw_button(frame,button,button!=0,false,&dirty));
+     assert(memcmp(frame,again,BYTES));
+     assert(ui_quick_menu_draw_button(frame,button,button==0,false,&dirty));
+     assert(!memcmp(frame,again,BYTES));
+    }
    }
-   assert(ui_quick_menu_restore(frame)&&!memcmp(frame,saved,BYTES));ui_quick_menu_end();assert(!live);
-   for(int fail=0;fail<8;++fail){fail_after=fail;ui_quick_menu_draw(frame,true,false,true,120,120);int after_open=allocs;
-    for(int n=0;n<40;n++){EpdRect dirty;assert(ui_quick_menu_draw_button(frame,n%4,n&1,n&2,&dirty));}assert(allocs==after_open);
-    ui_quick_menu_end();assert(!live);fail_after=-1;memcpy(frame,saved,BYTES);
-   }
-   oom=true;ui_quick_menu_draw(frame,true,false,false,30,50);assert(!live&&!ui_quick_menu_restore(frame));
-   for(unsigned button=0;button<4;button++){EpdRect d;assert(ui_quick_menu_draw_button(frame,button,true,true,&d));}ui_quick_menu_end();oom=false;
+   assert(allocs==input_allocs&&current_bytes==113616);
+   // 仅顶部缓存即可精确收起，拒绝另一帧或旋转后的缓存；收起与点按都不分配。
+   // A top-only snapshot restores exactly; reject other frames/rotations and allocate nothing on close or presses.
+   assert(!ui_quick_menu_restore(again));
+   int saved_rotation=rotation;rotation=(rotation+1)%4;assert(!ui_quick_menu_restore(frame));rotation=saved_rotation;
+   assert(ui_quick_menu_restore(frame)&&allocs==input_allocs&&!memcmp(frame,saved,BYTES));
+   ui_quick_menu_end();ui_quick_menu_end();assert(!live&&!current_bytes&&!ui_quick_menu_restore(frame));
+
   }
-  for(int warm=0;warm<2;++warm)for(unsigned v=0;v<=240;v+=120){
-   patterned();ui_quick_menu_draw_slider(frame,warm,v);EpdRect a=ui_quick_slider_rect(warm);
-   for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x){
-    unsigned p=pixel(frame,x,y);
-    if(x<a.x||x>=a.x+a.width||y<a.y||y>=a.y+a.height)assert(p==pixel(saved,x,y));
-    
-   }
-  }
-  for(int warm=0;warm<2;++warm){
-   int cx=UI_QUICK_SLIDER_X(warm)+UI_QUICK_SLIDER_WIDTH/2;
-   ui_quick_menu_draw_slider(frame,warm,0);assert(pixel(frame,cx,224)==UI_QUICK_FILL_DARK);
-   ui_quick_menu_draw_slider(frame,warm,240);assert(pixel(frame,cx,224)==255);
-  }
-  // 变化区覆盖实际像素差，保留胶囊边框与未变化内容；回到原值无需刷新。
-  // Changed bands contain all actual pixel differences; same values request no refresh.
-  const unsigned pairs[][2]={{0,1},{119,120},{120,121},{239,240},{0,240},{192,48},{48,192},{144,144}};
-  for(int warm=0;warm<2;warm++)for(unsigned i=0;i<sizeof(pairs)/sizeof(pairs[0]);i++){
-   patterned();ui_quick_menu_draw_slider(frame,warm,pairs[i][0]);memcpy(saved,frame,BYTES);
-   ui_quick_menu_draw_slider(frame,warm,pairs[i][1]);
-   EpdRect r=ui_quick_slider_change_rect(warm,pairs[i][0],pairs[i][1]);
-   assert(r.x==UI_QUICK_SLIDER_X(warm)+2&&r.width==112&&r.y>=106&&r.y+r.height<=342);
-   for(int y=0;y<epd_rotated_display_height();y++)for(int x=0;x<epd_rotated_display_width();x++){
-    unsigned a=pixel(saved,x,y),b=pixel(frame,x,y);
-    if(x<r.x||x>=r.x+r.width||y<r.y||y>=r.y+r.height)assert(a==b);
-    if(a!=b)assert((a==UI_QUICK_FILL_DARK&&b==255)||(a==255&&b==UI_QUICK_FILL_DARK));
-    int dx=x-(UI_QUICK_SLIDER_X(warm)+UI_QUICK_SLIDER_WIDTH/2),dy=y-(UI_QUICK_SLIDER_Y1-54);
-    if(dx*dx+dy*dy<=32*32)assert(a==b);
-   }
-   if(pairs[i][0]==pairs[i][1])assert(r.height==0&&!memcmp(frame,saved,BYTES));
+  for(int failure=0;failure<7;++failure){
+   patterned();fail_after=failure;ui_quick_menu_draw(frame,true,false,false);fail_after=-1;
+   int before=allocs;EpdRect dirty;
+   assert(ui_quick_menu_draw_button(frame,2,false,true,&dirty));
+   assert(ui_quick_menu_draw_button(frame,2,false,false,&dirty)&&allocs==before);
+   ui_quick_menu_end();assert(!live&&!current_bytes);
+   for(int y=UI_QUICK_HEIGHT;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x)
+    assert(pixel(frame,x,y)==pixel(saved,x,y));
   }
   max_bytes=0;
   for(fast=false;;fast=true){
@@ -173,7 +219,6 @@ int main(void){
    if(fast)break;
   }
  }
- assert(!live_bytes&&peak_bytes<=320000);printf("S31 quick glass: resident149760B, peak%zuB; all caches freed on close\n",peak_bytes);
  rotation=3;patterned();ui_click_feedback_begin(frame);
  ui_click_feedback_register(frame,(EpdRect){55,1111,60,60},UI_CLICK_NAV,UI_ICON_HOUSE);
  EpdRect r;assert(ui_click_feedback_press(frame,85,1188,&r));
@@ -276,16 +321,34 @@ int main(void){
  assert(intermediate>100);
  memset(han+5,0,sizeof(han)-5);for(int y=0;y<72;++y)for(int x=0;x<72;++x)assert(!ui_hanzi_coverage(han,72,72,x,y));
  memset(han+5,255,sizeof(han)-5);assert(ui_hanzi_coverage(han,39,39,19,19)==255);
- puts("PASS: S31 quick glass has bounded top/key caches and zero input allocation; exact button restore and solid gray/white sliders; slider icons/outlines stay fixed and all changes stay inside bands/circles across four rotations; navigation cache/restoration and Han scaling passed");
+ // 可选原生帧输出：底图已有的状态栏替代测试桩，玻璃/图标全部来自实际绘制代码。
+ // Optional native export: retain the source status strip instead of its test shim; glass/icons use actual drawing code.
+ for(int arg=1;arg+1<argc;arg+=2){
+  rotation=3;oom=false;fail_after=-1;
+  FILE *in=fopen(argv[arg],"rb");assert(in);
+  for(int y=0;y<1216;++y)for(int x=0;x<684;++x){int v=fgetc(in);assert(v>=0);epd_draw_pixel(x,y,v,frame);}fclose(in);
+  memcpy(again,frame,BYTES);ui_quick_menu_draw(frame,true,false,false);
+  for(int y=0;y<76;++y)for(int x=0;x<684;++x)epd_draw_pixel(x,y,pixel(again,x,y),frame);
+  FILE *out=fopen(argv[arg+1],"wb");assert(out);fprintf(out,"P5\n684 1216\n255\n");
+  for(int y=0;y<1216;++y)for(int x=0;x<684;++x)fputc(pixel(frame,x,y),out);fclose(out);
+  ui_quick_menu_end();assert(!live&&!current_bytes);
+ }
+ ui_quick_menu_end();assert(!live&&!current_bytes);
+ for(rotation=1;rotation<4;rotation+=2){
+  patterned();ui_quick_menu_draw(frame,true,false,true);
+  assert(ui_quick_menu_restore(frame)&&!memcmp(frame,saved,BYTES));
+  ui_quick_menu_end();assert(!live);
+ }
+ puts("PASS: actual liquid-glass quick layer bounds temporary PSRAM to 203688 bytes; 113616-byte top/control cache frees on close, 80 local press/release and status changes allocate nothing and exactly restore artwork; grayscale in all modes, four rotations, deterministic rendering and every allocation failure; 12 navigation presses preserve gray backgrounds/labels/marker/neighbors in all modes; click cache <=4096 bytes restores exact pixels, ignores prefetch and tolerates OOM; Han scaling retains native bits and smooths enlarged edges");
  return 0;
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
     src=Path(tmp)/'test.c';src.write_text(code)
     exe=Path(tmp)/'test'
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-g','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
                     '-I'+str(root/'main'),str(src),str(root/'main/ui/ui_image_dither.c'),'-lm','-o',str(exe)],check=True)
-    subprocess.run([str(exe)],check=True)
+    subprocess.run([str(exe)]+sys.argv[1:],check=True)
 
 loop=(root/'main/app/app_loop.c').read_text()
 press=loop[loop.index('bool nav_press_owned='):loop.index('if (!power_input_owned && !quick_input_owned && !nav_press_owned')]

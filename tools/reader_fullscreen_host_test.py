@@ -15,6 +15,7 @@ unit = r'''
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
+#include "book/book_file_path.h"
 typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {int64_t now_ms;int leaf;} app_ctx_t;
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_AREA,APP_REDRAW_PAGE} app_redraw_t;
@@ -37,7 +38,6 @@ static int s_water_turn_dir;
 static unsigned s_stats_pending_turns,s_session_turns,s_turns,s_unsaved;
 static int64_t s_last_turn_ms,s_stats_activity_ms;
 static bool s_save_failed;
-static int s_turn_direction;
 static char s_message[128];
 static unsigned layout_span=100,reflows,paints,saves,failed_reflows;
 static uint8_t full_pages;
@@ -100,7 +100,8 @@ int main(void){
  failed_reflows=1;
  assert(apply_reader_indent(&ctx,3,12)==APP_REDRAW_NONE&&indent==2&&adjustment==-7&&layout_indent==2&&layout_adjustment==-7&&saves==1);
  assert(book_layout_page_start_offset(s_page)==anchor&&!draw_locked);
- assert(apply_reader_indent(&ctx,2,21)==APP_REDRAW_NONE&&saves==1);
+ assert(apply_reader_indent(&ctx,2,101)==APP_REDRAW_NONE&&saves==1);
+ assert(apply_reader_indent(&ctx,2,-101)==APP_REDRAW_NONE&&saves==1);
 
  assert(app_book_request_open("/sdcard/book.epub")&&s_requested_fullscreen&&!s_requested_open_home);
  assert(app_book_request_resume("/sdcard/book.epub",false)&&!s_requested_fullscreen&&s_requested_open_home);
@@ -141,6 +142,17 @@ int main(void){
  assert(s_text&&!s_reader_fullscreen&&!s_toolbar&&layout_span==100&&s_page==3&&reflows==2);
  reset(false,true,2,0);failed_reflows=2;assert(turn_page(&ctx,1)==APP_REDRAW_PAGE);
  assert(!s_text&&s_view==SHELF&&!paints&&!s_stats_pending_turns&&s_message[0]);
+ // 速读黑白严格使用Pico既有0/5/10/15/30间隔，没有隐藏十页清理上限。
+ // Fast BW uses Pico's existing0/5/10/15/30 intervals without a hidden ten-turn cap.
+ const unsigned intervals[]={0,5,10,15,30};effect=2;
+ for(unsigned period=0;period<sizeof(intervals)/sizeof(intervals[0]);++period) {
+  reset(true,false,2,0);full_pages=intervals[period];
+  for(unsigned n=1;n<=65;++n) {
+   s_reader_text_frame=true;
+   assert(turn_page(&ctx,n&1?1:-1)==APP_REDRAW_AREA&&s_reader_turn_pending&&!s_water_turn_pending);
+   assert(s_reader_cleanup==(full_pages&&n%full_pages==0));
+  }
+ }
  puts("PASS: native full-screen entry and explicit sleep overrides; old-layout destination anchors; toolbar dismissal; chapter/boundary turns; failed reflow restores safely or returns to the shelf");
 }
 '''
@@ -148,5 +160,6 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as folder:
     c, exe = Path(folder) / 'test.c', Path(folder) / 'test'
     c.write_text(unit)
     subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
+                    '-I', str(ROOT / 'main'),
                     str(c), '-o', str(exe)], check=True)
     subprocess.run([str(exe)], check=True)

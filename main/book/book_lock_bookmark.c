@@ -16,7 +16,11 @@
 #include <sys/stat.h>
 
 #ifndef BOOK_SEAL_CACHE_PARENT
+#if KIIKO_BOARD_METALIO47
+#define BOOK_SEAL_CACHE_PARENT "/sdcard/.metalio_s31"
+#else
 #define BOOK_SEAL_CACHE_PARENT "/sdcard/.readpico"
+#endif
 #endif
 #define SEAL_CACHE BOOK_SEAL_CACHE_PARENT "/locks/seal-layer.bin"
 #define SEAL_TEMP SEAL_CACHE ".tmp"

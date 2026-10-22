@@ -9,7 +9,7 @@ out = root / 'build/sd-media-test'
 out.mkdir(parents=True, exist_ok=True)
 for name in ('driver/sdmmc_host.h', 'esp_log.h', 'esp_vfs_fat.h',
              'freertos/FreeRTOS.h', 'freertos/task.h', 'read_pico_board.h',
-             'sdmmc_cmd.h', 'esp_err.h', 'esp_heap_caps.h', 'metalio_hw.h'):
+             'sdmmc_cmd.h', 'esp_err.h', 'esp_heap_caps.h'):
     p = out / name
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text('#pragma once\n', encoding='utf-8')
@@ -34,13 +34,6 @@ typedef int esp_err_t;
 #define ESP_ERR_NOT_FINISHED 5
 #define ESP_ERR_NO_MEM 6
 #define GPIO_NUM_38 38
-#define GPIO_NUM_20 20
-#define GPIO_NUM_21 21
-#define GPIO_NUM_22 22
-#define GPIO_NUM_23 23
-#define GPIO_NUM_24 24
-#define GPIO_NUM_25 25
-#define SDMMC_HOST_SLOT_0 0
 #define GPIO_NUM_42 42
 #define GPIO_NUM_44 44
 #define GPIO_NUM_NC -1
@@ -87,8 +80,6 @@ static int esp_vfs_fat_sdmmc_mount(const char* p,const sdmmc_host_t* h,const sdm
 }
 static int esp_vfs_fat_sdcard_unmount(const char* p,sdmmc_card_t* c){(void)p;assert(c==&mock_card);unmounts++;return unmount_fail ? ESP_FAIL : ESP_OK;}
 static int esp_vfs_fat_sdcard_format(const char* p,sdmmc_card_t* c){(void)p;(void)c;formats++;return 0;}
-static void metalio_sd_release_hold(void){}
-static void metalio_usb_serial_reconnect(void){}
 static int mock_mkdir(const char* p,int mode){
     (void)mode;
     if(!strcmp(p,"/sdcard/books")) made_books=true;
@@ -209,19 +200,11 @@ int main(void) {
     }
     assert(pthread_join(reader,NULL)==0);
     assert(formats==0);
-    puts("PASS: injected media-provider faults on S31 SD lifecycle, unknown mount, removal, stale reinsertion, busy lifecycle, mid-probe removal, explicit recovery, concurrent snapshots, no autoformat");
+    puts("PASS: real checked CD/I2C faults, unknown mount, removal, stale reinsertion, busy lifecycle, mid-probe removal, explicit recovery, concurrent snapshots, no autoformat");
 }
 '''
-# A fault-injection provider for the shared lifecycle, not the Metalio board's absent CD pin.
-detect = r"""
-esp_err_t read_pico_sd_detect(bool *detected){
- if(!detected)return ESP_ERR_INVALID_ARG;
- if(!s_ioe)return ESP_ERR_INVALID_STATE;
- uint8_t value;esp_err_t err=fca9555_read_reg(s_ioe,0,&value);
- if(err==ESP_OK)*detected=!(value&IOE_SD_CD);return err;
-}
-bool read_pico_sd_present(void){bool value=false;return read_pico_sd_detect(&value)==ESP_OK&&value;}
-"""
+board = (root / 'components/read_pico/read_pico_board.c').read_text(encoding='utf-8')
+detect = board[board.index('esp_err_t read_pico_sd_detect('):board.index('void read_pico_clear_ioe_int(')]
 (out / 'test.c').write_text(source.replace('@BOARD_DETECT@', detect), encoding='utf-8')
 subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
                 '-Wno-unused-variable', '-fsanitize=address,undefined', '-g', '-pthread',

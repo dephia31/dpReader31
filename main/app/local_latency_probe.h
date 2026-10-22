@@ -10,6 +10,15 @@
 #include <string.h>
 #include "esp_heap_caps.h"
 #include "esp_system.h"
+#if KIIKO_BOARD_METALIO47
+void epd_pie_pixels_enable(bool enabled);
+bool epd_pie_pixels_enabled(void);
+void epd_pie_pixels_bench(void);
+void epd_pipeline_enable(bool enabled);
+void epd_pipeline_test(void);
+void epd_lcd_cache_probe_arm(int phases);
+int epd_lcd_cache_probe_completed(void);
+#endif
 static int64_t local_probe_contact_start_us;
 static void click_present(app_ctx_t *ctx,const app_desc_t *current,EpdRect area);
 static void local_probe_quick(app_ctx_t *ctx,const app_desc_t *current,bool open);
@@ -33,7 +42,26 @@ static app_redraw_t local_latency_poll(app_ctx_t *ctx,const app_desc_t *current)
                 app_index_of(current),app_settings_main_refresh_mode(),app_settings_auto_lock_minutes(),app_settings_home_component(),
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),(unsigned)uxTaskGetStackHighWaterMark(NULL));
+#if KIIKO_BOARD_METALIO47
+            ESP_LOGI("latency","CONTEXT recovery=%d radio=%d font=%s",pico_boot_recovery(),read_pico_transfer_radio_busy(),ttf_font_path());
+#endif
         }
+#if KIIKO_BOARD_METALIO47
+        else if(!strcmp(line,"perf pie test"))epd_pie_pixels_bench();
+        else if(!strcmp(line,"perf pipeline test"))epd_pipeline_test();
+        else if(!strcmp(line,"perf restart")){ESP_LOGI("latency","INTENTIONAL_RESTART");esp_restart();}
+        else if(sscanf(line,"perf cache %d",&a)==1&&a>=0&&a<=48) {
+            epd_lcd_cache_probe_arm(a);ESP_LOGI("latency","CACHE_ARM phases=%d",a);
+        }
+        else if(!strcmp(line,"perf cacheinfo"))ESP_LOGI("latency","CACHE_COMPLETED phases=%d",epd_lcd_cache_probe_completed());
+        else if(sscanf(line,"perf pipeline %d",&a)==1&&(a==0||a==1)) {
+            epd_pipeline_enable(a!=0);epd_pie_pixels_enable(a!=0);
+            ESP_LOGI("latency","PIPELINE_ENABLED value=%d",a);
+        }
+        else if(sscanf(line,"perf pie %d",&a)==1&&(a==0||a==1)) {
+            epd_pie_pixels_enable(a!=0);ESP_LOGI("latency","PIE_ENABLED value=%d",epd_pie_pixels_enabled());
+        }
+#endif
         else if(sscanf(line,"perf nav %d",&a)==1&&a>=0&&a<4&&app_index_of(current)>=0&&app_index_of(current)<4) {
             // 重放同一底栏请求/按压反馈路径，计时包含反馈扫描，不冒充触摸硬件或光学测量。
             // Replay root request/press feedback, including its scan, without claiming physical touch or optical measurement.
