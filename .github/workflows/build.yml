@@ -127,4 +127,5 @@ jobs:
           cc -std=gnu11 -Wall -Wextra -Werror -Itools/settings_backup_stubs \
             -Icomponents/read_pico_transfer/include tools/settings_backup_host_test.c -o build/settings-backup
           build/settings-backup
+          sh tools/run_app_loop_host_tests.sh
           bash tools/run_display_navigation_tests.sh

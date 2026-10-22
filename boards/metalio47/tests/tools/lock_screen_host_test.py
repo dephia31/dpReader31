@@ -82,9 +82,26 @@ static void epd_poweron(void){}
 static void epd_poweroff(void){}
 static void ui_lock_fallback_draw(uint8_t *fb){memset(fb,255,FRAME_BYTES);fb[FRAME_BYTES/2]=0;}
 static size_t heap_caps_get_free_size(int caps){(void)caps;return low_memory?1024*1024:8*1024*1024;}
+// 仅模拟强行终止仍在运行的认证循环时回收宿主资源；正常返回必须自行归还。
+// Reclaim host resources only when aborting a live auth loop; ordinary returns must free their own allocations.
+static void *owned[16];
+static void *tracked_malloc(size_t n){
+ void *p=malloc(n);if(!p)return NULL;
+ for(unsigned i=0;i<16;++i)if(!owned[i]){owned[i]=p;return p;}
+ assert(!"unexpected auth allocation count");return NULL;
+}
+static void tracked_free(void *p){
+ if(!p)return;
+ for(unsigned i=0;i<16;++i)if(owned[i]==p){owned[i]=NULL;free(p);return;}
+ assert(!"free of unowned auth allocation");
+}
+static void abort_host_allocations(void){for(unsigned i=0;i<16;++i)if(owned[i]){free(owned[i]);owned[i]=NULL;}}
+static void assert_no_allocations(void){for(unsigned i=0;i<16;++i)assert(!owned[i]);}
+#define malloc tracked_malloc
+#define free tracked_free
 static void *heap_caps_malloc(size_t n,int caps){(void)caps;return malloc(n);}
 static void metalio_frontlight(unsigned brightness,unsigned warmth){assert(!brightness&&warmth==50);++off_calls;}
-static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc);assert(ms==0);++waits;if(timeout_scenario)longjmp(deep,1);if(deep_calls<deep_defer){assert(!entries&&!pushes&&!verified);++deep_calls;return APP_WAKE_TIMEOUT;}return APP_WAKE_KEY;}
+static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc);assert(ms==0);++waits;if(timeout_scenario){abort_host_allocations();longjmp(deep,1);}if(deep_calls<deep_defer){assert(!entries&&!pushes&&!verified);++deep_calls;return APP_WAKE_TIMEOUT;}return APP_WAKE_KEY;}
 static int64_t esp_timer_get_time(void){return now*1000;}
 static int read_pico_pmu_poll(void){return 0;}
 static int read_pico_pmu_take_key_action(void){int action=power_pending;power_pending=0;return action;}
@@ -112,7 +129,7 @@ static void guard_draw_result(void *h,enum EpdDrawError result){(void)h;(void)re
  for n in ('checksum','wallpaper_key','lock_screen_restore','lock_screen_save','restore_art','present','present_input','lock_screen_authenticate'):
   unit+=function(n,ROOT/'main/lock_screen.c')+'\n'
  unit+=r'''
-static void start(void){idx=sample_count=waits=verified=ready=held=pushes=fulls=entries=settles=idle_drains=art_pushes=off_calls=deep_defer=deep_calls=0;boot_scenario=false;now=0;power_pending=0;memset(framebuffer,0x37,sizeof(framebuffer));assert(lock_screen_save(framebuffer));add(0,0,0,0);}
+static void start(void){assert_no_allocations();idx=sample_count=waits=verified=ready=held=pushes=fulls=entries=settles=idle_drains=art_pushes=off_calls=deep_defer=deep_calls=0;boot_scenario=false;now=0;power_pending=0;memset(framebuffer,0x37,sizeof(framebuffer));assert(lock_screen_save(framebuffer));add(0,0,0,0);}
 int main(void){
  pin_enabled=false;lock_screen_authenticate(NULL,NULL,NULL,true);pin_enabled=true;
  EpdiyHighlevelState hl={0};
@@ -177,7 +194,7 @@ int main(void){
  assert(!lock_screen_restore(f));
  selected_style=0;lock_screen_save(framebuffer);FILE *rotated=fopen(LOCK_ART_PATH,"r+b");assert(rotated);
  uint32_t rotation=2;assert(fseek(rotated,4,SEEK_SET)==0&&fwrite(&rotation,1,sizeof(rotation),rotated)==sizeof(rotation)&&fclose(rotated)==0);assert(!lock_screen_restore(f));
- selected_style=0;lock_screen_save(framebuffer);assert(lock_screen_restore(f));FILE *bad=fopen(LOCK_ART_PATH,"r+b");assert(bad);fputc(0,bad);fclose(bad);assert(!lock_screen_restore(f));free(f);
+ selected_style=0;lock_screen_save(framebuffer);assert(lock_screen_restore(f));FILE *bad=fopen(LOCK_ART_PATH,"r+b");assert(bad);fputc(0,bad);fclose(bad);assert(!lock_screen_restore(f));free(f);assert_no_allocations();
  assert(stops>=5);puts("PASS: actual exclusive auth loop blocks wrong/cancel/touch keys/pickup/multitouch/read faults; cold boot holds resume; OOM/display errors fail closed; cancel/idle retained wait without timed deep sleep; corrupt credentials/art cannot bypass");
 }
 '''
