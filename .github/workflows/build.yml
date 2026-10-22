@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Select Clang for sanitizer host regressions
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/kiiko-host-cc"
+          ln -s "$(command -v clang)" "$RUNNER_TEMP/kiiko-host-cc/cc"
+          echo "$RUNNER_TEMP/kiiko-host-cc" >> "$GITHUB_PATH"
       - name: Board selection and Pico host-test view
         shell: bash
         run: |
@@ -95,6 +101,12 @@ jobs:
         board: [pico, metalio47]
     steps:
       - uses: actions/checkout@v4
+      - name: Select Clang for sanitizer host regressions
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/kiiko-host-cc"
+          ln -s "$(command -v clang)" "$RUNNER_TEMP/kiiko-host-cc/cc"
+          echo "$RUNNER_TEMP/kiiko-host-cc" >> "$GITHUB_PATH"
       - name: Materialize and test reader/UI/settings for this board
         shell: bash
         run: |
