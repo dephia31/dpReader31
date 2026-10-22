@@ -148,8 +148,7 @@ if(kiiko_board_ldfragments)
             "assets/loading_4bpp.bin"
             "assets/builtin.ttf"
             "assets/ui-hanzi.bin"
-            "assets/reading.md"
-            "assets/display-test.png"
+                "assets/display-test.png"
     )
 else()
     idf_component_register(
@@ -161,8 +160,7 @@ else()
             "assets/loading_4bpp.bin"
             "assets/builtin.ttf"
             "assets/ui-hanzi.bin"
-            "assets/reading.md"
-            "assets/display-test.png"
+                "assets/display-test.png"
     )
 endif()
 

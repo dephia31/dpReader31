@@ -85,7 +85,6 @@ ICONS = (
     "download",          # 系统升级 / system upgrade
     "cpu",               # BOOT 刷机 / boot flashing
     "book-open",         # 阅读设置 / reading settings
-    "timer",             # 自动休眠 / idle lock
     "sun",               # S31 前光、亮度 / S31 frontlight and brightness
     "thermometer",       # S31 冷暖色温 / S31 frontlight temperature
     "lightbulb",         # S31 前光开关 / S31 frontlight switch
