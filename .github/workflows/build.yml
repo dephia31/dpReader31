@@ -38,6 +38,7 @@ jobs:
           python3 tools/board_source_view.py --board metalio47 --tests --output build/host/metalio47
           python3 build/host/metalio47/tools/metalio_vcom_host_test.py
           python3 build/host/metalio47/tools/test_glass_geometry.py
+          python3 build/host/metalio47/tools/metalio_clock_cache_host_test.py
       - name: Water-turn, display recovery, navigation and waveform regressions
         shell: bash
         working-directory: build/host/pico
@@ -57,7 +58,6 @@ jobs:
           python3 tools/factory_reset_ui_host_test.py
           python3 tools/book_excerpt_host_test.py
           python3 tools/custom_media_dirs_host_test.py
-          python3 tools/metalio_clock_cache_host_test.py
           python3 tools/pager_host_test.py
           python3 tools/quick_layer_raster_host_test.py
           python3 tools/test_epd_difference_bounds.py --check-regression

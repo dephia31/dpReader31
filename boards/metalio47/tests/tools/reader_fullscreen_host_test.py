@@ -15,6 +15,7 @@ unit = r'''
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "book/book_file_path.h"
 typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {int64_t now_ms;int leaf;} app_ctx_t;
@@ -27,12 +28,21 @@ enum {READING,TOC,SHELF,READER_PANEL_NONE,READER_PANEL_TOOLS};
 #define ESP_LOGI(...) ((void)0)
 static char s_requested_open[288];
 static bool s_requested_fullscreen=true,s_requested_open_home;
+// Real reader_zoom_reset dependencies: keep its cleanup in the exercised turn path.
+#define READER_IMAGE_ZOOM_MIN 1000
+static bool s_zoom_active,s_image_pan_active,s_image_zoom_bw;
+static int s_zoom_slot,s_image_zoom;
+static size_t s_image_zoom_page,s_zoom_bits_bytes;
+static uint32_t s_image_zoom_start_distance;
+static uint8_t *s_zoom_bits;
+static struct {bool pending;} s_reader_tap;
 static const char *s_text="text";
 static size_t s_text_len=900,s_block_count,s_chapter,s_page,s_jump_offset;
 static void *s_blocks;
 static int s_px=48,s_reader_panel=READER_PANEL_NONE,s_reader_slider=-1,s_view=READING;
 #define s_toolbar (s_reader_panel!=READER_PANEL_NONE)
 static bool s_reader_fullscreen,s_clear_confirm,s_reader_text_frame,s_reader_turn_pending;
+static bool s_reader_image_frame,s_reader_image_exit_pending;
 static bool s_water_turn_pending,s_reader_cleanup,draw_locked,load_failed;
 static int s_water_turn_dir;
 static unsigned s_stats_pending_turns,s_session_turns,s_turns,s_unsaved;
@@ -81,11 +91,12 @@ static void book_layout_set_first_line_indent(unsigned em){assert(draw_locked);l
 static void book_layout_set_first_line_indent_adjust(int px){assert(draw_locked);layout_adjustment=px;}
 """
 unit += function('apply_reader_indent', BOOK) + '\n'
-for name in ('app_book_request_open', 'app_book_request_open_from_home', 'app_book_request_resume',
+for name in ('reader_zoom_reset', 'app_book_request_open', 'app_book_request_open_from_home', 'app_book_request_resume',
              'toggle_reader_fullscreen', 'reader_turn_chrome', 'turn_page'):
     unit += function(name, BOOK) + '\n'
 unit += r'''
 static void reset(bool full,bool tools,size_t page,size_t chapter){
+ s_reader_image_frame=s_reader_image_exit_pending=false;
  s_text="text";s_view=READING;s_reader_fullscreen=full;layout_span=full?150:100;s_page=page;s_chapter=chapter;
  s_reader_panel=tools?READER_PANEL_TOOLS:READER_PANEL_NONE;s_reader_slider=2;
  reflows=paints=saves=s_stats_pending_turns=s_session_turns=s_turns=s_unsaved=0;
@@ -109,7 +120,12 @@ int main(void){
  assert(!app_book_request_open(NULL)&&!app_book_request_open(""));
  for(int full=0;full<2;++full)for(int tools=0;tools<2;++tools)for(int dir=-1;dir<=1;dir+=2){
   reset(full,tools,2,0);size_t destination=book_layout_page_start_offset(s_page+dir);
+  s_zoom_bits=malloc(32);assert(s_zoom_bits);s_zoom_bits_bytes=32;
+  s_zoom_active=s_image_pan_active=s_image_zoom_bw=s_reader_tap.pending=true;
+  s_zoom_slot=2;s_image_zoom=2000;s_image_zoom_page=2;s_image_zoom_start_distance=99;
   app_redraw_t r=turn_page(&ctx,dir);
+  assert(!s_zoom_bits&&!s_zoom_bits_bytes&&!s_zoom_active&&!s_image_pan_active&&!s_image_zoom_bw&&!s_reader_tap.pending);
+  assert(s_zoom_slot==-1&&s_image_zoom==READER_IMAGE_ZOOM_MIN&&s_image_zoom_page==SIZE_MAX&&!s_image_zoom_start_distance);
   assert(s_reader_fullscreen&&s_reader_panel==READER_PANEL_NONE&&s_reader_slider==-1);
   assert(s_stats_pending_turns==1&&s_session_turns==1&&paints==1);
   assert(book_layout_page_start_offset(s_page)<=destination&&destination<book_layout_page_start_offset(s_page)+layout_span);
@@ -130,6 +146,13 @@ int main(void){
  reset(true,false,2,0);test_images=0;s_reader_text_frame=false;
  assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&!s_water_turn_pending&&!s_reader_turn_pending);
  test_images=0;
+ // An image that was actually displayed keeps its exit-cleaning state only on an area turn.
+ reset(true,false,2,0);s_reader_image_frame=true;
+ assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&s_reader_image_exit_pending);
+ reset(true,false,2,0);s_reader_image_exit_pending=true;
+ assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&!s_reader_image_exit_pending);
+ reset(true,true,2,0);s_reader_image_frame=true;
+ assert(turn_page(&ctx,1)==APP_REDRAW_PAGE&&!s_reader_image_exit_pending);
  reset(false,true,0,0);assert(turn_page(&ctx,-1)==APP_REDRAW_PAGE);
  assert(s_reader_fullscreen&&!s_toolbar&&s_page==0&&!paints&&!s_stats_pending_turns);
  reset(false,true,8,1);assert(turn_page(&ctx,1)==APP_REDRAW_PAGE);

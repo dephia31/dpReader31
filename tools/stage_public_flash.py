@@ -84,7 +84,7 @@ def stage(output: Path, ota_origin: str | None = None) -> None:
     licenses = {
         ROOT / "licenses/Apache-2.0.txt": "Apache-2.0.txt",
         ROOT / "licenses/kiikoread-Personal-Study-1.0.txt": "kiikoread-Personal-Study-1.0.txt",
-        FLASH / "licenses/LUCIDE-ISC.txt": "LUCIDE-ISC.txt",
+        ROOT / "licenses/LUCIDE-ISC.txt": "LUCIDE-ISC.txt",
         ROOT / "components/jpegdec/LICENSE": "JPEGDEC-APACHE-2.0.txt",
         ROOT / "licenses/LGPL-3.0.txt": "LGPL-3.0.txt",
         ROOT / "licenses/GPL-3.0.txt": "GPL-3.0.txt",
