@@ -689,9 +689,9 @@ static void ai_dismiss(app_ctx_t *ctx,const app_desc_t *current,bool present){
     if(!restored){if(present)app_present(ctx,current,APP_REDRAW_FULL);else if(current->render)current->render(ctx,ctx->fb);}
     else if(present)ai_push(ctx,current,rect);
 }
-static app_redraw_t ai_short_action(app_ctx_t *ctx,const app_desc_t *current,bool *lock_requested){
+static app_redraw_t ai_short_action(app_ctx_t *ctx,const app_desc_t *current){
     app_ai_action_t action=app_settings_ai_short();
-    if(action==APP_AI_LOCK){(void)metalio_haptic_click();*lock_requested=true;return APP_REDRAW_NONE;}
+    if(action==APP_AI_NONE)return APP_REDRAW_NONE;
     if(action==APP_AI_BOOKMARK){
         if(current!=&app_book || !app_book_reader_body_visible())return APP_REDRAW_NONE;
         if(app_book_ai_bookmark())(void)metalio_haptic_click();
@@ -1122,7 +1122,7 @@ void app_loop_run(const app_loop_config_t* config) {
                         (void)metalio_haptic_click();ai_push(&ctx,current,s_ai.rect);
                     }
                 }else if(ai_event==METALIO_AI_SHORT){
-                    present_page(&ctx,current,&gesture,ai_short_action(&ctx,current,&quick_lock_requested));
+                    present_page(&ctx,current,&gesture,ai_short_action(&ctx,current));
                 }
             }
             if(s_ai.open){

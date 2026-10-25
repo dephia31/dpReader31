@@ -36,7 +36,7 @@ int main(void){
  puts("PASS: GPIO61 AI debounce,boot/sleep-held suppression,one500ms long event,no release tap,bounded8-event FIFO");
 }
 '''
-enum='typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_AI_LOCK,APP_AI_ACTION_COUNT}app_ai_action_t;\n'
+enum='typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_AI_NONE,APP_AI_ACTION_COUNT}app_ai_action_t;\n'
 ui=common+enum+r'''
 #define W 1216
 #define H 684
@@ -50,7 +50,7 @@ typedef struct{int x,y,width,height;}EpdRect;
 typedef struct{bool touched;unsigned count;int x,y;}cst836u_touch_t;
 typedef struct{const cst836u_touch_t*touch;bool pressed,released;}app_ctx_t;
 typedef int ui_icon_t;
-enum {UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_POWER,UI_ICON_LOCK};
+enum {UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_POWER,UI_ICON_X};
 static int rotation,allocs,live,draws,glass_calls;
 static bool oom,glass_ok=true;
 static uint8_t fb[W*H],original[W*H];
@@ -160,16 +160,16 @@ static int metalio_haptic_click(void){++haptics;return 0;}
 static void metalio_frontlight_toggle(void){++lamps;}
 static void ui_nav_request(app_ctx_t*c,int tab){(void)c;assert(tab==0);++home;}
 '''+function('app_book_ai_bookmark',r/'main/apps/app_book.c')+function('ai_short_action',r/'main/app/app_loop.c')+r'''
-int main(void){app_ctx_t c={0};bool lock=false;
- chosen=APP_AI_BOOKMARK;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_NONE&&!marks&&!haptics);
- assert(ai_short_action(&c,&app_book,&lock)==APP_REDRAW_NONE&&!marks);reader=true;
- assert(ai_short_action(&c,&app_book,&lock)==APP_REDRAW_PAGE&&marks==1&&haptics==1);
- bookmark_ok=false;assert(ai_short_action(&c,&app_book,&lock)==APP_REDRAW_PAGE&&marks==2&&haptics==1);
- chosen=APP_AI_REFRESH;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_FULL&&haptics==2);
- chosen=APP_AI_FRONTLIGHT;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_NONE&&lamps==1&&haptics==3);
- chosen=APP_AI_HOME;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_NONE&&home==1&&haptics==4);
- chosen=APP_AI_LOCK;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_NONE&&lock&&home==1&&haptics==5&&lamps==1&&marks==2);
- puts("PASS: actual tap dispatcher and book wrapper share bookmark toggling,body/current-page guards,failure feedback,full/light/home/lock actions");
+int main(void){app_ctx_t c={0};
+ chosen=APP_AI_BOOKMARK;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&!marks&&!haptics);
+ assert(ai_short_action(&c,&app_book)==APP_REDRAW_NONE&&!marks);reader=true;
+ assert(ai_short_action(&c,&app_book)==APP_REDRAW_PAGE&&marks==1&&haptics==1);
+ bookmark_ok=false;assert(ai_short_action(&c,&app_book)==APP_REDRAW_PAGE&&marks==2&&haptics==1);
+ chosen=APP_AI_REFRESH;assert(ai_short_action(&c,&other)==APP_REDRAW_FULL&&haptics==2);
+ chosen=APP_AI_FRONTLIGHT;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&lamps==1&&haptics==3);
+ chosen=APP_AI_HOME;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&home==1&&haptics==4);
+ chosen=APP_AI_NONE;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&home==1&&haptics==4&&lamps==1&&marks==2);
+ puts("PASS: actual tap dispatcher and book wrapper share bookmark toggling,body/current-page guards,failure feedback,full/light/home actions and NONE produces no lock, redraw or haptic");
 }
 '''
 # Execute the exact load block too: old/missing/invalid records default safely; successful selections survive a fresh context.

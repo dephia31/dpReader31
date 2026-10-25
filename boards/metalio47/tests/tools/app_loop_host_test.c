@@ -879,8 +879,8 @@ int main(void) {
     add(0,0,0,0);add(0,0,0,0);run();assert(!ai_open_calls&&fulls==2);
     reset();ai_step=1;ai_event=METALIO_AI_SHORT;ai_saved=APP_AI_FRONTLIGHT;
     add(0,0,0,0);add(0,0,0,0);run();assert(!ai_open_calls&&light_saves==1&&fulls==1&&!light_enabled);
-    reset();ai_step=1;ai_event=METALIO_AI_SHORT;ai_saved=APP_AI_LOCK;first.on_before_lock=before_lock;
-    add(0,0,0,0);add(0,0,0,0);run();assert(idle_locks==1&&before_locks==1&&!ai_open_calls&&haptics==1);
+    reset();ai_step=1;ai_event=METALIO_AI_SHORT;ai_saved=APP_AI_NONE;first.on_before_lock=before_lock;
+    add(0,0,0,0);add(0,0,0,0);run();assert(!idle_locks&&!before_locks&&!ai_open_calls&&!haptics&&fulls==1);
     for(int button=0;button<3;++button){
         reset();first.owns_keys=true;first.on_key=key;first.on_key_long=button==1?long_key:NULL;
         add(0,0,0,0);add(80+160*button,1500,1,0);add(80+160*button,1500,1,0);
