@@ -1,5 +1,7 @@
 # 双板型构建
 
+Metalio S31 源码维护于公开仓库 [Metalio-S31-kiikoread](https://github.com/wegooo-cell/Metalio-S31-kiikoread) 的 `main`。正式二进制继续在统一 Release 归档，官网按机型选择。现有文件许可与第三方权利保持。
+
 维护同一份 `main/` 阅读器和 UI 源码，通过 `KIIKO_BOARD` 选择设备。`boards/<设备>/` 保存该设备的配置、分区和硬件后端，`cmake/board.cmake` 选择参与编译的驱动。已有 `read_pico_*` 接口名继续作为内部兼容接口使用。
 
 ## 支持的设备
@@ -17,7 +19,7 @@
 | OTA 数据地址 | `0xd10000` | `0xd000` |
 | 设置命名空间 | `read_pico` | `metalio_s31` |
 | 锁屏 / 启动记录空间 | `pico_lock` / `pico_startup` | `metalio_lock` / `metalio_start` |
-| 联网 OTA | 沿用正式版 | 沿用 Metalio 本地版的禁用策略 |
+| 联网 OTA | 沿用正式版 | 支持，GitHub Pages 优先、官网备用 |
 
 Metalio 仅适用于已适配的 **V1.5 / E0470A14-AF 34Pin** 硬件，不自动推断其他硬件修订。两种设备的原始波形、供电时序、引脚、存储地址及默认配置分别保留；共享功能更新不代表把一块板的底层参数搬到另一块板。
 
