@@ -17,8 +17,8 @@ static uint8_t front[BYTES], back[BYTES], old[BYTES], diff[W*H];
 static bool dirty_lines[H];
 static uint8_t dirty_columns[W/2];
 static EpdiyHighlevelState hl={front,back,diff,dirty_lines,dirty_columns};
-static const EpdWaveformPhases soft={.phases=48,.luts=(const uint8_t*)"soft"};
-static const EpdWaveformPhases art={.phases=48,.luts=(const uint8_t*)"art"};
+static EpdWaveformPhases soft={.phases=48,.luts=(const uint8_t*)"soft"};
+static EpdWaveformPhases art={.phases=48,.luts=(const uint8_t*)"art"};
 static EpdWaveformPhases cleanup={.phases=48,.luts=(const uint8_t*)"cleanup"};
 const EpdWaveform E0470_WAVEFORM={1}, E0470_APPLY_WAVEFORM={2};
 static const EpdWaveform soft_wave={3};
@@ -85,7 +85,8 @@ enum EpdDrawError epd_draw_base(EpdRect area,const uint8_t* pixels,EpdRect crop,
     }
     for(int band=0;band<3;++band){
         assert(mapped_selectors[band]==(band==1?1:0));
-        int expected=band==1?((!full_cleanup||scans<cleanup.phases)?scans+1:0):129+scans;
+        int expected=band==1?(scans<(full_cleanup?cleanup.phases:art.phases)?scans+1:0):
+            scans<soft.phases?129+scans:0;
         for(int i=0;i<1024;++i)assert(mapped_luts[mapped_selectors[band]][i]==expected);
     }
     ++scans;
@@ -95,6 +96,10 @@ static void reset(void){
     scans=differences=powerons=fail_at=0;water_test_alloc_fail=0;
     epd_clear_phase_luts();rotation=EPD_ROT_INVERTED_PORTRAIT;
     for(int i=0;i<BYTES;++i){old[i]=back[i]=(uint8_t)(i*13);front[i]=(uint8_t)(i*17+5);}
+}
+enum EpdDrawError epd_draw_base_from_phase(EpdRect a,const uint8_t *d,EpdRect c,enum EpdDrawMode m,
+    int t,const bool *l,const uint8_t *cols,const EpdWaveform *w,int p){
+    (void)a;(void)d;(void)c;(void)m;(void)t;(void)l;(void)cols;(void)w;(void)p;assert(false);return EPD_DRAW_NO_PHASES_AVAILABLE;
 }
 static enum EpdDrawError run(void){
     return e0470_update_regions(&hl,expected_area,expected_art,&soft_wave,&E0470_WAVEFORM,full_cleanup?MODE_GC16:MODE_GL16);
@@ -110,6 +115,29 @@ int main(void){
             assert(nibble(back,x,y)==nibble(committed?front:old,x,y));
         }
     }
+    // 真实分区引擎覆盖37相及跨主页两拍补白后的39相；每个失败相均不得提交半帧。
+    // Exercise real37/39-phase regional scans; every failed phase must preserve the prior framebuffer.
+    expected_art=(EpdRect){0,192,H,800};full_cleanup=false;
+    for(int phases=37;phases<=39;phases+=2)for(int failure=0;failure<=phases;++failure){
+        soft.phases=art.phases=phases;reset();fail_at=failure;
+        assert(run()==(failure?EPD_DRAW_OTHER_ERROR:EPD_DRAW_SUCCESS));
+        assert(scans==(failure?failure:phases)&&differences==1&&powerons==1&&!mapped_luts);
+        for(int y=0;y<H;++y)for(int x=0;x<W;++x){
+            bool committed=!failure&&x<expected_area.height;
+            assert(nibble(back,x,y)==nibble(committed?front:old,x,y));
+        }
+    }
+    expected_art=(EpdRect){0,544,H,544};full_cleanup=false;
+    for(int failure=0;failure<=52;++failure){
+        soft.phases=50;art.phases=52;reset();fail_at=failure;
+        assert(run()==(failure?EPD_DRAW_OTHER_ERROR:EPD_DRAW_SUCCESS));
+        assert(scans==(failure?failure:52)&&differences==1&&powerons==1&&!mapped_luts);
+        for(int y=0;y<H;++y)for(int x=0;x<W;++x){
+            bool committed=!failure&&x<expected_area.height;
+            assert(nibble(back,x,y)==nibble(committed?front:old,x,y));
+        }
+    }
+    soft.phases=art.phases=48;
     expected_art=(EpdRect){0,192,H,800};
     reset();water_test_alloc_fail=1;assert(run()==EPD_DRAW_NO_PHASES_AVAILABLE);
     assert(!scans&&!differences&&!powerons&&!memcmp(old,back,BYTES));
@@ -126,6 +154,6 @@ int main(void){
         assert(!scans&&!differences&&!powerons);
     }
     for(int rot=0;rot<3;++rot){reset();rotation=rot;assert(run()==EPD_DRAW_INVALID_CROP);assert(!scans);}
-    puts("simultaneous shelf: shared shelf/settings chrome/art phases, GL48/GC48 plus 47-phase padding, footer, all phase failures, OOM and geometry passed");
+    puts("simultaneous shelf:37/39/48 phases, shared chrome/art, GC48/47 padding, footer, every phase failure, OOM and geometry passed");
     return 0;
 }

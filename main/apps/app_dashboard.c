@@ -1,4 +1,7 @@
 #if defined(KIIKO_LOCAL_LATENCY) || KIIKO_BOARD_METALIO47
+#if KIIKO_BOARD_METALIO47
+#include "metalio_hw.h"
+#endif
 #include "esp_timer.h"
 #endif
 #ifdef KIIKO_LOCAL_LATENCY
@@ -1073,7 +1076,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         }
         if(hit(continue_card_hit_rect(),x,y)) {
             home_book_t *b=featured();
-            if(b->path[0] && app_book_request_open_from_home(b->path)){ui_nav_request(ctx,1);return APP_REDRAW_NONE;}
+            if(b->path[0] && app_book_request_open_from_home(b->path)){
+#if KIIKO_BOARD_METALIO47
+                (void)metalio_haptic_click();
+#endif
+                ui_nav_request(ctx,1);return APP_REDRAW_NONE;
+            }
             if(restore){s_area=control_feedback_area(s_pressed);return APP_REDRAW_AREA;}
             return APP_REDRAW_NONE;
         }

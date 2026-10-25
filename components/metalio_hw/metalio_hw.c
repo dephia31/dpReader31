@@ -488,6 +488,19 @@ esp_err_t metalio_haptic_click(void) {
     return ESP_OK;
 }
 void metalio_sd_release_hold(void) { for (int pin=20;pin<=25;pin++) gpio_hold_dis(pin); }
+esp_err_t metalio_sd_single_line_idle(void) {
+    // S31休眠曾把这些脚保持低；单线SDK不会重新配置未使用的D1～D3。
+    // S31 sleep held these pins low; single-line SDK setup does not reconfigure unusedD1–D3.
+    gpio_config_t config={.pin_bit_mask=(1ULL<<21)|(1ULL<<22)|(1ULL<<23),
+        .mode=GPIO_MODE_INPUT,.pull_up_en=GPIO_PULLUP_ENABLE,
+        .pull_down_en=GPIO_PULLDOWN_DISABLE,.intr_type=GPIO_INTR_DISABLE};
+    esp_err_t err=gpio_config(&config);
+    if(err!=ESP_OK)return err;
+    CNNT_PAD_CTRL.sdio_data1.sdio_data1_fun_wpd=0;CNNT_PAD_CTRL.sdio_data1.sdio_data1_fun_wpu=1;
+    CNNT_PAD_CTRL.sdio_data2.sdio_data2_fun_wpd=0;CNNT_PAD_CTRL.sdio_data2.sdio_data2_fun_wpu=1;
+    CNNT_PAD_CTRL.sdio_data3.sdio_data3_fun_wpd=0;CNNT_PAD_CTRL.sdio_data3.sdio_data3_fun_wpu=1;
+    return ESP_OK;
+}
 static const int light_sleep_pins[]={4,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,35,37,40};
 void metalio_release_light_sleep_pins(void) {
     for (unsigned i=0;i<sizeof(light_sleep_pins)/sizeof(light_sleep_pins[0]);i++)

@@ -26,6 +26,11 @@
 #include "ui_kit.h"
 #include "ui_menu.h"
 #include "ui_nav.h"
+#if KIIKO_BOARD_METALIO47
+#include "settings.h"
+#include "ui_glass.h"
+#include "e0470_epaper_waveform.h"
+#endif
 
 #define IMAGE_MAX 96
 #define IMAGE_BYTES_MAX BOOK_IMAGE_FILE_MAX
@@ -37,7 +42,12 @@
 extern const uint8_t display_test_png_start[] asm("_binary_display_test_png_start");
 extern const uint8_t display_test_png_end[] asm("_binary_display_test_png_end");
 
-typedef struct { char name[128]; char path[256]; bool png; } image_item_t;
+#if KIIKO_BOARD_METALIO47
+#define IMAGE_PATH_MAX 288
+#else
+#define IMAGE_PATH_MAX 256
+#endif
+typedef struct { char name[128]; char path[IMAGE_PATH_MAX]; bool png; } image_item_t;
 // 图片列表放 PSRAM，理由同文件列表：内部 RAM 留给只能用内部 RAM 的东西。
 // The image list lives in PSRAM for the same reason as the file list: internal RAM is kept for
 // what can only live there.
@@ -53,19 +63,74 @@ static uint8_t *s_gray;
 static unsigned s_width, s_height;
 static char s_message[96];
 static bool s_viewing;
-static char s_requested_path[256];
+#if KIIKO_BOARD_METALIO47
+typedef enum {IMAGE_LOCK_ANY, IMAGE_LOCK_WALLPAPER, IMAGE_LOCK_BOOKMARK} image_lock_mode_t;
+static image_lock_mode_t s_lock_mode, s_requested_lock_mode;
+static bool s_lock_menu;
+static unsigned image_lock_action_count(void) { return s_lock_mode==IMAGE_LOCK_ANY?2:1; }
+static unsigned image_lock_style(unsigned action) {
+    return s_lock_mode==IMAGE_LOCK_BOOKMARK || (s_lock_mode==IMAGE_LOCK_ANY&&action==1)?3:1;
+}
+// 绘制与命中共用几何；卡片之外保留原图，不额外输出背景帧。
+// Share paint/hit geometry; retain the image outside the card without an extra background presentation.
+static EpdRect image_lock_option(unsigned index) {
+    return (EpdRect){102, 450 + (int)index * 96, 480, 80};
+}
+static void image_lock_menu_draw(uint8_t *fb) {
+    const unsigned actions=image_lock_action_count();
+    const EpdRect card = {70, 346, 544, actions==2?468:372};
+    if (!ui_glass_panel_frost(fb, card, 28, 96, 3, true))
+        ui_fill_round_rect(fb, card, 28, UI_GRAY_WHITE);
+    ui_draw_round_rect(fb, card, 28, UI_GRAY_LIGHT);
+    ui_draw_icon(fb, 124, 402, 34, UI_ICON_LOCK, 0);
+    ui_text_vc(fb, 162, 402, 30, "设为锁屏", EPD_DRAW_ALIGN_LEFT, false);
+    const char *labels[] = {"设为壁纸锁屏", "设为透明书封"};
+    const ui_icon_t icons[] = {UI_ICON_HOUSE, UI_ICON_BOOKMARK};
+    for (unsigned i = 0; i < actions; ++i) {
+        unsigned option=image_lock_style(i)==3?1:0;
+        EpdRect r = image_lock_option(i);
+        ui_fill_round_rect(fb, r, 18, UI_GRAY_WHITE);
+        ui_draw_icon(fb, r.x + 36, r.y + 40, 32, icons[option], 0);
+        ui_text_vc(fb, r.x + 72, r.y + 40, 27, labels[option], EPD_DRAW_ALIGN_LEFT, false);
+        ui_draw_icon(fb, r.x + r.width - 30, r.y + 40, 24, UI_ICON_CHEVRON_RIGHT, 0);
+    }
+    ui_draw_button(fb, image_lock_option(actions), "取消", false);
+    if (s_message[0]) ui_text_vc(fb, 342, card.y+card.height-26, 18, s_message, EPD_DRAW_ALIGN_CENTER, false);
+}
+#endif
+static char s_requested_path[IMAGE_PATH_MAX];
 
 bool app_image_request_open(const char *path) {
     if (!path || !path[0] || strnlen(path, sizeof(s_requested_path)) >= sizeof(s_requested_path)) return false;
     snprintf(s_requested_path, sizeof(s_requested_path), "%s", path);
+#if KIIKO_BOARD_METALIO47
+    s_requested_lock_mode=IMAGE_LOCK_ANY;
+#endif
     return true;
 }
+
+#if KIIKO_BOARD_METALIO47
+bool app_image_request_lock_picker(const char *path, bool transparent) {
+    // 入口目的只在进入时消费；取消或重新从文件管理打开不会继承上次限制。
+    // Consume the entry purpose on enter; cancellation and later Files opens cannot inherit it.
+    if(path&&path[0]) {
+        const char *ext=strrchr(path,'.');
+        if(transparent&&(!ext||strcasecmp(ext,".png")))return false;
+        if(!app_image_request_open(path))return false;
+    } else s_requested_path[0]=0;
+    s_requested_lock_mode=transparent?IMAGE_LOCK_BOOKMARK:IMAGE_LOCK_WALLPAPER;
+    return true;
+}
+#endif
 
 static bool image_name(const char *name, bool *png) {
     if (!name[0] || name[0] == '.') return false; // 跳过 macOS 辅助文件。/ Skip macOS sidecar files.
     const char *ext = strrchr(name, '.');
     if (!ext) return false;
     *png = !strcasecmp(ext, ".png");
+#if KIIKO_BOARD_METALIO47
+    if(s_lock_mode==IMAGE_LOCK_BOOKMARK)return *png;
+#endif
     return *png || !strcasecmp(ext, ".jpg") || !strcasecmp(ext, ".jpeg");
 }
 
@@ -109,14 +174,18 @@ static void scan_images(void) {
         snprintf(s_items[0].path, sizeof(s_items[0].path), "%s", s_requested_path);
         snprintf(s_items[0].name, sizeof(s_items[0].name), "%s", name + 1);
         s_items[0].png = png;
-        char root[256];
+        char root[IMAGE_PATH_MAX];
         size_t length = (size_t)(name - s_requested_path);
         memcpy(root, s_requested_path, length);
         root[length] = 0;
         scan_dir(root);
         return;
     }
+#if KIIKO_BOARD_METALIO47
+    s_count=s_lock_mode==IMAGE_LOCK_ANY?1:0;
+#else
     s_count = 1;
+#endif
     memset(s_items, 0, sizeof(s_items[0]));
     strcpy(s_items[0].name, "内置灰阶测试图");
     s_items[0].png = true;
@@ -125,7 +194,14 @@ static void scan_images(void) {
     if (sd.mounted) {
         scan_dir("/sdcard/pictures");
         scan_dir("/sdcard/images");
+#if KIIKO_BOARD_METALIO47
+        if(s_lock_mode!=IMAGE_LOCK_ANY)scan_dir("/sdcard");
+#endif
     }
+#if KIIKO_BOARD_METALIO47
+    if(!s_count&&s_lock_mode!=IMAGE_LOCK_ANY)
+        snprintf(s_message,sizeof(s_message),"%s",sd.mounted?"未找到图片，请放入 pictures 文件夹":"请先挂载内存卡");
+#endif
     if (s_page * IMAGE_ROWS >= s_count) s_page = 0;
 }
 
@@ -148,7 +224,12 @@ static bool load_image(int index) {
                                   : book_image_dimensions(data, size, item->png, &width, &height);
     if (!dimensions_ok || !width || !height) { strcpy(s_message, "图片格式不支持"); return false; }
     unsigned fit_w = UI_LOCK_WIDTH, fit_h = (uint64_t)height * fit_w / width;
+#if KIIKO_BOARD_METALIO47
+    const unsigned image_height = UI_LOCK_HEIGHT - 56;
+    if (fit_h > image_height) { fit_h = image_height; fit_w = (uint64_t)width * fit_h / height; }
+#else
     if (fit_h > UI_LOCK_HEIGHT) { fit_h = UI_LOCK_HEIGHT; fit_w = (uint64_t)width * fit_h / height; }
+#endif
     if (!fit_w) fit_w = 1;
     if (!fit_h) fit_h = 1;
     s_gray = heap_caps_malloc((size_t)fit_w * fit_h, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -164,18 +245,41 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     (void)ctx;
     ui_clear_page(fb);
     if (s_viewing && s_gray) {
+#if KIIKO_BOARD_METALIO47
+        int x0 = (UI_LOCK_WIDTH - s_width) / 2, y0 = (UI_LOCK_HEIGHT - 56 - s_height) / 2;
+#else
         int x0 = (UI_LOCK_WIDTH - s_width) / 2, y0 = (UI_LOCK_HEIGHT - s_height) / 2;
+#endif
         for (unsigned y = 0; y < s_height; ++y)
             for (unsigned x = 0; x < s_width; ++x)
                 epd_draw_pixel(x0 + x, y0 + y,
                     ui_image_dither_gray(s_gray[(size_t)y * s_width + x], x0 + x, y0 + y), fb);
+#if KIIKO_BOARD_METALIO47
+        if (!s_lock_menu)
+            ui_text_vc(fb,342,UI_LOCK_HEIGHT-28,20,s_lock_mode==IMAGE_LOCK_BOOKMARK?
+                "左右滑动切换图片 · 点按设置透明书封":"左右滑动切换图片 · 点按设置壁纸",EPD_DRAW_ALIGN_CENTER,false);
+        if(s_lock_menu)image_lock_menu_draw(fb);
+        else if(s_message[0]){
+            ui_fill_round_rect(fb,(EpdRect){60,1100,564,66},16,UI_GRAY_WHITE);
+            ui_text_vc(fb,342,1133,24,s_message,EPD_DRAW_ALIGN_CENTER,false);
+        }
+#endif
         return;
     }
     ui_nav_status(fb);
     ui_nav_back(fb, 36, 79);
+#if KIIKO_BOARD_METALIO47
+    ui_text_vc(fb,342,107,34,s_lock_mode==IMAGE_LOCK_WALLPAPER?"壁纸锁屏":
+        s_lock_mode==IMAGE_LOCK_BOOKMARK?"透明书封":"图片",EPD_DRAW_ALIGN_CENTER,false);
+#else
     ui_text_vc(fb, 342, 107, 34, "图片", EPD_DRAW_ALIGN_CENTER, false);
+#endif
     char caption[64];
+#if KIIKO_BOARD_METALIO47
+    snprintf(caption,sizeof(caption),s_lock_mode==IMAGE_LOCK_BOOKMARK?"%d 张 · 透明 PNG":"%d 张 · JPG / PNG",s_count);
+#else
     snprintf(caption, sizeof(caption), "%d 张 · JPG / PNG", s_count);
+#endif
     ui_text(fb, 36, 165, 21, caption, EPD_DRAW_ALIGN_LEFT, false);
     ui_hairline(fb, 202, 36, 612, UI_GRAY_LIGHT);
     for (int row = 0; row < IMAGE_ROWS; ++row) {
@@ -215,10 +319,26 @@ static bool present(app_ctx_t *ctx, app_redraw_t redraw) {
     if (!s_viewing) return false;
 #endif
     render(ctx, ctx->fb);
+#if KIIKO_BOARD_METALIO47
+    // 切图/弹窗只输出一次真实灰阶迁移；显式全刷及故障恢复继续走原出口。
+    // Image/dialog actions output one true grayscale transition; explicit full/fault recovery retains its existing outlet.
+    const bool binary = display_system_binary_set(false);
+    display_main_transition_cancel();
+    enum EpdDrawError result = redraw == APP_REDRAW_FULL ? update_display_full(ctx->hl)
+        : update_display_area_full_with(ctx->hl, &E0470_FULL_WAVEFORM, MODE_GL16,
+                                       (EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT});
+    guard_draw_result(ctx->hl, result);
+    display_system_binary_set(binary);
+#else
     guard_draw_result(ctx->hl, update_display_image_gray(ctx->hl));
+#endif
     return true;
 }
 static void on_enter(app_ctx_t *ctx) {
+#if KIIKO_BOARD_METALIO47
+    s_lock_menu=false;
+    s_lock_mode=s_requested_lock_mode;s_requested_lock_mode=IMAGE_LOCK_ANY;
+#endif
     (void)ctx;
     s_page = 0; s_viewing = false; s_message[0] = 0; scan_images();
     if (s_requested_path[0]) {
@@ -226,31 +346,83 @@ static void on_enter(app_ctx_t *ctx) {
         s_requested_path[0] = 0;
     }
 }
-static void image_on_exit(app_ctx_t *ctx) { (void)ctx; free(s_gray); s_gray = NULL; s_viewing = false; }
-static void on_media_lost(app_ctx_t *ctx) { (void)ctx; free(s_gray); s_gray = NULL; s_viewing = false; scan_images(); }
+static void image_on_exit(app_ctx_t *ctx) {
+#if KIIKO_BOARD_METALIO47
+    s_lock_menu=false;s_lock_mode=IMAGE_LOCK_ANY;
+#endif
+    (void)ctx; free(s_gray); s_gray = NULL; s_viewing = false;
+}
+static void on_media_lost(app_ctx_t *ctx) {
+#if KIIKO_BOARD_METALIO47
+    s_lock_menu=false;
+#endif
+    (void)ctx; free(s_gray); s_gray = NULL; s_viewing = false; scan_images();
+}
+#if KIIKO_BOARD_METALIO47
+#define IMAGE_ACTION_REDRAW APP_REDRAW_PAGE
+#else
+#define IMAGE_ACTION_REDRAW APP_REDRAW_FULL
+#endif
 static app_redraw_t move_image(int delta) {
     int next = s_selected + delta;
     if (next < 0 || next >= s_count) return APP_REDRAW_NONE;
     if (!load_image(next)) s_viewing = false;
-    return APP_REDRAW_FULL;
+    return IMAGE_ACTION_REDRAW;
 }
 static app_redraw_t on_key(app_ctx_t *ctx, int key) {
+#if KIIKO_BOARD_METALIO47
+    if(s_lock_menu){s_lock_menu=false;s_message[0]=0;return IMAGE_ACTION_REDRAW;}
+#endif
     if (key == UI_KEY_2) { ctx->request_app = app_home_page(); return APP_REDRAW_NONE; }
     if (s_viewing) {
         s_viewing = false; free(s_gray); s_gray = NULL; return APP_REDRAW_PAGE;
     }
+#if KIIKO_BOARD_METALIO47
+    if(s_lock_mode!=IMAGE_LOCK_ANY)app_device_settings_resume_lock_style();
+#endif
     ctx->request_return = true;
     return APP_REDRAW_NONE;
 }
 static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) {
     (void)ctx;
     if (s_viewing) {
+#if KIIKO_BOARD_METALIO47
+        if(s_lock_menu){
+            if(event->type!=UI_GESTURE_TAP)return APP_REDRAW_NONE;
+            const unsigned actions=image_lock_action_count();
+            for(unsigned i=0;i<=actions;++i){
+                if(!ui_rect_hit(image_lock_option(i),event->x0,event->y0))continue;
+                if(i==actions){s_lock_menu=false;s_message[0]=0;return IMAGE_ACTION_REDRAW;}
+                if(!s_items||s_selected<0||s_selected>=s_count||!s_gray||!s_items[s_selected].path[0]){
+                    snprintf(s_message,sizeof(s_message),"当前图片无法设定");return IMAGE_ACTION_REDRAW;
+                }
+                const unsigned style=image_lock_style(i);
+                if(style==3&&!s_items[s_selected].png){
+                    snprintf(s_message,sizeof(s_message),"透明书封请选择 PNG 图片");return IMAGE_ACTION_REDRAW;
+                }
+                const char *path=s_items[s_selected].path;
+                if(style==1)app_settings_set_wallpaper_path(path);else app_settings_set_bookmark_path(path);
+                const char *saved=style==1?app_settings_wallpaper_path():app_settings_bookmark_path();
+                if(strcmp(saved,path)){snprintf(s_message,sizeof(s_message),"设定未完成，请重试");return IMAGE_ACTION_REDRAW;}
+                app_settings_set_lock_style(style);
+                if(app_settings_lock_style()!=style){snprintf(s_message,sizeof(s_message),"设定未完成，请重试");return IMAGE_ACTION_REDRAW;}
+                s_lock_menu=false;
+                snprintf(s_message,sizeof(s_message),"%s",style==1?"已设为壁纸锁屏":"已设为透明书封");
+                return IMAGE_ACTION_REDRAW;
+            }
+            s_lock_menu=false;s_message[0]=0;return IMAGE_ACTION_REDRAW;
+        }
+#endif
         if (event->type == UI_GESTURE_SWIPE_L) return move_image(1);
         if (event->type == UI_GESTURE_SWIPE_R) return move_image(-1);
         if (event->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
         if (event->x0 < UI_LOCK_WIDTH / 3) return move_image(-1);
         if (event->x0 > UI_LOCK_WIDTH * 2 / 3) return move_image(1);
+#if KIIKO_BOARD_METALIO47
+        s_lock_menu=true;s_message[0]=0;return IMAGE_ACTION_REDRAW;
+#else
         s_viewing = false; free(s_gray); s_gray = NULL; return APP_REDRAW_PAGE;
+#endif
     }
     if (event->type == UI_GESTURE_SWIPE_L && (s_page + 1) * IMAGE_ROWS < s_count) {
         ++s_page;
@@ -261,19 +433,31 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) 
         return APP_REDRAW_PAGE;
     }
     if (event->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
-    if (event->y0 < 160 && event->x0 < 120) { ctx->request_return = true; return APP_REDRAW_NONE; }
+    if (event->y0 < 160 && event->x0 < 120) {
+#if KIIKO_BOARD_METALIO47
+        if(s_lock_mode!=IMAGE_LOCK_ANY)app_device_settings_resume_lock_style();
+#endif
+        ctx->request_return = true; return APP_REDRAW_NONE;
+    }
 
     for (int row = 0; row < IMAGE_ROWS; ++row) {
         int idx = s_page * IMAGE_ROWS + row;
         if (idx >= s_count) break;
         if (ui_rect_hit((EpdRect){36, 214 + row * 101, 612, 84}, event->x0, event->y0)) {
             if (!load_image(idx)) s_viewing = false;
-            return APP_REDRAW_FULL;
+            return IMAGE_ACTION_REDRAW;
         }
     }
     return APP_REDRAW_NONE;
 }
-static bool image_edge_back(app_ctx_t *ctx) { (void)ctx; return true; }
+static bool image_edge_back(app_ctx_t *ctx) {
+    (void)ctx;
+#if KIIKO_BOARD_METALIO47
+    return !s_viewing&&!s_lock_menu;
+#else
+    return true;
+#endif
+}
 static bool menu_handle_enabled(app_ctx_t *ctx) { (void)ctx; return false; }
 const app_desc_t app_image = {
 #if KIIKO_BOARD_METALIO47

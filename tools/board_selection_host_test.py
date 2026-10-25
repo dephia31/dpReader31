@@ -131,8 +131,12 @@ def local_experiment_flags():
             assert '-DMETALIO_PIE_PIXELS=OFF' in plan['command']
             assert '-DMETALIO_LOCAL_LATENCY=OFF' in plan['command']
             assert '-DMETALIO_TEXT_RIPPLE_EXPERIMENT=OFF' in plan['command']
+            assert '-DMETALIO_SHELF37_EXPERIMENT=OFF' in plan['command']
             assert '-DMETALIO_LOCAL_TRANSFER_START=OFF' in plan['command']
             if board=='metalio47':
+                shelf=json.loads(subprocess.check_output(base+['--s31-shelf37'],text=True))
+                assert '-DMETALIO_SHELF37_EXPERIMENT=ON' in shelf['command']
+                assert '-DMETALIO_LOCAL_LATENCY=OFF' in shelf['command']
                 transfer=json.loads(subprocess.check_output(base+['--s31-transfer-startup-test'],text=True))
                 assert '-DMETALIO_LOCAL_TRANSFER_START=ON' in transfer['command']
                 assert '-DMETALIO_LOCAL_LATENCY=OFF' in transfer['command']
@@ -143,6 +147,8 @@ def local_experiment_flags():
                 assert '-DMETALIO_TEXT_RIPPLE_EXPERIMENT=ON' in plan['command']
                 assert '-DMETALIO_LOCAL_LATENCY=OFF' in plan['command']
             else:
+                result=subprocess.run(base+['--s31-shelf37'],capture_output=True,text=True)
+                assert result.returncode and '--s31-shelf37 requires metalio47 or all' in result.stderr
                 rejected=subprocess.run(base+['--s31-transfer-startup-test'],capture_output=True,text=True)
                 assert rejected.returncode!=0 and 'requires metalio47 or all' in rejected.stderr
                 rejected=subprocess.run(base+['--s31-pie'],capture_output=True,text=True)

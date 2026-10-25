@@ -30,6 +30,10 @@ typedef struct {int type;uint16_t x0,y0,x,y;} ui_gesture_event_t;
 static uint8_t pixels[684*1216];
 static char drawn_label[96];
 static int active_top=1006;
+#if KIIKO_BOARD_METALIO47
+static unsigned haptics;
+static int metalio_haptic_click(void){++haptics;return 0;}
+#endif
 static int s_count,s_folder,s_page,s_view,s_pager_pressed=-1;
 static bool s_scan_pending,s_pager_paint_pending;
 static uint8_t ui_read_pixel(const uint8_t *fb,int x,int y){assert(x>=0&&x<684&&y>=0&&y<1216);return fb[y*684+x]>>4;}
@@ -52,11 +56,17 @@ static unsigned ink_in(EpdRect r){unsigned n=0;for(int y=r.y;y<r.y+r.height;++y)
 static void check_outside(void){for(int y=0;y<1216;++y)if(y<active_top||y>=active_top+50)for(int x=0;x<684;++x)assert(pixels[y*684+x]==240);}
 static ui_gesture_event_t event(int type,int action){active_top=file_pager_top();EpdRect r=ui_pager_rect_at(action,active_top);int x=r.x+r.width/2,y=r.y+r.height/2;return(ui_gesture_event_t){type,x,y,x,y};}
 static void tap(app_ctx_t *ctx,int action,int expected){
+#if KIIKO_BOARD_METALIO47
+ unsigned pulses=haptics;
+#endif
  app_redraw_t redraw=-1;ui_gesture_event_t e=event(UI_GESTURE_PRESS,action);
  assert(file_pager_event(ctx,&e,&redraw)&&redraw==APP_REDRAW_AREA&&s_pager_pressed==action&&s_pager_paint_pending);
  int prior=s_page;e.type=UI_GESTURE_TAP;
  assert(file_pager_event(ctx,&e,&redraw)&&s_page==expected&&s_pager_pressed<0);
  assert(redraw==(prior==expected?APP_REDRAW_AREA:APP_REDRAW_PAGE));
+#if KIIKO_BOARD_METALIO47
+ assert(haptics==pulses+1);
+#endif
 }
 int main(void){
  EpdRect area=ui_pager_area();assert(area.y==1006&&area.y+area.height==1056);

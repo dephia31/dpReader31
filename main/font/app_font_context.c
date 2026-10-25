@@ -19,6 +19,7 @@
 #include "ui_nav.h"
 #if KIIKO_BOARD_METALIO47
 #include "esp_timer.h"
+#include "read_pico_sd.h"
 #endif
 
 static bool s_reading;
@@ -36,6 +37,9 @@ static bool font_file(const char *path, struct stat *st) {
 
 static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
     if (pico_boot_recovery()) return TTF_FONT_BUILTIN;
+#if KIIKO_BOARD_METALIO47
+    if(!read_pico_sd_io_ready())return ttf_font_path();
+#endif
     const char* chosen = app_settings_system_font_path();
     if (chosen[0]) return chosen;
     if (snprintf(fallback, TTF_FONT_PATH_MAX, "%s/Hei.ttf", app_settings_fonts_dir()) >= TTF_FONT_PATH_MAX)
@@ -49,6 +53,9 @@ static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
 
 static bool activate(const char* path) {
 #if KIIKO_BOARD_METALIO47
+    // 有意暂停TF时不stat/卸载旧槽；挂载恢复后沿原选择重试。
+    // Do not stat/unload retained faces while media is intentionally paused; retry the saved choice after mount.
+    if(!ttf_font_path_is_builtin(path)&&!read_pico_sd_io_ready())return false;
     const bool had_builtin=ttf_font_ready()&&ttf_font_is_builtin();
 #endif
     struct stat st = {0};
@@ -134,6 +141,14 @@ bool app_font_activate_reading(void) {
 bool app_font_retry_active(void) {
     return s_reading ? app_font_activate_reading() : app_font_activate_system();
 }
+#if KIIKO_BOARD_METALIO47
+bool app_font_recover_media(void) {
+    s_rejected[0] = 0;
+    s_rejected_attempts = 0;
+    s_rejected_retry_us = 0;
+    return app_font_retry_active();
+}
+#endif
 
 void app_font_begin_lock(app_lock_font_t *saved) {
     if (!saved) return;
@@ -156,7 +171,8 @@ void app_font_end_lock(const app_lock_font_t *saved) {
     if (pico_boot_recovery()) restore=TTF_FONT_BUILTIN;
     else if(s_reading && ttf_font_path_is_builtin(restore)) restore=app_settings_font_path();
     if(ttf_font_path_is_builtin(restore)) restore=TTF_FONT_BUILTIN;
-    if ((!ttf_font_ready() || strcmp(restore, ttf_font_path())) && !activate(restore) && !ttf_font_is_builtin())
+    if ((ttf_font_path_is_builtin(restore)||read_pico_sd_io_ready()) &&
+        (!ttf_font_ready() || strcmp(restore, ttf_font_path())) && !activate(restore) && !ttf_font_is_builtin())
         (void)ttf_font_open_builtin();
 #else
 #endif

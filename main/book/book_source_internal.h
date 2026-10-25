@@ -21,6 +21,9 @@ typedef struct {
     size_t count; ///< 目录条数 / Entry count
     uint32_t total; ///< 文件长度 / File length
     bool gbk; ///< GBK 编码 / GBK encoding
+#if KIIKO_BOARD_METALIO47
+    uint8_t utf16; ///< 0=非UTF16，1=小端，2=大端 / 0=other,1=LE,2=BE
+#endif
     uint32_t bom; ///< BOM 字节数 / BOM size
 } book_txt_t;
 /// 建立 TXT 目录。/ Build the TXT index.

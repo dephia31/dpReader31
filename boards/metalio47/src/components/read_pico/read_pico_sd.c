@@ -32,6 +32,8 @@
 #include "sdmmc_cmd.h"
 #include "ff.h"
 #include "diskio_sdmmc.h"
+#include "esp_attr.h"
+#include "esp_system.h"
 
 #define SD_MOUNT_POINT "/sdcard"
 #define SD_PIN_CLK GPIO_NUM_24
@@ -74,11 +76,48 @@ static portMUX_TYPE state_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool media_invalidated;
 static read_pico_sd_info_t cached_info = {.error = ESP_ERR_INVALID_STATE};
 static bool space_busy, health_busy, suspended, mounted_once;
+static bool manual_busy;
 static unsigned health_failures;
 static int64_t health_due_ms, health_failed_ms;
 
+typedef struct { int khz, width; } sd_profile_t;
+static const sd_profile_t sd_profiles[] = {
+    {40000,4},{40000,4},{20000,4},{10000,4},
+    {5000,4},{1000,4},{5000,1},{1000,1},
+};
+#define SD_PROFILE_COUNT (sizeof(sd_profiles)/sizeof(sd_profiles[0]))
+#define SD_PROFILE_COOKIE UINT32_C(0x53445000)
+static RTC_DATA_ATTR uint32_t s_sd_sleep_profile;
+static int s_sd_last_profile=-1;
+static bool s_sd_profile_loaded;
+
+// 只在本次运行/深睡RTC中记忆成功档位；冷启/异常复位重试原高速，不写用户NVS。
+// Keep successful profiles in RAM/deep-sleep RTC only; cold/abnormal resets start high without NVS writes.
+static size_t sd_preferred_profile(void) {
+    portENTER_CRITICAL(&state_lock);
+    if(!s_sd_profile_loaded) {
+        unsigned index=s_sd_sleep_profile&255u;
+        if(esp_reset_reason()==ESP_RST_DEEPSLEEP &&
+            (s_sd_sleep_profile&UINT32_C(0xffffff00))==SD_PROFILE_COOKIE && index<SD_PROFILE_COUNT)
+            s_sd_last_profile=(int)index;
+        else s_sd_sleep_profile=0;
+        s_sd_profile_loaded=true;
+    }
+    size_t result=s_sd_last_profile<0?0:(size_t)s_sd_last_profile;
+    portEXIT_CRITICAL(&state_lock);
+    return result;
+}
+static void sd_remember_profile(size_t index) {
+    if(index==1)index=0;
+    portENTER_CRITICAL(&state_lock);
+    s_sd_last_profile=(int)index;
+    s_sd_sleep_profile=SD_PROFILE_COOKIE|(uint32_t)index;
+    portEXIT_CRITICAL(&state_lock);
+}
+
 // 失效只影响快照，消费者释放句柄前不得卸载卡。/ Invalidation changes snapshots only; consumers must close handles before unmount.
 static void observe_media_locked(bool present) {
+    if(!present){s_sd_last_profile=-1;s_sd_sleep_profile=0;}
     bool inserted = present && !cached_info.present;
     if (!present && (cached_info.mounted || probe_state == 1)) media_invalidated = true;
     // 首次开机无卡时没有文件句柄；后插卡可重新探测。
@@ -110,6 +149,7 @@ static void publish_info(const read_pico_sd_info_t* info) {
     if (detect_err == ESP_OK || media_invalidated)
         observe_media_locked(detect_err == ESP_OK ? present : cached_info.present);
     probe_state = 2;
+    manual_busy = false;
     portEXIT_CRITICAL(&state_lock);
 }
 
@@ -165,7 +205,9 @@ static void fill_info(read_pico_sd_info_t* info, esp_err_t mount_err) {
     info->capacity_bytes = (uint64_t)card->csd.capacity * card->csd.sector_size;
     // 空间统计失败不覆盖「挂载成功」，仍允许正常读取文件。
     // Allocation-query failure must not turn a mounted filesystem into a mount failure.
-    (void)fill_space(info);
+    // 挂载就绪不等待整张FAT扫描；文件管理按需异步统计。
+    // Publish mount readiness without a full FAT walk; file management accounts asynchronously.
+    info->space_error = ESP_ERR_NOT_FINISHED;
 }
 
 static void ensure_media_dirs(void) {
@@ -236,8 +278,8 @@ static esp_err_t mount_card(bool format_if_failed) {
         metalio_usb_serial_reconnect();
         return dma_error;
     }
-    // S31 slot0四线读取先试40MHz，失败降到20/10MHz。
-    // S31 four-bit slot0 first tries 40MHz, with 20/10MHz fallback.
+    // S31原四线高速优先；慢卡复用成功档，失败再降频/改单线。
+    // Prefer native four-bit high speed, reusing good profiles before lower clocks/single-line fallback.
     host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
 
     sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
@@ -261,9 +303,15 @@ static esp_err_t mount_card(bool format_if_failed) {
 
     // 冷启动先等待并重试高速，再降速；CMD6 忙也可能返回 INVALID_STATE，不得直接放弃。
     // Settle/retry high speed before lowering clocks; CMD6 busy may return INVALID_STATE and must retry.
-    const int clocks[] = {SDMMC_FREQ_HIGHSPEED, SDMMC_FREQ_HIGHSPEED, 20000, 10000};
+    const size_t first=sd_preferred_profile();
+    const int native_flags=host.flags;
     esp_err_t err = ESP_FAIL;
-    for (size_t attempt = 0; attempt < sizeof(clocks) / sizeof(clocks[0]); ++attempt) {
+    bool profile_pin_error=false;
+    for (size_t attempt = 0; attempt < SD_PROFILE_COUNT; ++attempt) {
+        // 记忆档失败后先试更保守档，再有界绕回其余档；换卡也不会困在旧单线档。
+        // After the hint fails, try safer profiles then wrap once; changed cards are not trapped in an old mode.
+        size_t index=(first+attempt)%SD_PROFILE_COUNT;
+        sd_profile_t profile=sd_profiles[index];
         bool present = false;
         esp_err_t detect_err = read_pico_sd_detect(&present);
         if (detect_err == ESP_OK && !present) {
@@ -271,22 +319,38 @@ static esp_err_t mount_card(bool format_if_failed) {
             break;
         }
         if (detect_err != ESP_OK) ESP_LOGW(TAG, "SD detect unavailable: %s; try card I/O", esp_err_to_name(detect_err));
-        host.max_freq_khz = clocks[attempt];
+        host.max_freq_khz = profile.khz;
+        host.flags=native_flags;
+        slot.width=profile.width;
+        slot.d1=profile.width==4?GPIO_NUM_21:GPIO_NUM_NC;
+        slot.d2=profile.width==4?GPIO_NUM_22:GPIO_NUM_NC;
+        slot.d3=profile.width==4?GPIO_NUM_23:GPIO_NUM_NC;
+        if(profile.width==1) {
+            host.flags&=~(SDMMC_HOST_FLAG_4BIT|SDMMC_HOST_FLAG_8BIT);
+            host.flags|=SDMMC_HOST_FLAG_1BIT;
+            err=metalio_sd_single_line_idle();
+            if(err!=ESP_OK){profile_pin_error=true;break;}
+        }
         card = NULL;
         err = esp_vfs_fat_sdmmc_mount(SD_MOUNT_POINT, &host, &slot, &mount_config, &card);
-        if (err == ESP_OK) break;
+        if (err == ESP_OK) {
+            sd_remember_profile(index);
+            ESP_LOGI(TAG,"SD mounted profile: %d kHz/%d-bit preferred=%u attempt=%u",
+                profile.khz,profile.width,(unsigned)first,(unsigned)attempt+1);
+            break;
+        }
         if (err == ESP_ERR_NO_MEM || err == ESP_ERR_INVALID_ARG) break;
-        ESP_LOGW(TAG, "SD probe %u at %d kHz failed: %s", (unsigned)attempt + 1,
-                 clocks[attempt], esp_err_to_name(err));
+        ESP_LOGW(TAG, "SD probe %u at %d kHz/%d-bit failed: %s", (unsigned)attempt + 1,
+                 profile.khz,profile.width,esp_err_to_name(err));
         card = NULL;
         // VFS mount 在失败时只清理自己建立的 host；不额外 deinit 别的存储会话。
         // Failed VFS mount cleans up its own host; never forcibly deinit another storage session.
-        if (attempt + 1 < sizeof(clocks) / sizeof(clocks[0])) vTaskDelay(pdMS_TO_TICKS(250));
+        if (attempt + 1 < SD_PROFILE_COUNT) vTaskDelay(pdMS_TO_TICKS(250));
     }
     if (err != ESP_OK) {
         card = NULL;
         ESP_LOGW(TAG, "Mount failed: %s", esp_err_to_name(err));
-        if (!format_if_failed && err == ESP_FAIL) filesystem_unreadable = probe_unsupported_filesystem(host, &slot);
+        if (!format_if_failed && !profile_pin_error && err == ESP_FAIL) filesystem_unreadable = probe_unsupported_filesystem(host, &slot);
         release_sd_dma();
     } else {
         invalidate_mount_space();
@@ -381,7 +445,8 @@ esp_err_t read_pico_sd_get_info(read_pico_sd_info_t* info) {
     portENTER_CRITICAL(&state_lock);
     if (detect_err == ESP_OK) observe_media_locked(present);
     *info = cached_info;
-    esp_err_t err = probe_state == 0 && detect_err != ESP_OK && !info->present ? detect_err :
+    esp_err_t err = manual_busy ? ESP_ERR_NOT_FINISHED :
+        probe_state == 0 && detect_err != ESP_OK && !info->present ? detect_err :
         !info->present || media_invalidated ? info->error :
         probe_state == 0 ? ESP_ERR_INVALID_STATE :
         probe_state == 1 ? ESP_ERR_NOT_FINISHED : info->error;
@@ -506,11 +571,12 @@ bool read_pico_sd_io_ready(void) {
     return ready;
 }
 static void recovery_task(void *arg) {
-    (void)arg;
+    const bool manual = arg != NULL;
     esp_err_t err = close_card();
     if (err == ESP_OK) {
         portENTER_CRITICAL(&state_lock);
         media_invalidated = false; health_failures = 0;
+        if (manual) suspended = false;
         memset(&cached_info,0,sizeof(cached_info));
         cached_info.present = true; cached_info.error = ESP_ERR_NOT_FINISHED;
         portEXIT_CRITICAL(&state_lock);
@@ -519,7 +585,7 @@ static void recovery_task(void *arg) {
     read_pico_sd_info_t info;
     fill_info(&info,err);
     publish_info(&info);
-    ESP_LOGI(TAG,"automatic recovery: %s",esp_err_to_name(err));
+    ESP_LOGI(TAG,"%s recovery: %s",manual ? "manual" : "automatic",esp_err_to_name(err));
     vTaskDelete(NULL);
 }
 esp_err_t read_pico_sd_start_recovery(void) {
@@ -528,6 +594,19 @@ esp_err_t read_pico_sd_start_recovery(void) {
     if (xTaskCreate(recovery_task,"sd_recover",4096,NULL,3,NULL) == pdPASS) return ESP_OK;
     portENTER_CRITICAL(&state_lock);
     probe_state = 2;
+    portEXIT_CRITICAL(&state_lock);
+    return ESP_ERR_NO_MEM;
+}
+
+esp_err_t read_pico_sd_start_manual_recovery(void) {
+    if (!begin_operation()) return ESP_ERR_NOT_FINISHED;
+    portENTER_CRITICAL(&state_lock);
+    manual_busy = true;
+    portEXIT_CRITICAL(&state_lock);
+    if (xTaskCreate(recovery_task,"sd_manual",4096,(void*)1,3,NULL) == pdPASS) return ESP_OK;
+    portENTER_CRITICAL(&state_lock);
+    probe_state = 2;
+    manual_busy = false;
     portEXIT_CRITICAL(&state_lock);
     return ESP_ERR_NO_MEM;
 }

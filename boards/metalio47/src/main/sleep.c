@@ -104,6 +104,10 @@ bool app_sleep_media_ready(void) {
     lock_resume_io_service();
     return !s_lock_io_pending;
 }
+void app_sleep_discard_media_io(void) {
+    s_lock_io_pending = false;
+    s_lock_io_retry_us = 0;
+}
 static bool s_lock_feedback_started;
 static bool s_lock_deep_ready;
 static bool s_lock_frame_cached;
@@ -505,15 +509,21 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
         // Admission cleared the shared line with only P17 configured as input; latch EXT1 as a power press per vendor policy.
         if(key_irq) read_pico_pmu_latch_power_wakeup();
     }
+    const int64_t restore_at=esp_timer_get_time();
     if(sd_closed) (void)read_pico_sd_remount();
-    esp_err_t restored_io=lock_resume_media_io(15000);
-    if(err==ESP_OK) err=restored_io;
     if(lcd_stopped) read_pico_epd_restore_lcd();
     if(touch_asleep) {
         esp_err_t restore=cst836u_wake(touch);
         if(err==ESP_OK) err=restore;
     }
     metalio_haptic_resume();
+    // 恢复输入先于TF；正常卡短暂等待，慢卡由已有主循环重试，不阻塞解锁十五秒。
+    // Restore input before TF; briefly allow normal media, then let the main loop retry slow media.
+    esp_err_t restored_io=lock_resume_media_io(500);
+    if(restored_io!=ESP_OK)
+        ESP_LOGW(TAG,"S31 wake media pending: %s",esp_err_to_name(restored_io));
+    ESP_LOGI(TAG,"S31 wake peripherals_ms=%lld media=%s",
+        (long long)((esp_timer_get_time()-restore_at)/1000),esp_err_to_name(restored_io));
     // GPIO仅唤醒CPU，双击才解锁；未完成时回到保留待机收齐按键。/ GPIO wakes only the CPU; retain standby until the sampled double click completes.
     if(key_irq){
         if(lock_take_key_wakeup())*key_wake=true;

@@ -25,7 +25,7 @@ typedef enum {
 void app_settings_init(void);
 app_sleep_mode_t app_settings_sleep_mode(void);
 #if KIIKO_BOARD_METALIO47
-typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_AI_DISABLED,APP_AI_ACTION_COUNT} app_ai_action_t;
+typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_AI_LOCK,APP_AI_ACTION_COUNT} app_ai_action_t;
 /// AI键短按独立保存在S31设置；仅成功提交才改变当前映射。/ Persist S31 AI taps, changing the live mapping only after a successful commit.
 app_ai_action_t app_settings_ai_short(void);
 esp_err_t app_settings_set_ai_short(app_ai_action_t action);

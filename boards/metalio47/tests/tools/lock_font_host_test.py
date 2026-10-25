@@ -10,12 +10,15 @@ FONT = ROOT / 'main/font/app_font_context.c'
 unit = r'''
 #include <assert.h>
 #include <stdint.h>
+#include <stdbool.h>
 typedef int esp_err_t;
 #define ESP_ERR_INVALID_RESPONSE 0x108
 static int64_t s_rejected_retry_us,clock_us;
 static unsigned s_rejected_attempts;
 static int64_t esp_timer_get_time(void){return clock_us;}
 static unsigned transient_failures;
+static bool media_ready=true;
+static bool read_pico_sd_io_ready(void){return media_ready;}
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -63,11 +66,17 @@ static void ui_text_set_system_scale(bool on){system_scale=on;}
 static void ui_nav_status_font_context(bool reading,bool changed){(void)changed;assert(reading==s_reading);}
 '''
 for name in ('font_file', 'system_path', 'activate', 'app_font_activate_system', 'app_font_activate_reading',
-             'app_font_retry_active', 'app_font_begin_lock', 'app_font_end_lock'):
+             'app_font_retry_active', 'app_font_recover_media', 'app_font_begin_lock', 'app_font_end_lock'):
     unit += function(name, FONT) + '\n'
 unit += r'''
 int main(void){
  app_lock_font_t saved;
+ // 有意卸载期间不能打开文件/换内建；重新就绪后保持原选择可恢复。
+ // Intentional unmount cannot open files or select built-in; the same choice recovers when ready.
+ strcpy(active,reader);s_reading=true;media_ready=false;unsigned paused=opens;
+ app_font_begin_lock(&saved);app_font_end_lock(&saved);
+ assert(opens==paused&&!strcmp(active,reader)&&s_reading);
+ media_ready=true;strcpy(active,"builtin");s_reading=false;
  // 缺失字体可重复尝试，但不会重载内建或报告变化。/ Retry missing fonts without reloading built-in or reporting changes.
  strcpy(missing,chosen);unsigned first=opens;
  assert(!app_font_activate_system()&&ttf_font_is_builtin()&&opens==first);
@@ -113,7 +122,14 @@ int main(void){
  strcpy(chosen,"/fonts/system.ttf");recovery=true;
  app_font_begin_lock(&saved);assert(ttf_font_is_builtin()&&!system_face);app_font_end_lock(&saved);
  app_font_begin_lock(NULL);app_font_end_lock(NULL);
- puts("PASS: tickets from reader/system use the same system face/scale; wake restores reader context; missing card/font falls back safely without overwriting saved choices");
+ // Manual recovery clears transient file backoff, while abnormal-boot builtin protection remains.
+ recovery=false;strcpy(s_rejected,chosen);s_rejected_size=100;s_rejected_mtime=1;
+ s_rejected_retry_us=clock_us+30000000;strcpy(active,"builtin");
+ assert(!app_font_retry_active()&&ttf_font_is_builtin());
+ assert(app_font_recover_media()&&!strcmp(active,chosen)&&!s_rejected[0]&&!s_rejected_retry_us);
+ recovery=true;strcpy(active,"builtin");strcpy(s_rejected,chosen);
+ assert(!app_font_recover_media()&&ttf_font_is_builtin()&&!strcmp(chosen,"/fonts/system.ttf"));
+ puts("PASS: ticket/wake font contexts, paused IO, manual retry clears transient rejection, abnormal boot protection and saved choices retained");
 }
 '''
 with tempfile.TemporaryDirectory(dir=ROOT / 'build') as folder:

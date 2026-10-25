@@ -2,6 +2,9 @@
 #include "book_cover.h"
 #if KIIKO_BOARD_METALIO47
 #include "metalio_cover_cache.h"
+#ifdef ESP_PLATFORM
+#include "metalio_jpeg.h"
+#endif
 #else
 #endif
 #include "book_cover_auto.h"
@@ -226,6 +229,11 @@ static bool jpegdec_gray(const uint8_t *data, size_t size, unsigned frame_width,
 
 static bool jpeg_gray(const uint8_t *data, size_t size, unsigned out_width,
                       unsigned out_height, uint8_t *out) {
+#if KIIKO_BOARD_METALIO47
+#ifdef ESP_PLATFORM
+    if(metalio_jpeg_gray(data,size,NULL,out_width,out_height,out))return true;
+#endif
+#endif
     if (size > UINT32_MAX) return false;
     uint8_t sof = 0;
     unsigned frame_width = 0, frame_height = 0;
@@ -413,7 +421,11 @@ bool book_image_grayscale(const uint8_t *data, size_t size, bool png,
 /* ---- 共享封面缓存 / Shared cover cache ---- */
 
 #define COVER_CACHE_MAGIC UINT32_C(0x52435041)
+#if KIIKO_BOARD_METALIO47
+#define COVER_CACHE_SCHEMA 2u
+#else
 #define COVER_CACHE_SCHEMA 1u
+#endif
 
 typedef struct {
     uint32_t magic, schema, template_version, width, height;
@@ -937,6 +949,14 @@ bool book_image_file_grayscale(const char *path, bool png, unsigned width, unsig
     bool ok = false;
     if (png) ok = png_gray_input(NULL, (size_t)st.st_size, file, width, height, out, NULL);
     else {
+#if KIIKO_BOARD_METALIO47
+#ifdef ESP_PLATFORM
+        ok=metalio_jpeg_gray(NULL,(size_t)st.st_size,file,width,height,out);
+        if(ok){fclose(file);return true;}
+        clearerr(file);
+        if(fseek(file,0,SEEK_SET)){fclose(file);return false;}
+#endif
+#endif
         uint8_t sof = 0;
         unsigned source_w = 0, source_h = 0;
         if (file_frame(file, false, &sof, &source_w, &source_h) && !fseek(file, 0, SEEK_SET)) {

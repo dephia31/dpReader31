@@ -89,7 +89,11 @@ static enum EpdDrawError update_display_water_turn(void*hl,EpdRect area,int dir)
 #define E0470_TURN_RTL 0
 #define update_display_text_turn(...) push(20)
 #define update_display_reader_panel(...) push(21)
+#define update_display_reader_panel_fast(...) push(21)
+#define update_display_reader_panel_gray4(...) push(21)
 #define update_display_fast_page(...) push(19)
+static EpdRect reader_fast_panel_rect(void){return(EpdRect){0};}
+static bool reader_slider_feedback_present(app_ctx_t *ctx,app_redraw_t redraw){(void)ctx;(void)redraw;return false;}
 '''
 unit+='static bool reader_panel_short_ready(app_redraw_t r){return test_panel_short&&r==APP_REDRAW_PAGE;}\nstatic bool reader_panel_fast_present(app_ctx_t *ctx,app_redraw_t redraw){(void)ctx;(void)redraw;return false;}\nstatic void reader_panel_record(enum EpdDrawError err){(void)err;}\nstatic bool display_page_prepare_begin(void){return false;}\nstatic void display_page_prepare_end(bool held){(void)held;}\n'
 for name in ('reader_area','reader_fullscreen_progress_area','progress_rect'):
@@ -145,7 +149,7 @@ int main(void){
  s_area=(EpdRect){0,0,684,1216};
  reset();fail=1;s_water_turn_pending=true;
  present(&ctx,APP_REDRAW_AREA);assert(selected==18&&calls==1&&!s_reader_text_frame);
- // Ordinary/ripple/FastBW keep all image tones; entering, changing and leaving images fuse progress in one full GL48.
+ // Ordinary/ripple/FastBW keep all image tones; entering/changing/leaving images fuse progress in one platform gray transition.
  for(int effect=0;effect<3;++effect)for(int full=0;full<2;++full)for(int hide_status=0;hide_status<2;++hide_status)for(int kind=0;kind<3;++kind){
   reset();tick=effect;immersive=hide_status;s_reader_fullscreen=full;s_reader_footer_pending=!full;s_reader_turn_pending=false;
   images=kind!=2;s_reader_image_refresh_pending=images!=0;s_reader_image_exit_pending=kind!=0;

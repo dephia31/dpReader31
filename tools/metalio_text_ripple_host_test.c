@@ -10,6 +10,9 @@
 #include "display_reader_waveform.h"
 #include "e0470_epaper_waveform.h"
 #include "e0470_page_turn.h"
+#ifdef KIIKO_TEST_MAIN_SWITCH_ERASE
+#include "display_main_waveform.h"
+#endif
 
 enum {W=1216,H=684,N=W*H/2};
 static uint8_t front[N], back[N], saved_front[N], saved_back[N], difference[W*H];
@@ -168,6 +171,32 @@ static void reader_tail_test(EpdiyHighlevelState* hl,const EpdWaveform* waveform
 int main(void) {
     EpdiyHighlevelState hl={.front_fb=front,.back_fb=back,.difference_fb=difference,.dirty_lines=lines,.dirty_columns=columns};
     e0470_waveform_init();
+#ifdef KIIKO_TEST_MAIN_SWITCH_ERASE
+    // Exercise the real compact main-page engine with50-gray/22-BW phases, not only LUT generation.
+    const EpdWaveform *switch_sources[]={display_main_water_waveform(),display_main_bw_turn_waveform()};
+    for(int kind=0;kind<2;++kind){
+        const EpdWaveform *wave=display_main_switch_waveform(switch_sources[kind],MODE_GL16);
+        test_phases=kind?22:50;test_bands=8;test_skip=0;test_paired_tail=false;
+        assert(e0470_waveform_phases(wave,MODE_GL16)->phases==test_phases);
+        for(int rot=0;rot<4;++rot)for(int dir=0;dir<4;++dir){
+            rotation=(enum EpdRotation)rot;fill();scans=fail_at=0;now=0;scan_us=15000;
+            memset(phase_hits,0,sizeof(phase_hits));
+            EpdRect area={0,0,rot&1?H:W,(rot&1?W:H)-128};
+            assert(e0470_page_turn_with_waveform_compact(&hl,area,(e0470_turn_dir_t)dir,wave,8)==EPD_DRAW_SUCCESS);
+            assert(scans==test_phases+7&&now==scans*scan_us&&!staged_luts);
+            for(int p=0;p<test_phases;++p)assert(phase_hits[p]==8);
+        }
+        rotation=EPD_ROT_INVERTED_PORTRAIT;
+        for(int failure=1;failure<=test_phases+7;++failure){
+            fill();scans=0;fail_at=failure;
+            assert(e0470_page_turn_with_waveform_compact(&hl,(EpdRect){0,0,H,W-128},E0470_TURN_RTL,wave,8)==EPD_DRAW_EMPTY_LINE_QUEUE);
+            assert(scans==failure&&!staged_luts&&!memcmp(back,saved_back,N));
+        }
+        e0470_page_turn_release();
+    }
+    puts("PASS: actual main-band engine50-gray/22-BW,8 bands,57/29 ticks,all phases per band,4 rotations/directions,all failure ticks preserve real history");
+    return 0;
+#endif
     uint8_t vendor[3][48*64];const int modes[]={MODE_GL16,MODE_GC16,MODE_DU};
     for(int i=0;i<3;++i){const EpdWaveformPhases*p=e0470_waveform_phases(&E0470_WAVEFORM,modes[i]);memcpy(vendor[i],p->luts,(size_t)p->phases*64);}
 #if KIIKO_S31_TEXT_RIPPLE

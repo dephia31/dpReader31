@@ -35,7 +35,23 @@ S31实际显示输出与SDK Flash操作共用递归锁，完整扫描和断轨�
 
 书架最终灰阶封面复用既有动态4MiB LRU，不增设整页常驻副本。键包含源像素校验、尺寸、旋转、对比度与4×4点阵相位；仅复制精确对齐的物理行，收藏、边框和文字实时画，未对齐或内存不足直接绘制。阅读前缩减与媒体失效清理沿用既有生命周期。首页分钟到点把状态栏和静态表盘合并为一次真实差分，输出失败不确认已显示。
 
+## S31 JPEG混合解码
+
+S31使用SDK原生JPEG硬解处理兼容的8位基线YCbCr/灰度图，按MCU填充计算输出步长，颜色转灰度后使用面积平均缩小或双线性放大。小封面的大图、超预算、非兼容采样、资源不足或硬解超时回退原流式软件路径。渐进式优先固定版Espressif libjpeg-turbo3.2.0~1完整扫描，按目标尺寸选择1/1～1/8 IDCT缩放，不再固定只取1/8 DC；超预算/失败时仍允许旧预览回退。
+
+单次混合任务串行，工作预算最多12MiB并预留2MiB PSRAM；硬解200ms超时、渐进式进度检查2.5s，完成或失败立即释放引擎及临时图像，不新增常驻整帧。大文件可直接从FILE软解，硬解输入最大4MiB；PNG保留现有流式/透明度处理。最终显示灰阶、原厂波形、封面LRU和缓存生命周期保持，S31封面/壁纸缓存版本单独失效重建。硬解速度和实际颜色需实机验收，宿主硬件替身测试不构成硬件性能测量。
+
+English: Native S31 JPEG decoding handles compatible8-bit baseline YCbCr/gray with MCU-padded stride, luminance conversion and area/bilinear resampling. Keep streaming fallback for large-source thumbnails, unsupported layouts, budget/allocation errors or timeouts. Pinned libjpeg-turbo3.2.0~1 fully decodes progressive scans at a target-appropriate IDCT scale, retaining the old small preview as the final low-memory fallback. Serialize hybrid work, cap its budget at12MiB with2MiB PSRAM reserved, use bounded200ms hardware /2.5s progressive checks, and release temporary buffers/engines on every exit. Keep PNG alpha, display grayscale, vendor waveforms and existing caches; version S31 cover/wallpaper products independently. Host fixtures do not measure native hardware speed. The official libjpeg component requires a build path without spaces; a dedicated/tmp build directory can be exported to the normal workspace afterward.
+
 ## S31关机与锁屏省电
+
+S31挂载发布不等待全卡FAT空闲计数；文件管理先完成目录首帧，再在空闲时异步查询分区用量。浅睡唤醒先恢复显示与触摸，媒体最多短等500ms，之后由已有恢复服务继续重试。暂停期间不对字体路径做stat或卸载保留槽，恢复后补一次页面；不覆盖用户选择，也不改变异常启动使用内建字体的保护。500ms只限制挂载状态轮询，底层单次卡命令和字体/书籍文件重开仍受其自身I/O超时约束，不代表任何坏卡都能在500ms恢复。
+
+挂卡配置最多八次：四线40/40/20/10/5/1MHz，单线5/1MHz。成功配置留在RAM，浅睡重挂优先复用；四字节有效范围校验的RTC提示仅在深睡启动读取，冷启动/异常复位回原高速。提示失败先试余下保守档，再有界绕回其他档，换卡不会被旧档永久限制；OOM/参数错误直接停止，无卡停止，不额外格式化、不写NVS。单线仍使用原slot0/CLK24/CMD25/D020，D1～D3不交给控制器，并在挂载前将其GPIO和专用PAD恢复高阻上拉，避免沿用睡眠低电平；引脚恢复失败停止，不当作文件系统坏卡。内置DMA缓冲、USB恢复和驱动失败清理由原所有者保留。慢卡/损坏卡的成功率与实际降速后读写稳定性需实机验证。
+
+English: Try at most8 profiles: four-line40/40/20/10/5/1MHz, then single-line5/1MHz. Reuse successful settings from RAM on light wake; a range-checked4-byte RTC hint is accepted only after deep sleep. Cold/abnormal resets start high. If a hint fails, try safer settings and wrap once through other profiles, so changed media can recover. Stop on absent media, OOM or invalid arguments; never format automatically or write NVS. Single-line retains slot0/CLK24/CMD25/D020 while leavingD1–D3 unassigned. Keep DMA/USB ownership and failure cleanup. Physical weak-card success and sustained lower-speed IO still require device tests.
+
+English: Publish a mounted filesystem before scanning FAT allocation counts. File management draws its directory first and queries partition space during idle. Light wake restores LCD/touch before a bounded500ms media poll; existing services continue recovery. Do not stat/unload retained font faces while media is suspended, and repaint once recovery completes. Saved font choices and abnormal-boot fallback remain intact. The poll bound does not replace individual SD-command/file-reopen timeouts or guarantee recovery of faulty media.
 
 “关机睡眠”只保留“浅睡10分钟后进入深睡”（默认）和“彻底断电”，不再单独选择锁屏省电方式。旧`lock_lp`值忽略，已明确保存的关机/睡眠选择仍保留；新选择在NVS提交成功后生效。日常短按及自动锁屏统一先浅睡十分钟后深睡，电源菜单选择彻底断电时走原硬件关机流程。
 

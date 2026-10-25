@@ -64,6 +64,8 @@ const EpdWaveform* display_main_water_waveform(void) {return &soft_gray;}
 const EpdWaveform* display_main_normal_waveform(void) { return display_main_water_waveform(); }
 const EpdWaveform* display_main_page_gray_waveform(void){return display_main_normal_waveform();}
 const EpdWaveform* display_main_shelf_soft_waveform(void){return &soft_gray;}
+const EpdWaveform* display_main_shelf37_waveform(bool art){(void)art;return NULL;}
+const EpdWaveform* display_main_switch_waveform(const EpdWaveform *wave,enum EpdDrawMode mode){(void)mode;return wave;}
 const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode mode){(void)mode;return &E0470_WAVEFORM;}
 const EpdWaveform* display_main_bw_waveform(void) {return &E0470_WAVEFORM;}
 const EpdWaveform* display_main_bw_turn_waveform(void) {return &reader_soft;}

@@ -9,7 +9,7 @@ out = root / 'build/sd-media-test'
 out.mkdir(parents=True, exist_ok=True)
 for name in ('driver/sdmmc_host.h', 'esp_log.h', 'esp_vfs_fat.h',
              'freertos/FreeRTOS.h', 'freertos/task.h', 'read_pico_board.h',
-             'esp_timer.h', 'sdmmc_cmd.h', 'esp_err.h', 'esp_heap_caps.h', 'metalio_hw.h',
+             'esp_timer.h', 'sdmmc_cmd.h', 'esp_err.h', 'esp_heap_caps.h', 'metalio_hw.h', 'esp_attr.h', 'esp_system.h',
              'esp_memory_utils.h','esp_private/esp_cache_private.h'):
     p = out / name
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -46,6 +46,13 @@ typedef int esp_err_t;
 #define GPIO_NUM_44 44
 #define GPIO_NUM_NC -1
 #define SDMMC_FREQ_HIGHSPEED 40000
+#define RTC_DATA_ATTR
+#define ESP_RST_DEEPSLEEP 5
+static int esp_reset_reason(void){return 0;}
+static int metalio_sd_single_line_idle(void){return ESP_OK;}
+#define SDMMC_HOST_FLAG_1BIT 1
+#define SDMMC_HOST_FLAG_4BIT 2
+#define SDMMC_HOST_FLAG_8BIT 4
 #define SDMMC_SLOT_FLAG_INTERNAL_PULLUP 1
 #define SDMMC_HOST_DEFAULT() ((sdmmc_host_t){.init=mock_host_init,.deinit=mock_host_deinit})
 #define SDMMC_SLOT_CONFIG_DEFAULT() ((sdmmc_slot_config_t){0})
@@ -131,7 +138,7 @@ static void* snapshot_reader(void* arg) {
     for(int i=0;i<20000;i++) {
         read_pico_sd_info_t info;
         int err=read_pico_sd_get_info(&info);
-        if(err==ESP_OK) assert(info.mounted && info.capacity_bytes==1048576 && info.free_bytes==524288);
+        if(err==ESP_OK) assert(info.mounted && info.capacity_bytes==1048576 && !info.space_valid && info.space_error==ESP_ERR_NOT_FINISHED);
     }
     return NULL;
 }

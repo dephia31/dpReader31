@@ -4,10 +4,10 @@ Publicly available kiikoread firmware sources adapted for **Metalio E-INK4 Plus 
 
 [简体中文](README.zh-CN.md) · [日本語](README.ja-JP.md) · [Web installer](https://kiikoread.com/?device=metalio#flash-action) · [Pico project](https://github.com/wegooo-cell/read-pico-reader)
 
-## Current official release: rc103
+## Current official release: rc104
 
-- [Web installer and version selection](https://kiikoread.com/?device=metalio&version=rc103#flash-action)
-- [rc103 application, TF/USB packages and SHA-256](https://github.com/wegooo-cell/read-pico-reader/releases/tag/metalio-s31-v0.3.3-rc103)
+- [Web installer and version selection](https://kiikoread.com/?device=metalio&version=rc104#flash-action)
+- [rc104 application, TF/USB packages and SHA-256](https://github.com/wegooo-cell/read-pico-reader/releases/tag/metalio-s31-v0.3.3-rc104)
 - [Changelog](docs/CHANGELOG.md) · [Board and build documentation](docs/BOARDS.md)
 
 Official binaries remain archived in the shared release repository; this repository maintains Metalio S31 sources. Older test Releases here are previews. Metalio and Pico use separate chip targets, power drivers, waveforms and partitions; their images are not interchangeable.
@@ -31,7 +31,7 @@ Use the Release's `Metalio-S31-update.bin` for a TF update from device settings.
 
 ## Build
 
-The shared `main/` reader/UI is selected with the hardware backend in `boards/metalio47/`. Use the matching ESP32-S31 SDK, toolchain and locked managed components. See [docs/BOARDS.md](docs/BOARDS.md) for complete commands and the documented waveform/fallback boundaries. The rc103 build configuration is shown in the [Chinese build guide](README.zh-CN.md#构建).
+The shared `main/` reader/UI is selected with the hardware backend in `boards/metalio47/`. Use the matching ESP32-S31 SDK, toolchain and locked managed components. See [docs/BOARDS.md](docs/BOARDS.md) for complete commands and the documented waveform/fallback boundaries. The rc104 build configuration is shown in the [Chinese build guide](README.zh-CN.md#构建).
 
 Keep the raw GC48/GL48/DU20 tables and board power sequencing. Validate chip, project, version, partitions and checksums before using an image.
 

@@ -17,12 +17,13 @@ typedef int esp_err_t;
 typedef void *sc7a20h_handle_t;
 typedef void *cst836u_handle_t;
 typedef struct {bool mounted;} read_pico_sd_info_t;
-enum {ESP_OK=0,ESP_ERR_INVALID_STATE=-1,ESP_SLEEP_WAKEUP_EXT1=2,ESP_SLEEP_WAKEUP_TIMER=4};
+enum {ESP_OK=0,ESP_ERR_NOT_FINISHED=1,ESP_ERR_INVALID_STATE=-1,ESP_SLEEP_WAKEUP_EXT1=2,ESP_SLEEP_WAKEUP_TIMER=4};
 #define CST836U_MODE_DEEPSLEEP 1
 #define pdMS_TO_TICKS(x) (x)
 #define ESP_LOGI(tag,...) do {if(0)printf(__VA_ARGS__);} while(0)
+#define ESP_LOGW ESP_LOGI
 static const char *esp_err_to_name(int e){(void)e;return "error";}
-static bool s_lock_io_pending,usb,busy,online,queued,allow_key,keys,rails,pins,lcd,touch,media,usb_at_timer;
+static bool s_lock_io_pending,usb,busy,online,queued,allow_key,keys,rails,pins,lcd,touch,media,usb_at_timer,slow_media;
 static unsigned sleeps,stop_after,usb_after,timers,cut,restore,closes,mounts,resume,keys_restored,latches;
 static unsigned fail_at,operation;
 static int64_t clock_us;
@@ -62,7 +63,7 @@ static int metalio_sleep_restore_rails(uint16_t s){assert(s==123);rails=false;++
 static void lock_restore_key_wake(void){keys=false;++keys_restored;}
 static void read_pico_pmu_latch_power_wakeup(void){assert(!keys);queued=true;++latches;}
 static int read_pico_sd_remount(void){assert(!rails&&!pins);++mounts;media=true;return ESP_OK;}
-static int lock_resume_media_io(unsigned wait){assert(wait==15000&&(!closes||media));++resume;if(fail())return -2;s_lock_io_pending=false;return ESP_OK;}
+static int lock_resume_media_io(unsigned wait){assert(wait==500&&(!closes||media)&&!lcd&&!touch);++resume;s_lock_io_pending=slow_media;return slow_media?ESP_ERR_NOT_FINISHED:ESP_OK;}
 static void read_pico_epd_restore_lcd(void){assert(!rails&&!pins&&(!closes||media));lcd=false;}
 static int cst836u_wake(void *t){assert(t);touch=false;return fail()?-2:ESP_OK;}
 '''
@@ -70,7 +71,7 @@ unit += function('lock_light_sleep_slice_us', source)
 unit += function('lock_light_sleep_once', source)
 unit += r'''
 static void reset(void){
- s_lock_io_pending=usb=busy=online=queued=keys=rails=pins=lcd=touch=usb_at_timer=false;
+ s_lock_io_pending=usb=busy=online=queued=keys=rails=pins=lcd=touch=usb_at_timer=slow_media=false;
  media=allow_key=true;sleeps=usb_after=timers=cut=restore=closes=mounts=resume=keys_restored=latches=0;
  stop_after=1;fail_at=operation=0;clock_us=0;
 }
@@ -78,6 +79,7 @@ static void restored(void){assert(!keys&&!rails&&!pins&&!lcd&&!touch);assert(cut
 int main(void){
  bool key;
  reset();assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key&&latches==1);restored();
+ reset();slow_media=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key&&s_lock_io_pending);restored();
  // Three hours of timer slices only prepare/close/remount once; none of the timer wakes grants unlock.
  reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key);
  assert(sleeps==180&&closes==1&&mounts==1&&cut==1&&restore==1&&latches==1&&clock_us>=10800000000LL);restored();

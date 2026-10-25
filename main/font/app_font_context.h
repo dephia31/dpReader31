@@ -20,3 +20,7 @@ void app_font_end_lock(const app_lock_font_t *saved);
 bool app_font_activate_system(void);
 bool app_font_activate_reading(void);
 bool app_font_retry_active(void);
+#if KIIKO_BOARD_METALIO47
+/// Clear transient file rejection after manual remount; abnormal-boot protection still applies.
+bool app_font_recover_media(void);
+#endif

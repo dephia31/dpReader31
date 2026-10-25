@@ -161,7 +161,11 @@ void ui_wallpaper_draw_avatar(uint8_t *fb, const uint8_t *pixels, EpdRect area, 
 #define WALL_LOCK_CACHE UI_WALLPAPER_CACHE_PARENT "/locks/wallpaper.bin"
 #define WALL_LOCK_BYTES (684u*1216u/2u)
 #define WALL_LOCK_MAGIC UINT32_C(0x574c4b31)
+#if KIIKO_BOARD_METALIO47
+#define WALL_LOCK_VERSION 2u
+#else
 #define WALL_LOCK_VERSION 1u
+#endif
 // 只缓存最终16级抖动画布到卡；借用锁屏画布，不常驻第二份整帧。
 // Persist final 16-level dithered art on SD, borrowing the lock canvas instead of retaining another frame.
 typedef struct {

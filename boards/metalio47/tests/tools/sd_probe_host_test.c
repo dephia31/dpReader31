@@ -16,11 +16,17 @@ static bool test_present, test_exfat, test_raw_error;
 static bool detect_failure, detect_unsupported;
 static int mount_calls, unmount_calls, test_fail_above_khz;
 static esp_err_t test_mount_error = ESP_ERR_TIMEOUT;
-static int clock_history[64], delays;
+static int clock_history[256],width_history[256], delays;
+static bool test_need_single;
+int test_reset_reason;
 static uint64_t test_total=1024*512,test_free=768*512;
 static esp_err_t test_info_error=ESP_OK;
 static unsigned space_calls, invalidations;
 static bool fat_locked;
+static bool defer_manual,fail_manual_task,fail_unmount;
+static void (*queued_manual)(void*);
+static void *queued_manual_arg;
+static unsigned format_calls;
 
 static sdmmc_card_t test_card = {
     .cid.name = "TEST64G", .csd.capacity = 1024, .csd.sector_size = 512,
@@ -54,6 +60,10 @@ const char* esp_err_to_name(esp_err_t err) { (void)err; return "test"; }
 BaseType_t xTaskCreate(void (*fn)(void*), const char* name, int stack,
                        void* arg, int priority, void* handle) {
     (void)name; (void)stack; (void)priority; (void)handle;
+    if(!strcmp(name,"sd_manual")){
+        if(fail_manual_task)return !pdPASS;
+        if(defer_manual){assert(!queued_manual);queued_manual=fn;queued_manual_arg=arg;return pdPASS;}
+    }
     fn(arg);
     return pdPASS;
 }
@@ -64,10 +74,12 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char* path, const sdmmc_host_t* host,
                                   const esp_vfs_fat_sdmmc_mount_config_t* config,
                                   sdmmc_card_t** out) {
     assert(!strcmp(path,"/sdcard") && host->slot==0);
-    assert(slot->width==4 && slot->clk==GPIO_NUM_24 && slot->cmd==GPIO_NUM_25 &&
-           slot->d0==GPIO_NUM_20 && slot->d1==GPIO_NUM_21 && slot->d2==GPIO_NUM_22 && slot->d3==GPIO_NUM_23);
-    assert(mount_calls < 64);
-    clock_history[mount_calls++] = host->max_freq_khz;
+    assert((slot->width==4||slot->width==1) && slot->clk==GPIO_NUM_24 && slot->cmd==GPIO_NUM_25 && slot->d0==GPIO_NUM_20);
+    if(slot->width==4)assert(slot->d1==GPIO_NUM_21&&slot->d2==GPIO_NUM_22&&slot->d3==GPIO_NUM_23);
+    else assert(slot->d1==GPIO_NUM_NC&&slot->d2==GPIO_NUM_NC&&slot->d3==GPIO_NUM_NC &&
+        !(host->flags&(SDMMC_HOST_FLAG_4BIT|SDMMC_HOST_FLAG_8BIT))&&(host->flags&SDMMC_HOST_FLAG_1BIT));
+    assert(mount_calls < 256);
+    clock_history[mount_calls]=host->max_freq_khz;width_history[mount_calls++]=slot->width;
     assert(test_present);
     assert(!config->format_if_mount_failed);
     assert(host->dma_aligned_buffer==test_dma_live&&test_dma_live);
@@ -78,7 +90,7 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char* path, const sdmmc_host_t* host,
     test_external_dma_ptr=test_dma_live;
     assert(!host->check_buffer_alignment(0,test_dma_live,4096));
     test_external_dma_ptr=NULL;
-    if(test_fail_above_khz && host->max_freq_khz > test_fail_above_khz){*out=NULL;return test_mount_error;}
+    if((test_need_single&&slot->width!=1)||(test_fail_above_khz && host->max_freq_khz > test_fail_above_khz)){*out=NULL;return test_mount_error;}
     *out = &test_card;
     return ESP_OK;
 }
@@ -86,10 +98,12 @@ esp_err_t esp_vfs_fat_sdcard_unmount(const char* path, sdmmc_card_t* mounted) {
     (void)path;
     assert(mounted == &test_card);
     ++unmount_calls;
+    if(fail_unmount)return ESP_FAIL;
     return ESP_OK;
 }
 esp_err_t esp_vfs_fat_sdcard_format(const char* path, sdmmc_card_t* mounted) {
     (void)path; (void)mounted;
+    ++format_calls;
     return ESP_OK;
 }
 esp_err_t esp_vfs_fat_info(const char* path, uint64_t* total, uint64_t* free_bytes) {
@@ -137,6 +151,7 @@ int main(void) {
     assert(clock_history[2]==40000 && clock_history[3]==40000 && clock_history[4]==20000 && clock_history[5]==10000);
 
     // CMD6 忙不能终止降速；默认频率跳过高速切换。/ CMD6 busy must fall back; default speed skips HS negotiation.
+    s_sd_last_profile=-1;s_sd_sleep_profile=0;
     test_mount_error=ESP_ERR_INVALID_STATE;
     test_fail_above_khz=20000;
     assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED);
@@ -154,7 +169,7 @@ int main(void) {
     before=mount_calls;
     assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED);
     assert(read_pico_sd_get_info(&info)==ESP_ERR_INVALID_STATE && !info.needs_format);
-    assert(mount_calls==before+4 && delays==previous_delays+3);
+    assert(mount_calls==before+8 && delays==previous_delays+7);
     test_mount_error=ESP_FAIL;
     assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED);
     assert(read_pico_sd_get_info(&info)==ESP_FAIL && !info.needs_format);
@@ -174,7 +189,9 @@ int main(void) {
     assert(read_pico_sd_get_info(&info)==ESP_OK && info.mounted && info.present);
     detect_failure=false;
     assert(read_pico_sd_get_info(&info)==ESP_OK && info.mounted);
-    assert(info.space_valid && info.filesystem_bytes==test_total && info.free_bytes==test_free);
+    assert(!info.space_valid && info.space_error==ESP_ERR_NOT_FINISHED && space_calls==0);
+    assert(read_pico_sd_refresh_space()==ESP_OK);
+    assert(read_pico_sd_get_info(&info)==ESP_OK && info.space_valid && info.filesystem_bytes==test_total && info.free_bytes==test_free);
     assert(invalidations>0);
     // 多分区卡只统计挂载分区；256GiB卡不能截断，挂载状态与统计错误独立。
     test_total=128ull*1024*1024*1024; test_free=100ull*1024*1024*1024;
@@ -208,7 +225,67 @@ int main(void) {
     assert(mount_card(false)==ESP_ERR_NO_MEM&&mount_calls==before&&!sd_dma_buffer);
     test_dma_fail_alloc=false;test_dma_alignment_error=true;
     assert(mount_card(false)==ESP_FAIL&&mount_calls==before&&!sd_dma_buffer);
+    test_dma_alignment_error=false;
     assert(test_dma_allocs==test_dma_frees);
-    puts("sd_probe: empty boot/insertion, checked CD, bounded settle/fallback, CMD6 busy, OOM, no format suggestion, 256 GiB passed");
+    // 慢四线卡：记忆成功档，浅睡卸载后单次命中；失败再下调，保持NVS不参与。
+    // Slow four-line media reuses its profile across a sleep unmount, then lowers it after new faults, without NVS.
+    test_mount_error=ESP_ERR_TIMEOUT;test_fail_above_khz=10000;test_need_single=false;
+    s_sd_last_profile=-1;s_sd_sleep_profile=0;
+    before=mount_calls;assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED);
+    assert(read_pico_sd_get_info(&info)==ESP_OK&&mount_calls==before+4&&s_sd_last_profile==3);
+    assert(read_pico_sd_sync()==ESP_OK);before=mount_calls;
+    assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before+1&&clock_history[before]==10000);
+    test_fail_above_khz=5000;before=mount_calls;
+    assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before+2&&s_sd_last_profile==4);
+    assert(clock_history[before]==10000&&clock_history[before+1]==5000);
+    // 单线只在四线失败后使用，成功后复用，单线5MHz失败时退到1MHz。
+    // Try single-line only after four-line failure; reuse success and lower5MHz to1MHz when needed.
+    s_sd_last_profile=-1;s_sd_sleep_profile=0;test_need_single=true;before=mount_calls;
+    assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before+7&&s_sd_last_profile==6);
+    for(int i=0;i<6;i++)assert(width_history[before+i]==4);
+    assert(width_history[before+6]==1&&clock_history[before+6]==5000);
+    before=mount_calls;assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before+1&&width_history[before]==1);
+    test_fail_above_khz=1000;before=mount_calls;
+    assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before+2&&s_sd_last_profile==7);
+    assert(clock_history[before]==5000&&clock_history[before+1]==1000);
+    // 深睡只接受有界RTC提示；冷启/异常复位和损坏索引回原档，所有失败最多8次。
+    // Deep wake accepts a bounded RTC hint; cold/abnormal reset or corrupt indices start high, with at most8 attempts.
+    assert(close_card()==ESP_OK);s_sd_profile_loaded=false;s_sd_last_profile=-1;test_reset_reason=ESP_RST_DEEPSLEEP;
+    before=mount_calls;assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before+1&&clock_history[before]==1000&&width_history[before]==1);
+    assert(close_card()==ESP_OK);s_sd_profile_loaded=false;s_sd_last_profile=-1;s_sd_sleep_profile=SD_PROFILE_COOKIE|255u;
+    test_need_single=false;test_fail_above_khz=0;before=mount_calls;
+    assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before+1&&clock_history[before]==40000);
+    assert(close_card()==ESP_OK);s_sd_profile_loaded=false;s_sd_last_profile=-1;s_sd_sleep_profile=SD_PROFILE_COOKIE|7u;test_reset_reason=0;
+    before=mount_calls;assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before+1&&clock_history[before]==40000&&width_history[before]==4);
+    test_fail_above_khz=1;s_sd_last_profile=6;s_sd_sleep_profile=SD_PROFILE_COOKIE|6u;before=mount_calls;
+    assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before+8);
+    assert(read_pico_sd_get_info(&info)==ESP_ERR_TIMEOUT&&!info.mounted&&s_sd_last_profile==6&&!sd_dma_buffer);
+    assert(width_history[before]==1&&width_history[before+2]==4&&clock_history[before+2]==40000);
+    test_single_idle_error=ESP_FAIL;before=mount_calls;
+    assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED&&mount_calls==before);
+    assert(read_pico_sd_get_info(&info)==ESP_FAIL&&!info.mounted&&!info.needs_format&&!sd_dma_buffer);
+    assert(test_single_idle_calls>0);
+    assert(test_dma_allocs==test_dma_frees);
+    // Manual recovery is asynchronous even from failed boot/paused wake; no formatter is used.
+    unsigned old_formats=format_calls;test_single_idle_error=ESP_OK;test_fail_above_khz=0;test_need_single=false;
+    defer_manual=true;suspended=true;media_invalidated=true;cached_info.present=false;cached_info.error=ESP_ERR_NOT_FOUND;
+    before=mount_calls;assert(read_pico_sd_start_manual_recovery()==ESP_OK&&queued_manual&&manual_busy);
+    assert(read_pico_sd_get_info(&info)==ESP_ERR_NOT_FINISHED&&mount_calls==before);
+    assert(read_pico_sd_start_manual_recovery()==ESP_ERR_NOT_FINISHED);
+    test_present=false;assert(read_pico_sd_get_info(&info)==ESP_ERR_NOT_FINISHED&&manual_busy);test_present=true;
+    void (*work)(void*)=queued_manual;queued_manual=NULL;work(queued_manual_arg);
+    assert(!manual_busy&&!suspended&&read_pico_sd_get_info(&info)==ESP_OK&&info.mounted);
+    before=unmount_calls;fail_manual_task=true;
+    assert(read_pico_sd_start_manual_recovery()==ESP_ERR_NO_MEM&&!manual_busy&&unmount_calls==before);
+    assert(read_pico_sd_get_info(&info)==ESP_OK&&info.mounted);fail_manual_task=false;
+    space_busy=true;assert(read_pico_sd_start_manual_recovery()==ESP_ERR_NOT_FINISHED);space_busy=false;
+    health_busy=true;assert(read_pico_sd_start_manual_recovery()==ESP_ERR_NOT_FINISHED);health_busy=false;
+    assert(unmount_calls==before&&!queued_manual);fail_unmount=true;
+    assert(read_pico_sd_start_manual_recovery()==ESP_OK);work=queued_manual;queued_manual=NULL;work(queued_manual_arg);
+    assert(!manual_busy&&read_pico_sd_get_info(&info)==ESP_FAIL&&card);fail_unmount=false;
+    assert(read_pico_sd_start_manual_recovery()==ESP_OK);work=queued_manual;queued_manual=NULL;work(queued_manual_arg);
+    assert(read_pico_sd_get_info(&info)==ESP_OK&&info.mounted&&format_calls==old_formats);
+    assert(close_card()==ESP_OK&&!sd_dma_buffer&&test_dma_allocs==test_dma_frees);
+    puts("PASS: SD profiles/RTC and DMA, asynchronous manual recovery from failed/paused/removal states, lifecycle owners/OOM/unmount failure/retry/no autoformat/256GiB");
     return 0;
 }

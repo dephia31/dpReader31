@@ -118,6 +118,9 @@
  * 用户确认：题头下拉选择 books 子目录，各类别/布局记住页码；去掉题头横线，主体在确认位置基础上下移8px。
  * User approval: choose books subfolders in the title menu, retain per-category/layout pages, remove the header rule and lower the approved body by 8px.
  */
+#if KIIKO_BOARD_METALIO47
+#include "metalio_hw.h"
+#endif
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
@@ -4006,7 +4009,11 @@ static void render(app_ctx_t* ctx, uint8_t* fb) {
         // 32列对齐后的封面/书架区；顶部状态栏、题头和下方分页不做黑色强整理。
         // Aligned cover/furniture area; status, title and lower pagination never enter the dark settling pass.
         const EpdRect artwork={0,192,UI_LOCK_WIDTH,800};
+#if KIIKO_BOARD_METALIO47
+        display_main_transition_cover_bands(&artwork,1);
+#else
         display_main_transition_gray_bands(&artwork,1);
+#endif
     }
     draw_shelf_pager(fb, s_visible_count, ctx->leaf, leaves());
     ui_nav_draw(fb, 1);
@@ -4225,8 +4232,8 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
     else if ((image_gray_refresh || s_reader_image_exit_pending) &&
              s_view == READING && s_reader_panel == READER_PANEL_NONE &&
              !s_toolbar && !s_clear_confirm && !s_reader_cleanup && redraw != APP_REDRAW_FULL) {
-        // 图文按实际变化像素分流，未变白底/灰阶不补推；完整保留目标图片，进度不追加第二轮。
-        // Route actual changed pixels without re-driving equal whites/grays; preserve the image target and fuse progress.
+        // 图文按实际变化分流，仅变白像素同轮增强擦除；未变白底/灰阶保持，进度不追加第二轮。
+        // Route actual changes with stronger same-pass white erasure; hold equal whites/grays and fuse progress without another pass.
         EpdRect image_area = (EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT};
         if (redraw == APP_REDRAW_AREA) {
             image_area = reader_area();
@@ -7175,7 +7182,15 @@ static app_redraw_t action_at(app_ctx_t* ctx, uint16_t x, uint16_t y) {
             if (s_shelf[i].removed) {
                 s_managed = s_shelf[i]; s_view = MANAGE; s_file_removed = s_delete_confirm = true; s_clear_confirm = false;
                 copy_text(s_manage_message, sizeof(s_manage_message), "文件已删除，进度清理失败，请重试");
-            } else open_book(ctx, s_shelf[i].path);
+            } else
+#if KIIKO_BOARD_METALIO47
+            {
+                (void)metalio_haptic_click();
+                open_book(ctx, s_shelf[i].path);
+            }
+#else
+                open_book(ctx, s_shelf[i].path);
+#endif
         }
         return APP_REDRAW_PAGE;
     }
@@ -7882,6 +7897,7 @@ static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) 
 #if KIIKO_BOARD_METALIO47
         // 两个设置入口松手后一次推最终面板，不先为按下态阻塞一整轮DU20。
         // Primary setting entries present their final sheet on release without a blocking DU20 press pass.
+        if(s_view==SHELF&&start>=116&&start<=119)(void)metalio_haptic_click();
         bool panel_entry=s_view==READING&&s_reader_panel==READER_PANEL_TOOLS&&(start==203||start==204);
         s_pressed_control=panel_entry?-1:start;
         if(panel_entry)return APP_REDRAW_NONE;

@@ -53,7 +53,11 @@ unit = r'''
 #include "ui_gesture.h"
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_AREA,APP_REDRAW_PAGE,APP_REDRAW_FULL} app_redraw_t;
 enum {SETTINGS_MAIN,SETTINGS_BLUETOOTH,SETTINGS_BLE_SCAN,SETTINGS_UPGRADE,SETTINGS_SHELF_STYLE,
-      SETTINGS_SYSTEM_FONT,SETTINGS_WALLPAPER,SETTINGS_AVATAR,SETTINGS_TEXT_EDIT,SETTINGS_PIN_ENTRY};
+      SETTINGS_SYSTEM_FONT,SETTINGS_WALLPAPER,SETTINGS_AVATAR,SETTINGS_TEXT_EDIT,SETTINGS_PIN_ENTRY,SETTINGS_ONLINE_FONTS};
+static int s_online_fonts;
+static bool ui_online_fonts_present(int *font,app_ctx_t *ctx,app_redraw_t redraw){
+ (void)font;(void)ctx;(void)redraw;assert(false);return false;
+}
 enum EpdDrawMode {MODE_GC16,MODE_GL16,MODE_DU};
 #define UI_NAV_TOP 1096
 #define UI_NAV_REFRESH_END 1088
@@ -62,7 +66,11 @@ enum EpdDrawMode {MODE_GC16,MODE_GL16,MODE_DU};
 #define SETTINGS_SCROLL_MAX 833
 typedef int EpdWaveform;
 enum {APP_MAIN_REFRESH_NORMAL,APP_MAIN_REFRESH_FAST,APP_MAIN_REFRESH_WATER};
-static const int E0470_WAVEFORM=0,E0470_FOLLOW_WAVEFORM=1,settings_soft=2,settings_bw=3;
+static const int E0470_WAVEFORM=0,E0470_FOLLOW_WAVEFORM=1,settings_soft=2,settings_bw=3,E0470_FULL_WAVEFORM=4;
+// 预览独立验证；本套件只运行原黑白列表出口。/ Preview has its own suite; this harness isolates BW lists.
+static bool settings_gray_preview(void){return false;}
+static bool display_system_binary_set(bool b){(void)b;return true;}
+#define update_display_full(hl) (assert(false),0)
 static int s_page,s_main_scroll,s_ble_scroll,selected_mode,paint_mode;
 static const EpdWaveform *display_main_bw_waveform(void){return &settings_bw;}
 static bool s_scroll_drag_consumed,s_scroll_present_pending,s_input_layout,s_input_settle;

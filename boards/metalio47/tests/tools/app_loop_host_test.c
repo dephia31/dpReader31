@@ -69,6 +69,11 @@ static int quick_draws, quick_opens, quick_du, wifi_starts, wifi_stops, ble_rese
 static int persistent_ripple_height;
 static int edge_returns,back_ripples,monochrome_calls,last_ripple_dir;
 static bool binary_scope,navigation_scope;
+bool display_main_switch_erase_set(bool v){(void)v;return false;}
+bool display_main_shelf_home_erase_set(bool v){(void)v;return false;}
+bool app_sleep_media_ready(void){return true;}
+bool app_sd_recovery_busy(void){return false;}
+void read_pico_pmu_drain_events(void){}
 bool display_system_navigation_set(bool enabled){bool previous=navigation_scope;navigation_scope=enabled;return previous;}
 int epd_rotated_display_height(void){return 1216;}
 int epd_rotated_display_width(void){return 684;}
@@ -480,7 +485,7 @@ int main(void) {
     assert(!lock_due&&events[UI_GESTURE_CANCEL]==1&&!events[UI_GESTURE_TAP]&&tick_consumed[2]);
     reset();first.owns_keys=true;first.on_key_long=long_key;time_step=200000;
     add(240,1500,1,0);add(240,1500,1,0);add(240,1500,1,0);add(240,1500,1,0);add(240,1500,1,0);add(0,0,0,0);run();
-    assert(keys[1]==1&&long_keys==1&&menus==1);
+    assert(keys[1]==1&&long_keys==1&&menus==1&&haptics==1);
     reset();first.owns_keys=true;first.on_key_long=long_key;time_step=200000;
     add(240,1500,1,0);add(0,0,0,0);run();assert(keys[1]==1&&!long_keys&&!menus);
     reset();first.owns_keys=true;first.on_key_long=long_key;time_step=300000;
@@ -654,7 +659,7 @@ int main(void) {
     reset();first.on_before_lock=before_lock;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
     add(244,284,1,0);add(0,0,0,0);add(100,284,1,0);add(0,0,0,0);run();
-    assert(!idle_locks&&!before_locks&&fulls>=2&&!touch_calls&&!light_enabled&&light_brightness==30&&light_saves==1&&haptics==1);
+    assert(!idle_locks&&!before_locks&&fulls>=2&&!touch_calls&&!light_enabled&&light_brightness==30&&light_saves==1&&haptics==2);
     assert(quick_opens==1&&button_partial_draws==3&&button_draws==3);
     for(int policy=0;policy<3;++policy){
         reset();main_fast=policy==1;main_water=policy==2;check_clean_action=true;
@@ -874,6 +879,17 @@ int main(void) {
     add(0,0,0,0);add(0,0,0,0);run();assert(!ai_open_calls&&fulls==2);
     reset();ai_step=1;ai_event=METALIO_AI_SHORT;ai_saved=APP_AI_FRONTLIGHT;
     add(0,0,0,0);add(0,0,0,0);run();assert(!ai_open_calls&&light_saves==1&&fulls==1&&!light_enabled);
+    reset();ai_step=1;ai_event=METALIO_AI_SHORT;ai_saved=APP_AI_LOCK;first.on_before_lock=before_lock;
+    add(0,0,0,0);add(0,0,0,0);run();assert(idle_locks==1&&before_locks==1&&!ai_open_calls&&haptics==1);
+    for(int button=0;button<3;++button){
+        reset();first.owns_keys=true;first.on_key=key;first.on_key_long=button==1?long_key:NULL;
+        add(0,0,0,0);add(80+160*button,1500,1,0);add(80+160*button,1500,1,0);
+        add(80+160*button,1500,1,0);add(0,0,0,0);run();assert(haptics==1);
+    }
+    for(int tab=0;tab<2;++tab){
+        reset();enable_main_tabs();add(0,0,0,0);add(85+171*tab,1160,1,0);
+        add(85+171*tab,1160,1,0);add(0,0,0,0);run();assert(haptics==1);
+    }
     for(int trial=0;trial<4;++trial){
         reset();ai_step=1;ai_event=METALIO_AI_LONG;
         if(trial==0)online_busy=true;

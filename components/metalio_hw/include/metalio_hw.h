@@ -62,6 +62,9 @@ void metalio_haptic_stop(void);
 void metalio_haptic_resume(void);
 void metalio_hold_for_deep_sleep(void);
 void metalio_sd_release_hold(void);
+/// 卸载后将单线模式不用的D1～D3恢复高阻上拉，避免沿用睡眠低电平。
+/// After unmount, release unusedD1–D3 to pulled-up inputs before a single-line mount.
+esp_err_t metalio_sd_single_line_idle(void);
 /// 官方浅睡引脚与电源轨事务；不触碰 GPIO36 下载通路。
 /// Vendor light-sleep pin/rail transaction; retain the GPIO36 download route.
 esp_err_t metalio_hold_for_light_sleep(void);

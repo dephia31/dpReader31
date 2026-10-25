@@ -25,6 +25,14 @@ bool mock_radio_busy;
 static const EpdWaveform main_gray = {4}, main_exit = {5}, main_water = {6}, main_bw = {7}, main_acrylic = {8}, main_acrylic_clean = {9};
 static const EpdWaveform reader_soft = {10};
 static const EpdWaveform settings_soft={11};
+static const EpdWaveform shelf37_soft={12},shelf37_art={13};
+static bool shelf37_enabled;
+static int shelf37_regions;
+const EpdWaveform* display_main_shelf37_waveform(bool art){return shelf37_enabled?(art?&shelf37_art:&shelf37_soft):NULL;}
+static unsigned switch_wave_calls;
+const EpdWaveform* display_main_switch_waveform(const EpdWaveform* source,enum EpdDrawMode mode){
+    assert(source&&(mode==MODE_DU||mode==MODE_GL16));++switch_wave_calls;return source;
+}
 const EpdWaveform* display_reader_text_waveform(void) {return &reader_soft;}
 static app_main_refresh_mode_t main_mode=APP_MAIN_REFRESH_FAST;
 app_main_refresh_mode_t app_settings_main_refresh_mode(void) {return main_mode;}
@@ -206,7 +214,10 @@ enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* state, EpdRect area,
     EpdRect strong, const EpdWaveform* soft, const EpdWaveform* calibrated,
     enum EpdDrawMode strong_mode) {
     assert(ota_display_depth && scan==READ_PICO_EPD_SCAN_FULL);
-    assert(soft==&settings_soft && calibrated==&main_acrylic);
+    assert((soft==&main_water && calibrated==&main_water && strong.y==544 && strong.height==544)||
+           (soft==&settings_soft && calibrated==&main_acrylic)||
+           (soft==&shelf37_soft && calibrated==&shelf37_art && strong_mode==MODE_GL16));
+    shelf37_regions+=soft==&shelf37_soft;
     assert(area.y==0 && area.height==UI_NAV_MARKER_SCAN_END);
     assert(strong.y>=0 && strong.y+strong.height<=UI_NAV_REFRESH_END && !(strong.y&31) && !(strong.height&31));
     if(protect_shelf_chrome)assert(strong.y==192 && strong.height==800);
@@ -220,6 +231,7 @@ enum EpdDrawError e0470_update_regions(EpdiyHighlevelState* state, EpdRect area,
     return result;
 }
 static void reset(void) {
+    shelf37_enabled=false;shelf37_regions=0;
     display_main_transition_cancel(); main_mode=APP_MAIN_REFRESH_FAST; exit_calls=water_calls=water_fails=0; failures = fail_after = 0;
     allocations = frees = complete_bw_calls = 0; alloc_fail = false; now_us = 1000000;
     region_calls=region_unavailable=ui_prefill_requests=0;
@@ -846,7 +858,69 @@ int main(void) {
     assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(!ui_prefill_requests);
     reset();main_mode=APP_MAIN_REFRESH_NORMAL;target(5);display_main_transition_arm(&owner_a,false,true);display_main_transition_monochrome();
     assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(!ui_prefill_requests);
-    puts("main navigation: 200 complete BW transitions; calibrated gray bands, empty shelf slots, identical-target skips, allocation failure and three output-failure recoveries; moving markers, nibble/32-column boundaries and default outputs passed");
+    assert(switch_wave_calls==0); // existing presentation paths were not in the new scope
+    for(int mode=APP_MAIN_REFRESH_NORMAL;mode<=APP_MAIN_REFRESH_WATER;++mode){
+        reset();main_mode=mode;gray_target(7);expect_navigation(true);
+        display_main_transition_arm(&owner_a,false,true);display_main_transition_gray_bands(acrylic,3);
+        assert(!display_main_switch_erase_set(true));unsigned before=switch_wave_calls;
+        assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
+        assert(switch_wave_calls>before&&!clears&&!gc_calls&&!nav_draws);
+        if(mode==APP_MAIN_REFRESH_NORMAL)assert(region_calls==1&&calls==1&&full_calls==1&&!water_calls);
+        else if(mode==APP_MAIN_REFRESH_FAST)assert(calls==2&&!full_calls&&!water_calls);
+        else assert(water_calls==1&&!calls&&!full_calls);
+        assert(display_main_switch_erase_set(false));
+        before=switch_wave_calls;assert(update_display_click_feedback(&hl,(EpdRect){80,1120,50,48})==EPD_DRAW_SUCCESS);
+        assert(switch_wave_calls==before);
+    }
+    reset();main_mode=APP_MAIN_REFRESH_NORMAL;target(8);expect_navigation(true);
+    bool prior=display_system_binary_set(true);display_system_navigation_set(true);
+    display_main_switch_erase_set(true);unsigned erase_before=switch_wave_calls;
+    assert(update_display_area_diff_with(&hl,&main_bw,MODE_DU,(EpdRect){0,0,H,UI_NAV_MARKER_SCAN_END})==EPD_DRAW_SUCCESS);
+    assert(switch_wave_calls>erase_before&&!clears&&!full_calls);
+    display_main_switch_erase_set(false);display_system_navigation_set(false);display_system_binary_set(prior);
+    // 仅显式封面标记启用37相；同轮软/强表必须一起换，保留失败恢复及原厂完整清理。
+    // Only explicit cover registration selects37; soft/art switch together, retaining fallback and factory cleanup.
+    const EpdRect cover_art={0,192,H,800};
+    for(int changing=0;changing<2;++changing)for(int problem=0;problem<4;++problem){
+        reset();main_mode=APP_MAIN_REFRESH_NORMAL;shelf37_enabled=problem!=3;gray_target(3);
+        if(problem==1){failures=1;fail_error=EPD_DRAW_OTHER_ERROR;}
+        if(problem==2)region_unavailable=1;
+        display_main_transition_arm(&owner_a,false,changing);
+        display_main_transition_cover_bands(&cover_art,1);
+        display_main_switch_erase_set(changing);
+        assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
+        if(problem==1)assert(clears==1&&gc_calls==1);
+        else assert(!clears&&!gc_calls&&calls==1);
+        if(problem!=3)assert(shelf37_regions==1);
+        else assert(!shelf37_regions);
+        if(problem==2)assert(last_wave==&shelf37_soft&&!full_calls);
+        display_main_switch_erase_set(false);
+    }
+    reset();main_mode=APP_MAIN_REFRESH_NORMAL;shelf37_enabled=true;gray_target(4);
+    display_main_transition_arm(&owner_a,false,true);display_main_transition_gray_bands(&cover_art,1);
+    assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(!shelf37_regions);
+    reset();main_mode=APP_MAIN_REFRESH_NORMAL;shelf37_enabled=true;gray_target(4);
+    display_main_transition_arm(&owner_a,false,true);display_main_transition_cover_bands(&cover_art,1);
+    assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(!shelf37_regions&&last_mode==MODE_GC16);
+    // 精确入口由真实presenter另测；本层验证同轮下部擦白、回退和底栏保护。
+    // The real presenter tests exact routing; here verify same-scan lower erasure, fallback and frozen navigation.
+    for(int problem=0;problem<3;++problem){
+        reset();main_mode=APP_MAIN_REFRESH_NORMAL;gray_target(5);expect_navigation(true);
+        display_main_transition_arm(&owner_a,true,true);
+        display_main_switch_erase_set(true);assert(!display_main_shelf_home_erase_set(true));
+        if(problem==1)region_unavailable=1;
+        if(problem==2){failures=1;fail_error=EPD_DRAW_OTHER_ERROR;}
+        unsigned before=switch_wave_calls;
+        assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
+        assert(region_calls==1&&last_strong_area.y==544&&last_strong_area.height==544&&switch_wave_calls>=before+2);
+        if(problem==2)assert(clears==1&&gc_calls==1);else assert(!clears&&!gc_calls&&calls==1);
+        assert(display_main_shelf_home_erase_set(false));display_main_switch_erase_set(false);
+    }
+    reset();main_mode=APP_MAIN_REFRESH_WATER;gray_target(5);expect_navigation(true);
+    display_main_transition_arm(&owner_a,true,true);display_main_shelf_home_erase_set(true);
+    assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(!region_calls&&water_calls==1);
+    display_main_shelf_home_erase_set(false);
+    puts("main navigation: root-only whitening retained; shelf37 art/chrome switch together on root/same-page output, no extra pass or clears; OOM/full/failure fallback and generic gray scopes retained");
     return 0;
 }
 

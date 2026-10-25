@@ -18,6 +18,14 @@ const EpdWaveform* display_main_bw_waveform(void);
 const EpdWaveform* display_main_normal_waveform(void);
 
 #if KIIKO_BOARD_METALIO47
+#include <stdbool.h>
+/// 仅主页切换及阅读图文出口显式调用：变化为白的像素增加两拍，保留原序列与释放尾段。
+/// Explicit root-switch/reader-image outlets add two white drives on changed white targets, retaining original actions and release phases.
+/// Mode, gray pulses and equal-pixel maintenance are unchanged; OOM/unsupported sources return the original waveform.
+const EpdWaveform* display_main_switch_waveform(const EpdWaveform* source, enum EpdDrawMode mode);
+/// 本地书架实验：封面/外围均官方37相16灰；关闭或OOM返回NULL，调用者保留48相。
+/// Local shelf experiment: art/chrome share vendor37-phase16-gray LUTs; NULL on disabled/OOM requires48-phase fallback.
+const EpdWaveform* display_main_shelf37_waveform(bool art);
 /// 本地显式实验的16灰GL37面板表；未启用、源不兼容或分配失败返回NULL，调用方回退48相。
 /// Local opt-in16-gray GL37 panel profile; NULL on disabled/incompatible/OOM builds requires a48-phase fallback.
 const EpdWaveform* display_reader_panel37_waveform(void);

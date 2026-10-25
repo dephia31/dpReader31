@@ -4,10 +4,10 @@
 
 [简体中文](README.zh-CN.md) · [English](README.md)
 
-## 正式版 rc103
+## 正式版 rc104
 
-- [公式 Web インストーラー](https://kiikoread.com/?device=metalio&version=rc103#flash-action)
-- [ファームウェア、TF/USB パッケージ、SHA-256](https://github.com/wegooo-cell/read-pico-reader/releases/tag/metalio-s31-v0.3.3-rc103)
+- [公式 Web インストーラー](https://kiikoread.com/?device=metalio&version=rc104#flash-action)
+- [ファームウェア、TF/USB パッケージ、SHA-256](https://github.com/wegooo-cell/read-pico-reader/releases/tag/metalio-s31-v0.3.3-rc104)
 - [変更履歴](docs/CHANGELOG.md) · [ボードとビルド](docs/BOARDS.md)
 
 本リポジトリは S31 ソースを管理し、正式バイナリは共通の Release に保存します。ここに残る test Release は以前のプレビュー版です。Pico と S31 のファームウェアは交換できません。

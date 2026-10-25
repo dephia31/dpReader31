@@ -91,6 +91,7 @@ def export(build, output, board):
     experimental_pie = board == 'metalio47' and cache.exists() and 'METALIO_PIE_PIXELS:BOOL=ON' in cache.read_text()
     experimental_ripple = board == 'metalio47' and cache.exists() and 'METALIO_TEXT_RIPPLE_EXPERIMENT:BOOL=ON' in cache.read_text()
     experimental_panel37 = board == 'metalio47' and cache.exists() and 'METALIO_READER_PANEL37_EXPERIMENT:BOOL=ON' in cache.read_text()
+    experimental_shelf37 = board == 'metalio47' and cache.exists() and 'METALIO_SHELF37_EXPERIMENT:BOOL=ON' in cache.read_text()
     experimental_fast_panels = board == 'metalio47' and cache.exists() and 'METALIO_FAST_READER_PANELS:BOOL=ON' in cache.read_text()
     experimental_network = board == 'metalio47' and cache.exists() and 'METALIO_NETWORK_PROBE:BOOL=ON' in cache.read_text()
     transfer_start = board == 'metalio47' and cache.exists() and 'METALIO_LOCAL_TRANSFER_START:BOOL=ON' in cache.read_text()
@@ -98,6 +99,7 @@ def export(build, output, board):
                 'experimental_pie_pixels': bool(experimental_pie),
                 'experimental_text_ripple': bool(experimental_ripple),
                 'experimental_reader_panel37': bool(experimental_panel37),
+                'experimental_shelf37': bool(experimental_shelf37),
                 'experimental_fast_reader_panels': bool(experimental_fast_panels),
                 'experimental_network_probe': bool(experimental_network),
                 'local_transfer_start_test': bool(transfer_start),
@@ -131,6 +133,7 @@ def export(build, output, board):
               'experimental_pie_pixels': bool(experimental_pie),
               'experimental_text_ripple': bool(experimental_ripple),
               'experimental_reader_panel37': bool(experimental_panel37),
+              'experimental_shelf37': bool(experimental_shelf37),
               'experimental_fast_reader_panels': bool(experimental_fast_panels),
               'experimental_network_probe': bool(experimental_network),
               'local_transfer_start_test': bool(transfer_start),
@@ -162,6 +165,7 @@ def build_one(board, args):
                '-DMETALIO_PIE_PIXELS=' + ('ON' if board == 'metalio47' and args.s31_pie else 'OFF'),
                '-DMETALIO_TEXT_RIPPLE_EXPERIMENT=' + ('ON' if board == 'metalio47' and args.s31_text_ripple else 'OFF'),
                '-DMETALIO_READER_PANEL37_EXPERIMENT=' + ('ON' if board == 'metalio47' and args.s31_reader_panel37 else 'OFF'),
+               '-DMETALIO_SHELF37_EXPERIMENT=' + ('ON' if board == 'metalio47' and args.s31_shelf37 else 'OFF'),
                '-DMETALIO_FAST_READER_PANELS=' + ('ON' if board == 'metalio47' and args.s31_fast_reader_panels else 'OFF'),
                '-DMETALIO_UI_GRAY22_EXPERIMENT=OFF',
                '-DMETALIO_NETWORK_PROBE=' + ('ON' if board == 'metalio47' and args.s31_network_probe else 'OFF'),
@@ -237,6 +241,7 @@ def main():
     parser.add_argument('--s31-pie', action='store_true', help='Explicit local S31 PIE experiment; normal builds stay C')
     parser.add_argument('--s31-text-ripple', action='store_true', help='Explicit local S31 four-level text-ripple experiment; ordinary builds remain full grayscale')
     parser.add_argument('--s31-reader-panel37', action='store_true', help='Explicit local S31 GL37 panel experiment; cleanup and normal builds stay native48')
+    parser.add_argument('--s31-shelf37', action='store_true', help='Explicit local S31 GL37 shelf art/chrome experiment; other pages/cleanup stay unchanged')
     parser.add_argument('--s31-fast-reader-panels', action='store_true', help='Explicit local four-gray16 font/reading settings experiment')
     parser.add_argument('--s31-network-probe', action='store_true', help='Local S31 read-only radio counters; not a delivery default')
     parser.add_argument('--s31-transfer-startup-test', action='store_true', help='Unattended local S31 transfer startup; never deliver')
@@ -248,6 +253,8 @@ def main():
         parser.error('--s31-text-ripple requires metalio47 or all')
     if args.s31_reader_panel37 and args.board == 'pico':
         parser.error('--s31-reader-panel37 requires metalio47 or all')
+    if args.s31_shelf37 and args.board == 'pico':
+        parser.error('--s31-shelf37 requires metalio47 or all')
     if args.s31_fast_reader_panels and args.board=='pico':
         parser.error('--s31-fast-reader-panels requires metalio47 or all')
     if args.s31_network_probe and args.board == 'pico':

@@ -29,6 +29,8 @@
  * User revision: follow vendor 2.0.76 with the full GL48 default table (trimming weakened black saturation and paled under strong light); keep pacing, bands and recovery.
  * 用户2026-10-24同意独立GL37面板实验：仅验证同一底页的面板/滑块使用原厂裁剪，默认、正文重排和清理仍48相。
  * User authorizes a separate GL37 panel experiment on2026-10-24: only verified same-body overlays/sliders use vendor trimming; default, body reflow and cleaning remain48 phases.
+ * 用户2026-10-25另授权书架16灰GL37本地实验：封面/书夹/外围同轮缩短，跨主页保留两相擦白；其他场景及完整清理不改。
+ * User authorizes a separate shelf16-gray GL37 experiment on2026-10-25: shorten art/chrome together, keep two root-switch white drives; retain other scenes/full cleanup.
 
  */
 
@@ -134,6 +136,22 @@ static void ui_page_cleaned(enum EpdDrawError result){
 static const void* s_main_armed;
 static bool s_main_fault;
 static bool s_main_ui_prefill_slow;
+static bool s_main_switch_erase;
+static bool s_main_shelf_home_erase;
+bool display_main_shelf_home_erase_set(bool active) {
+    bool previous=s_main_shelf_home_erase;
+    s_main_shelf_home_erase=active;
+    return previous;
+}
+static bool s_main_cover_frame;
+bool display_main_switch_erase_set(bool active) {
+    bool previous=s_main_switch_erase;
+    s_main_switch_erase=active;
+    return previous;
+}
+static const EpdWaveform* main_switch_waveform(const EpdWaveform* wave,enum EpdDrawMode mode) {
+    return s_main_switch_erase ? display_main_switch_waveform(wave,mode) : wave;
+}
 static bool s_main_monochrome;
 static bool s_main_shelf_page;
 static EpdRect s_main_bands[3];
@@ -279,6 +297,7 @@ static void main_freeze_navigation(EpdiyHighlevelState* hl, bool update_marker) 
 }
 
 void display_main_transition_disarm(void) {
+    s_main_cover_frame=false;
     s_main_armed = NULL;
     s_main_shelf_page = false;
     s_main_band_count = 0;
@@ -292,6 +311,7 @@ void display_main_transition_cancel(void) {
 }
 
 void display_main_transition_arm(const void* owner, bool leaving_shelf, bool changing_page) {
+    s_main_cover_frame=false;
     s_main_armed = owner;
     s_main_shelf_page = false;
     s_main_band_count = 0;
@@ -301,11 +321,13 @@ void display_main_transition_arm(const void* owner, bool leaving_shelf, bool cha
 }
 
 void display_main_transition_monochrome(void) {
+    s_main_cover_frame=false;
     if(!s_main_armed)return;
     s_main_monochrome=true;s_main_band_count=0;
 }
 
 void display_main_transition_gray_bands(const EpdRect *bands, unsigned count) {
+    s_main_cover_frame=false;
     if (!s_main_armed||s_main_monochrome) return;
     s_main_band_count = 0;
     if (!bands || count > 3) return;
@@ -317,6 +339,11 @@ void display_main_transition_gray_bands(const EpdRect *bands, unsigned count) {
         s_main_bands[i] = b; last = b.y + b.height;
     }
     s_main_band_count = count;
+}
+
+void display_main_transition_cover_bands(const EpdRect *bands,unsigned count) {
+    display_main_transition_gray_bands(bands,count);
+    s_main_cover_frame=s_main_armed&&count>0&&s_main_band_count==count;
 }
 
 void display_main_transition_shelf_page(void) {
@@ -348,6 +375,8 @@ static enum EpdDrawError main_recover(EpdiyHighlevelState* hl, enum EpdDrawError
 static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     const int64_t total_start = esp_timer_get_time();
     const void* owner = s_main_armed;
+    const bool cover_frame=s_main_cover_frame;
+    s_main_cover_frame=false;
     const bool shelf_exit = s_main_shelf_exit || s_main_shelf_page;
     s_main_shelf_page = false;
     const bool changing_page = s_main_changing_page;
@@ -404,9 +433,17 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     cleanup_applied=body_full;
     // 普通整理也把底栏横条合入同轮；无封面页以整个内容区作强灰阶区，白底只向白推动。
     // Ordinary cleanup also fuses the marker; roots without art use the content region for full grays, driving white targets only white.
-    const bool shelf_regions=normal&&changed&&(s_main_band_count||body_full)&&(changing_page||body_full);
+    const EpdWaveform *shelf37_soft=NULL,*shelf37_art=NULL;
+    if(normal&&cover_frame&&!body_full){
+        shelf37_soft=display_main_shelf37_waveform(false);
+        if(shelf37_soft)shelf37_art=display_main_shelf37_waveform(true);
+        if(!shelf37_art)shelf37_soft=NULL;
+    }
+    const bool shelf_regions=normal&&changed&&(s_main_band_count||body_full)&&(changing_page||body_full||shelf37_soft);
+    if(shelf37_soft)body_wave=shelf37_soft;
     if(shelf_regions){marker_with_body=true;body_area.height=UI_NAV_MARKER_SCAN_END;}
     if(body_full&&!shelf_regions){marker_with_body=false;body_area=main_body_area();}
+    if(!body_full)body_wave=main_switch_waveform(body_wave,body_mode);
     use_scan_for(body_wave, body_mode);
     // 空闲普通/黑白根页减少备行等待，不改扫描时钟、相数和脉宽；欠载后本次开机回到192行。
     // Reduce prefill for idle ordinary/BW roots without changing clock/phases/pulses; an underrun restores192 rows for this boot.
@@ -417,7 +454,15 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     int64_t start = esp_timer_get_time();
     // 快刷/水波纹不攒强刷次数；普通的周期整理也不能进入底栏。
     // Fast/water accrue no forced-cleanup debt; ordinary periodic settling also excludes navigation.
-    if(shelf_regions){
+    if(normal&&changed&&changing_page&&shelf_exit&&!body_full&&s_main_shelf_home_erase){
+        // 下半内容区多两拍向白，和上半区在同一轮扫描；固定底栏及灰/黑脉冲保持。
+        // Add two lower-body white drives within the same scan; retain fixed navigation and gray/black pulses.
+        const EpdWaveform *lower=display_main_switch_waveform(body_wave,MODE_GL16);
+        *result=e0470_update_regions(hl,body_area,(EpdRect){0,544,body_area.width,544},
+                                     body_wave,lower,MODE_GL16);
+        if(*result==EPD_DRAW_NO_PHASES_AVAILABLE)
+            *result=epd_hl_update_area(hl,MODE_GL16,25,body_area);
+    } else if(shelf_regions){
         // 同一帧逐列选择柔和/校准表，上下和中间一起开始，不显示串行的三段旧图。
         // Select soft/calibrated LUTs by columns in the same frame so chrome and art start together without three serial old-image regions.
         int top=0,bottom=UI_NAV_REFRESH_END;
@@ -426,13 +471,16 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
             top=s_main_bands[0].y&~31;bottom=(last.y+last.height+31)&~31;
         }
         if(bottom>UI_NAV_REFRESH_END)bottom=UI_NAV_REFRESH_END;
+        const EpdWaveform *soft=shelf37_soft?shelf37_soft:display_main_shelf_soft_waveform();
+        const EpdWaveform *art=shelf37_art?shelf37_art:display_main_shelf_waveform(body_full?MODE_GC16:MODE_GL16);
+        if(!body_full){soft=main_switch_waveform(soft,MODE_GL16);art=main_switch_waveform(art,MODE_GL16);}
         *result=e0470_update_regions(hl,body_area,(EpdRect){0,top,body_area.width,bottom-top},
-            display_main_shelf_soft_waveform(),display_main_shelf_waveform(body_full?MODE_GC16:MODE_GL16),
+            soft,art,
             body_full?MODE_GC16:MODE_GL16);
         if(*result==EPD_DRAW_NO_PHASES_AVAILABLE){
             // 低内存仍一次输出整张目标；不退回分段等待或更改真实back。
             // Low memory still presents the whole target once, without serial waiting or a fabricated baseline.
-            epd_hl_waveform(hl,display_main_shelf_soft_waveform());
+            epd_hl_waveform(hl,main_switch_waveform(shelf37_soft?shelf37_soft:display_main_shelf_soft_waveform(),MODE_GL16));
             *result=epd_hl_update_area(hl,MODE_GL16,25,body_area);
             cleanup_applied=false;
         }
@@ -445,7 +493,7 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
         const int prior_tick=e0470_page_turn_tick_us();
         e0470_page_turn_set_tick_us(E0470_TURN_FAST_TICK_US);
         *result = e0470_page_turn_with_waveform_compact(hl, ripple, E0470_TURN_RTL,
-                                                       display_main_water_waveform(), E0470_TURN_FAST_BANDS);
+                                                       main_switch_waveform(display_main_water_waveform(),MODE_GL16), E0470_TURN_FAST_BANDS);
         e0470_page_turn_set_tick_us(prior_tick);
         if (*result == EPD_DRAW_NO_PHASES_AVAILABLE) {
             use_scan_for(body_wave, MODE_GL16);
@@ -466,7 +514,7 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
             EpdRect gray = {0, s_main_bands[0].y, epd_rotated_display_width(), last.y + last.height - s_main_bands[0].y};
             // 采用原校准迁移，不自行按灰度比例截帧；等灰无需反复推动。
             // Retain calibrated transitions without scaling pulses by gray distance; equal grays need no repeated drive.
-            epd_hl_waveform(hl, display_main_gray_waveform());
+            epd_hl_waveform(hl, main_switch_waveform(display_main_gray_waveform(),MODE_GL16));
             use_scan_for(display_main_gray_waveform(), MODE_GL16);
             *result = epd_hl_update_area(hl, MODE_GL16, 25, gray);
         }
@@ -554,6 +602,10 @@ static enum EpdDrawError hl_update(
             waveform = app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL ? display_main_normal_waveform() :
                 has_gray ? display_main_gray_waveform() : s_main_shelf_page
                 ? display_main_shelf_exit_waveform() : display_main_bw_waveform();
+            if(s_main_cover_frame&&app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL){
+                const EpdWaveform *short_wave=display_main_shelf37_waveform(false);
+                if(short_wave)waveform=short_wave;
+            }
             mode = has_gray ? MODE_GL16 : MODE_DU;
             allow_gl16_diff = true;
             epd_hl_waveform(hl, waveform);
@@ -567,6 +619,7 @@ static enum EpdDrawError hl_update(
     }
     if(!protected_area&&waveform==display_reader_text_waveform()&&(mode&0xF)==MODE_GL16)allow_gl16_diff=false;
     full = full || ((mode & 0xF) == MODE_GL16 && !allow_gl16_diff);
+    if(!full)waveform=main_switch_waveform(waveform,mode);
     // 比较完成后只切换一次扫描档，避免快刷前先切 FULL 再切 FAST。
     // Select scan timing once after comparison, without a FULL-to-FAST round trip before fast updates.
     epd_hl_waveform(hl, waveform);
@@ -777,6 +830,7 @@ static enum EpdDrawError update_display_reader_turn_unlocked(EpdiyHighlevelState
         if(bands>1)bands = METALIO_TEXT_RIPPLE_BANDS;
     }
 #endif
+    if(s_system_binary)turn_waveform=main_switch_waveform(turn_waveform,MODE_GL16);
     // 阅读的同步/水波纹在此分流；主页面及侧滑使用各自的既有路径。
     // Split synchronous/ripple reader output here; main pages and edge-back retain their own paths.
     read_pico_epd_use_scan(READ_PICO_EPD_SCAN_FAST);
@@ -1133,11 +1187,13 @@ enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl,EpdRect
     if(display_needs_full())result=update_display_full_unlocked(hl);
     else {
         bool gray=transition_gray_changed(hl,area);
-        // 复用本板现有柔和端点：同色全保持，黑白用原厂DU20，中灰保留原厂完整GL48。
-        // Reuse this board's soft endpoints: hold all equal pairs, use native DU20 for BW and complete GL48 for midgrays.
-        const EpdWaveform* waveform=gray?display_main_shelf_soft_waveform():display_main_bw_waveform();
-        result=update_display_area_diff_with_unlocked(hl,waveform,gray?MODE_GL16:MODE_DU,area);
-        ESP_LOGI(TAG,"gray transition route=%s area=%d,%d,%d,%d result=%d",gray?"gray48-held":"bw20-held",area.x,area.y,area.width,area.height,result);
+        // 图文及离开图片共用主页已验证的两拍擦白，只增强变化为白的像素；中灰原序列和释放尾段完整保留。
+        // Image/exit transitions reuse the tested two white drives, only on changed white targets; retain gray sequences and release tails.
+        const enum EpdDrawMode mode=gray?MODE_GL16:MODE_DU;
+        const EpdWaveform* waveform=display_main_switch_waveform(
+            gray?display_main_shelf_soft_waveform():display_main_bw_waveform(),mode);
+        result=update_display_area_diff_with_unlocked(hl,waveform,mode,area);
+        ESP_LOGI(TAG,"gray transition route=%s area=%d,%d,%d,%d result=%d",gray?"gray-white-erase":"bw-white-erase",area.x,area.y,area.width,area.height,result);
     }
     s_system_binary=binary;
     s_main_fault=result!=EPD_DRAW_SUCCESS;

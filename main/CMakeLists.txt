@@ -8,6 +8,8 @@ set(main_requires
     read_pico_search
     espressif__qrcode
     espressif__esp_jpeg
+    esp_driver_jpeg
+    espressif__libjpeg-turbo
     # 渐进式 JPEG；基线仍走 esp_jpeg。/ Progressive JPEG; baseline stays on esp_jpeg.
     jpegdec
     espressif__libpng
@@ -60,6 +62,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "settings.c"
         "factory_reset.c"
         "app/app_loop.c"
+        "app/sd_recovery.c"
         "app/crash_note.c"
         "app/app_registry.c"
         "ui/ui_kit.c"
@@ -108,6 +111,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "book/book_txt.c"
         "book/book_epub.c"
         "book/book_cover.c"
+        "book/metalio_jpeg.c"
         "book/book_cover_jobs.c"
         "book/metalio_cover_cache.c"
         "book/reader_page_cache.c"
@@ -165,6 +169,10 @@ endif()
 option(METALIO_READER_PANEL37_EXPERIMENT "Local vendor-derived S31 GL37 reader panels" OFF)
 if(METALIO_READER_PANEL37_EXPERIMENT)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_READER_PANEL37=1)
+endif()
+option(METALIO_SHELF37_EXPERIMENT "Local vendor-derived S31 GL37 shelf art/chrome" OFF)
+if(METALIO_SHELF37_EXPERIMENT)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_SHELF37=1)
 endif()
 option(METALIO_TEXT_RIPPLE_EXPERIMENT "Local four-level reader ripple experiment" OFF)
 if(METALIO_TEXT_RIPPLE_EXPERIMENT)

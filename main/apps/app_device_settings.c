@@ -27,6 +27,9 @@
  * 用户2026-10-21修订：设置列表滚动保留文字抗锯齿和灰阶头像，撤掉书架额外四相补白，列表仍一次输出且不影响固定底栏。
  * User revision2026-10-21: keep AA text and gray avatars during list scrolls, omit the shelf's four added white phases, and retain one output with fixed navigation.
  */
+#if KIIKO_BOARD_METALIO47
+#include "app_content_open.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include "esp_heap_caps.h"
@@ -46,6 +49,7 @@
 #include "book_cover_jobs.h"
 #if KIIKO_BOARD_METALIO47
 #include "sleep.h"
+#include "sd_recovery.h"
 #else
 #endif
 #include "lock_pin_flow.h"
@@ -100,6 +104,7 @@ typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
                SETTINGS_TIME_EDIT, SETTINGS_SHELF_STYLE, SETTINGS_SYSTEM_FONT,
 #if KIIKO_BOARD_METALIO47
                SETTINGS_ONLINE_FONTS,
+               SETTINGS_SD_RECOVERY,
 #endif
                SETTINGS_SYSTEM_SIZE, SETTINGS_SYSTEM_CONTRAST, SETTINGS_MAIN_REFRESH, SETTINGS_LOCK_STYLE,
                SETTINGS_WALLPAPER, SETTINGS_WALLPAPER_PREVIEW,
@@ -116,6 +121,10 @@ typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
                SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT } settings_page_t;
 #endif
 static settings_page_t s_page;
+#if KIIKO_BOARD_METALIO47
+static char s_sd_notice[96];
+static EpdRect sd_recovery_button(void) { return (EpdRect){54,850,576,78}; }
+#endif
 static int settings_content_end(void) {
     return UI_NAV_REFRESH_END;
 }
@@ -390,7 +399,11 @@ static int settings_main_row_height(void) {
 #define SETTINGS_DISPLAY_ROWS 7
 #endif
 #define SETTINGS_PERSONAL_ROWS 4
+#if KIIKO_BOARD_METALIO47
+#define SETTINGS_MAINTENANCE_ROWS 6
+#else
 #define SETTINGS_MAINTENANCE_ROWS 5
+#endif
 #define SETTINGS_WIRELESS_Y (180 + settings_profile_height() + 77)
 #define SETTINGS_DISPLAY_Y (SETTINGS_WIRELESS_Y + SETTINGS_WIRELESS_ROWS * SETTINGS_ROW_H + 78)
 #define SETTINGS_PERSONAL_Y (SETTINGS_DISPLAY_Y + SETTINGS_DISPLAY_ROWS * SETTINGS_ROW_H + 78)
@@ -976,6 +989,38 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     // 保留 ui_clear_page 的白底，灰阶只由头像、卡片与字形生成。
     // Keep ui_clear_page's white background; avatars, cards and glyphs alone generate grays.
     ui_nav_status(fb);
+#if KIIKO_BOARD_METALIO47
+    if (s_page == SETTINGS_SD_RECOVERY) {
+        back_header(fb,"内存卡恢复");
+        ui_text_fixed(fb,54,270,26,"重新检测内存卡与导入字体",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_fixed(fb,54,325,23,"依次尝试降频、单线等兼容方式",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_fixed(fb,54,380,23,"不格式化，不清除书籍和设置",EPD_DRAW_ALIGN_LEFT,false);
+        app_sd_recovery_status_t status=app_sd_recovery_status();
+        const char *message="挂卡失败或字体未显示时，可手动重试";
+        switch(status.phase) {
+            case APP_SD_RECOVERY_PREPARE: message="正在释放内存卡资源…";break;
+            case APP_SD_RECOVERY_WAIT: message="正在等待存储任务结束…";break;
+            case APP_SD_RECOVERY_MOUNT: message="正在重新挂载，请勿拔卡…";break;
+            case APP_SD_RECOVERY_FONTS: message="已挂载，正在重新识别字体…";break;
+            case APP_SD_RECOVERY_DONE: message="内存卡已恢复挂载";break;
+            case APP_SD_RECOVERY_FAILED: message="恢复未完成，可稍后重试";break;
+            default: break;
+        }
+        ui_text_fixed(fb,54,510,25,message,EPD_DRAW_ALIGN_LEFT,false);
+        if(status.phase==APP_SD_RECOVERY_DONE) {
+            char fonts[64];snprintf(fonts,sizeof(fonts),"已识别 %d 款导入字体",status.fonts);
+            ui_text_fixed(fb,54,575,24,fonts,EPD_DRAW_ALIGN_LEFT,false);
+            if(!status.selected_font_ready)
+                ui_text_fixed(fb,54,635,22,"原选字体未能加载，请重新选择",EPD_DRAW_ALIGN_LEFT,false);
+        } else if(status.phase==APP_SD_RECOVERY_FAILED) {
+            ui_text_fixed(fb,54,575,21,esp_err_to_name(status.error),EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_fixed(fb,54,635,22,"请检查卡是否插好，或更换内存卡",EPD_DRAW_ALIGN_LEFT,false);
+        }
+        if(s_sd_notice[0])ui_text_box(fb,(EpdRect){54,710,576,110},22,s_sd_notice,EPD_DRAW_ALIGN_LEFT,false);
+        ui_draw_button(fb,sd_recovery_button(),app_sd_recovery_busy()?"正在恢复…":"开始恢复",false);
+        settings_navigation(fb);return;
+    }
+#endif
     if (s_page == SETTINGS_LOCK_PIN) {
         back_header(fb, "锁屏密码");
         row(fb, 266, "四位数字密码", !lock_pin_available() ? "暂不可用" : lock_pin_enabled() ? "已开启" : "已关闭");
@@ -1634,13 +1679,15 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const int personal_icons[]={4,5,16,10};
     setting_group(fb,SETTINGS_PERSONAL_Y-49,"个性化功能",SETTINGS_PERSONAL_Y,
                   personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
-    const char *maintenance_labels[]={"系统升级","保存与恢复","屏幕修复","BOOT 刷机","恢复出厂设置"};
 #if KIIKO_BOARD_METALIO47
-    const char *maintenance_values[]={"OTA / TF 卡","配置","清除条纹","电脑刷机","重置系统"};
+    const char *maintenance_labels[]={"系统升级","内存卡恢复","保存与恢复","屏幕修复","BOOT 刷机","恢复出厂设置"};
+    const char *maintenance_values[]={"OTA / TF 卡","挂卡与字体","配置","清除条纹","电脑刷机","重置系统"};
+    const int maintenance_icons[]={12,11,8,17,13,11};
 #else
+    const char *maintenance_labels[]={"系统升级","保存与恢复","屏幕修复","BOOT 刷机","恢复出厂设置"};
     const char *maintenance_values[]={"OTA / TF 卡","配置","清除条纹","电脑刷机","重置系统"};
-#endif
     const int maintenance_icons[]={12,8,17,13,11};
+#endif
     setting_group(fb,SETTINGS_MAINTENANCE_Y-49,"升级和恢复",SETTINGS_MAINTENANCE_Y,
                   maintenance_icons,maintenance_labels,maintenance_values,SETTINGS_MAINTENANCE_ROWS);
     // 主列表也要有一行提示位：确认、修复结果都写在这里，不然点了没有任何回音。
@@ -1661,10 +1708,29 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #endif
 }
 
+#if KIIKO_BOARD_METALIO47
+static bool s_lock_style_return;
+void app_device_settings_resume_lock_style(void) { s_lock_style_return=true; }
+static bool settings_take_lock_style_return(void) {
+    bool pending=s_lock_style_return;s_lock_style_return=false;return pending;
+}
+static app_redraw_t settings_open_lock_images(app_ctx_t *ctx, const char *path, bool transparent) {
+    extern const app_desc_t app_image;
+    if(!app_image_request_lock_picker(path,transparent)) {
+        snprintf(s_notice,sizeof(s_notice),"图片路径无法打开，请重新选择");
+        return APP_REDRAW_PAGE;
+    }
+    ctx->request_app=&app_image;
+    return APP_REDRAW_NONE;
+}
+static bool settings_gray_preview(void) {
+    return s_page==SETTINGS_WALLPAPER_PREVIEW||s_page==SETTINGS_SHELF_STYLE;
+}
+#endif
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     render_content(ctx,fb);
 #if KIIKO_BOARD_METALIO47
-    display_monochrome_content(fb);
+    if(!settings_gray_preview())display_monochrome_content(fb);
 #endif
     settings_navigation(fb);
 }
@@ -1698,6 +1764,9 @@ static void on_enter(app_ctx_t *ctx) {
     s_upgrade_offer_pending = s_upgrade_confirm = false;
     (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved);
     settings_prepare_profile();
+#if KIIKO_BOARD_METALIO47
+    if(settings_take_lock_style_return())s_page=SETTINGS_LOCK_STYLE;
+#endif
 }
 
 // 主循环主动消费按键；识别不需要再触摸屏幕。/ Consume key edges on ticks without requiring another touch.
@@ -1752,6 +1821,11 @@ static app_redraw_t reset_tick(void) {
 
 static app_redraw_t on_tick(app_ctx_t *ctx) {
 #if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_SD_RECOVERY) {
+        if(!app_sd_recovery_tick(ctx->now_ms))return APP_REDRAW_NONE;
+        if(!app_sd_recovery_busy())settings_prepare_profile();
+        return APP_REDRAW_PAGE;
+    }
     if(s_page==SETTINGS_ONLINE_FONTS)return ui_online_fonts_tick(&s_online_fonts,ctx->now_ms);
 #endif
     // 屏幕修复：先画最终结果，再在 tick 中整屏恢复；成功后不重复推页。
@@ -1788,6 +1862,10 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     }
     if(s_reset_pending && s_page==SETTINGS_FACTORY_RESET)return reset_tick();
     if (s_page == SETTINGS_PIN_ENTRY) return pin_setup_tick(ctx);
+#if KIIKO_BOARD_METALIO47
+    // 选择拼贴只保存样式；实际锁屏按原有缓存路径生成，不在设置tick里阻塞导航。
+    // Selecting collage saves its style only; build through the existing lock/cache path without blocking settings navigation.
+#else
     if (s_collage_prepare_pending && s_page == SETTINGS_LOCK_STYLE) {
         s_collage_prepare_pending = false;
         // 先让选中反馈可见，再生成卡上缓存；render 本身只绘图。
@@ -1805,6 +1883,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
         }
         return APP_REDRAW_NONE;
     }
+#endif
 
     if (s_page == SETTINGS_TEXT_EDIT) {
         if (ctx->consumed) return APP_REDRAW_NONE;
@@ -2019,8 +2098,26 @@ static app_redraw_t reset_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
     return APP_REDRAW_NONE;
 }
 
+#if KIIKO_BOARD_METALIO47
+static app_redraw_t sd_recovery_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
+    if(app_sd_recovery_busy() || ev->type!=UI_GESTURE_TAP)return APP_REDRAW_NONE;
+    if(ui_rect_hit(sd_recovery_button(),ev->x0,ev->y0)) {
+        esp_err_t error=app_sd_recovery_begin(ctx->now_ms);
+        snprintf(s_sd_notice,sizeof(s_sd_notice),"%s",error==ESP_OK?"":
+            "请先退出传书、USB读卡和升级，再重试");
+        return APP_REDRAW_PAGE;
+    }
+    if(ev->y0<190 && ev->x0<170) {s_page=SETTINGS_MAIN;settings_prepare_profile();return APP_REDRAW_PAGE;}
+    int tab=settings_nav_hit(ev->x0,ev->y0);
+    if(tab>=0)ui_nav_request(ctx,tab);
+    return APP_REDRAW_NONE;
+}
+#endif
+
 static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 #if KIIKO_BOARD_METALIO47
+    if(app_sd_recovery_busy())return APP_REDRAW_NONE;
+    if(s_page==SETTINGS_SD_RECOVERY)return sd_recovery_gesture(ctx,ev);
     if(s_page==SETTINGS_ONLINE_FONTS){
         app_redraw_t redraw=ui_online_fonts_gesture(&s_online_fonts,ev);
         if(s_online_fonts.closed){online_font_cancel_join();ttf_font_scan();s_font_page=0;s_page=SETTINGS_SYSTEM_FONT;}
@@ -2354,9 +2451,13 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
     if (s_page == SETTINGS_LOCK_STYLE) {
         if (y >= 300 && y < 432) {
+#if KIIKO_BOARD_METALIO47
+            return settings_open_lock_images(ctx,NULL,false);
+#else
             s_bookmark_picker=false;wallpaper_scan();
             s_page = SETTINGS_WALLPAPER;
             return APP_REDRAW_PAGE;
+#endif
         }
         if (y >= 454 && y < 586) {
             app_settings_set_lock_style(0);
@@ -2364,17 +2465,28 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         }
         if (y >= 608 && y < 740) {
             app_settings_set_lock_style(2);
+#if KIIKO_BOARD_METALIO47
+#else
             s_collage_prepare_pending = true;
+#endif
             return APP_REDRAW_PAGE;
         }
         if(y>=762 && y<894){
+#if KIIKO_BOARD_METALIO47
+            return settings_open_lock_images(ctx,NULL,true);
+#else
             s_bookmark_picker=true;wallpaper_scan();s_page=SETTINGS_WALLPAPER;
             return APP_REDRAW_PAGE;
+#endif
         }
         if (y >= 1010 && app_settings_wallpaper_path()[0]) {
+#if KIIKO_BOARD_METALIO47
+            return settings_open_lock_images(ctx,NULL,false);
+#else
             s_bookmark_picker=false;wallpaper_scan();
             s_page = SETTINGS_WALLPAPER;
             return APP_REDRAW_PAGE;
+#endif
         }
         return APP_REDRAW_NONE;
     }
@@ -2382,11 +2494,15 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if (y < 292 || y >= 1028) return APP_REDRAW_NONE;
         int index = s_wallpaper_page * 8 + (y - 292) / 92;
         if (index >= s_wallpaper_count) return APP_REDRAW_NONE;
+#if KIIKO_BOARD_METALIO47
+        return settings_open_lock_images(ctx,s_wallpapers[index].path,s_bookmark_picker);
+#else
         s_wallpaper_selected = index;
         bookmark_preview_prepare(ctx->fb);
         s_wallpaper_confirm = false;
         s_page = SETTINGS_WALLPAPER_PREVIEW;
         return APP_REDRAW_PAGE;
+#endif
     }
     if (s_page == SETTINGS_TIME) {
         if (y >= 407 && y < 477) {
@@ -2614,6 +2730,10 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
     if(y>=SETTINGS_MAINTENANCE_Y && y<SETTINGS_MAINTENANCE_Y+SETTINGS_MAINTENANCE_ROWS*SETTINGS_ROW_H) {
         row=(y-SETTINGS_MAINTENANCE_Y)/SETTINGS_ROW_H;
+#if KIIKO_BOARD_METALIO47
+        if(row==1){s_page=SETTINGS_SD_RECOVERY;s_sd_notice[0]=0;return APP_REDRAW_PAGE;}
+        if(row>1)--row;
+#endif
         if(row==4) {s_page=SETTINGS_FACTORY_RESET;s_reset_confirm=s_reset_pending=false;s_reset_notice[0]=0;}
         else if(row==0)upgrade_open();
         else if(row==1){s_page=SETTINGS_CONFIG;s_config_confirm=false;s_notice[0]=0;}
@@ -2639,6 +2759,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 
 static app_redraw_t on_key(app_ctx_t *ctx, int key) {
 #if KIIKO_BOARD_METALIO47
+    if(app_sd_recovery_busy())return APP_REDRAW_NONE;
     if(s_page==SETTINGS_ONLINE_FONTS){
         ui_online_fonts_close(&s_online_fonts);ttf_font_scan();s_font_page=0;s_page=SETTINGS_SYSTEM_FONT;
         return APP_REDRAW_PAGE;
@@ -2720,6 +2841,9 @@ static void settings_media_lost(app_ctx_t *ctx) {
 static void settings_media_ready(app_ctx_t *ctx) { (void)ctx; settings_prepare_profile(); }
 static bool settings_edge_back(app_ctx_t *ctx) {
     (void)ctx;
+#if KIIKO_BOARD_METALIO47
+    if(app_sd_recovery_busy())return false;
+#endif
     return s_page != SETTINGS_MAIN && !s_reset_pending && !s_local_pending &&
         !s_upgrade_restart && !s_pin_pending && !s_font_sync_confirm;
 }
@@ -2731,6 +2855,7 @@ static bool main_page_visible(app_ctx_t *ctx) { (void)ctx; return s_page == SETT
 static bool settings_navigation_enabled(app_ctx_t *ctx) {
     (void)ctx;
 #if KIIKO_BOARD_METALIO47
+    if(app_sd_recovery_busy())return false;
     if(s_page==SETTINGS_ONLINE_FONTS)return false;
 #endif
     return !s_reset_pending && !s_local_pending && !s_upgrade_restart && !s_pin_pending && !s_boot_pending;
@@ -2738,6 +2863,19 @@ static bool settings_navigation_enabled(app_ctx_t *ctx) {
 static bool settings_present(app_ctx_t *ctx, app_redraw_t redraw) {
 #if KIIKO_BOARD_METALIO47
     if(s_page==SETTINGS_ONLINE_FONTS)return ui_online_fonts_present(&s_online_fonts,ctx,redraw);
+    if(settings_gray_preview()&&(redraw==APP_REDRAW_PAGE||redraw==APP_REDRAW_FULL||redraw==APP_REDRAW_AREA)){
+        if(ctx->request_app)return true;
+        // 壁纸/透明书封及书架样式预览不继承系统二值化；同轮输出完整灰阶，退出后恢复原策略。
+        // Wallpaper/transparent-cover/shelf previews bypass system thresholding; present full grays once and restore policy afterward.
+        const bool binary=display_system_binary_set(false);
+        display_main_transition_cancel();s_scroll_present_pending=false;
+        render(ctx,ctx->fb);
+        guard_draw_result(ctx->hl,redraw==APP_REDRAW_FULL?update_display_full(ctx->hl):
+            update_display_area_full_with(ctx->hl,&E0470_FULL_WAVEFORM,MODE_GL16,
+                (EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT}));
+        display_system_binary_set(binary);
+        return true;
+    }
 #endif
     if (s_page == SETTINGS_PIN_ENTRY && (redraw == APP_REDRAW_PAGE || redraw == APP_REDRAW_FULL)) {
         display_main_transition_cancel(); render(ctx, ctx->fb);

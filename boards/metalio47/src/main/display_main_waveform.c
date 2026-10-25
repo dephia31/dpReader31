@@ -15,6 +15,60 @@
 #include "esp_heap_caps.h"
 #include <stdbool.h>
 #include <string.h>
+
+// 主页切换及阅读图文出口显式使用；其他场景和原厂表保持原样。
+// Explicitly requested by root switches and reader image transitions; other scenes and vendor tables stay intact.
+// 两拍白向推动插在原最后两拍释放前；黑/灰目标只增加保持。
+// Insert two white-only drives before the existing two final release phases; gray/black cells get holds.
+const EpdWaveform* display_main_switch_waveform(const EpdWaveform* source, enum EpdDrawMode draw_mode) {
+    enum { SLOTS=9, EXTRA=2, RELEASE=2 };
+    typedef struct {
+        const EpdWaveform *source;
+        int mode;
+        EpdWaveformPhases phases;
+        const EpdWaveformPhases *range;
+        EpdWaveformMode profile;
+        const EpdWaveformMode *profile_ptr;
+        EpdWaveform wave;
+    } slot_t;
+    static slot_t slots[SLOTS];
+    const int mode=draw_mode&0x3f;
+    if(!source || (mode!=MODE_DU && mode!=MODE_GL16))return source;
+    bool derived=false;
+    for(unsigned i=0;i<SLOTS;++i) {
+        if(slots[i].source==source && slots[i].mode==mode)return &slots[i].wave;
+        if(slots[i].source && &slots[i].wave==source)derived=true;
+    }
+    const EpdWaveformPhases *original=e0470_waveform_phases(source,mode);
+    if(!original || !original->luts || original->phase_times || original->phases<20 ||
+       (original->phases>48 && (!derived || original->phases!=50)) || source->num_temp_ranges!=1 || !source->temp_intervals)return source;
+    const int insert=original->phases-RELEASE;
+    // Changed white targets must already end in release/hold; do not overwrite an active vendor tail.
+    for(int f=insert;f<original->phases;++f)for(int from=0;from<15;++from)
+        if(e0470_phase_action(original,f,15,from)!=0)return source;
+    unsigned index=0;
+    while(index<SLOTS && slots[index].source)++index;
+    if(index==SLOTS)return source;
+    size_t bytes=(size_t)(original->phases+EXTRA)*16*4;
+    uint8_t (*data)[16][4]=heap_caps_malloc(bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!data)return source;
+    memcpy(data,original->luts,(size_t)insert*16*4);
+    memset(data+insert,0,EXTRA*16*4);
+    memcpy(data+insert+EXTRA,original->luts+(size_t)insert*16*4,RELEASE*16*4);
+    for(int f=insert;f<insert+EXTRA;++f)for(int from=0;from<15;++from)
+        data[f][15][from/4]|=(uint8_t)(2u<<(6-2*(from%4)));
+    slot_t *slot=&slots[index];
+    slot->mode=mode;
+    slot->phases=(EpdWaveformPhases){original->phases+EXTRA,(const uint8_t*)data,NULL};
+    slot->range=&slot->phases;
+    slot->profile=(EpdWaveformMode){mode,1,&slot->range};
+    slot->profile_ptr=&slot->profile;
+    slot->wave=(EpdWaveform){.num_modes=1,.num_temp_ranges=1,
+        .mode_data=&slot->profile_ptr,.temp_intervals=source->temp_intervals};
+    slot->source=source;
+    return &slot->wave;
+}
+
 static uint8_t s_gray[E0470_GL16_FRAMES][16][4];
 static const EpdWaveformPhases s_gray_phases={E0470_GL16_FRAMES,(const uint8_t*)s_gray,NULL};
 static const EpdWaveformPhases *s_gray_ranges[]={&s_gray_phases};
@@ -171,6 +225,51 @@ const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode draw_mode) {
     phases[index]=(EpdWaveformPhases){original->phases,data,NULL};
     waves[index].temp_intervals=E0470_WAVEFORM.temp_intervals;
     return &waves[index];
+}
+
+// 书架显式本地实验：官方11/5/0/3逐迁移裁剪，封面与外围同为37相，保留16灰尾段。
+// Explicit shelf experiment: vendor11/5/0/3 transition trimming makes art/chrome37 phases, retaining16 gray tails.
+const EpdWaveform* display_main_shelf37_waveform(bool art) {
+#if KIIKO_S31_SHELF37
+    static EpdWaveformPhases phases[2];
+    static const EpdWaveformPhases *ranges[2][1]={{&phases[0]},{&phases[1]}};
+    static const EpdWaveformMode modes[2]={{MODE_GL16,1,ranges[0]},{MODE_GL16,1,ranges[1]}};
+    static const EpdWaveformMode *mode_ptrs[2][1]={{&modes[0]},{&modes[1]}};
+    static EpdWaveform waves[2]={
+        {.num_modes=1,.num_temp_ranges=1,.mode_data=mode_ptrs[0]},
+        {.num_modes=1,.num_temp_ranges=1,.mode_data=mode_ptrs[1]}};
+    if(phases[0].luts)return &waves[art?1:0];
+    const EpdWaveformPhases *source=e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_GL16);
+    const EpdWaveformPhases *bw=e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_DU);
+    if(!source||!source->luts||source->phases!=48||source->phase_times||
+       !bw||!bw->luts||bw->phases!=20||bw->phase_times||
+       E0470_FULL_WAVEFORM.num_temp_ranges!=1||!E0470_FULL_WAVEFORM.temp_intervals)return NULL;
+    uint8_t (*data)[48][16][4]=heap_caps_malloc(2u*48u*16u*4u,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!data)return NULL;
+    const e0470_trim_t trim={.erase_max=11,.sat_cut=5,.white_sat_cut=0,.hold=3};
+    int count=e0470_waveform_trim(source,&trim,data[1]);
+    if(count!=37){free(data);return NULL;}
+    memcpy(data[0],data[1],(size_t)count*16*4);
+    // 外围同色保持，黑白沿用完整DU20；封面只替换变白，等白维护及所有中灰保留官方裁剪结果。
+    // Chrome holds equals and retains full DU20 endpoints; art changes white targets only, keeping white maintenance/all midgrays.
+    for(int f=0;f<count;++f)for(int to=0;to<16;++to)for(int from=0;from<16;++from){
+        int shift=6-2*(from%4),mask=3<<shift;
+        int action=to==from?0:to==0||to==15?(f<bw->phases?e0470_phase_action(bw,f,to,from):0):
+            e0470_phase_action(&(EpdWaveformPhases){count,(const uint8_t*)data[1],NULL},f,to,from);
+        data[0][f][to][from/4]=(uint8_t)((data[0][f][to][from/4]&~mask)|(action<<shift));
+        if(to==15&&from!=15){
+            action=f<bw->phases?e0470_phase_action(bw,f,to,from):0;
+            data[1][f][to][from/4]=(uint8_t)((data[1][f][to][from/4]&~mask)|(action<<shift));
+        }
+    }
+    for(int i=0;i<2;++i){
+        phases[i]=(EpdWaveformPhases){count,(const uint8_t*)data[i],NULL};
+        waves[i].temp_intervals=E0470_FULL_WAVEFORM.temp_intervals;
+    }
+    return &waves[art?1:0];
+#else
+    (void)art;return NULL;
+#endif
 }
 
 // 整页补白与固定底栏/局部反馈分开；保持厂商表和相数。

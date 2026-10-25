@@ -58,8 +58,8 @@ bool ui_ai_menu_begin(ui_ai_menu_t *m,uint8_t *fb,app_ai_action_t selected,bool 
     // 最后一项是反白而非加粗；标题与标签必须黑字，且在玻璃处理完成后绘制。
     // The final flag means inverted,not bold. Draw black labels only after glass processing.
     ui_text_fixed_vc(fb,r.x+r.width/2,r.y+32,28,"AI 快捷键",EPD_DRAW_ALIGN_CENTER,false);
-    static const char*labels[]={"全刷一次","书签开关","前光开关","返回首页","不设功能"};
-    static const ui_icon_t icons[]={UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_POWER};
+    static const char*labels[]={"全刷一次","书签开关","前光开关","返回首页","锁屏键"};
+    static const ui_icon_t icons[]={UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_LOCK};
     for(int i=0;i<APP_AI_ACTION_COUNT;++i){
         EpdRect option=ui_ai_menu_option(m,i);int cx=option.x+option.width/2,cy=r.y+106;
         readable_circle(fb,cx,cy);

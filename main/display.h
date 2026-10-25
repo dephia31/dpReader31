@@ -63,6 +63,10 @@ enum EpdDrawError update_display_fast_page(EpdiyHighlevelState* hl);
 /// Arm fixed navigation for the next main-screen output; tag shelf exit and actual navigation so same-page repaints do not animate.
 void display_main_transition_arm(const void* owner, bool leaving_shelf, bool changing_page);
 #if KIIKO_BOARD_METALIO47
+/// Scope extra white erasure to an actual switch between visible main tabs; returns the previous scope.
+bool display_main_switch_erase_set(bool active);
+/// 仅书架切回首页的下半内容区增强擦白，返回旧作用域。/ Scope stronger lower-body white drive to shelf-to-home only; returns prior scope.
+bool display_main_shelf_home_erase_set(bool active);
 /// 纯绘制期间提前等待TPS唤醒，结束时取消未消费的准备；实际推屏另持Flash锁。/ Overlap TPS wake with pure paint and cancel unused preparation; actual output separately holds the Flash lock.
 bool display_page_prepare_begin(void);
 void display_page_prepare_end(bool held);
@@ -93,6 +97,8 @@ void display_main_transition_disarm(void);
 /// Cancel unused permission without interrupting a physical waveform; no deferred completion exists.
 void display_main_transition_cancel(void);
 #if KIIKO_BOARD_METALIO47
+/// 注册书架封面及书夹区，供独立37相实验使用；普通灰区不启用。/ Register shelf art for the isolated37-phase experiment; generic gray bands are unaffected.
+void display_main_transition_cover_bands(const EpdRect* bands, unsigned count);
 #endif
 enum EpdDrawError update_display_from_white(EpdiyHighlevelState* hl);
 enum EpdDrawError update_display_from_white_with(

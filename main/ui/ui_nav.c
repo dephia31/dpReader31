@@ -254,12 +254,5 @@ int ui_nav_hit(uint16_t x, uint16_t y) {
 }
 
 void ui_nav_request(app_ctx_t *ctx, int index) {
-#if KIIKO_BOARD_METALIO47
-    if (index >= 0 && index < 4) {
-        (void)metalio_haptic_click();
-        ctx->request_app = app_at(index);
-    }
-#else
     if (index >= 0 && index < 4) ctx->request_app = app_at(index);
-#endif
 }

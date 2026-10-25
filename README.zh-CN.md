@@ -4,10 +4,10 @@
 
 [English](README.md) · [日本語](README.ja-JP.md) · [官网刷机](https://kiikoread.com/?device=metalio#flash-action) · [Pico 项目](https://github.com/wegooo-cell/read-pico-reader)
 
-## 当前正式版：rc103
+## 当前正式版：rc104
 
-- [官网在线刷机与版本选择](https://kiikoread.com/?device=metalio&version=rc103#flash-action)
-- [rc103 固件、TF/USB 包和 SHA-256](https://github.com/wegooo-cell/read-pico-reader/releases/tag/metalio-s31-v0.3.3-rc103)
+- [官网在线刷机与版本选择](https://kiikoread.com/?device=metalio&version=rc104#flash-action)
+- [rc104 固件、TF/USB 包和 SHA-256](https://github.com/wegooo-cell/read-pico-reader/releases/tag/metalio-s31-v0.3.3-rc104)
 - [版本日志](docs/CHANGELOG.md) · [板型与构建说明](docs/BOARDS.md)
 
 正式二进制继续在统一发布仓库归档，本仓库维护 Metalio S31 源码；本仓库历史 Release 中带 test 的版本为早期预览版。Metalio 与 Pico 的芯片、供电、波形和分区分别适配，固件不能跨机型刷写。
@@ -31,7 +31,7 @@ TF 升级使用 Release 中的 `Metalio-S31-update.bin`，在设备“系统升�
 
 ## 构建
 
-共享 `main/` 阅读器和 UI，S31 驱动及分区由 `boards/metalio47/` 选择。使用匹配 ESP32-S31 的 SDK、工具链及锁定组件，完整参数见 [docs/BOARDS.md](docs/BOARDS.md)。当前 rc103 的配置示例：
+共享 `main/` 阅读器和 UI，S31 驱动及分区由 `boards/metalio47/` 选择。使用匹配 ESP32-S31 的 SDK、工具链及锁定组件，完整参数见 [docs/BOARDS.md](docs/BOARDS.md)。当前 rc104 的配置示例：
 
 ```sh
 python3 tools/build_firmware.py --board metalio47 \
@@ -39,7 +39,7 @@ python3 tools/build_firmware.py --board metalio47 \
   --python /path/to/python --tools /path/to/espressif-tools \
   --managed-metalio47 /path/to/locked-managed-components \
   --output build/metalio47 \
-  --s31-pie --s31-text-ripple --s31-reader-panel37 --s31-fast-reader-panels
+  --s31-pie --s31-text-ripple --s31-reader-panel37 --s31-fast-reader-panels --s31-shelf37
 ```
 
 保留原厂 GC48 / GL48 / DU20 数据和本板供电顺序；构建后核对芯片、项目、版本、分区及校验值。各模式的实验短波形、失败回退和验证限制见板型文档。

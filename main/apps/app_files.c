@@ -13,6 +13,9 @@
  * 用户修订：输入只刷新变化区域，布局切换局部灰阶，避免打字累计整屏清残影。
  * User revision: input refreshes changed regions; layout switches use local grayscale, without accumulating whole-page cleanup.
  */
+#if KIIKO_BOARD_METALIO47
+#include "metalio_hw.h"
+#endif
 #include "ui_avatar.h"
 #include "book_cover_jobs.h"
 #include <dirent.h>
@@ -145,7 +148,11 @@ static bool file_pager_event(app_ctx_t *ctx,const ui_gesture_event_t *ev,app_red
     if(start<0&&s_pager_pressed<0)return false;
     *redraw=APP_REDRAW_NONE;
     if(s_scan_pending)return true;
-    if(ev->type==UI_GESTURE_PRESS){s_pager_pressed=start;*redraw=file_pager_paint(ctx);return true;}
+    if(ev->type==UI_GESTURE_PRESS){
+#if KIIKO_BOARD_METALIO47
+        if(start>=0)(void)metalio_haptic_click();
+#endif
+        s_pager_pressed=start;*redraw=file_pager_paint(ctx);return true;}
     if(ev->type==UI_GESTURE_MOVE&&start==end)return true;
     bool decorated=s_pager_pressed>=0;s_pager_pressed=UI_PAGER_NONE;
     if(ev->type==UI_GESTURE_TAP&&start>=0&&start==end){
@@ -733,9 +740,8 @@ static void on_enter(app_ctx_t *ctx) {
     read_pico_sd_start_probe();
     const esp_err_t info_status=read_pico_sd_get_info(&s_sd);
 #if KIIKO_BOARD_METALIO47
-    if (info_status==ESP_OK && s_sd.mounted) {
-        (void)read_pico_sd_refresh_space(); read_pico_sd_get_info(&s_sd);
-    }
+    // 首帧目录/字体先读完，空闲轮询再统计；FAT统计会占用卷锁。
+    // Finish first-frame directory/font reads before idle accounting takes the FAT volume lock.
 #endif
     s_space_poll_ms=ctx->now_ms;
     s_sd_format_confirm = false;
@@ -770,7 +776,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     if (!s_scan_pending) {
         if (s_folder<0 && s_sd.mounted && !(ctx->touch && ctx->touch->touched) && ctx->now_ms-s_space_poll_ms>=
 #if KIIKO_BOARD_METALIO47
-            15000
+            (s_sd.space_valid?15000:500)
 #else
             (s_sd.space_valid?15000:500)
 #endif
@@ -778,7 +784,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
             s_space_poll_ms=ctx->now_ms;
             read_pico_sd_info_t previous=s_sd;
 #if KIIKO_BOARD_METALIO47
-            (void)read_pico_sd_refresh_space();
+            (void)read_pico_sd_start_space_refresh();
 #else
             (void)read_pico_sd_start_space_refresh();
 #endif
@@ -791,7 +797,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     if (read_pico_sd_get_info(&s_sd) == ESP_ERR_NOT_FINISHED) return APP_REDRAW_NONE;
     s_scan_pending = false;
 #if KIIKO_BOARD_METALIO47
-    if (s_sd.mounted) { (void)read_pico_sd_refresh_space(); read_pico_sd_get_info(&s_sd); }
+    // 首帧扫描后再从空闲轮询启动统计。/ Start accounting from idle polling after the first directory frame.
 #endif
     s_space_poll_ms=ctx->now_ms;
     for (int i = 0; i < 3; ++i) s_counts[i] = count_root(i);
@@ -805,7 +811,14 @@ static void open_selected(app_ctx_t *ctx) {
     if (!ext) { snprintf(s_message, sizeof(s_message), "没有可用的打开方式"); return; }
     if (!strcasecmp(ext, ".epub") || !strcasecmp(ext, ".txt")) {
         extern const app_desc_t app_book;
+#if KIIKO_BOARD_METALIO47
+        if (app_book_request_open(s_selected.path)) {
+            (void)metalio_haptic_click();
+            ctx->request_app = &app_book;
+        }
+#else
         if (app_book_request_open(s_selected.path)) ctx->request_app = &app_book;
+#endif
     } else if (!strcasecmp(ext, ".jpg") || !strcasecmp(ext, ".jpeg") || !strcasecmp(ext, ".png")) {
         extern const app_desc_t app_image;
         if (app_image_request_open(s_selected.path)) ctx->request_app = &app_image;

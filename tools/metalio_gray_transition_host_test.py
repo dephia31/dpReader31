@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Run S31's actual gray selector/outlet and existing native endpoint/gray LUTs.
-中文：验证实际像素分流、灰阶保持、原厂脉冲、四方向对齐裁剪和失败保护。
+"""Run S31's actual image outlet and same-pass white erase with native gray LUTs.
+中文：验证图文擦白、灰阶保持、原厂脉冲、四方向对齐裁剪和失败保护。
 """
 from pathlib import Path
 import subprocess
@@ -27,7 +27,7 @@ unit = r'''
 enum EpdDrawError{EPD_DRAW_SUCCESS,EPD_DRAW_OTHER_ERROR};
 #define LATENCY_DISPLAY_BEGIN() (++latency)
 #define LATENCY_DISPLAY_END() (--latency)
-static uint8_t front[B],back[B],saved[B];
+static uint8_t front[B],back[B],saved[B],saved_back[B];
 static enum EpdRotation rotation;
 static bool s_system_binary,s_main_fault,force_full;
 static int depth,latency,calls,fulls,picked_mode;
@@ -37,7 +37,7 @@ static EpdRect picked_area;
 int epd_width(void){return W;}
 int epd_height(void){return H;}
 enum EpdRotation epd_get_rotation(void){return rotation;}
-void *heap_caps_malloc(size_t n,int caps){assert(caps==3&&n==48*64);return malloc(n);}
+void *heap_caps_malloc(size_t n,int caps){assert(caps==3&&n<=50*64);return malloc(n);}
 static bool pico_online_display_begin(void){++depth;return true;}
 static void pico_online_display_end(bool held){assert(held&&depth==1);--depth;}
 static bool display_needs_full(void){return force_full;}
@@ -68,20 +68,38 @@ int main(void){
  const EpdWaveformPhases *native_d=e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_DU);
  assert(g&&d&&g->phases==48&&d->phases==20);
  // Every unchanged tone holds. All changed middle-tone pulses are byte-for-byte native GL48;
- // black/white endpoints are the complete native DU20 followed by holds, with no extra white boost.
+ // black/white endpoints in the source remain the complete native DU20 followed by holds.
  for(int from=0;from<16;++from)for(int to=0;to<16;++to)for(int f=0;f<48;++f){
   int action=e0470_phase_action(g,f,to,from);
   assert(action==(from==to?0:to==0||to==15?(f<20?e0470_phase_action(native_d,f,to,from):0):e0470_phase_action(native_g,f,to,from)));
   if(f<20)assert(e0470_phase_action(d,f,to,from)==(from==to?0:e0470_phase_action(e0470_waveform_phases(&E0470_WAVEFORM,MODE_DU),f,to,from)));
  }
+ const EpdWaveform *strong_gray=display_main_switch_waveform(soft,MODE_GL16);
+ const EpdWaveform *strong_bw=display_main_switch_waveform(bw,MODE_DU);
+ assert(strong_gray!=soft&&strong_bw!=bw);
+ // The actual image profiles insert exactly two white-only drives, before the original release tail.
+ // 中文：直接检验图文真实派生表；所有原有灰/黑脉冲保持原次序，未变白底不受推动。
+ const EpdWaveform *originals[]={soft,bw},*strong[]={strong_gray,strong_bw};
+ const int modes[]={MODE_GL16,MODE_DU};
+ for(int kind=0;kind<2;++kind){
+  const EpdWaveformPhases *a=e0470_waveform_phases(originals[kind],modes[kind]);
+  const EpdWaveformPhases *b=e0470_waveform_phases(strong[kind],modes[kind]);
+  assert(b&&b->phases==a->phases+2&&!b->phase_times);
+  int insert=a->phases-2;
+  for(int from=0;from<16;++from)for(int to=0;to<16;++to)for(int f=0;f<b->phases;++f){
+   int expected=f<insert?e0470_phase_action(a,f,to,from):
+     f<insert+2?(to==15&&from!=15?2:0):e0470_phase_action(a,f-2,to,from);
+   assert(e0470_phase_action(b,f,to,from)==expected);
+  }
+ }
  for(int rot=0;rot<4;++rot)for(int from=0;from<16;++from)for(int to=0;to<16;++to){
-  rotation=(enum EpdRotation)rot;memset(front,to*17,B);memset(back,from*17,B);memcpy(saved,front,B);
+  rotation=(enum EpdRotation)rot;memset(front,to*17,B);memset(back,from*17,B);memcpy(saved,front,B);memcpy(saved_back,back,B);
   EpdRect a={0,0,(rot&1)?H:W,(rot&1)?W:H};calls=fulls=0;s_system_binary=true;force_full=false;fail=EPD_DRAW_SUCCESS;
   bool gray=to!=from&&to!=0&&to!=15;
   assert(transition_gray_changed(&h,a)==gray);
   assert(update_display_gray_transition(&h,a)==EPD_DRAW_SUCCESS&&calls==1&&!fulls&&!depth&&!latency&&!s_main_fault&&s_system_binary);
-  assert(picked==(gray?soft:bw)&&picked_mode==(gray?MODE_GL16:MODE_DU));
-  assert(picked_area.width==a.width&&!memcmp(front,saved,B));
+  assert(picked==(gray?strong_gray:strong_bw)&&picked_mode==(gray?MODE_GL16:MODE_DU));
+  assert(picked_area.width==a.width&&!memcmp(front,saved,B)&&!memcmp(back,saved_back,B));
  }
  // Independent pixel-coordinate oracle: include the real32-column expansion, exclude other rows/columns.
  for(int rot=0;rot<4;++rot){
@@ -105,7 +123,7 @@ int main(void){
   force_full=true;calls=fulls=0;
   assert(update_display_gray_transition(&h,a)==fail&&!calls&&fulls==1&&s_main_fault==!!error&&s_system_binary&&!depth&&!latency);
  }
- puts("PASS:1024 native-size old/target gray pairs; all equal pairs hold; native DU20/complete midgray GL48 pulses; four rotations/aligned crop; no image quantization; OTA/full/failure guards");
+ puts("PASS:1024 native-size old/target gray pairs; same-pass two white drives on image/exit only; every original DU20/GL48 action and release tail preserved; equal pairs hold; four rotations/crop; one output/no quantization/no framebuffer overwrite; OTA/full/failure guards");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s31-gray-transition-') as folder:

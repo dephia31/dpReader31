@@ -1,5 +1,12 @@
 # Third-party notices / 第三方许可
 
+S31 JPEG混合解码使用Espressif `esp_driver_jpeg`（Apache-2.0）及固定版本
+`espressif/libjpeg-turbo 3.2.0~1`（上游IJG/BSD-3-Clause，Espressif包装Apache-2.0）。
+This software is based in part on the work of the Independent JPEG Group.
+S31 hybrid JPEG decoding links the Espressif hardware driver and the pinned
+libjpeg-turbo component. Upstream and packaging licenses remain unchanged;
+the distributed component's LICENSE and upstream LICENSE.md govern those files.
+
 本仓库的[个人学习许可政策](LICENSE)只涉及明确标注的新增原创内容；以下第三方许可、既有授权和历史版本均不因此改变。新限制不得用于撤销第三方授予的权利。
 The [personal-study license policy](LICENSE) covers only explicitly marked new original material. It does not change the following third-party licenses, existing grants or historical releases, or revoke rights granted by third parties.
 

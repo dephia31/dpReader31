@@ -36,7 +36,7 @@ int main(void){
  puts("PASS: GPIO61 AI debounce,boot/sleep-held suppression,one500ms long event,no release tap,bounded8-event FIFO");
 }
 '''
-enum='typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_AI_DISABLED,APP_AI_ACTION_COUNT}app_ai_action_t;\n'
+enum='typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_AI_LOCK,APP_AI_ACTION_COUNT}app_ai_action_t;\n'
 ui=common+enum+r'''
 #define W 1216
 #define H 684
@@ -50,7 +50,7 @@ typedef struct{int x,y,width,height;}EpdRect;
 typedef struct{bool touched;unsigned count;int x,y;}cst836u_touch_t;
 typedef struct{const cst836u_touch_t*touch;bool pressed,released;}app_ctx_t;
 typedef int ui_icon_t;
-enum {UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_POWER};
+enum {UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_POWER,UI_ICON_LOCK};
 static int rotation,allocs,live,draws,glass_calls;
 static bool oom,glass_ok=true;
 static uint8_t fb[W*H],original[W*H];
@@ -73,7 +73,7 @@ static void ui_fill_round_rect(uint8_t*f,EpdRect r,int rad,uint8_t v){(void)rad;
 static void ui_draw_round_rect(uint8_t*f,EpdRect r,int rad,uint8_t v){(void)rad;draws++;epd_draw_pixel(r.x,r.y,v,f);}
 static bool ui_glass_panel_frost(uint8_t*f,EpdRect r,int rad,int white,int refract,bool reader){assert(rad==40&&white==52&&refract==160&&reader);glass_calls++;if(!glass_ok)return false;ui_fill_round_rect(f,r,rad,0xc0);return true;}
 static void ui_text_fixed_vc(uint8_t*f,int x,int y,int px,const char*t,int align,bool inverted){(void)px;(void)t;(void)align;assert(!inverted);draws++;epd_draw_pixel(x,y,0,f);}
-static void ui_draw_icon(uint8_t*f,int x,int y,int px,ui_icon_t icon,uint8_t v){(void)px;assert(icon>=0&&icon<=4);draws++;epd_draw_pixel(x,y,v,f);}
+static void ui_draw_icon(uint8_t*f,int x,int y,int px,ui_icon_t icon,uint8_t v){(void)px;assert(icon>=0&&icon<=5);draws++;epd_draw_pixel(x,y,v,f);}
 static void epd_draw_circle(int x,int y,int rad,uint8_t v,uint8_t*f){(void)rad;draws++;epd_draw_pixel(x,y,v,f);}
 static void epd_fill_circle(int x,int y,int rad,uint8_t v,uint8_t*f){epd_draw_circle(x,y,rad,v,f);}
 '''
@@ -160,16 +160,16 @@ static int metalio_haptic_click(void){++haptics;return 0;}
 static void metalio_frontlight_toggle(void){++lamps;}
 static void ui_nav_request(app_ctx_t*c,int tab){(void)c;assert(tab==0);++home;}
 '''+function('app_book_ai_bookmark',r/'main/apps/app_book.c')+function('ai_short_action',r/'main/app/app_loop.c')+r'''
-int main(void){app_ctx_t c={0};
- chosen=APP_AI_BOOKMARK;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&!marks&&!haptics);
- assert(ai_short_action(&c,&app_book)==APP_REDRAW_NONE&&!marks);reader=true;
- assert(ai_short_action(&c,&app_book)==APP_REDRAW_PAGE&&marks==1&&haptics==1);
- bookmark_ok=false;assert(ai_short_action(&c,&app_book)==APP_REDRAW_PAGE&&marks==2&&haptics==1);
- chosen=APP_AI_REFRESH;assert(ai_short_action(&c,&other)==APP_REDRAW_FULL&&haptics==2);
- chosen=APP_AI_FRONTLIGHT;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&lamps==1&&haptics==3);
- chosen=APP_AI_HOME;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&home==1&&haptics==4);
- chosen=APP_AI_DISABLED;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&home==1&&haptics==4&&lamps==1&&marks==2);
- puts("PASS: actual tap dispatcher and book wrapper share bookmark toggling,body/current-page guards,failure feedback,full/light/home/disabled actions");
+int main(void){app_ctx_t c={0};bool lock=false;
+ chosen=APP_AI_BOOKMARK;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_NONE&&!marks&&!haptics);
+ assert(ai_short_action(&c,&app_book,&lock)==APP_REDRAW_NONE&&!marks);reader=true;
+ assert(ai_short_action(&c,&app_book,&lock)==APP_REDRAW_PAGE&&marks==1&&haptics==1);
+ bookmark_ok=false;assert(ai_short_action(&c,&app_book,&lock)==APP_REDRAW_PAGE&&marks==2&&haptics==1);
+ chosen=APP_AI_REFRESH;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_FULL&&haptics==2);
+ chosen=APP_AI_FRONTLIGHT;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_NONE&&lamps==1&&haptics==3);
+ chosen=APP_AI_HOME;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_NONE&&home==1&&haptics==4);
+ chosen=APP_AI_LOCK;assert(ai_short_action(&c,&other,&lock)==APP_REDRAW_NONE&&lock&&home==1&&haptics==5&&lamps==1&&marks==2);
+ puts("PASS: actual tap dispatcher and book wrapper share bookmark toggling,body/current-page guards,failure feedback,full/light/home/lock actions");
 }
 '''
 # Execute the exact load block too: old/missing/invalid records default safely; successful selections survive a fresh context.
