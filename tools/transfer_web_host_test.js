@@ -11,10 +11,10 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 
 class Element {
   constructor() {
-    this.children = []; this.dataset = {}; this.value = ''; this.files = [];
+    this.children = []; this.dataset = {}; this.value = ''; this.files = []; this.history = [];
     this.classList = {toggle() {}};
   }
-  set textContent(text) { this.text = String(text); this.children = []; }
+  set textContent(text) { this.text = String(text); this.children = []; this.history.push(this.text); }
   get textContent() { return this.text || ''; }
   set innerHTML(_) { throw Error('Do not parse file names as HTML'); }
   append(...children) { this.children.push(...children); }
@@ -43,7 +43,7 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     createElement() { return new Element(); },
     querySelectorAll(selector) { return selector === '.upload' ? sections : [...nodes.values(), ...sections.flatMap(s => [s.input, s.send])]; },
   };
-  const state = {gets: [], mutations: [], sent: [], signature: '慢慢阅读', signatures: []};
+  const state = {gets: [], mutations: [], sent: [], signature: '慢慢阅读', signatures: [], clock: 0, timers: new Map()};
   const fetch = async (url, options = {}) => {
     if(url === '/signature') { if(options.method === 'POST') {state.signature=options.body;state.signatures.push(options.body);}return {status:200,json:async()=>({signature:state.signature,ok:true})}; }
     if (url === '/info') return {status: 200, json: async () => ({
@@ -67,10 +67,16 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     open(method, url) { assert.equal(method, 'PUT'); this.url = url; }
     send(file) {
       state.sent.push({url: this.url, file});
+      state.clock+=1000;
+      this.upload.onprogress({loaded: file.size/2, total: file.size});
+      state.clock+=1000;
       this.upload.onprogress({loaded: file.size, total: file.size});
       const response = responses.shift() || {status: 200, body: {ok: true}};
       queueMicrotask(() => {
-        this.status = response.status; this.responseText = JSON.stringify(response.body);
+        state.clock+=1000;
+        for(const paint of state.timers.values())paint();
+        if(response.failure){this['on'+response.failure]();return;}
+        this.status = response.status; this.responseText = response.raw ?? JSON.stringify(response.body);
         this.onload();
       });
     }
@@ -81,7 +87,10 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     set src(value) { this.url = value; queueMicrotask(() => this.onload()); }
   }
   const context = vm.createContext({document, fetch, XMLHttpRequest: XHR, TextEncoder, URL,
-    Image: ImageMock, confirm: () => confirmations.length ? confirmations.shift() : true});
+    Image: ImageMock, performance: {now: () => state.clock},
+    setInterval: paint => {const id=state.timers.size+1;state.timers.set(id,paint);return id},
+    clearInterval: id => state.timers.delete(id),
+    confirm: () => confirmations.length ? confirmations.shift() : true});
   context.URL = {createObjectURL: () => 'blob:test', revokeObjectURL() {}};
   vm.runInContext(source, context);
   await flush(); await flush();
@@ -126,6 +135,22 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     await section.send.onclick();
     assert.match(t.state.sent.at(-1).url, new RegExp('^' + endpoint));
     assert.match(section.result.textContent, /已保存/);
+    assert.match(section.result.textContent, /400 KB\/s · 已用 3.0 秒/);
+    const sent=section.result.history.findIndex(text=>text.startsWith('等待设备确认'));
+    const saved=section.result.history.findIndex(text=>text.startsWith('已保存'));
+    assert(sent>=0&&saved>sent);
+    assert.match(section.result.history[sent], /600 KB\/s · 已用 2.0 秒/);
+    assert(section.result.history.some(text=>text.startsWith('等待设备确认')&&text.endsWith('400 KB/s · 已用 3.0 秒')));
+    assert.equal(t.state.timers.size,0);
+  }
+  for(const response of [{failure:'error'},{failure:'abort'},{status:200,raw:'invalid JSON'}]){
+    t=await setup({responses:[response]});
+    const section=t.sections.find(s=>s.dataset.kind==='font');
+    section.input.files=[{name:'test.ttf',size:1200000}];
+    await section.send.onclick();
+    assert.equal(t.state.timers.size,0);
+    assert(!section.result.textContent.startsWith('已保存'));
+    assert(!section.send.disabled&&!section.input.disabled);
   }
   t = await setup({responses: [{status: 409, body: {error: '同名文件已存在'}}, {status: 200, body: {ok: true}}]});
   t.sections[2].input.files = [{name: '同名.png', size: 100}];
@@ -152,6 +177,15 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     await generic.send.onclick();
     assert.equal(new URL('http://pico' + t.state.sent.at(-1).url).searchParams.get('path'), 'books/文件 没有扩展名');
     assert.match(generic.result.textContent, /已保存 \/books\/文件 没有扩展名/);
+  }
+  for(const response of [{failure:'error'},{failure:'abort'},{status:200,raw:'invalid JSON'}]){
+    t=await setup({responses:[response]});
+    const section=t.sections.find(s=>s.dataset.kind==='font');
+    section.input.files=[{name:'test.ttf',size:1200000}];
+    await section.send.onclick();
+    assert.equal(t.state.timers.size,0);
+    assert(!section.result.textContent.startsWith('已保存'));
+    assert(!section.send.disabled&&!section.input.disabled);
   }
   t = await setup({responses: [{status: 409, body: {error: '同名文件已存在'}}, {status: 200, body: {ok: true}}]});
   const generic = t.sections.find(s => s.dataset.kind === 'file');

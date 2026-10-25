@@ -23,7 +23,7 @@ Metalio 仅适用于已适配的 **V1.5 / E0470A14-AF 34Pin** 硬件，不自动
 
 两块板共用rc97的凭据读取和紧凑启动记录逻辑：正常可读的已设密码仍验证；读取失败或损坏时不拦启动、可重新读取且禁止覆盖旧凭据。启动记录兼容旧定长格式，空间不足只回收自身旧记录。S31异常启动字体回退、USB交接、前光与睡眠恢复由自身后端保留。
 
-Metalio设置主列表及文件管理内容按黑白目标使用DU20，固定底栏保留已显示像素，手动全刷与故障恢复仍走完整路径；设置子页图片预览保留灰阶。首页继续阅读卡片纯白，七款时钟在两种板型共用可释放底图缓存，覆盖首页、样式预览及放大时间页。两槽最多231840字节PSRAM，始终预留2MiB；IKEA/小屋数字使用当前系统字体，Cat眼睛和Kehai圆环/圆点仅重绘局部，日期/分钟/方向/黑白模式和尺寸变化按需失效；内存不足直接绘制，进入阅读前释放。普通灰阶切页的备行等待仅在非传输且无欠载时缩减，欠载后本次开机回退保守余量。
+Metalio设置主列表及文件管理内容按黑白目标使用DU20，固定底栏保留已显示像素，手动全刷与故障恢复仍走完整路径；设置子页图片预览保留灰阶。首页继续阅读卡片纯白，七款时钟在两种板型共用可释放底图缓存，覆盖首页、样式预览及放大时间页。实时底图两槽最多231840字节；S31额外为七款选择页预览各保留一个有界槽，统一池最多1043280字节PSRAM，始终预留2MiB；IKEA/小屋数字使用当前系统字体，Cat眼睛和Kehai圆环/圆点仅重绘局部，日期/分钟/方向/黑白模式和尺寸变化按需失效；内存不足直接绘制，进入阅读前释放。S31样式选择页固定10:10:30并按需缓存完整表盘，停止秒针/猫眼更新；箭头切换不单独扫描按下态，未变的底部按钮排除在更新范围之外，仍使用完整灰阶。选择页显示完成且空闲600ms后每轮最多在临时PSRAM画布准备一个相邻表盘，不写front/back，保留2MiB余量，用后即释放；触摸、待推屏或缺内存时暂缓。离开字体设置后重新进入首页时失效完整预览，首页与时间详情的实时底图不包含活动字形。普通灰阶切页的备行等待仅在非传输且无欠载时缩减，欠载后本次开机回退保守余量。
 
 Metalio普通主页使用定向黑白端点和完整中灰相位，周期整理与底栏横条共享扫描；阅读、水波纹、手动全刷与失败恢复保留各自路径。当前普通灰阶48相、每相至少12ms，仅相位节拍已需576ms，另有供电、排版与传输开销；不能用CPU或内存规格推断整页能在300ms完成。串口的`SWITCH`日志区分退出、字体、进页、推屏和总耗时，`main refresh`另记录供电及显示总耗时；这些是固件计时，最终光学稳定时间仍需实机测量。
 
@@ -32,6 +32,16 @@ S31的PIE只在Core1可用。较大的差分作业在扫描空闲时整帧提交
 S31实际显示输出与SDK Flash操作共用递归锁，完整扫描和断轨结束后才允许Flash停顿；准备封面/绘制期间不持有此锁。主页面绘制可与TPS的50ms唤醒等待重叠；只提前WAKEUP，PWRUP/VCOM保持低，实际扫描仍执行原厂后续顺序，取消或失败立即下电，不保压等待用户。供屏在原1KiB查表内预置各像素位，空闲普通/黑白切页保留已验证的128行预填，传输、临时对时/扫描、BLE活动和欠载保持192行；扫描仍为20MHz、原GC48/GL48/DU20与至少12ms。S31内部DMA双缓冲各64行，以64字节边界分成不超过4032字节的描述符，每个缓冲只在末段通知EOF，保留约1ms补数余量且不改变面板行时序。DMA EOF提高中断优先级并过滤准备/停止期的旧VSYNC；按SDK启用RGB ISR缓存关闭安全选项，ISR读取的行队列指针表固定在内部RAM且只按指针大小分配。旧S31构建缓存由构建工具迁移这两项安全配置，其余配置保留。未完成扫描仍报错并走原恢复。
 
 书架最终灰阶封面复用既有动态4MiB LRU，不增设整页常驻副本。键包含源像素校验、尺寸、旋转、对比度与4×4点阵相位；仅复制精确对齐的物理行，收藏、边框和文字实时画，未对齐或内存不足直接绘制。阅读前缩减与媒体失效清理沿用既有生命周期。首页分钟到点把状态栏和静态表盘合并为一次真实差分，输出失败不确认已显示。
+
+## S31关机与锁屏省电
+
+“关机睡眠”只保留“浅睡10分钟后进入深睡”（默认）和“彻底断电”，不再单独选择锁屏省电方式。旧`lock_lp`值忽略，已明确保存的关机/睡眠选择仍保留；新选择在NVS提交成功后生效。日常短按及自动锁屏统一先浅睡十分钟后深睡，电源菜单选择彻底断电时走原硬件关机流程。
+
+浅睡保留RAM、字形与阅读索引，使用Metalio原厂SD、TPS、屏总线、P17/GPIO2和断轨顺序。每个维护切片不超过60秒，最后一段按十分钟截止时间缩短，不反复挂载TF。真正按键优先于到时交接，定时不能解锁或点前光。深睡保存阅读检查点，暂停字体文件、触摸、总线和外设电源后调用`esp_deep_sleep_start()`，短按通过启动恢复，有密码仍验证；这与原厂浅睡后硬关机的策略不同。
+
+USB、忙传输、未完成的媒体恢复和不安全唤醒线暂缓休眠；没有成功保存的检查点不贸然进入深睡。浅睡失败按1/3/10/30秒退避，深睡交接失败保持锁定并先浅睡、30秒后重试，不循环重启。续航、十分钟交接、字体/PIN及USB热插恢复仍需拔线实机验证。
+
+English: The S31 power preference contains only default light sleep then deep sleep after ten minutes, or complete power-off; obsolete lock_lp is ignored and saved shutdown choices remain. Persist before changing live selection. Ordinary locks always use staged sleep. Preserve vendor peripheral ordering, RAM/font/index state, at-most60second slices and a shortened final slice. Physical input wins over the timed handoff; timers never unlock/light. Deep sleep requires a saved checkpoint and parks font IO/touch/bus/rails before the SDK call, retaining boot/PIN recovery. USB/busy media/unsafe IRQ defer admission. Light failures back off1/3/10/30seconds; refused deep handoffs remain locked and light-sleep before retrying30seconds later. Hardware current and wake/USB behavior require validation.
 
 ## S31 AI快捷键
 
@@ -53,11 +63,25 @@ English: Paint crisp black labels after glass. Keep the S312×2 switches and dua
 
 ## S31锁屏与侧键
 
+“双击解锁”位于显示主列表的自动休眠锁屏下一行；新配置默认关闭，旧配置中的明确单击/双击选择不改变。S31继续使用自身单击/双击事件消费与PIN门禁，关机睡眠页统一为先浅睡十分钟后深睡或彻底断电。票根封面与背景仅经一次对比度灰阶映射，保持自然比例和旧封面缓存兼容。用户主动选择导入阅读字体连续三次真正回退内建后，可选择保存进度再重启或返回字体页；未保存成功不能重启，异常启动保护仍独立生效。
+
+首页元数据、封面索引与头像使用PSRAM BSS，保留静态零初始化；DMA、ISR、板级状态和缓存预算不变。时钟预览待更新范围独立于按下反馈，在失败后合并后续范围，仅输出成功才清除。S31冷启动使用已有内建字形绘制Kiikoread与准备资源，不再链接全屏loading位图；USB接管、VCOM校准、深睡保图与PIN流程保留。
+
+English: The Display root list owns the unlock toggle immediately after auto-lock; missing settings default to single press while explicit saved choices survive. Keep S31 wake-event consumption and PIN with the unified staged-sleep/power-off preference. Ticket artwork receives one grayscale contrast mapping. Three actual fallbacks from explicit imported-face selections offer a progress-safe restart or cancel; abnormal-boot protection remains independent. Cold Home metadata/cover indices/avatar use zero-initialized PSRAM BSS, never DMA/ISR storage. Clock pending bounds survive failed outputs and merge subsequent changes. The cold splash uses existing embedded glyphs without the loading bitmap, preserving USB/VCOM/deep-wake/PIN flows.
+
 锁屏单击电源键后等待650ms双击窗口，再局部显示“双击电源键解锁”，约三秒后还原原图。只暂存448×72区域（16128字节PSRAM），不额外常驻整帧；缺内存跳过提示。提示不打开前光，触摸不解锁；双击及已有密码验证继续走S31原路径。提示待显示或已显示期间不启动新的硬件休眠事务，恢复后沿用原模式。锁屏图缓存先于提示保存，提示不会进入持久缓存。
 
 上下音量键在四个根页面与屏幕左右键一致：上键对应左键、下键对应右键，循环切换主页面；书架分页控制开启时同样用于翻页。阅读和二级页面继续由该页面的按键映射处理。菜单、电源对话框、下拉层、USB独占、升级及待处理切页均保留输入保护。
 
 English: A debounced locked short release schedules Pico's448×72 hint after650ms for3s, using16128 bytes of temporary PSRAM and restoring exact pixels. Keep the lamp off, double-click/PIN authentication and S31 sleep transactions; no touch unlock or persistent hint cache. Root volume edges share left/right navigation and shelf paging; reader/child handlers remain page-owned, with modal/USB/update/pending-navigation guards.
+
+透明PNG锁屏书封缓存继续放在`/sdcard/.metalio_s31/locks/seal-layer.bin`，使用SEA2无损行压缩保留原gray/alpha字节和阴影。首次生成在空闲PSRAM大于两图层加1MiB时直接处理并写压缩层，否则沿用有界行流程；所有工作区用后释放，不缓存当前页面底图。旧格式/尺寸/文件变化或损坏触发重建，完整校验先于叠加；FAT不能覆盖重命名时备份原缓存、发布失败回滚。图层不减灰、不改完整刷新波形和S31睡眠/PIN/USB流程。
+
+## 大图片EPUB打开
+
+排版通过书源尺寸接口测量插图，不为每幅图完整提取资源。PNG先探测32字节；JPEG仅在必要时扩大到4KiB、64KiB，SVG包装与更晚的帧头沿用原有有界完整读取回退。ZIP前缀探测按512B/4KiB输入分块，完整提取仍使用32KiB及完整CRC校验；头部仅是尺寸提示，不能作为图片内容验证或完整下载成功的依据。当前章仍按原规则分页、恢复位置，实际显示只解码当前页图片，没有因此承诺任意长任务可打断或其余章节已全面后台化。
+
+English: Layout uses advisory source dimensions instead of extracting every illustration in full. PNG starts with32 bytes; JPEG grows to4KiB/64KiB when needed, retaining bounded full fallback for SVG wrappers and later frames. Prefix input chunks are512B/4KiB; full extraction retains32KiB bulk reads and complete CRC verification. Dimensions do not establish payload integrity. Keep current-chapter pagination/progress and current-page decoding; this does not implement universal cancellation or background preparation of all remaining chapters.
 
 ## S31阅读面板响应
 
@@ -65,6 +89,28 @@ English: A debounced locked short release schedules Pico's448×72 hint after650m
 面板开合暂停未完成预绘，保留现有四槽里同代次的已完成正文；完整绘制需要时可复用这些正文，再画当前控件。覆盖面板、提示不写入正文缓存，字体/字重/抗锯齿/布局与媒体变化继续走既有完整失效。缓存未命中或内存不足直接绘制，不增加另一套常驻整帧。面板差分不计入整页自动清理次数，手动全刷和正文周期清理继续保留。
 
 English: Overlay tools/primary settings only over verified unchanged text, retaining existing body-cache/prefetch reuse. Graphical panels now use complete vendorGL48 and16-level targets in one regional settle; neither text22-phase quantization nor FastBW may handle sliders/switches. Qualifying final renders/reflows and local controls share this full-gray outlet. No measured latency claim.
+
+### 可选GL37阅读面板实验
+
+仅显式加`tools/build_firmware.py --board metalio47 --s31-reader-panel37`启用，普通构建每次强制关闭，包清单记录`experimental_reader_panel37`。按Metalio官方`erase_max=11/sat_cut=5/white_sat_cut=0/hold=3`从本机GL48派生37相，保留16级输入和灰阶尾段，不量化控件；屏蔽所有等值迁移，包括白到白补推。原GC48/GL48/DU20数据与扫描时序不变。
+
+只作用于已核对正文缓存、章节/页码/排版代次/方向/全屏和缓冲的面板叠加、同面板切换及局部控件反馈；字体或字号松手后重排的整页仍走完整48相。手动/周期清理和故障恢复优先，图文、书架/封面、首页/系统页面及锁屏沿各自原路径。构造仅尝试一次，波形缓冲最多3072B PSRAM；原厂裁剪器另有17408B静态工作区，S31放在外部RAM，不挤占联网内部堆，不能把这部分记为零开销。分配失败直接回到原48相；扫描失败保留原故障恢复并在本次启动停用37相。
+
+37相相对于48相少11次扫描，不等于整次交互必然提速23%：渲染、差分、供电和像素实际变色均有耗时。裁掉擦除/饱和余量可能增加残影或降低墨色稳定性，必须按实屏比较；本地包不覆盖已发布同版本固件，不影响Pico。
+
+English: Explicit `--s31-reader-panel37` alone enables vendor11/5/0/3 GL37 on verified same-body panels/sliders; regular builds force it OFF and manifests record the flag. Preserve sixteen input levels, gray tails,final holds,native tables and scan timing,holding every equal pair. Whole-body reflow,art/other pages and manual/periodic/fault cleaning retain previous owners. One3072B PSRAM LUT plus the vendor trimmer's17408B external static scratch are the added budgets,preserving internal network heap; allocation failure uses native48,while a scan fault retains recovery and disables37 until reboot. Eleven fewer scans do not establish23% total latency improvement or equivalent optical stability; compare on hardware and keep the image local.
+
+### 两个主设置面板四灰快刷
+
+用户在200毫秒提速讨论后最终选择四灰，取代此前讨论的纯黑白。仅显式`--s31-fast-reader-panels`构建启用，清单标记`experimental_fast_reader_panels`；普通构建强制OFF。仅字体设置、阅读设置使用0/5/10/15四级，UI原13/14近白底色映射浅灰10，避免控件消失；实底先覆盖面板矩形，区域外正文/插图和历史帧不量化。不改其他设置子面板、书架、封面、锁屏或正文刷新规则，不把前次图形22相扩大试验重新全局启用。
+
+面板独立16相：黑白目标沿用官方短DU的7黑/8白预算；白起点中灰直接复用已有FOLLOW灰推；其他旧色先复用8白再推中灰，最长8白+5黑，末尾至少3相保持。没有截取GL48或正文22相，不增加白到白维护。此组合是本地实验，并非原厂提供的完整四灰标定表，墨色与残影必须实屏比较。LUT仅1024B外部RAM，无额外整帧；不受正文22相的开关/错误禁用影响。
+
+面板扫描故障本次启动禁用短表，保留既有完整恢复，后续回退37/48相；37相自身的错误禁用不能被绕过。图文底页只在已成功显示且正文/章节/页码/排版代次/图片数/方向/全屏及前后帧一致时直接覆盖，不重复解码；新实底必须覆盖完整旧面板。露出正文/图片、重排或其他不匹配仍按原路径恢复。字体/字号等真正正文重排、手动/周期清理继续完整48相。入口不为按下态预刷DU20，抬起提交一次；取消不补刷。
+
+按现有12毫秒相周期，16相名义约192毫秒，再加绘制/差分/供电；不能将此写为实测总响应已达200毫秒。此试验不加后台延迟全刷，旧37相本地包仍保留对照。
+
+English: The final choice is four grays only on the Font/Reading primary sheets. Explicit `--s31-fast-reader-panels` enables it,regular builds force OFF,and manifests record the flag. UI targets are0/5/10/15,with13/14 fills retained as10; opaque sheets leave outside text/art/history untouched. The isolated16-phase experiment combines vendor shortDU seven-black/eight-white budgets with existing white-origin FOLLOW grays; nonwhite gray transitions whiten first. The longest eight-white/five-black sequence retains three final holds,with equal whites held. This is a local combination,not a vendor-calibrated four-gray table,and does not trim GL48/text22. One1024B external LUT,no extra frame,independent body settings/faults. Guarded overlays may reuse image underlays without decoding; uncovered body/art,reflow/manual/periodic/fault recovery retains previous paths and37/48 fallback. Drop the entry DU20 press pass; cancel without scanning.192ms is nominal scanning,not measured200ms total; compare ink and ghosting on hardware without delayed background cleaning.
 
 ## S31图形短灰阶实验撤回
 
@@ -175,11 +221,11 @@ Child layouts use the1216px viewport: extend file lists, bottom-anchor directory
 
 ## S31传输与深睡恢复
 
-大于等于四个接收块的上传可使用两槽顺序写卡：HTTP只填空槽，单个后台任务按原顺序写入；每次最多增加一块接收块大小的PSRAM及4096字节内部任务栈，资源不足沿用单缓冲。任何接收/写入失败先等待已提交任务完成，再关闭、清理或替换文件。只在整个文件落盘关闭成功后确认提交。TCP接收窗口32768字节、接收邮箱32项，DMA16/动态RX32/BA32配套；乱序队列最多8包并启用SACK，省电所有权保留；USB MSC块16KiB、TF四线20MHz，始终电脑/固件独占挂载。
+大于等于四个接收块的上传可使用两槽顺序写卡：HTTP只填空槽，单个后台任务按原顺序写入；每次最多增加一块接收块大小的PSRAM及4096字节内部任务栈，资源不足沿用单缓冲。任何接收/写入失败先等待已提交任务完成，再关闭、清理或替换文件。只在整个文件落盘关闭成功后确认提交。TCP接收窗口65535字节、接收邮箱64项，静态RX默认6/动态RX64/BA12；PSRAM传书独占会话按S31 SDK建议对照16槽静态RX/BA窗口（最大16槽），普通联网与临时对时保持原6槽。乱序队列最多12包并启用SACK，省电所有权保留；USB MSC块16KiB、TF四线20MHz，始终电脑/固件独占挂载。
 
 深睡保留屏幕物理锁图，TF挂载尚未完成时不清白换图；有效快照恢复前后参考不额外扫描，缺失/损坏时仅对可独立生成的真实锁屏作一次完整输出。未知透明底图保留物理画面，禁用差分提示；实际解锁取消所有延迟恢复。PIN继续验证，异常启动字体保护和S31外设休眠顺序保持。入书/目录返回正文使用一次原厂GC48，后续正文22相及图形GL48各走既有路径。
 
-English: Large S31 uploads use two bounded ordered slots,one optional PSRAM block and4096B internal worker stack; resource failure falls back synchronously. Join before close/cleanup/commit on every path. TCP receive32768/mailbox32 with DMA16/dynamicRX32/BA32 and bounded SACK; MSC16KiB with unchanged four-bit20MHz card timing and exclusive ownership. Preserve physical deep-lock art while media is pending; trusted snapshots restore references without scanning,unknown transparent art never receives difference hints. Cancel deferred work before unlock,retain PIN/abnormal-font/board sleep guards,and clean reader entry once with vendorGC48 without changing subsequent body or graphical waveforms.
+English: Large S31 uploads use two bounded ordered slots,one optional PSRAM block and4096B internal worker stack; resource failure falls back synchronously. Join before close/cleanup/commit on every path. TCP receive65535/mailbox64,default staticRX6/dynamicRX64/BA12 and bounded12-packet SACK. PSRAM bulk sessions compare the SDK16-slot staticRX/BA minimum (capped at16),while ordinary connectivity/time sync retain6; MSC16KiB with unchanged four-bit20MHz card timing and exclusive ownership. Preserve physical deep-lock art while media is pending; trusted snapshots restore references without scanning,unknown transparent art never receives difference hints. Cancel deferred work before unlock,retain PIN/abnormal-font/board sleep guards,and clean reader entry once with vendorGC48 without changing subsequent body or graphical waveforms.
 
 文件传输服务持有BLE网络租约，停止扫描/连接并阻止主循环重启蓝牙；关闭服务后按原设置及最近设备恢复，不清配对/学习。仅连接WiFi的常驻会话不持有该租约，仍可使用蓝牙翻页器。临时扫描/联网的失败必须回滚租约；成功启动后的任何退出都释放一次。`/info`提供固件ELF身份、实际接收预算、BLE运行状态和内部RAM余量，便于核对实机；这些诊断不提供任意命令或存储访问。
 
@@ -194,3 +240,13 @@ S31 稳定 ID 为 `metalio47`，兼容 Moku 的 `metalio_s31` 构建别名。Win
 私有 S31 仓库的 CI 同时编译两块板并验证芯片、项目名、分区、启动地址和应用大小。网页完整性回归使用 `tools/fixtures/flasher` 中的固定脚本及模拟清单，不依赖未提交的官网固件；官网文件和 Pages 部署继续由公开 Pico 仓库维护。
 
 English: Moku's board manifest/facade design centralizes capabilities and unchanged budgets while keeping native backends and strict target/config guards. `metalio_s31` aliases stable `metalio47`. The PowerShell wrapper shares the Python materializer/build driver. Private CI builds both chips and validates package identities/layouts; web regressions use self-contained fixtures without publishing a site.
+
+S31 SDMMC沿用Metalio官方内部DMA中转：固定4096字节内部对齐缓冲、最多8扇区，外部RAM不直接进入SD DMA；失败挂载与成功卸载回收，卸载失败保留缓冲和卡所有权。时钟降档、四线引脚、FAT锁及USB独占流程保持。传书每两秒只对文件名/字节/进度条做局部黑白差分，失败刷新重试，网页字节发送完成后继续计时并等待设备保存确认。
+
+显式本地`--s31-transfer-startup-test`仅用于无人值守对照，启动仍保留PIN/恢复门禁，随后进入已保存网络的传书页。正常构建强制关闭并在manifest/verification记录该开关；此测试包不得交付。
+
+### Metalio 字体恢复与文件名
+
+S31正常待机后继续恢复TF上的字体与书籍句柄；临时读卡/内存失败按1、3、10、30秒间隔重试，成功手动加载可清除旧拒绝记录。已判定无效的字体仍限制自动重试，异常启动仍使用内建字库，不覆盖保存的选择。字体列表最多128款，按实际路径区分文件，标签按完整UTF-8字符截短并区分重名；仅收录`.ttf`和`.otf`，扩展名不代表所有内部格式都支持。原本超过设置路径容量的文件名才会缩短并附校验标识，保留字体内容、避开已有文件。字体上传自动规范化不适合FAT的符号，其他上传类型的路径检查保持原样。
+
+S31 resumes pending SD font/book handles after normal standby. Transient I/O/OOM failures retry after1/3/10/30seconds; a successful manual load clears old rejection. Invalid faces still limit automatic retries, and abnormal-start protection retains built-in fonts without changing saved choices. The128-entry catalogue identifies actual paths, keeps UTF-8 labels valid and distinguishes duplicates. Only `.ttf`/`.otf` are listed; extensions do not guarantee support for every outline format. Only names exceeding persisted-path capacity are shortened with a hash, retaining font bytes and avoiding existing files. Font uploads normalize FAT-incompatible symbols; other upload path checks remain unchanged.

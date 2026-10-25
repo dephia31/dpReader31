@@ -445,6 +445,10 @@ bool read_pico_pmu_take_key_wakeup(void) {
             power_double_click_push(&s_wake_click,s_snap.event.timestamp_ms);
             ESP_LOGI(TAG, "key wake %s id=%u", pmu_event_name(type), (unsigned)id);
         } else if (type == PMU_EVT_KEY_LONG) {
+            // 单击开机也认按住稍久的那次：它被 PMU 记成长按，但仍是开机的那一按。
+            // One-press boot also accepts a slightly long hold: the PMU calls it a long press,
+            // yet it is still the press that powered the host on.
+            s_scan_short = true;
             s_wake_click=(power_double_click_t){0};
         }
         if (id == 0) break;
@@ -465,7 +469,10 @@ bool read_pico_pmu_take_key_wakeup_single(void) {
         uint16_t id = s_snap.event.event_id;
         if (!id || read_pico_pmu_event_ack(id) != ESP_OK) break;
         if (type == PMU_EVT_KEY_SHORT) pressed = true;
-        else if (type == PMU_EVT_KEY_LONG) pressed = false;
+        // 单击开机/单击解锁里，按住稍久被记成长按也只是一次按键，不能要求再按一次。
+        // Under one-press boot/unlock a slightly long hold is still that single press; never
+        // ask the user for another one.
+        else if (type == PMU_EVT_KEY_LONG) pressed = true;
     }
     return pressed;
 }

@@ -97,12 +97,12 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #define MEDIA_DIR_MAX 96
 
 static app_sleep_mode_t s_sleep = APP_SLEEP_DEEP;
-static bool s_staged_shutdown;
-static uint8_t s_wake_presses = 2;
 #if KIIKO_BOARD_METALIO47
-static uint8_t s_lock_sleep;
+static bool s_staged_shutdown = true;
 #else
+static bool s_staged_shutdown;
 #endif
+static uint8_t s_wake_presses = 1;
 static bool s_home_full_refresh;
 static app_home_component_t s_home_component = APP_HOME_FOLDER;
 static uint8_t s_home_goal_minutes = 30;
@@ -213,14 +213,13 @@ void app_settings_init(void) {
     }
     raw = 0;
 #if KIIKO_BOARD_METALIO47
-    if (nvs_get_u8(h, "lock_lp", &raw) == ESP_OK && raw <= 2) s_lock_sleep = raw;
-    raw = 0;
+    if (nvs_get_u8(h, NVS_KEY_SHUTDOWN_MODE, &raw) == ESP_OK && raw <= 1)
 #else
-#endif
     if (nvs_get_u8(h, NVS_KEY_SHUTDOWN_MODE, &raw) == ESP_OK)
+#endif
         s_staged_shutdown = raw == 1;
-    raw = 2;
-    if (nvs_get_u8(h, NVS_KEY_WAKE_PRESSES, &raw) != ESP_OK || (raw != 1 && raw != 2)) raw = 2;
+    raw = 1;
+    if (nvs_get_u8(h, NVS_KEY_WAKE_PRESSES, &raw) != ESP_OK || (raw != 1 && raw != 2)) raw = 1;
     s_wake_presses = raw;
     raw = 0;
     if (nvs_get_u8(h, NVS_KEY_HOME_FULL, &raw) == ESP_OK) s_home_full_refresh = raw == 1;
@@ -424,23 +423,23 @@ void app_settings_set_sleep_mode(app_sleep_mode_t mode) {
 }
 
 bool app_settings_staged_shutdown(void) { return s_staged_shutdown; }
-#if KIIKO_BOARD_METALIO47
-uint8_t app_settings_lock_sleep(void) { return s_lock_sleep; }
-void app_settings_set_lock_sleep(uint8_t mode) {
-    if (mode > 2 || mode == s_lock_sleep) return;
-    nvs_put_u8("lock_lp", mode);
-    s_lock_sleep = mode;
-}
-#else
-#endif
 void app_settings_set_staged_shutdown(bool staged) {
     if (staged == s_staged_shutdown) return;
+#if KIIKO_BOARD_METALIO47
+    nvs_handle_t h;
+    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK) return;
+    esp_err_t err=nvs_set_u8(h,NVS_KEY_SHUTDOWN_MODE,staged?1:0);
+    if(err==ESP_OK) err=nvs_commit(h);
+    nvs_close(h);
+    if(err==ESP_OK) s_staged_shutdown=staged;
+#else
     s_staged_shutdown = staged;
     nvs_put_u8(NVS_KEY_SHUTDOWN_MODE, staged ? 1 : 0);
+#endif
 }
 uint8_t app_settings_wake_presses(void) { return s_wake_presses; }
 void app_settings_set_wake_presses(uint8_t presses) {
-    if (presses != 1) presses = 2;
+    if (presses != 2) presses = 1;
     if (presses == s_wake_presses) return;
     s_wake_presses = presses;
     nvs_put_u8(NVS_KEY_WAKE_PRESSES, presses);

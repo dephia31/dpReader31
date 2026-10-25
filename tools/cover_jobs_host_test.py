@@ -25,6 +25,8 @@ unit=r'''
 #define pdPASS 1
 typedef int portMUX_TYPE;
 static int64_t mono;
+static bool media_ready_for_jobs=true;
+static bool read_pico_sd_io_ready(void){return media_ready_for_jobs;}
 static int jobs,decodes,fonts,writes,reads,mode,fail_alloc,task_ok=1,worker_context;
 static unsigned replaced;
 static size_t live,largest;
@@ -61,6 +63,8 @@ int book_cover_load_io(const char*p,const char*t,const char*a,uint8_t*out,bool l
 static bool book_auto_cover_render(const char*p,const char*t,const char*a,unsigned w,unsigned h,uint8_t*out){(void)p;(void)t;(void)a;assert(!worker_context&&w==176&&h==240);++fonts;memset(out,33,w*h);return true;}
 static void run(void){worker_context=1;if(!setjmp(done))task_fn(NULL);worker_context=0;}
 int main(void){
+ media_ready_for_jobs=false;book_cover_job_t blocked=request("/sdcard/books/a.epub");assert(!book_cover_jobs_submit(book_cover_jobs_begin(),0,&blocked)&&!jobs&&!reads);media_ready_for_jobs=true;
+
  unsigned generation=book_cover_jobs_begin();book_cover_result_t result={0};
  book_cover_job_t q=request("A");assert(book_cover_jobs_submit(generation,0,&q));
  assert(!decodes&&!reads&&book_cover_jobs_take(generation,0,&result)==0);run();
@@ -83,6 +87,10 @@ int main(void){
  generation=book_cover_jobs_begin();q=request("A");assert(book_cover_jobs_submit(generation,0,&q));mode=1;run();
  assert(book_cover_jobs_take(generation,0,&result)==-1);assert(book_cover_jobs_take(replaced,0,&result)==1&&result.pixels[0]=='B');free(result.pixels);
  generation=book_cover_jobs_begin();q=request("N");assert(book_cover_jobs_submit(generation,0,&q));run();assert(!fonts);
+ generation=book_cover_jobs_begin();q=request("N");q.artwork_only=true;
+ int before_fonts=fonts;assert(book_cover_jobs_submit(generation,0,&q));run();
+ assert(book_cover_jobs_take(generation,0,&result)==-1&&fonts==before_fonts);
+ generation=book_cover_jobs_begin();q=request("N");assert(book_cover_jobs_submit(generation,0,&q));run();
  int old_writes=writes;assert(book_cover_jobs_take(generation,0,&result)==0&&fonts==1);run();
  assert(book_cover_jobs_take(generation,0,&result)==1&&result.pixels[0]==33&&writes==old_writes);free(result.pixels);
  generation=book_cover_jobs_begin();q=request("A");assert(book_cover_jobs_submit(generation,0,&q));mode=2;run();assert(book_cover_jobs_quiesce(1));

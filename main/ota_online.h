@@ -13,12 +13,16 @@
 #include "esp_err.h"
 
 #if KIIKO_BOARD_METALIO47
+#define PICO_OTA_IMAGE_MAX 0x500000
+#define PICO_OTA_PROJECT "Kiikoread_Metalio_S31"
 #define PICO_OTA_LAYOUT "metalio-s31-dual-5m-v1"
 #define PICO_OTA_BOARD "Metalio-EINK4-Plus-S31"
-#define PICO_OTA_CAPABILITY "METALIO_S31_LOCAL_V1"
-#define PICO_OTA_FEED_URL ""
-#define PICO_OTA_FEED_FALLBACK_URL ""
+#define PICO_OTA_CAPABILITY "METALIO_S31_HTTPS_OTA_V1"
+#define PICO_OTA_FEED_URL "https://wegooo-cell.github.io/read-pico-reader/metalio-s31-update.json"
+#define PICO_OTA_FEED_FALLBACK_URL "https://kiikoread.com/metalio-s31-update.json"
 #else
+#define PICO_OTA_IMAGE_MAX 0x400000
+#define PICO_OTA_PROJECT "Read_Pico"
 #define PICO_OTA_LAYOUT "pico-dual-4m-v1"
 #define PICO_OTA_BOARD "RDP-G01-W"
 #define PICO_OTA_CAPABILITY "PICO_HTTPS_OTA_V1"

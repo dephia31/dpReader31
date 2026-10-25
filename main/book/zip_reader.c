@@ -330,7 +330,10 @@ static esp_err_t extract_impl(zip_reader_t* z, int index, void* dst, size_t cap,
     if (entry->method == 0) {
         if (!read_at(z, data_pos, output, target)) return ESP_FAIL;
     } else {
-        uint8_t* input = heap_caps_malloc(INFLATE_CHUNK, PSRAM);
+        // 尺寸探测用小输入块，避免32字节输出也从TF读满32KiB；完整提取保留原吞吐。
+        // Use small input chunks for advisory probes; full extraction retains its bulk read size and CRC.
+        const size_t input_cap = prefix ? (target <= 512 ? 512 : 4096) : INFLATE_CHUNK;
+        uint8_t* input = heap_caps_malloc(input_cap, PSRAM);
         tinfl_decompressor* state = heap_caps_malloc(sizeof(*state), PSRAM);
         if (!input || !state) { free(input); free(state); return ESP_ERR_NO_MEM; }
 #if KIIKO_BOARD_METALIO47
@@ -345,7 +348,7 @@ static esp_err_t extract_impl(zip_reader_t* z, int index, void* dst, size_t cap,
             size_t remaining = entry->packed, buffered = 0, consumed = 0, produced = 0;
             while (ok) {
                 if (consumed == buffered && remaining) {
-                    buffered = remaining < INFLATE_CHUNK ? remaining : INFLATE_CHUNK;
+                    buffered = remaining < input_cap ? remaining : input_cap;
 #if KIIKO_BOARD_METALIO47
                     if(packed)memcpy(input,packed+entry->packed-remaining,buffered);
                     else if (fread(input, 1, buffered, z->file) != buffered) { ok = false; break; }

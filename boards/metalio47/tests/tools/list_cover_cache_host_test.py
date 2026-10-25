@@ -39,6 +39,7 @@ static int error;
 static bool decode_fail;
 static bool book_title_from_path(const char *p,char *out,size_t n){(void)p;snprintf(out,n,"title");return true;}
 size_t heap_caps_get_free_size(unsigned flags){assert(flags==3);return available;}
+size_t heap_caps_get_largest_free_block(unsigned flags){assert(flags==3);return available;}
 void *heap_caps_malloc(size_t n,unsigned flags){assert(flags==3);return malloc(n);}
 void *heap_caps_calloc(size_t n,size_t size,unsigned flags){assert(flags==3);return calloc(n,size);}
 static esp_err_t book_epub_cover_bounded(const char *p,uint8_t **data,size_t *bytes,bool *png,size_t budget){(void)p;assert(budget<=4u*1024u*1024u&&budget+1536u*1024u<=available);++requests;if(error)return error;*data=malloc(1);assert(*data);**data=1;*bytes=1;*png=false;return ESP_OK;}

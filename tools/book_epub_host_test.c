@@ -170,7 +170,9 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < chapters; ++i) {
             char title[160]; html_text_t text = {0};
             assert(book_epub_chapter_title(book, i, title, sizeof(title)) == ESP_OK);
-            assert(title[0]);
+            // 既无题头也无目录名的页不再编造「第 N 节」。/ Pages with neither heading nor TOC label stay unnamed.
+            assert(title[0] || (strstr(argv[a], "good_resources") && i == 0));
+            if (title[0]) {
             if (frontmatter && i == 0) assert(!strcmp(title, "作者信息"));
             else if (strstr(argv[a], "good_defaults") || (frontmatter && i > 0 && strstr(argv[a], "fallback")))
                 assert(!strncmp(title, "Chapter ", strlen("Chapter ")));
@@ -179,6 +181,7 @@ int main(int argc, char **argv) {
             if (strstr(argv[a], "good_navfallback") || strstr(argv[a], "good_navrole") ||
                 strstr(argv[a], "good_navtype") || strstr(argv[a], "good_navunmarked"))
                 assert(!strncmp(title, "NAV ", 4));
+            }
             uint32_t offset = book_epub_chapter_byte_offset(book, i);
             assert(i ? offset > previous : offset == 0); previous = offset;
             assert(book_epub_load(book, i, &text) == ESP_OK);

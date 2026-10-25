@@ -242,10 +242,11 @@ enum EpdDrawError continuous_du_scan(EpdiyHighlevelState* hl, EpdRect area) {
     memset(hl->dirty_lines, 0, sizeof(bool) * height);
     memset(hl->dirty_columns, 0, width / 2);
 
+    const int pending_before = s_pending;
     bool any = false;
     for (int y = y0; y <= y1; y++) {
         const size_t offset = (size_t)y * width;
-        const int8_t* state_row = s_states + offset;
+        int8_t* state_row = s_states + offset;
         uint8_t* diff_row = difference + offset;
         for (int x = x0; x <= x1; x++) {
             const int8_t state = state_row[x];
@@ -254,11 +255,14 @@ enum EpdDrawError continuous_du_scan(EpdiyHighlevelState* hl, EpdRect area) {
             // / difference is (dest gray << 4) | src gray. 0x0F is 15→0 darken,
             // 0xF0 is 0→15 erase; 0x88 hits a mid-gray LUT row and does not drive.
             diff_row[x] = state > 0 ? 0x0F : (state < 0 ? 0xF0 : 0x88);
-            if (state != 0) {
-                hl->dirty_lines[y] = true;
-                hl->dirty_columns[x / 2] |= (x & 1) ? 0xF0 : 0x0F;
-                any = true;
-            }
+            if (state == 0) continue;
+            hl->dirty_lines[y] = true;
+            hl->dirty_columns[x / 2] |= (x & 1) ? 0xF0 : 0x0F;
+            any = true;
+            // 先预减相位节省正常帧的第二遍遍历，失败时再回滚。
+            // Speculatively decrement to save a pass on successful draws; roll back failures.
+            if (state > 0) { if (state_row[x] == 1) s_pending--; state_row[x] = (int8_t)(state - 1); }
+            else { if (state_row[x] == -1) s_pending--; state_row[x] = (int8_t)(state + 1); }
         }
     }
     if (!any) return EPD_DRAW_SUCCESS;
@@ -278,18 +282,17 @@ enum EpdDrawError continuous_du_scan(EpdiyHighlevelState* hl, EpdRect area) {
         hl->dirty_columns,
         &continuous_du_waveform
     );
-    if (err != EPD_DRAW_SUCCESS) return err;
-
-    for (int y = y0; y <= y1; y++) {
-        int8_t* state_row = s_states + (size_t)y * width;
-        for (int x = x0; x <= x1; x++) {
-            int8_t* state = &state_row[x];
-            if (*state > 0) {
-                if (--*state == 0) s_pending--;
-            } else if (*state < 0) {
-                if (++*state == 0) s_pending--;
+    // 失败没有交付相位；按差分方向回滚预减计数，正常帧仍只遍历一次。
+    // A failed draw delivered no phase: undo the speculative decrement only on failure.
+    if (err != EPD_DRAW_SUCCESS) {
+        for (int y = y0; y <= y1; ++y) {
+            size_t offset = (size_t)y * width;
+            for (int x = x0; x <= x1; ++x) {
+                if (difference[offset + x] == 0x0f) ++s_states[offset + x];
+                else if (difference[offset + x] == 0xf0) --s_states[offset + x];
             }
         }
+        s_pending = pending_before;
     }
-    return EPD_DRAW_SUCCESS;
+    return err;
 }

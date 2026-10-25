@@ -21,6 +21,9 @@ void app_files_request_folder(int folder);
 void app_book_request_manage(void);
 bool app_book_reader_body_visible(void);
 #if KIIKO_BOARD_METALIO47
+#include "app/app.h"
+/// 阅读音量键固定翻页；非阅读返回false，由原页面处理。/ Fixed volume turns in the reader; false delegates non-reader views to their existing keys.
+bool app_book_volume_key(app_ctx_t *ctx, int direction, app_redraw_t *redraw);
 /// 仅当前正文允许AI书签，复用原书签保存/提示。/ AI bookmark only on the visible reader body, using existing persistence/notices.
 bool app_book_ai_bookmark(void);
 #endif

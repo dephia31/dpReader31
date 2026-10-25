@@ -154,6 +154,8 @@ void ui_text_fixed_context_aa_vc(uint8_t *fb,int x,int center_y,int px,const cha
 /// 标题复用当前活动字体并按固定字号截短：首页系统字体、阅读页阅读字体；不加载第二份字体。
 /// Fit titles in the active face at a fixed size: Home's system face or the reader face, without loading a second font.
 int ui_text_title_fit(char *text, int preferred_px, int width, const char *font_sample);
+/// Measure with exactly the face selected by title drawing, without altering the title.
+int ui_text_title_width_px(int px, const char *text, const char *font_sample);
 /// 当前页字体按目标字号直接绘制灰阶抗锯齿标题，视觉中心对齐，不受系统字号缩放影响。
 /// Rasterize the active face directly with gray antialiasing at the target size, visually centered and independent of UI scaling.
 void ui_text_title_vc(uint8_t *fb, int x, int center_y, int px, const char *text,

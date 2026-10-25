@@ -36,16 +36,30 @@ enum EpdRotation epd_get_rotation(void) {return EPD_ROT_INVERTED_PORTRAIT;}
 void* heap_caps_aligned_alloc(size_t a,size_t b,unsigned c) {(void)a;(void)b;(void)c;assert(false);return NULL;}
 void heap_caps_free(void* p) {(void)p;assert(false);}
 const EpdWaveform* display_main_gray_waveform(void) {return &E0470_WAVEFORM;}
+static const EpdWaveform panel37_wave={7};
+static bool panel37_available;
+const EpdWaveform* display_reader_panel37_waveform(void){return panel37_available?&panel37_wave:NULL;}
+static bool fast_panels;
+static const EpdWaveform panel4_wave={8},panel4_entry_wave={9};
+bool display_reader_fast_panels_enabled(void){return fast_panels;}
+const EpdWaveform* display_reader_panel_gray4_waveform(bool erase){return fast_panels?(erase?&panel4_entry_wave:&panel4_wave):NULL;}
+bool display_reader_panel_gray4_prepare(uint8_t*fb,EpdRect area){(void)area;return fb!=NULL;}
+
 const EpdWaveform* display_main_shelf_exit_waveform(void) {return &E0470_WAVEFORM;}
 static const EpdWaveform soft_gray = {4};
 static const EpdWaveform reader_soft = {5};
 static const EpdWaveform quiet_nav = {6};
 const EpdWaveform* display_main_navigation_waveform(void){return &quiet_nav;}
 const EpdWaveform* display_reader_text_waveform(void) {return &reader_soft;}
-enum EpdDrawError e0470_text_turn_with_waveform(EpdiyHighlevelState* hl, EpdRect area,
-    e0470_turn_dir_t dir, const EpdWaveform* waveform) {
-    (void)hl;(void)area;(void)dir;(void)waveform;assert(false);return EPD_DRAW_OTHER_ERROR;
+static enum EpdDrawError draw(EpdiyHighlevelState*,enum EpdDrawMode,int,bool);
+static int panel_entry_batches;
+enum EpdDrawError e0470_text_turn_with_waveform(EpdiyHighlevelState* hl,EpdRect area,
+    e0470_turn_dir_t dir,const EpdWaveform* waveform){
+    assert(ota_display_depth&&waveform==&panel4_entry_wave&&dir==E0470_TURN_RTL);
+    (void)area;++panel_entry_batches;epd_hl_waveform(hl,waveform);
+    return draw(hl,MODE_GL16,25,true);
 }
+
 const EpdWaveform* display_main_water_waveform(void) {return &soft_gray;}
 const EpdWaveform* display_main_normal_waveform(void) { return display_main_water_waveform(); }
 const EpdWaveform* display_main_page_gray_waveform(void){return display_main_normal_waveform();}
@@ -242,6 +256,58 @@ int main(void) {
     assert(last_mode == MODE_GC16 && waveform_at_draw == &E0470_FULL_WAVEFORM &&
            hl.waveform == &E0470_WAVEFORM);
 
+    // 即使调用方仍在黑白/底栏作用域，图片专用出口也保留所有十六级目标并恢复原策略。
+    // Even inside inherited BW/navigation scopes, the image outlet preserves all sixteen targets and restores the prior policy.
+    for (unsigned binary=0;binary<2;++binary) for(unsigned nav=0;nav<2;++nav) {
+        for(size_t i=0;i<FB_BYTES;++i)front[i]=target[i]=(uint8_t)((i%16)*17);
+        display_system_binary_set(binary);display_system_navigation_set(nav);
+        int before=draws;
+        assert(update_display_image_gray(&hl)==EPD_DRAW_SUCCESS);
+        assert(draws==before+1 && last_mode==MODE_GC16 && waveform_at_draw==&E0470_FULL_WAVEFORM);
+        assert(correct_target_at_draw && !memcmp(front,target,FB_BYTES));
+        assert(display_system_binary_set(false)==(bool)binary);
+        assert(display_system_navigation_set(false)==(bool)nav);
+    }
+
+    // 显式面板37相：不量化目标、沿用FULL扫描时序；普通/清理保持48相。
+    // Explicit37-phase panels keep every gray/full scan timing; ordinary/final cleaning retains48 phases.
+    EpdRect panel_area={0,580,684,636};panel37_available=true;
+    for(unsigned binary=0;binary<2;++binary)for(unsigned nav=0;nav<2;++nav){
+        for(size_t i=0;i<FB_BYTES;++i)front[i]=target[i]=(uint8_t)((i%16)*17);
+        memset(back,0x55,FB_BYTES);
+        display_system_binary_set(binary);display_system_navigation_set(nav);
+        int prior_full=full_draws;
+        assert(update_display_reader_panel_fast(&hl,panel_area)==EPD_DRAW_SUCCESS);
+        assert(last_mode==MODE_GL16&&waveform_at_draw==&panel37_wave&&full_draws==prior_full);
+        assert(last_scan==READ_PICO_EPD_SCAN_FULL&&correct_target_at_draw&&!memcmp(front,target,FB_BYTES));
+        assert(display_system_binary_set(false)==(bool)binary&&display_system_navigation_set(false)==(bool)nav);
+    }
+    assert(update_display_reader_panel(&hl,panel_area)==EPD_DRAW_SUCCESS&&waveform_at_draw==&E0470_WAVEFORM);
+    panel37_available=false;
+    assert(update_display_reader_panel_fast(&hl,panel_area)==EPD_DRAW_SUCCESS&&waveform_at_draw==&E0470_WAVEFORM);
+    panel37_available=true;display_request_full_refresh();
+    assert(update_display_reader_panel_fast(&hl,panel_area)==EPD_DRAW_SUCCESS&&last_mode==MODE_GC16&&waveform_at_draw==&E0470_FULL_WAVEFORM);
+    next_draw_error=EPD_DRAW_OTHER_ERROR;
+    assert(update_display_reader_panel_fast(&hl,panel_area)==EPD_DRAW_OTHER_ERROR&&waveform_at_draw==&panel37_wave);
+    assert(update_display_reader_panel_fast(&hl,panel_area)==EPD_DRAW_SUCCESS&&last_mode==MODE_GC16&&waveform_at_draw==&E0470_FULL_WAVEFORM);
+    assert(update_display_reader_panel_fast(&hl,panel_area)==EPD_DRAW_SUCCESS&&last_mode==MODE_GL16&&waveform_at_draw==&E0470_WAVEFORM);
+    puts("reader panel GL37: all target grays retained, native48 default/OOM/full/fault fallback, scoped policy and unchanged scan timing passed");
+    fast_panels=true;
+    for(unsigned binary=0;binary<2;++binary)for(unsigned nav=0;nav<2;++nav)for(unsigned entry=0;entry<2;++entry){
+        for(size_t i=0;i<FB_BYTES;++i)front[i]=target[i]=(uint8_t)((i%4)*85);
+        display_system_binary_set(binary);display_system_navigation_set(nav);
+        int prior_batches=panel_entry_batches;
+        assert(update_display_reader_panel_gray4(&hl,panel_area,entry)==EPD_DRAW_SUCCESS&&waveform_at_draw==(entry?&panel4_entry_wave:&panel4_wave)&&last_mode==MODE_GL16);
+        assert(correct_target_at_draw&&!memcmp(front,target,FB_BYTES)&&last_scan==READ_PICO_EPD_SCAN_FULL);
+        assert(panel_entry_batches==prior_batches+(int)entry);
+        assert(display_system_binary_set(false)==(bool)binary&&display_system_navigation_set(false)==(bool)nav);
+    }
+    next_draw_error=EPD_DRAW_OTHER_ERROR;
+    assert(update_display_reader_panel_gray4(&hl,panel_area,true)==EPD_DRAW_OTHER_ERROR);
+    assert(update_display_reader_panel_gray4(&hl,panel_area,true)==EPD_DRAW_SUCCESS&&last_mode==MODE_GC16&&waveform_at_draw==&E0470_FULL_WAVEFORM);
+    assert(update_display_reader_panel_gray4(&hl,panel_area,true)==EPD_DRAW_SUCCESS&&last_mode==MODE_GL16&&waveform_at_draw==&E0470_WAVEFORM);
+    fast_panels=false;
+    puts("reader four-gray panel: entry uses one exact-crop batch,feedback remains diff,target preservation, shared37 fault disable and one native48 recovery passed");
     // 撤回跟手滚动后，解锁的下一帧仍须全刷一次，随后恢复局部差分。
     // Removing follow scrolling must retain exactly one full update on the next wake frame, then resume local differences.
     int before_wake_full = full_draws;

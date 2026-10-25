@@ -32,6 +32,9 @@ static int ioe=1,mutex,io_calls,io_fail_at,io_taken,delay_ms,irq_low,key_low;
 static uint8_t outputs[2]={0x20,0x14},latches[2],config[2];
 static bool paused,usb,transfer_busy,ble_failed,deep_success;
 static void *s_lock_sleep_touch;
+static bool s_lock_io_pending,deep_pins,deep_rails,deep_touch;
+static int hardware_error;static bool late_usb;
+#define CST836U_MODE_DEEPSLEEP 3
 static unsigned network_resumes;
 static int font_closed,sd_closed,sd_error,restored,hold_calls,lcd_deinit,wake_source,sleep_calls;
 static unsigned waits,wait_timeouts;
@@ -48,13 +51,22 @@ static void vTaskDelay(int ms){delay_ms+=ms;assert(delay_ms<5000);}
 static int read_pico_ioe_int_level(void){return !irq_low;}
 static int esp_sleep_disable_wakeup_source(int source){assert(source==ESP_SLEEP_WAKEUP_ALL);wake_source=0;return ESP_OK;}
 static int esp_sleep_enable_ext1_wakeup_io(uint64_t mask,int mode){assert(mask==4&&mode==ESP_EXT1_WAKEUP_ANY_LOW);wake_source=1;return ESP_OK;}
-static bool metalio_usb_blocks_sleep(void){return usb;}
+static bool metalio_usb_blocks_sleep(void){return usb||(late_usb&&sd_closed);}
 static bool read_pico_transfer_pause_for_sleep(void){return !transfer_busy;}
 static void read_pico_transfer_resume_after_sleep(void){++network_resumes;}
 static int ble_pt_suspend_for_sleep(void){return ble_failed?-1:ESP_OK;}
 static int app_sync_time_to_pmu(void){return ESP_OK;}
 static void app_font_begin_lock(app_lock_font_t *font){assert(!font_closed);font->reading=true;}
 static void app_font_end_lock(const app_lock_font_t *font){assert(font->reading);font_closed=0;restored++;}
+static int ttf_font_suspend_io(void){return 0;}
+static int lock_resume_media_io(unsigned wait){assert(wait==15000);s_lock_io_pending=false;return 0;}
+static int cst836u_set_mode(void *t,int mode){assert(t&&mode==3);if(hardware_error==1)return -3;deep_touch=true;return 0;}
+static int cst836u_wake(void *t){assert(t);deep_touch=false;return 0;}
+static int metalio_prepare_light_sleep_pins(void){deep_pins=true;return hardware_error==2?-3:0;}
+static void metalio_release_light_sleep_pins(void){deep_pins=false;}
+static int metalio_sleep_cut_rails(uint16_t *saved){*saved=123;deep_rails=true;return hardware_error==3?-3:0;}
+static int metalio_sleep_restore_rails(uint16_t saved){assert(saved==123);deep_rails=false;return 0;}
+static void read_pico_epd_restore_lcd(void){lcd_deinit=0;}
 static int ttf_font_open_builtin(void){font_closed++;return ESP_OK;}
 static int read_pico_sd_sync(void){if(!sd_error)sd_closed++;return sd_error;}
 static void metalio_frontlight(unsigned b,unsigned w){assert(!b&&w==50);}
@@ -68,7 +80,7 @@ static void metalio_haptic_resume(void){++resumes;}
 static void metalio_poweroff(void){++off_calls;}
 static void epd_lcd_deinit(void){++lcd_deinit;}
 static void metalio_hold_for_deep_sleep(void){++hold_calls;}
-static void esp_deep_sleep_start(void){++sleep_calls;assert(wake_source&&paused&&font_closed&&sd_closed&&hold_calls&&lcd_deinit);deep_success=true;longjmp(deep,1);}
+static void esp_deep_sleep_start(void){++sleep_calls;assert(wake_source&&paused&&font_closed&&sd_closed&&hold_calls&&lcd_deinit&&deep_pins&&deep_rails);deep_success=true;longjmp(deep,1);}
 static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc&&ms==0);return ++waits<=wait_timeouts?APP_WAKE_TIMEOUT:APP_WAKE_KEY;}
 '''
 for name in ('metalio_io_read','metalio_prepare_key_wake','metalio_restore_key_io'):
@@ -76,8 +88,8 @@ for name in ('metalio_io_read','metalio_prepare_key_wake','metalio_restore_key_i
 for name in ('lock_restore_key_wake','lock_prepare_key_wake','app_enter_host_sleep','lock_wait_for_unlock'):
     unit+=function(name,root/'main/sleep.c')+'\n'
 unit+=r'''
-static void reset(void){io_calls=io_fail_at=io_taken=delay_ms=irq_low=key_low=font_closed=sd_closed=sd_error=restored=hold_calls=lcd_deinit=wake_source=sleep_calls=0;paused=usb=transfer_busy=ble_failed=deep_success=false;config[0]=0xc0;config[1]=0xe3;latches[0]=outputs[0];latches[1]=outputs[1];waits=wait_timeouts=0;}
-static void intact(void){assert(!font_closed&&!sd_closed&&!hold_calls&&!lcd_deinit&&!sleep_calls&&!paused);assert(config[0]==0xc0&&config[1]==0xe3&&latches[0]==0x20&&latches[1]==0x14);}
+static void reset(void){io_calls=io_fail_at=io_taken=delay_ms=irq_low=key_low=font_closed=sd_closed=sd_error=restored=hold_calls=lcd_deinit=wake_source=sleep_calls=0;paused=usb=transfer_busy=ble_failed=deep_success=false;config[0]=0xc0;config[1]=0xe3;latches[0]=outputs[0];latches[1]=outputs[1];waits=wait_timeouts=0;s_lock_sleep_touch=NULL;s_lock_io_pending=deep_pins=deep_rails=deep_touch=late_usb=false;hardware_error=0;}
+static void intact(void){assert(!font_closed&&!sd_closed&&!hold_calls&&!lcd_deinit&&!sleep_calls&&!paused&&!deep_pins&&!deep_rails&&!deep_touch&&!s_lock_io_pending);assert(config[0]==0xc0&&config[1]==0xe3&&latches[0]==0x20&&latches[1]==0x14);}
 int main(void){
  reset();assert(app_enter_host_sleep(99)==ESP_ERR_INVALID_ARG);intact();
  reset();online=true;assert(app_enter_host_sleep(APP_SLEEP_DEEP)==ESP_ERR_NOT_FINISHED);intact();online=false;
@@ -96,9 +108,15 @@ int main(void){
  unsigned keep_ble=ble_resumes,keep_net=network_resumes;
  assert(app_enter_host_sleep(APP_SLEEP_DEEP)==-1);assert(ble_resumes==keep_ble&&network_resumes==keep_net);intact();s_lock_sleep_touch=NULL;
  reset();if(!setjmp(deep)){app_enter_host_sleep(APP_SLEEP_DEEP);assert(0);}assert(deep_success&&sleep_calls==1);
+ // Touch, bus and partial-rail failures roll back every changed resource without unlocking.
+ for(int e=1;e<=3;e++){
+  reset();s_lock_sleep_touch=(void*)1;hardware_error=e;
+  assert(app_enter_host_sleep(APP_SLEEP_DEEP)==-3);intact();
+ }
+ reset();late_usb=true;assert(app_enter_host_sleep(APP_SLEEP_DEEP)==ESP_ERR_INVALID_STATE);intact();
  // A timeout handoff that returns never unlocks; only the third, real key wake exits this loop.
  reset();usb=true;wait_timeouts=2;lock_wait_for_unlock((void*)1);assert(waits==3&&!sleep_calls);intact();
- puts("PASS: production reference TCA mask/P17-only wake, all 9 I2C faults, stuck IRQ/held key/USB/radio deferral before TF closure, SD-failure font restore, deep admission, and timeout cannot unlock");
+ puts("PASS: production reference TCA mask/P17-only wake, all 9 I2C faults, stuck IRQ/held key/USB/radio deferral before TF closure, SD-failure font restore, deep rail/touch/bus transaction and rollback, late USB deferral, and timeout cannot unlock");
 }
 '''
 with tempfile.TemporaryDirectory() as d:

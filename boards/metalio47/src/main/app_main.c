@@ -48,6 +48,7 @@
 #include "usb_storage.h"
 #include "app_font_context.h"
 #include "ui_kit.h"
+#include "ui_font.h"
 #include "vcom_setup.h"
 #include "debug_panel.h"
 
@@ -68,8 +69,6 @@ static void restore_time_from_pmu(void) {
 
 extern const uint8_t lock_4bpp_bin_start[] asm("_binary_lock_4bpp_bin_start");
 extern const uint8_t lock_4bpp_bin_end[] asm("_binary_lock_4bpp_bin_end");
-extern const uint8_t loading_4bpp_bin_start[] asm("_binary_loading_4bpp_bin_start");
-extern const uint8_t loading_4bpp_bin_end[] asm("_binary_loading_4bpp_bin_end");
 
 // VCOM 从 NVS 读取（默认 3000，实测最优）。V1.5 没有 Pico PMU，标定值只存本机 NVS。
 // Load VCOM from NVS (3000 by default, the measured optimum). V1.5 has no Pico
@@ -93,19 +92,50 @@ static bool volume_key_held(void) {
     return pressed_first && pressed_again;
 }
 
-// 开机图和锁屏图是预先转好的 4bpp 全屏位图，尺寸对不上说明资源和面板不匹配。
-// Splash and lock images are pre-baked 4bpp full-frames. A size mismatch
-// means the assets do not match the panel.
+// 锁屏后备位图保留面板尺寸检查；冷启动改用现有内建字形绘制。
+// Keep the panel-size check for fallback lock art; draw the cold splash using existing built-in glyphs.
 static bool images_match_panel(void) {
     size_t lock_size = (size_t)(lock_4bpp_bin_end - lock_4bpp_bin_start);
-    size_t loading_size = (size_t)(loading_4bpp_bin_end - loading_4bpp_bin_start);
     size_t expected = (size_t)epd_width() * epd_height() / 2;
-    if (lock_size == expected && loading_size == expected) return true;
+    if (lock_size == expected) return true;
     ESP_LOGE(
-        TAG, "Image size mismatch: lock %u loading %u expected %u",
-        (unsigned)lock_size, (unsigned)loading_size, (unsigned)expected
+        TAG, "Image size mismatch: lock %u expected %u",
+        (unsigned)lock_size, (unsigned)expected
     );
     return false;
+}
+
+static void draw_startup_frame(uint8_t *framebuffer) {
+    ui_clear_page(framebuffer);
+    const int cx = epd_rotated_display_width() / 2;
+    const int cy = epd_rotated_display_height() / 2;
+    static const char *const wordmark[] = {"K", "i", "i", "k", "o", "r", "e", "a", "d"};
+    static const char *const caption[] = {"准", "备", "资", "源"};
+    const struct {
+        const char *text;
+        const char *const *letters;
+        int count, px, tracking, gray, center_y;
+    } lines[] = {
+        {"Kiikoread", wordmark, 9, 72, 2, 0, cy - 50},
+        {"准备资源", caption, 4, 24, 8, 7, cy + 20},
+    };
+    // 以实际字宽居中，疏朗品牌字距与浅灰提示形成层次，不引入新的字体或位图。
+    // Center measured advances; tracked branding and a muted caption add hierarchy without new fonts or bitmaps.
+    for (size_t row = 0; row < sizeof(lines) / sizeof(lines[0]); ++row) {
+        int above = 0, below = 0;
+        ui_font_measure_line_px(lines[row].px, lines[row].text, &above, &below);
+        int width = (lines[row].count - 1) * lines[row].tracking;
+        for (int i = 0; i < lines[row].count; ++i)
+            width += ui_font_text_width_px(lines[row].px, lines[row].letters[i]);
+        int x = cx - width / 2;
+        const int baseline = lines[row].center_y + (above - below) / 2;
+        for (int i = 0; i < lines[row].count; ++i) {
+            ui_font_draw_text_px(framebuffer, x, baseline, lines[row].px,
+                                lines[row].letters[i], EPD_DRAW_ALIGN_LEFT,
+                                lines[row].gray, 15, false);
+            x += ui_font_text_width_px(lines[row].px, lines[row].letters[i]) + lines[row].tracking;
+        }
+    }
 }
 
 // 深睡保持原物理锁图；卡与参考帧稍后就绪，不能用临时圆锁覆盖。
@@ -117,7 +147,7 @@ static bool prepare_startup_frame(EpdiyHighlevelState *hl,uint8_t *framebuffer,b
     epd_clear();
     epd_hl_set_all_white(hl);
     if(resuming)ui_lock_fallback_draw(framebuffer);
-    else ui_draw_full_image(framebuffer,loading_4bpp_bin_start);
+    else draw_startup_frame(framebuffer);
     update_display_from_white(hl);
     return false;
 }
@@ -212,6 +242,15 @@ void app_main(void) {
         else app_font_activate_system();
     }
     rp_boot_mark("resume");
+#ifdef KIIKO_LOCAL_TRANSFER_START
+    // Explicit unattended local tests only; preserve PIN and recovery gates.
+    if (!lock_pin_enabled() && first == app_home_page()) {
+        extern const app_desc_t app_transfer;
+        extern void app_transfer_request_wifi_upload(void);
+        app_transfer_request_wifi_upload();
+        first = &app_transfer;
+    }
+#endif
     app_loop_run(&(app_loop_config_t){
         .hl = &hl,
         .fb = framebuffer,

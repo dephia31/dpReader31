@@ -90,11 +90,17 @@ def export(build, output, board):
     cache = build / 'CMakeCache.txt'
     experimental_pie = board == 'metalio47' and cache.exists() and 'METALIO_PIE_PIXELS:BOOL=ON' in cache.read_text()
     experimental_ripple = board == 'metalio47' and cache.exists() and 'METALIO_TEXT_RIPPLE_EXPERIMENT:BOOL=ON' in cache.read_text()
+    experimental_panel37 = board == 'metalio47' and cache.exists() and 'METALIO_READER_PANEL37_EXPERIMENT:BOOL=ON' in cache.read_text()
+    experimental_fast_panels = board == 'metalio47' and cache.exists() and 'METALIO_FAST_READER_PANELS:BOOL=ON' in cache.read_text()
     experimental_network = board == 'metalio47' and cache.exists() and 'METALIO_NETWORK_PROBE:BOOL=ON' in cache.read_text()
+    transfer_start = board == 'metalio47' and cache.exists() and 'METALIO_LOCAL_TRANSFER_START:BOOL=ON' in cache.read_text()
     manifest = {'name': info['name'], 'version': identity['version'], 'board': board,
                 'experimental_pie_pixels': bool(experimental_pie),
                 'experimental_text_ripple': bool(experimental_ripple),
+                'experimental_reader_panel37': bool(experimental_panel37),
+                'experimental_fast_reader_panels': bool(experimental_fast_panels),
                 'experimental_network_probe': bool(experimental_network),
+                'local_transfer_start_test': bool(transfer_start),
                 'project': identity['project'], 'new_install_prompt_erase': False,
                 'builds': [{'chipFamily': 'ESP32-S3' if board == 'pico' else 'ESP32-S31', 'parts': []}]}
     checksums, args = [], [shlex.join(plan['write_flash_args'])]
@@ -124,7 +130,10 @@ def export(build, output, board):
               'esptool_stub': loader['stub'], 'free_app_bytes': entries['ota_0'][3] - identity['size'],
               'experimental_pie_pixels': bool(experimental_pie),
               'experimental_text_ripple': bool(experimental_ripple),
-                'experimental_network_probe': bool(experimental_network),
+              'experimental_reader_panel37': bool(experimental_panel37),
+              'experimental_fast_reader_panels': bool(experimental_fast_panels),
+              'experimental_network_probe': bool(experimental_network),
+              'local_transfer_start_test': bool(transfer_start),
               'built': True, 'device_flashed': False, 'published': False}
     (output / 'verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     with zipfile.ZipFile(output.parent / f"kiikoread-{board}-{identity['version']}-USB.zip", 'w', zipfile.ZIP_DEFLATED) as archive:
@@ -152,8 +161,11 @@ def build_one(board, args):
                '-DCCACHE_ENABLE=OFF', '-DMETALIO_LOCAL_LATENCY=OFF',
                '-DMETALIO_PIE_PIXELS=' + ('ON' if board == 'metalio47' and args.s31_pie else 'OFF'),
                '-DMETALIO_TEXT_RIPPLE_EXPERIMENT=' + ('ON' if board == 'metalio47' and args.s31_text_ripple else 'OFF'),
+               '-DMETALIO_READER_PANEL37_EXPERIMENT=' + ('ON' if board == 'metalio47' and args.s31_reader_panel37 else 'OFF'),
+               '-DMETALIO_FAST_READER_PANELS=' + ('ON' if board == 'metalio47' and args.s31_fast_reader_panels else 'OFF'),
                '-DMETALIO_UI_GRAY22_EXPERIMENT=OFF',
                '-DMETALIO_NETWORK_PROBE=' + ('ON' if board == 'metalio47' and args.s31_network_probe else 'OFF'),
+               '-DMETALIO_LOCAL_TRANSFER_START=' + ('ON' if board == 'metalio47' and getattr(args, 's31_transfer_startup_test', False) else 'OFF'),
                'reconfigure', 'build']
     if args.dry_run:
         print(json.dumps({'board': board, 'sdk': str(sdk), 'command': command}, ensure_ascii=False))
@@ -166,12 +178,20 @@ def build_one(board, args):
         lines = [line for line in path.read_text().splitlines()
                  if not any(line.startswith(key + '=') or line == '# ' + key + ' is not set'
                             for key in required)]
-        # 同步经过本地验证的S31传输缓冲，接收窗口必须匹配无线缓冲预算。
-        # Migrate validated S31 transfer buffers; receive windows must match the radio buffer budget.
-        transfer={'CONFIG_TINYUSB_MSC_BUFSIZE':'16384','CONFIG_LWIP_TCP_WND_DEFAULT':'32768',
-                  'CONFIG_LWIP_TCP_RECVMBOX_SIZE':'32','CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM':'16',
-                  'CONFIG_ESP_WIFI_RX_BA_WIN':'32','CONFIG_LWIP_TCP_OOSEQ_MAX_PBUFS':'8',
-                  'CONFIG_LWIP_TCP_SACK_OUT':'y'}
+        # 显式迁移旧配置：使用本轮S31原厂对照策略，避免旧sdkconfig掩盖defaults。
+        # Migrate old sdkconfig explicitly so it cannot hide the S31 comparison profile.
+        transfer={'CONFIG_TINYUSB_MSC_BUFSIZE':'16384','CONFIG_LWIP_TCP_WND_DEFAULT':'65535',
+                  'CONFIG_LWIP_TCP_RECVMBOX_SIZE':'64','CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM':'6',
+                  'CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM':'64','CONFIG_ESP_WIFI_RX_BA_WIN':'12',
+                  'CONFIG_ESP_WIFI_STATIC_TX_BUFFER':'y','CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER':'n',
+                  'CONFIG_ESP_WIFI_TX_BUFFER_TYPE':'0','CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM':'6',
+                  'CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM':'4','CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP':'y',
+                  'CONFIG_ESP_WIFI_IRAM_OPT':'y','CONFIG_ESP_WIFI_RX_IRAM_OPT':'y','CONFIG_ESP_WIFI_SLP_IRAM_OPT':'y',
+                  'CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL':'16','CONFIG_ESP_WIFI_RX_MGMT_BUF_NUM_DEF':'5',
+                  'CONFIG_LWIP_TCP_OOSEQ_MAX_PBUFS':'12','CONFIG_LWIP_TCP_SACK_OUT':'y','CONFIG_LWIP_TCP_SND_BUF_DEFAULT':'5760',
+                  'CONFIG_LWIP_TCPIP_RECVMBOX_SIZE':'64','CONFIG_LWIP_TCP_MSS':'1440',
+                  'CONFIG_ESP_WIFI_AMPDU_TX_ENABLED':'y','CONFIG_ESP_WIFI_AMPDU_RX_ENABLED':'y',
+                  'CONFIG_ESP_WIFI_TX_BA_WIN':'64','CONFIG_LWIP_SO_RCVBUF':'y'}
         lines=[line for line in lines if not any(line.startswith(key+'=') or line=='# '+key+' is not set' for key in transfer)]
         path.write_text('\n'.join(lines+[key+'=y' for key in required]+
                                   [key+'='+value for key,value in transfer.items()])+'\n')
@@ -216,15 +236,24 @@ def main():
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--s31-pie', action='store_true', help='Explicit local S31 PIE experiment; normal builds stay C')
     parser.add_argument('--s31-text-ripple', action='store_true', help='Explicit local S31 four-level text-ripple experiment; ordinary builds remain full grayscale')
+    parser.add_argument('--s31-reader-panel37', action='store_true', help='Explicit local S31 GL37 panel experiment; cleanup and normal builds stay native48')
+    parser.add_argument('--s31-fast-reader-panels', action='store_true', help='Explicit local four-gray16 font/reading settings experiment')
     parser.add_argument('--s31-network-probe', action='store_true', help='Local S31 read-only radio counters; not a delivery default')
+    parser.add_argument('--s31-transfer-startup-test', action='store_true', help='Unattended local S31 transfer startup; never deliver')
     args = parser.parse_args()
     args.board = canonical_board(args.board)
     if args.s31_pie and args.board == 'pico':
         parser.error('--s31-pie requires metalio47 or all')
     if args.s31_text_ripple and args.board == 'pico':
         parser.error('--s31-text-ripple requires metalio47 or all')
+    if args.s31_reader_panel37 and args.board == 'pico':
+        parser.error('--s31-reader-panel37 requires metalio47 or all')
+    if args.s31_fast_reader_panels and args.board=='pico':
+        parser.error('--s31-fast-reader-panels requires metalio47 or all')
     if args.s31_network_probe and args.board == 'pico':
         parser.error('--s31-network-probe requires metalio47 or all')
+    if args.s31_transfer_startup_test and args.board == 'pico':
+        parser.error('--s31-transfer-startup-test requires metalio47 or all')
     boards = BOARDS if args.board == 'all' else (args.board,)
     if args.list:
         print(json.dumps([metadata(board) for board in boards], ensure_ascii=False, indent=2))

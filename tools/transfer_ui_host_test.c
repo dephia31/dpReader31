@@ -303,13 +303,36 @@ int main(void) {
     assert(test_stop_count == stops_before && test_nav_index == -1);
     test_busy = false;
 #if KIIKO_BOARD_METALIO47
-    // 从READY到首个UPLOADING也不推屏，后续进度与错误/完成状态保持正确。
-    // Suppress the first READY-to-UPLOADING scan while retaining progress and completion/error ownership.
+    // Small live progress is bounded to the two-second poll, with failed scans retried.
     s_status.state=READ_PICO_TRANSFER_READY;test_status.state=READ_PICO_TRANSFER_UPLOADING;
-    test_status.cur_total=100000;test_status.cur_bytes=32000;ctx.now_ms+=3000;
-    assert(on_tick(&ctx)==APP_REDRAW_NONE&&s_status.state==READ_PICO_TRANSFER_UPLOADING&&s_status.cur_bytes==32000);
-    test_status.cur_bytes=64000;ctx.now_ms+=3000;
-    assert(on_tick(&ctx)==APP_REDRAW_NONE&&s_status.cur_bytes==64000);
+    strcpy(test_status.cur_name,"font-one.ttf");
+    test_status.cur_total=100000;test_status.cur_bytes=32000;s_poll_ms=0;ctx.now_ms=3000;
+    assert(on_tick(&ctx)==APP_REDRAW_AREA&&s_status.state==READ_PICO_TRANSFER_UPLOADING&&s_status.cur_bytes==32000);
+    int scans=test_display_calls;
+    assert(present(&ctx,APP_REDRAW_AREA)&&test_display_calls==scans+1);
+    assert(test_display_wave==display_main_bw_waveform()&&test_display_mode==MODE_DU);
+    EpdRect card=status_rect();
+    assert(test_display_area.x>card.x&&test_display_area.y>card.y);
+    assert(test_display_area.width<card.width&&test_display_area.height<card.height);
+    assert(test_display_area.y+test_display_area.height<card.y+190);
+    test_status.cur_bytes=64000;ctx.now_ms+=1000;
+    assert(on_tick(&ctx)==APP_REDRAW_NONE&&test_display_calls==scans+1);
+    ctx.now_ms+=1000;
+    assert(on_tick(&ctx)==APP_REDRAW_AREA&&s_status.cur_bytes==64000);
+    test_display_error=1;
+    assert(present(&ctx,APP_REDRAW_AREA)&&s_progress_pending);
+    ctx.now_ms+=2000;
+    assert(on_tick(&ctx)==APP_REDRAW_AREA); // Unchanged bytes must still retry.
+    test_display_error=0;
+    assert(present(&ctx,APP_REDRAW_AREA)&&!s_progress_pending);
+    ctx.now_ms+=2000;
+    assert(on_tick(&ctx)==APP_REDRAW_NONE);
+    strcpy(test_status.cur_name,"font-two.ttf");ctx.now_ms+=2000;
+    assert(on_tick(&ctx)==APP_REDRAW_AREA);
+    assert(present(&ctx,APP_REDRAW_AREA));
+    test_status.state=READ_PICO_TRANSFER_ERROR;test_status.last_error=ESP_FAIL;ctx.now_ms+=2000;
+    assert(on_tick(&ctx)==APP_REDRAW_AREA&&!s_progress_pending);
+    test_status.last_error=ESP_OK;
     test_status.state=READ_PICO_TRANSFER_READY;ctx.now_ms+=3000;
     assert(on_tick(&ctx)!=APP_REDRAW_NONE);
 #endif

@@ -91,10 +91,10 @@ esp_err_t pico_release_parse(const char *json, size_t length, pico_release_t *re
         field(root, "url", release->url, sizeof(release->url)) &&
         field(root, "sha256", release->sha256, sizeof(release->sha256)) &&
         field(root, "notes", release->notes, sizeof(release->notes)) &&
-        cJSON_IsNumber(size) && size->valuedouble >= 288 && size->valuedouble <= 0x400000 &&
+        cJSON_IsNumber(size) && size->valuedouble >= 288 && size->valuedouble <= PICO_OTA_IMAGE_MAX &&
         size->valuedouble == (uint32_t)size->valuedouble &&
         version_parts(release->version, version) && version_parts(release->minimum_base_version, base) &&
-        !strcmp(release->board, PICO_OTA_BOARD) && !strcmp(release->layout, PICO_OTA_LAYOUT) &&
+        !strcmp(release->project, PICO_OTA_PROJECT) && !strcmp(release->board, PICO_OTA_BOARD) && !strcmp(release->layout, PICO_OTA_LAYOUT) &&
         pico_release_url_valid(release->url) && strlen(release->sha256) == 64;
     if (valid) {
         for (unsigned i = 0; i < 64; ++i)

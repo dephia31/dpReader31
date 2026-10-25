@@ -27,6 +27,27 @@
 #include <dirent.h>
 #include <unistd.h>
 #if KIIKO_BOARD_METALIO47
+#include "../../main/font/font_filename.h"
+// 字体上传单独规范化名称；书籍/图片与目录上传仍使用原来的路径边界。
+// Normalize font names only; book/image/directory uploads retain their original path boundaries.
+static bool decode_font_name(const char *encoded,char *out,size_t cap) {
+    char raw[256];size_t n=0;
+    while(*encoded) {
+        unsigned char c=(unsigned char)*encoded++;
+        if(c=='%') {
+            if(!encoded[0]||!encoded[1])return false;
+            unsigned char a=(unsigned char)encoded[0],b=(unsigned char)encoded[1];
+            int hi=a>='0'&&a<='9'?a-'0':a>='a'&&a<='f'?a-'a'+10:a>='A'&&a<='F'?a-'A'+10:-1;
+            int lo=b>='0'&&b<='9'?b-'0':b>='a'&&b<='f'?b-'a'+10:b>='A'&&b<='F'?b-'A'+10:-1;
+            if(hi<0||lo<0)return false;
+            c=(unsigned char)((hi<<4)|lo);encoded+=2;
+        }
+        if(!c||n+1>=sizeof(raw))return false;
+        raw[n++]=(char)c;
+    }
+    raw[n]=0;
+    return font_filename_make(raw,out,cap,true);
+}
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -561,11 +582,25 @@ static bool s_ble_network_reserved;
 #include "esp_netif.h"
 #include "transfer_netif.h"
 #include "esp_wifi.h"
+#include "lwip/sockets.h"
+#include "lwip/tcp.h"
+#include "transfer_s31_radio_profile.h"
+static int s_active_static_rx = CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM;
+static int s_active_rx_ba = CONFIG_ESP_WIFI_RX_BA_WIN;
 #include "nvs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 
+// 对齐官方AP实现：小响应及时发送，上传仍由有界TCP窗口与写卡队列背压。
+// Match vendor AP: send small replies promptly; bounded TCP/card queues still provide upload backpressure.
+static esp_err_t transfer_socket_open(httpd_handle_t server, int socket) {
+    (void)server;
+    int enable=1;
+    if (setsockopt(socket,IPPROTO_TCP,TCP_NODELAY,&enable,sizeof(enable)) != 0)
+        ESP_LOGW("transfer","TCP_NODELAY unavailable: %d",errno);
+    return ESP_OK;
+}
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static read_pico_transfer_status_t s_status;
 static read_pico_transfer_cfg_t s_cfg;
@@ -854,6 +889,8 @@ static esp_err_t sync_time_impl(uint32_t *utc_seconds) {
     clear_secret(&wifi, sizeof(wifi));
     err = esp_wifi_start(); if (err != ESP_OK) goto time_cleanup;
     wifi_started = true;
+    stage="wifi-profile";
+    err=transfer_s31_radio_profile(WIFI_IF_STA); if(err!=ESP_OK) goto time_cleanup;
     stage="wifi-connect";
     err=time_connect(); if(err!=ESP_OK) goto time_cleanup;
     time_network_log(netif);
@@ -972,6 +1009,8 @@ esp_err_t read_pico_transfer_scan_wifi(read_pico_transfer_network_t out[READ_PIC
     stage = "wifi-start";
     err = esp_wifi_start(); if (err != ESP_OK) goto cleanup;
     started = true;
+    stage = "wifi-profile";
+    err = transfer_s31_radio_profile(WIFI_IF_STA); if(err!=ESP_OK) goto cleanup;
     // Allow the native driver start event to settle before scanning.
     vTaskDelay(pdMS_TO_TICKS(120));
     stage = "scan";
@@ -1215,8 +1254,28 @@ static esp_err_t info_handler(httpd_req_t *req) {
     cJSON_AddNumberToObject(json,"heap_internal_largest",heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
     cJSON_AddNumberToObject(json,"tcp_window",CONFIG_LWIP_TCP_WND_DEFAULT);
     cJSON_AddNumberToObject(json,"wifi_dynamic_rx",CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM);
-    cJSON_AddNumberToObject(json,"wifi_static_rx",CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM);
-    cJSON_AddNumberToObject(json,"wifi_rx_ba",CONFIG_ESP_WIFI_RX_BA_WIN);
+    cJSON_AddNumberToObject(json,"wifi_static_rx",s_active_static_rx);
+    cJSON_AddNumberToObject(json,"wifi_static_rx_default",CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM);
+    cJSON_AddNumberToObject(json,"wifi_rx_ba",s_active_rx_ba);
+    cJSON_AddNumberToObject(json,"wifi_tx_type",CONFIG_ESP_WIFI_TX_BUFFER_TYPE);
+    cJSON_AddNumberToObject(json,"wifi_static_tx",CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM);
+    cJSON_AddNumberToObject(json,"wifi_max_tx_requested",TRANSFER_S31_MAX_TX_POWER);
+#ifdef CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP
+    cJSON_AddBoolToObject(json,"wifi_lwip_psram",true);
+#else
+    cJSON_AddBoolToObject(json,"wifi_lwip_psram",false);
+#endif
+#ifdef CONFIG_ESP_WIFI_IRAM_OPT
+    cJSON_AddBoolToObject(json,"wifi_iram",true);
+#else
+    cJSON_AddBoolToObject(json,"wifi_iram",false);
+#endif
+#ifdef CONFIG_ESP_WIFI_RX_IRAM_OPT
+    cJSON_AddBoolToObject(json,"wifi_rx_iram",true);
+#else
+    cJSON_AddBoolToObject(json,"wifi_rx_iram",false);
+#endif
+
 
 #ifdef KIIKO_LOCAL_NETWORK_PROBE
     transfer_network_probe_info(json);
@@ -1617,10 +1676,20 @@ static esp_err_t upload_handler(httpd_req_t *req) {
 static esp_err_t media_upload_handler(httpd_req_t *req, const char *root, unsigned kind, size_t limit) {
     if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开管理页面\"}");
     if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"请插入 TF 卡后重试\"}");
+#if KIIKO_BOARD_METALIO47
+    char query[896], encoded[768], name[121], path[320], part[328], replace[8];
+    size_t name_cap=strlen(root)+1<160?160-strlen(root)-1:0;
+    if(name_cap>sizeof(name))name_cap=sizeof(name);
+#else
     char query[512], encoded[361], name[121], path[320], part[328], replace[8];
+#endif
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "name", encoded, sizeof(encoded)) != ESP_OK ||
+#if KIIKO_BOARD_METALIO47
+        !(kind==2?decode_font_name(encoded,name,name_cap):decode_name_limit(encoded,name,sizeof(name),kind))) return respond_error(req,400);
+#else
         !decode_name_limit(encoded, name, sizeof(name), kind)) return respond_error(req, 400);
+#endif
     if (mkdir(root, 0775) && errno != EEXIST) return respond_error(req, 507);
     int resolved = resolve_mutation_path(root, name, path, sizeof(path));
     if (resolved) return respond_error(req, resolved);
@@ -2131,8 +2200,11 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     if (err != ESP_OK) goto fail;
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
     init.nvs_enable = false; // 与原厂S31一致；凭据只由本设备设置区管理。/ Reference S31 RAM-only driver config.
+    transfer_s31_bulk_receive_config(&init, !cfg->network_only);
     err = esp_wifi_init(&init); if (err != ESP_OK) goto fail;
     s_wifi = true;
+    s_active_static_rx = init.static_rx_buf_num;
+    s_active_rx_ba = init.rx_ba_win;
     if (cfg->mode == READ_PICO_TRANSFER_MODE_AP) {
         uint8_t mac[6];
         err = esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP); if (err != ESP_OK) goto fail;
@@ -2181,6 +2253,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     http.send_wait_timeout = 15;
     http.task_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     http.lru_purge_enable = true;
+    http.open_fn = transfer_socket_open;
     ESP_LOGI("transfer", "http start internal free=%u largest=%u psram free=%u",
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
@@ -2220,10 +2293,8 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
 #ifdef KIIKO_LOCAL_NETWORK_PROBE
     transfer_network_probe_start();
 #endif
-    if (cfg->mode == READ_PICO_TRANSFER_MODE_STA && !cfg->network_only) {
-        esp_err_t power_err = esp_wifi_set_ps(WIFI_PS_NONE);
-        if (power_err != ESP_OK) ESP_LOGW("transfer", "disable wifi power save: %s", esp_err_to_name(power_err));
-    }
+    err = transfer_s31_radio_profile(cfg->mode == READ_PICO_TRANSFER_MODE_AP ? WIFI_IF_AP : WIFI_IF_STA);
+    if (err != ESP_OK) goto fail;
     if (cfg->mode == READ_PICO_TRANSFER_MODE_AP) {
         portENTER_CRITICAL(&s_lock);
         s_status.network_ready = true; strcpy(s_status.url, READ_PICO_TRANSFER_URL);

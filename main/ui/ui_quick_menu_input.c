@@ -96,7 +96,7 @@ bool ui_quick_menu_feed(ui_quick_menu_t *menu, const app_ctx_t *ctx, bool allowe
 #if KIIKO_BOARD_METALIO47
         if(menu->open && menu->hit>=4) {
             menu->slider_position=slider_position(y);
-            menu->slider_value=(menu->slider_position*100+UI_QUICK_SLIDER_RANGE/2)/UI_QUICK_SLIDER_RANGE;
+            menu->slider_value=((menu->hit==4?ui_quick_brightness_value(menu->slider_position):(unsigned)menu->slider_position)*100+UI_QUICK_SLIDER_RANGE/2)/UI_QUICK_SLIDER_RANGE;
             *action=menu->hit==4?UI_QUICK_BRIGHTNESS:UI_QUICK_WARMTH;
             return true;
         }
@@ -115,7 +115,7 @@ bool ui_quick_menu_feed(ui_quick_menu_t *menu, const app_ctx_t *ctx, bool allowe
             int position=slider_position(y);
             if(position!=menu->slider_position) {
                 menu->slider_position=position;
-                menu->slider_value=(position*100+UI_QUICK_SLIDER_RANGE/2)/UI_QUICK_SLIDER_RANGE;
+                menu->slider_value=((menu->hit==4?ui_quick_brightness_value(position):(unsigned)position)*100+UI_QUICK_SLIDER_RANGE/2)/UI_QUICK_SLIDER_RANGE;
                 *action=menu->hit==4?UI_QUICK_BRIGHTNESS:UI_QUICK_WARMTH;
             }
         }

@@ -167,9 +167,17 @@ void app_main(void) {
 
     // 单击开机：开机那一次短按就算开机，直接续读；双击开机仍停在锁屏等第二次。
     // One-press boot treats the powering short press as the boot; double-click boot still waits on the lock face.
-    const bool boot_press = read_pico_pmu_take_boot_short_press();
-    const bool boot_with_one_press = resuming && !lock_pin_enabled() && boot_press &&
+    const bool one_press_boot = resuming && !lock_pin_enabled() && hw.pmu_ready &&
         app_settings_wake_presses() == 1;
+    bool boot_press = read_pico_pmu_take_boot_short_press();
+    // 按住稍久会被 PMU 记成长按，释放也可能晚于握手；有界补等一次按键事件，避免已经按过还要再按。
+    // A slightly long hold is logged as a long press and its release can land after the handshake,
+    // so wait a bounded window for that event instead of asking for a second press.
+    for (unsigned wait = 0; one_press_boot && !boot_press && wait < 50; ++wait) {
+        boot_press = read_pico_pmu_take_key_wakeup_single();
+        if (!boot_press) vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    const bool boot_with_one_press = one_press_boot && boot_press;
     if (boot_with_one_press) {
         ESP_LOGI(TAG, "resume lock cache=%d; one-press boot", restored_lock);
         pico_boot_ready();

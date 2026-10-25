@@ -483,6 +483,10 @@ enum EpdDrawError e0470_text_turn_with_waveform(EpdiyHighlevelState* hl, EpdRect
     memset(hl->dirty_columns,0,(size_t)epd_width()/2);
     int xs=phys.x&~1,xe=(phys.x+phys.width+1)&~1;
     memset(hl->dirty_columns+xs/2,0xff,(size_t)(xe-xs)/2);
+    // 等灰重建波形不能靠边界等值保持保护相邻像素，半字节掩码必须精确到裁剪边缘。
+    // Equal-gray rebuilding cannot rely on held boundary pairs; mask neighboring nibbles exactly outside the crop.
+    if(phys.x&1)hl->dirty_columns[xs/2]&=0xf0;
+    if((phys.x+phys.width)&1)hl->dirty_columns[(xe-1)/2]&=0x0f;
     const int64_t generated=esp_timer_get_time();
     epd_clear_phase_luts();epd_poweron();
     // 一次调用复用LCD多相循环与内部1KiB LUT，避免逐相配置及64KiB外部相位表。

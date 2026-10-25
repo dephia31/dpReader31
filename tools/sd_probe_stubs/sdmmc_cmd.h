@@ -14,3 +14,5 @@ typedef struct {
 
 esp_err_t sdmmc_card_init(const sdmmc_host_t *host, sdmmc_card_t *card);
 esp_err_t sdmmc_read_sectors(sdmmc_card_t *card, void *buffer, size_t start, size_t count);
+
+esp_err_t sdmmc_get_status(sdmmc_card_t *card);

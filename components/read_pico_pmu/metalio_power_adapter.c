@@ -125,6 +125,17 @@ static void key_feed(void *arg) {
     (void)arg;
     for (;;) { keys(); vTaskDelay(pdMS_TO_TICKS(10)); }
 }
+// 原厂浅睡把EXT1解释为P17按键；TF恢复前按键已松开时仍保留一次短按。
+// Vendor light sleep identifies EXT1 as P17; retain one short click when it was released before media restoration.
+void read_pico_pmu_latch_power_wakeup(void) {
+    portENTER_CRITICAL(&key_lock);
+    if (!keys_paused && !held && action==READ_PICO_PMU_KEY_NONE) {
+        action=READ_PICO_PMU_KEY_SHORT;
+        ++s_lock_key_serial;
+        power_double_click_push(&s_wake_click,(uint32_t)(esp_timer_get_time()/1000));
+    }
+    portEXIT_CRITICAL(&key_lock);
+}
 static esp_err_t charger_update(uint8_t reg,uint8_t mask,uint8_t value) {
     uint8_t previous;
     esp_err_t err=metalio_read(0x6b,reg,&previous,1);
@@ -243,6 +254,15 @@ bool read_pico_pmu_take_key_wakeup(void) {
     // The S31 sampler queues debounced clicks/holds; a held level is not a new wake action.
     bool wake=power_double_click_take(&s_wake_click); action=READ_PICO_PMU_KEY_NONE;
     portEXIT_CRITICAL(&key_lock); return wake;
+}
+// 单击模式仍只消费已去抖的新动作；绝不使用当前 held 电平。
+// Single-press mode consumes debounced actions, never the current held level.
+bool read_pico_pmu_take_key_wakeup_single(void) {
+    portENTER_CRITICAL(&key_lock);
+    bool wake=action==READ_PICO_PMU_KEY_SHORT || action==READ_PICO_PMU_KEY_LONG;
+    action=READ_PICO_PMU_KEY_NONE; s_wake_click=(power_double_click_t){0};
+    portEXIT_CRITICAL(&key_lock);
+    return wake;
 }
 esp_err_t read_pico_pmu_report_sleep(void) { return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t read_pico_pmu_report_ready(void) { return ready?ESP_OK:ESP_ERR_INVALID_STATE; }

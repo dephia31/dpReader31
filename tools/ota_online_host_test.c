@@ -9,15 +9,27 @@
 #include <pthread.h>
 #include <sched.h>
 #include "../main/ota_online.c"
-static const esp_partition_t running={0x10000,0x400000},inactive={0x910000,0x400000},metadata={0xd10000,0x2000};
-static const esp_app_desc_t current={.version="0.3.3-rc78",.project_name="Read_Pico"};
+#if KIIKO_BOARD_METALIO47
+#define TEST_SLOT_SIZE 0x500000
+#define TEST_SLOT_1 0x510000
+#define TEST_OTA_DATA 0xd000
+#define TEST_CHIP_ID 32
+#else
+#define TEST_SLOT_SIZE 0x400000
+#define TEST_SLOT_1 0x910000
+#define TEST_OTA_DATA 0xd10000
+#define TEST_CHIP_ID 9
+#endif
+static const esp_partition_t running={0x10000,TEST_SLOT_SIZE},inactive={TEST_SLOT_1,TEST_SLOT_SIZE},metadata={TEST_OTA_DATA,0x2000};
+static const esp_app_desc_t current={.version="0.3.3-rc78",.project_name=PICO_OTA_PROJECT};
 static uint8_t firmware[4096],written[4096];static char feed[1600];
 static size_t written_size,limit;static int boot_calls,abort_calls,begin_calls,end_error,fail_task;
 static bool bad_layout,same_slot,cancel_read,again;
 static size_t drop_at;
 static int drops,open_failures,range_requests,http_opens;
 static bool wrong_range,ignored_range,primary_down;
-static int primary_feeds,fallback_feeds;
+static int primary_feeds,fallback_feeds,primary_apps,fallback_apps;
+static bool primary_app_down;
 static wifi_ps_type_t wifi_ps;
 static int ps_disabled,ps_restored;
 static int offline_polls;
@@ -28,6 +40,12 @@ static size_t internal_free=131072,internal_block=65536,external_free=1048576,ex
 static size_t failed_allocation;
 static pthread_mutex_t flash_display_mutex;
 static _Thread_local unsigned lock_depth;
+#if KIIKO_BOARD_METALIO47
+static pthread_once_t sdk_lock_once = PTHREAD_ONCE_INIT;
+static void sdk_lock_init(void) {(void)xSemaphoreCreateRecursiveMutex();}
+void spi_flash_op_lock(void) {assert(!pthread_once(&sdk_lock_once,sdk_lock_init));assert(xSemaphoreTakeRecursive((void*)3,portMAX_DELAY));}
+void spi_flash_op_unlock(void) {assert(xSemaphoreGiveRecursive((void*)3));}
+#endif
 static atomic_bool display_active;
 static void assert_flash_locked(void) {assert(lock_depth && !atomic_load(&display_active));}
 
@@ -71,9 +89,9 @@ esp_err_t esp_wifi_get_ps(wifi_ps_type_t*p){*p=wifi_ps;return ESP_OK;}
 esp_err_t esp_wifi_set_ps(wifi_ps_type_t p){wifi_ps=p;if(p==WIFI_PS_NONE)++ps_disabled;else ++ps_restored;return ESP_OK;}
 esp_err_t read_pico_transfer_sync_time_online(uint32_t*p){*p=1791200000;return ESP_OK;}
 int esp_crt_bundle_attach(void*p){(void)p;return ESP_OK;}
-esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t*c){assert(c->disable_auto_redirect&&c->crt_bundle_attach&&c->timeout_ms==15000);struct FakeHttp*h=calloc(1,sizeof(*h));h->firmware=!strstr(c->url,"update.json");h->primary=!strncmp(c->url,PICO_OTA_FEED_URL,strlen(PICO_OTA_FEED_URL));if(!h->firmware){if(h->primary)++primary_feeds;else ++fallback_feeds;}h->data=h->firmware?firmware:(const uint8_t*)feed;h->size=h->firmware?sizeof(firmware):strlen(feed);h->event_handler=c->event_handler;h->user_data=c->user_data;return h;}
+esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t*c){assert(c->disable_auto_redirect&&c->crt_bundle_attach&&c->timeout_ms==15000);struct FakeHttp*h=calloc(1,sizeof(*h));h->firmware=!strstr(c->url,"update.json");h->primary=!strncmp(c->url,PICO_OTA_FEED_URL,strlen(PICO_OTA_FEED_URL));if(!h->firmware){if(h->primary)++primary_feeds;else ++fallback_feeds;}if(h->firmware){if(!strncmp(c->url,"https://wegooo-cell.github.io/read-pico-reader/",strlen("https://wegooo-cell.github.io/read-pico-reader/"))){h->primary=true;++primary_apps;}else{h->primary=false;++fallback_apps;}}h->data=h->firmware?firmware:(const uint8_t*)feed;h->size=h->firmware?sizeof(firmware):strlen(feed);h->event_handler=c->event_handler;h->user_data=c->user_data;return h;}
 esp_err_t esp_http_client_set_header(esp_http_client_handle_t h,const char*k,const char*v){if(!strcmp(k,"Range")){unsigned long at=0;assert(sscanf(v,"bytes=%lu-",&at)==1);h->offset=at;h->at=ignored_range?0:at;++range_requests;}return ESP_OK;}
-esp_err_t esp_http_client_open(esp_http_client_handle_t h,int n){(void)n;++http_opens;assert(wifi_ps==WIFI_PS_NONE);if(!h->firmware&&h->primary&&primary_down)return ESP_FAIL;if(h->firmware&&open_failures){--open_failures;return ESP_FAIL;}return ESP_OK;}
+esp_err_t esp_http_client_open(esp_http_client_handle_t h,int n){(void)n;++http_opens;assert(wifi_ps==WIFI_PS_NONE);if(!h->firmware&&h->primary&&primary_down)return ESP_FAIL;if(h->firmware&&h->primary&&primary_app_down)return ESP_FAIL;if(h->firmware&&open_failures){--open_failures;return ESP_FAIL;}return ESP_OK;}
 int64_t esp_http_client_fetch_headers(esp_http_client_handle_t h){if(h->offset&&!ignored_range){char value[96];snprintf(value,sizeof(value),"bytes %lu-%lu/%lu",(unsigned long)(h->offset+(wrong_range?1:0)),(unsigned long)h->size-1,(unsigned long)h->size);esp_http_client_event_t event={.event_id=HTTP_EVENT_ON_HEADER,.user_data=h->user_data,.header_key="Content-Range",.header_value=value};assert(h->event_handler(&event)==ESP_OK);}return h->size-(ignored_range?0:h->offset);}
 int esp_http_client_get_status_code(esp_http_client_handle_t h){return h->offset&&!ignored_range?206:200;}
 esp_err_t esp_http_client_set_timeout_ms(esp_http_client_handle_t h,int ms){(void)h;(void)ms;return ESP_OK;}
@@ -85,7 +103,7 @@ int psa_hash_setup(psa_hash_operation_t*h,int alg){assert(alg==PSA_ALG_SHA_256);
 int psa_hash_update(psa_hash_operation_t*h,const void*p,size_t n){(void)p;h->bytes+=n;return PSA_SUCCESS;}
 int psa_hash_finish(psa_hash_operation_t*h,uint8_t*p,size_t cap,size_t*n){assert(cap==32&&h->bytes==4096);memset(p,0,32);*n=32;return PSA_SUCCESS;}
 int psa_hash_abort(psa_hash_operation_t*h){(void)h;return PSA_SUCCESS;}
-static void fixture(void){pico_online_cancel_join();internal_free=131072;internal_block=65536;external_free=1048576;external_block=524288;failed_allocation=0;memset(firmware,0,sizeof(firmware));esp_image_header_t header={.magic=0xe9,.chip_id=9};memcpy(firmware,&header,sizeof(header));esp_app_desc_t desc={.magic_word=ESP_APP_DESC_MAGIC_WORD,.version="0.3.3-rc79",.project_name="Read_Pico"};memcpy(firmware+32,&desc,sizeof(desc));snprintf(feed,sizeof(feed),"{\"schema\":1,\"version\":\"0.3.3-rc79\",\"project\":\"Read_Pico\",\"board\":\"RDP-G01-W\",\"layout\":\"pico-dual-4m-v1\",\"minimum_base_version\":\"0.3.3-rc72\",\"url\":\"https://wegooo-cell.github.io/read-pico-reader/Pico-update-0.3.3-rc79.bin\",\"sha256\":\"%064d\",\"notes\":\"test\",\"size\":4096}",0);limit=4096;bad_layout=same_slot=cancel_read=again=false;written_size=0;boot_calls=abort_calls=begin_calls=end_error=fail_task=0;}
+static void fixture(void){pico_online_cancel_join();internal_free=131072;internal_block=65536;external_free=1048576;external_block=524288;failed_allocation=0;memset(firmware,0,sizeof(firmware));esp_image_header_t header={.magic=0xe9,.chip_id=TEST_CHIP_ID};memcpy(firmware,&header,sizeof(header));esp_app_desc_t desc={.magic_word=ESP_APP_DESC_MAGIC_WORD,.version="0.3.3-rc79",.project_name=PICO_OTA_PROJECT};memcpy(firmware+32,&desc,sizeof(desc));snprintf(feed,sizeof(feed),"{\"schema\":1,\"version\":\"0.3.3-rc79\",\"project\":\"%s\",\"board\":\"%s\",\"layout\":\"%s\",\"minimum_base_version\":\"0.3.3-rc72\",\"url\":\"https://wegooo-cell.github.io/read-pico-reader/candidate.bin\",\"sha256\":\"%064d\",\"notes\":\"test\",\"size\":4096}",PICO_OTA_PROJECT,PICO_OTA_BOARD,PICO_OTA_LAYOUT,0);limit=4096;bad_layout=same_slot=cancel_read=again=false;written_size=0;boot_calls=abort_calls=begin_calls=end_error=fail_task=0;}
 static void check_download(void){wifi_ps=WIFI_PS_MIN_MODEM;ps_disabled=ps_restored=0;assert(pico_online_check()==ESP_OK);assert(pico_online_busy());run();assert(s_status->state==PICO_UPDATE_AVAILABLE&&!pico_online_busy());assert(wifi_ps==WIFI_PS_MIN_MODEM&&ps_disabled==1&&ps_restored==1);assert(pico_online_download()==ESP_OK);run();assert(wifi_ps==WIFI_PS_MIN_MODEM&&ps_disabled==2&&ps_restored==2);}
 // 两个真实线程交错写闪存与推屏，重复验证锁和递归路径。
 // Interleave flash writes and display scans on real threads, including recursive acquisition.
@@ -97,10 +115,19 @@ static void *display_thread(void *arg){(void)arg;for(unsigned i=0;i<1000;++i){
 }return NULL;}
 static void *flash_thread(void *arg){(void)arg;for(unsigned i=0;i<1000;++i){assert(flash_write(7,firmware,0)==ESP_OK);assert(!lock_depth);}return NULL;}
 int main(void){
+#if KIIKO_BOARD_METALIO47
+ assert(!strcmp(PICO_OTA_FEED_URL,"https://wegooo-cell.github.io/read-pico-reader/metalio-s31-update.json"));
+ assert(!strcmp(PICO_OTA_FEED_FALLBACK_URL,"https://kiikoread.com/metalio-s31-update.json"));
+ bool early=pico_online_display_begin();assert(early&&lock_depth==1);pico_online_display_end(early);
+#else
  assert(!strcmp(PICO_OTA_FEED_URL,"https://wegooo-cell.github.io/read-pico-reader/update.json"));
  assert(!strcmp(PICO_OTA_FEED_FALLBACK_URL,"https://kiikoread.com/update.json"));
+#endif
  _Static_assert(sizeof(esp_image_header_t)==24&&sizeof(esp_app_desc_t)==256,"real header sizes");
  fixture();primary_down=true;wifi_ps=WIFI_PS_MIN_MODEM;assert(pico_online_check()==ESP_OK);run();assert(s_status->state==PICO_UPDATE_AVAILABLE&&primary_feeds==2&&fallback_feeds==1);primary_down=false;
+#if KIIKO_BOARD_METALIO47
+ fixture();primary_app_down=true;check_download();assert(s_status->state==PICO_UPDATE_READY&&primary_apps&&fallback_apps&&!boot_calls);primary_app_down=false;
+#endif
  fixture();again=true;check_download();assert(s_status->state==PICO_UPDATE_READY&&written_size==4096&&!memcmp(firmware,written,4096)&&!boot_calls);assert(pico_online_commit()==ESP_OK&&boot_calls==1);
  fixture();limit=1024;check_download();assert(s_status->state==PICO_UPDATE_FAILED&&abort_calls==1&&!boot_calls&&range_requests==3);assert(pico_online_commit()!=ESP_OK);range_requests=0;
  fixture();drop_at=100;drops=1;check_download();assert(s_status->state==PICO_UPDATE_READY&&written_size==4096&&!memcmp(firmware,written,4096)&&begin_calls==1&&range_requests==1);range_requests=0;
@@ -114,6 +141,7 @@ int main(void){
  fixture();check_download();pico_online_cancel_join();assert(pico_online_commit()!=ESP_OK&&!boot_calls);
  fixture();char *sha=strstr(feed,"0000000000");assert(sha);sha[0]='1';check_download();assert(s_status->state==PICO_UPDATE_FAILED&&abort_calls==1&&!boot_calls);
  fixture();firmware[80]='X';check_download();assert(s_status->state==PICO_UPDATE_FAILED&&!begin_calls&&!boot_calls);
+ fixture();firmware[12]=TEST_CHIP_ID==32?9:32;check_download();assert(s_status->state==PICO_UPDATE_FAILED&&!begin_calls&&!boot_calls);
  fixture();same_slot=true;check_download();assert(s_status->state==PICO_UPDATE_FAILED&&!begin_calls);
  fixture();end_error=ESP_FAIL;check_download();assert(s_status->state==PICO_UPDATE_FAILED&&!boot_calls);
  fixture();bad_layout=true;assert(pico_online_check()==ESP_OK);run();assert(s_status->state==PICO_UPDATE_FAILED&&!begin_calls&&wifi_ps==WIFI_PS_MIN_MODEM);

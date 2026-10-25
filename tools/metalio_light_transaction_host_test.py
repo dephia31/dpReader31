@@ -1,81 +1,117 @@
-"""Fault-inject the actual S31 light-sleep resource transaction, not a reimplementation."""
+"""Exercise production S31 light sleep: long timer idle, USB, keys and rollback."""
 from pathlib import Path
-import subprocess,tempfile
+import subprocess
+import tempfile
 from home_cover_cache_host_test import function
-root=Path(__file__).resolve().parents[1]
-unit=r'''
+
+root = Path(__file__).resolve().parents[1]
+source = root / 'boards/metalio47/src/main/sleep.c'
+if not source.exists():
+    source = root / 'main/sleep.c'
+unit = r'''
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-typedef int esp_err_t;typedef void *sc7a20h_handle_t;typedef void *cst836u_handle_t;
+typedef int esp_err_t;
+typedef void *sc7a20h_handle_t;
+typedef void *cst836u_handle_t;
 typedef struct {bool mounted;} read_pico_sd_info_t;
-#define ESP_OK 0
-#define ESP_ERR_INVALID_STATE -1
-#define ESP_ERR_NOT_FINISHED -2
-#define ESP_SLEEP_WAKEUP_TIMER 1
-#define ESP_SLEEP_WAKEUP_EXT1 2
-#define CST836U_MODE_DEEPSLEEP 3
-#define ESP_LOGI(...) ((void)0)
+enum {ESP_OK=0,ESP_ERR_INVALID_STATE=-1,ESP_SLEEP_WAKEUP_EXT1=2,ESP_SLEEP_WAKEUP_TIMER=4};
+#define CST836U_MODE_DEEPSLEEP 1
 #define pdMS_TO_TICKS(x) (x)
-static unsigned stage,fail_at;
-static int64_t now;
-static bool usb,msc,online,unmounted,mounted=true,parked,prepared,held,cut,keys,touch_paused;
-static unsigned slept,restored_usj,restore_font,restore_book;
-static bool timer_fail,sleep_fail,key_cause,stuck_mount,usb_after_timer,queued_key;
-static bool read_pico_pmu_take_key_wakeup(void){return queued_key;}
-static int step(void){return ++stage==fail_at?-1:0;}
-static bool metalio_usb_blocks_sleep(void){return usb;}
-static bool usb_storage_active(void){return msc;}
+#define ESP_LOGI(tag,...) do {if(0)printf(__VA_ARGS__);} while(0)
+static const char *esp_err_to_name(int e){(void)e;return "error";}
+static bool s_lock_io_pending,usb,busy,online,queued,allow_key,keys,rails,pins,lcd,touch,media,usb_at_timer;
+static unsigned sleeps,stop_after,usb_after,timers,cut,restore,closes,mounts,resume,keys_restored,latches;
+static unsigned fail_at,operation;
+static int64_t clock_us;
+static uint64_t timer_us;
+static int64_t esp_timer_get_time(void){return clock_us;}
+static unsigned fail(void){return ++operation==fail_at;}
+static bool metalio_usb_blocks_sleep(void){return usb||(usb_after&&sleeps>=usb_after);}
+static bool usb_storage_active(void){return busy;}
 static bool pico_online_busy(void){return online;}
-static int read_pico_sd_get_info(read_pico_sd_info_t *i){i->mounted=mounted;return stuck_mount&&unmounted?-2:0;}
-static int book_suspend_io(void){return step();}
-static int ttf_font_suspend_io(void){return step();}
-static int cst836u_set_mode(void *t,int m){assert(t&&m==3);int e=step();touch_paused=!e;return e;}
-static int read_pico_sd_sync(void){assert(touch_paused);int e=step();unmounted=!e;if(!e)mounted=false;return e;}
+static int read_pico_sd_get_info(read_pico_sd_info_t *i){i->mounted=media;return fail()?-2:ESP_OK;}
+static int book_suspend_io(void){return fail()?-2:ESP_OK;}
+static int ttf_font_suspend_io(void){return fail()?-2:ESP_OK;}
+static int cst836u_set_mode(void *t,int m){assert(t&&m==1);if(fail())return -2;touch=true;return ESP_OK;}
+static int read_pico_sd_sync(void){if(fail())return -2;media=false;++closes;return ESP_OK;}
 static void metalio_haptic_stop(void){}
-static void metalio_frontlight(unsigned b,unsigned w){assert(b==0&&w==50);}
-static void epd_poweroff(void){assert(unmounted);}
-static void vTaskDelay(int ms){now+=(int64_t)ms*1000;}
-static int64_t esp_timer_get_time(void){return now;}
-static void epd_lcd_deinit(void){parked=true;}
-static int metalio_prepare_light_sleep_pins(void){assert(parked&&!cut);prepared=true;return step();}
-static int sc7a20h_shared_irq_idle(void *a){assert(a);return step();}
-static bool lock_prepare_key_wake(void){keys=step()==0;return keys;}
-static int esp_sleep_enable_timer_wakeup(uint64_t us){assert(us==60000000&&keys);if(usb_after_timer)usb=true;return timer_fail?-1:step();}
-static int metalio_sleep_cut_rails(uint16_t *s){assert(prepared&&keys);*s=0x1420;cut=true;return step();}
-static int metalio_hold_for_light_sleep(void){assert(cut&&prepared);held=true;return step();}
-static int esp_light_sleep_start(void){assert(held&&cut&&unmounted&&touch_paused&&keys);slept++;now+=60000000;return sleep_fail?-1:0;}
-static unsigned esp_sleep_get_wakeup_causes(void){return 1u<<(key_cause?ESP_SLEEP_WAKEUP_EXT1:ESP_SLEEP_WAKEUP_TIMER);}
-static void metalio_release_light_sleep_pins(void){assert(prepared);prepared=held=false;}
-static int esp_sleep_disable_wakeup_source(int src){assert(src==ESP_SLEEP_WAKEUP_TIMER);return 0;}
-static int metalio_sleep_restore_rails(uint16_t s){assert(!held&&s==0x1420);cut=false;return 0;}
-static void lock_restore_key_wake(void){assert(!cut&&keys);keys=false;}
-static int read_pico_sd_remount(void){assert(!cut&&!keys);if(!stuck_mount){mounted=true;restored_usj++;}return 0;}
-static int ttf_font_resume_io(void){assert(!unmounted||mounted||stuck_mount);restore_font++;return 0;}
-static int book_resume_io(void){assert(!unmounted||mounted||stuck_mount);restore_book++;return 0;}
-static void read_pico_epd_restore_lcd(void){assert(!prepared&&(!unmounted||restored_usj||stuck_mount));parked=false;}
-static int cst836u_wake(void *t){assert(t&&!cut&&!keys);touch_paused=false;return 0;}
 static void metalio_haptic_resume(void){}
+static void metalio_frontlight(unsigned b,unsigned w){assert(!b&&w==50);}
+static void epd_poweroff(void){}
+static void epd_lcd_deinit(void){lcd=true;}
+static int metalio_prepare_light_sleep_pins(void){pins=true;return fail()?-2:ESP_OK;}
+static int sc7a20h_shared_irq_idle(void *a){assert(a);return fail()?-2:ESP_OK;}
+static bool lock_take_key_wakeup(void){bool v=allow_key&&queued;queued=false;return v;}
+static bool lock_prepare_key_wake(void){if(fail())return false;keys=true;return true;}
+static int esp_sleep_enable_timer_wakeup(uint64_t us){assert(us>0&&us<=60000000);timer_us=us;if(usb_at_timer)usb=true;return fail()?-2:ESP_OK;}
+static int metalio_sleep_cut_rails(uint16_t *s){*s=123;rails=true;++cut;return fail()?-2:ESP_OK;}
+static int metalio_hold_for_light_sleep(void){return fail()?-2:ESP_OK;}
+static int esp_light_sleep_start(void){
+ assert(pins&&rails&&keys&&touch&&lcd&&!media);assert(++sleeps<=181);
+ clock_us+=(int64_t)timer_us;return fail()?-2:ESP_OK;
+}
+static uint32_t esp_sleep_get_wakeup_causes(void){return 1u<<(sleeps==stop_after?ESP_SLEEP_WAKEUP_EXT1:ESP_SLEEP_WAKEUP_TIMER);}
+static int read_pico_ioe_int_level(void){return 1;}
+static void vTaskDelay(unsigned ms){clock_us+=(int64_t)ms*1000;}
+static void metalio_release_light_sleep_pins(void){pins=false;}
+static int esp_sleep_disable_wakeup_source(int s){assert(s==ESP_SLEEP_WAKEUP_TIMER);++timers;return ESP_OK;}
+static int metalio_sleep_restore_rails(uint16_t s){assert(s==123);rails=false;++restore;return fail()?-2:ESP_OK;}
+static void lock_restore_key_wake(void){keys=false;++keys_restored;}
+static void read_pico_pmu_latch_power_wakeup(void){assert(!keys);queued=true;++latches;}
+static int read_pico_sd_remount(void){assert(!rails&&!pins);++mounts;media=true;return ESP_OK;}
+static int lock_resume_media_io(unsigned wait){assert(wait==15000&&(!closes||media));++resume;if(fail())return -2;s_lock_io_pending=false;return ESP_OK;}
+static void read_pico_epd_restore_lcd(void){assert(!rails&&!pins&&(!closes||media));lcd=false;}
+static int cst836u_wake(void *t){assert(t);touch=false;return fail()?-2:ESP_OK;}
 '''
-unit+=function('lock_light_sleep_once',root/'main/sleep.c')
-unit+=r'''
-static void reset(void){stage=fail_at=slept=restored_usj=restore_font=restore_book=0;now=0;usb=msc=online=unmounted=parked=prepared=held=cut=keys=touch_paused=timer_fail=sleep_fail=key_cause=stuck_mount=usb_after_timer=queued_key=false;mounted=true;}
-static void settled(void){assert(!parked&&!prepared&&!held&&!cut&&!keys&&!touch_paused);}
-int main(void){bool key;
- reset();assert(lock_light_sleep_once((void*)1,(void*)2,&key)==0&&!key&&slept==1&&restored_usj==1&&restore_font==1&&restore_book==1);settled();
- reset();key_cause=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!key);settled();
- reset();queued_key=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&key&&!slept);settled();
- for(unsigned i=1;i<=10;i++){reset();fail_at=i;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!key&&!slept);settled();}
- reset();usb=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!slept&&!stage);settled();
- reset();usb_after_timer=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!slept);settled();
- reset();timer_fail=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!slept);settled();
- reset();sleep_fail=key_cause=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!key);settled();
- reset();stuck_mount=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key)!=0&&!key&&now>=75000000);settled();
- puts("PASS: actual S31 light transaction; pause IO before unmount, rails/pins/key ordering, remount+USJ before handles/LCD, ten injected admission failures, queued short key, USB/hotplug/timer/sleep/mount-timeout; timers never unlock or light");
+unit += function('lock_light_sleep_slice_us', source)
+unit += function('lock_light_sleep_once', source)
+unit += r'''
+static void reset(void){
+ s_lock_io_pending=usb=busy=online=queued=keys=rails=pins=lcd=touch=usb_at_timer=false;
+ media=allow_key=true;sleeps=usb_after=timers=cut=restore=closes=mounts=resume=keys_restored=latches=0;
+ stop_after=1;fail_at=operation=0;clock_us=0;
+}
+static void restored(void){assert(!keys&&!rails&&!pins&&!lcd&&!touch);assert(cut==restore);assert(closes==mounts);}
+int main(void){
+ bool key;
+ reset();assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key&&latches==1);restored();
+ // Three hours of timer slices only prepare/close/remount once; none of the timer wakes grants unlock.
+ reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key);
+ assert(sleeps==180&&closes==1&&mounts==1&&cut==1&&restore==1&&latches==1&&clock_us>=10800000000LL);restored();
+ // Inserting USB exits maintenance and restores the normal serial route's peripherals without unlocking.
+ reset();stop_after=180;usb_after=3;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&!key&&!latches);
+ assert(sleeps==3&&mounts==1&&closes==1);restored();
+ // Double-click remains enforced after a single EXT1: the caller stays locked and retries later.
+ reset();allow_key=false;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_ERR_INVALID_STATE&&!key&&latches==1);restored();
+ // Every failing operation restores all resources already changed; no timer or error unlocks.
+ reset();assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK);unsigned count=operation;
+ for(unsigned i=1;i<=count;i++){
+  reset();fail_at=i;int err=lock_light_sleep_once((void*)1,(void*)2,&key,0);
+  assert(err!=ESP_OK);restored();assert(!key||latches==1);assert(timers<=1);
+ }
+ for(unsigned i=0;i<3;i++){
+  reset();if(i==0)usb=true;else if(i==1)busy=true;else online=true;
+  assert(lock_light_sleep_once(NULL,(void*)2,&key,0)==ESP_ERR_INVALID_STATE&&!key&&!sleeps&&!closes);
+ }
+ reset();media=false;assert(lock_light_sleep_once(NULL,(void*)2,&key,0)==ESP_ERR_INVALID_STATE&&!sleeps&&!closes);
+ reset();queued=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)!=ESP_OK&&key&&!sleeps);restored();
+ reset();usb_at_timer=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)!=ESP_OK&&!key&&!sleeps);restored();
+ // A timer session stops at the deep deadline rather than endlessly repeating60s slices.
+ reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,600000000)==ESP_OK&&!key);
+ assert(clock_us>=600000000&&clock_us<600100000&&sleeps==10&&mounts==1&&!latches);restored();
+ // Short final slices and already-expired deadlines cannot oversleep by another minute.
+ reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,1500000)==ESP_OK&&!key);
+ assert(clock_us==1500000&&sleeps==1);restored();
+ reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,1)==ESP_OK&&!key&&!sleeps);restored();
+ puts("PASS: actual S31 light transaction, 3h timer retention and exact10min/short/expired deadlines with one TF cycle, USB insertion/no unlock, single IRQ/double gate and all operation faults/rollback");
 }
 '''
-with tempfile.TemporaryDirectory() as d:
-    p=Path(d);(p/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
-    subprocess.run([str(p/'test')],check=True)
+with tempfile.TemporaryDirectory() as folder:
+    path = Path(folder)
+    (path / 'test.c').write_text(unit)
+    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-g',
+                    '-fsanitize=address,undefined', str(path / 'test.c'), '-o', str(path / 'test')], check=True)
+    subprocess.run([str(path / 'test')], check=True)

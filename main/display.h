@@ -17,6 +17,7 @@
 #include "e0470_page_turn.h"
 #include "read_pico_epd_timing.h"
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -142,9 +143,21 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
 /// 同步普通文字翻页沿用水波纹的全部灰阶相位，单带同时输出并恢复原节拍。/ Ordinary text uses all ripple gray phases in one synchronous band and restores pacing.
 enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir);
 #if KIIKO_BOARD_METALIO47
+/// S31图文：同色保持，实际灰阶迁移用完整灰阶，黑白目标用原厂DU20，不量化图片。
+/// S31 images: hold equal pixels; retain complete gray transitions or native DU20 for actual BW changes, without quantization.
+enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl, EpdRect area);
+#endif
+
+#if KIIKO_BOARD_METALIO47
 /// 已验证未变正文上的面板：保留原厂GL48及完整目标灰阶，一次区域定稿；不借文字22相或速读黑白。
 /// Panels over verified unchanged text retain vendorGL48/full target grays in one regional settle, independent of text22-phase/FastBW.
 enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect area);
+/// 同一底页的面板反馈显式使用本地GL37实验；普通构建/OOM/故障仍回到完整48相。
+/// Same-body panel feedback opts into local GL37; normal builds,OOM or faults retain full48 phases.
+enum EpdDrawError update_display_reader_panel_fast(EpdiyHighlevelState* hl,EpdRect area);
+/// 两个设置面板四灰实验：进入时加强底页擦除，反馈仍16相；故障后37/48，手动/故障清理48相。
+/// Four-gray settings strengthen underlay erasure on entry,retain16-phase feedback,37/48 fallback and48-phase recovery.
+enum EpdDrawError update_display_reader_panel_gray4(EpdiyHighlevelState* hl,EpdRect area,bool erase_underlay);
 #endif
 /// 动画中间帧使用灰阶波形，但不累计周期清屏计数；动画最终帧走普通刷新出口。
 /// Use grayscale for animation strips without advancing periodic cleanup; the final frame uses the normal path.

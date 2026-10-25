@@ -18,6 +18,9 @@ const EpdWaveform* display_main_bw_waveform(void);
 const EpdWaveform* display_main_normal_waveform(void);
 
 #if KIIKO_BOARD_METALIO47
+/// 本地显式实验的16灰GL37面板表；未启用、源不兼容或分配失败返回NULL，调用方回退48相。
+/// Local opt-in16-gray GL37 panel profile; NULL on disabled/incompatible/OOM builds requires a48-phase fallback.
+const EpdWaveform* display_reader_panel37_waveform(void);
 /// 用原DU20相位供已有条带动画读取；仅适配mode元数据。/ Expose original DU20 phases to the existing band engine; adapt mode metadata only.
 const EpdWaveform* display_main_bw_turn_waveform(void);
 /// 底栏灰底轻量恢复：原DU20端点、白底FOLLOW灰推，非白先擦白，等灰保持；不改原厂表。

@@ -119,6 +119,9 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "book/gbk.c"
         "font/ttf_font.c"
         "font/app_font_context.c"
+        "font/online_font.c"
+        "font/online_font_store.c"
+        "ui/ui_online_fonts.c"
         "font/ui_font.c"
         "font/ui_hanzi.c"
         "factory/pmu_selftest.c"
@@ -131,7 +134,6 @@ idf_component_register(
     INCLUDE_DIRS "." "app" "apps" "font" "ui" "factory" "book"
     EMBED_FILES
         "assets/lock_4bpp.bin"
-        "assets/loading_4bpp.bin"
         "assets/builtin.ttf"
         "assets/ui-hanzi.bin"
         "assets/display-test.png"
@@ -150,8 +152,20 @@ option(METALIO_LOCAL_LATENCY "Local USB latency probe; never enable for delivery
 if(METALIO_LOCAL_LATENCY)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_LOCAL_LATENCY=1)
 endif()
+option(METALIO_LOCAL_TRANSFER_START "Unattended local WiFi transfer test; never deliver" OFF)
+if(METALIO_LOCAL_TRANSFER_START)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_LOCAL_TRANSFER_START=1)
+endif()
 
 # 仅显式本地实验包启用；普通构建不继承缓存中的实验值。/ Explicit local packages only; normal builds must not inherit cached experiment flags.
+option(METALIO_FAST_READER_PANELS "Local four-gray font/reading panels" OFF)
+if(METALIO_FAST_READER_PANELS)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_FAST_READER_PANELS=1)
+endif()
+option(METALIO_READER_PANEL37_EXPERIMENT "Local vendor-derived S31 GL37 reader panels" OFF)
+if(METALIO_READER_PANEL37_EXPERIMENT)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_READER_PANEL37=1)
+endif()
 option(METALIO_TEXT_RIPPLE_EXPERIMENT "Local four-level reader ripple experiment" OFF)
 if(METALIO_TEXT_RIPPLE_EXPERIMENT)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_TEXT_RIPPLE=1)

@@ -36,6 +36,9 @@ static int mock_stat(const char* path, struct stat* out) {
         if (!legacy_dir) { errno = ENOENT; return -1; }
         out->st_mode = S_IFDIR; return 0;
     }
+    if (!strcmp(path, "/sdcard")) {
+        out->st_mode = is_directory ? S_IFDIR : S_IFREG; return 0;
+    }
     if (!strcmp(path, "/sdcard/books") || !strcmp(path, "/flash/books")) {
         out->st_mode = is_directory ? S_IFDIR : S_IFREG; return 0;
     }
@@ -146,7 +149,8 @@ int main(void) {
     const char* path = "/sdcard/books/同名.TXT";
     bool removed = true;
     unsigned revision = book_store_revision();
-    const char* invalid[] = {"/sdcard/books/../escape.txt", "/sdcard/books2/x.txt", "/sdcard/books/sub/x.txt",
+    const char* invalid[] = {"/sdcard/books/../escape.txt", "/sdcard/../escape.txt", "/sdcard//x.txt",
+        "/sdcard/books/sub/", "/sdcard/books2/x.bin",
         "/flash/books/..\\x.epub", "/flash/books/x.bin", "/sdcard/books/", "/other/books/x.txt"};
     for (size_t i = 0; i < sizeof(invalid) / sizeof(*invalid); ++i) {
         assert(book_store_delete(invalid[i], &removed) != ESP_OK && !removed);
@@ -203,6 +207,15 @@ int main(void) {
     assert(book_store_delete("/flash/books/同名.epub", &removed) == ESP_ERR_INVALID_STATE && !removed);
     assert(book_store_delete(NULL, &removed) == ESP_ERR_INVALID_ARG && !removed);
     assert(book_store_delete(path, NULL) == ESP_ERR_INVALID_ARG);
+    // 书架会列出 books 子目录里的书，也会补入文件管理在卡内任意位置打开过的书；这些书也必须能删。
+    // The shelf lists nested books and books opened elsewhere on the card, so deletion must accept them.
+    sd_mounted = true; sd_exists = true; backup_exists = false; file_error = 0; file_mode = S_IFREG;
+    const char* nested[] = {"/sdcard/books/sub/深层/某本.txt", "/sdcard/小说/另一本.EPUB", "/sdcard/另一本.epub"};
+    for (size_t i = 0; i < sizeof(nested) / sizeof(*nested); ++i) {
+        sd_exists = true;
+        assert(book_store_delete(nested[i], &removed) == ESP_OK && removed && !sd_exists);
+        assert(!strcmp(forgotten, nested[i]));
+    }
     puts("book store: mount fallback, precedence, capacity, lazy init and directory errors passed");
     puts("book delete: path bounds, symlinks, unlink failure, partial cleanup, retry and root isolation passed");
 }

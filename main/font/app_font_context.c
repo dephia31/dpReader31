@@ -17,12 +17,19 @@
 #include "ttf_font.h"
 #include "ui_kit.h"
 #include "ui_nav.h"
+#if KIIKO_BOARD_METALIO47
+#include "esp_timer.h"
+#endif
 
 static bool s_reading;
 // Failed unchanged files are not repeatedly opened (opening unloads the active slot).
 static char s_rejected[TTF_FONT_PATH_MAX];
 static time_t s_rejected_mtime;
 static off_t s_rejected_size;
+#if KIIKO_BOARD_METALIO47
+static int64_t s_rejected_retry_us;
+static unsigned s_rejected_attempts;
+#endif
 static bool font_file(const char *path, struct stat *st) {
     return path && stat(path, st) == 0 && S_ISREG(st->st_mode) && st->st_size > 0;
 }
@@ -41,23 +48,57 @@ static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
 }
 
 static bool activate(const char* path) {
+#if KIIKO_BOARD_METALIO47
+    const bool had_builtin=ttf_font_ready()&&ttf_font_is_builtin();
+#endif
     struct stat st = {0};
     bool builtin = ttf_font_path_is_builtin(path);
     bool valid = builtin || font_file(path, &st);
     bool rejected = !builtin && !strcmp(s_rejected, path) &&
         s_rejected_mtime == st.st_mtime && s_rejected_size == st.st_size;
+#if KIIKO_BOARD_METALIO47
+    // 手动加载成功即可解除旧拒绝；临时I/O或内存失败有界退避，不永久封锁同一文件。
+    // A successful manual load clears old rejection; transient I/O/OOM failures back off without permanently blocking the file.
+    if (valid && ttf_font_ready() && !strcmp(ttf_font_path(), path)) {
+        if (!builtin) { s_rejected[0]=0; s_rejected_attempts=0; }
+        return false;
+    }
+    if (rejected && s_rejected_retry_us && esp_timer_get_time() >= s_rejected_retry_us)
+        rejected=false;
+#endif
     if (!valid || rejected) path = TTF_FONT_BUILTIN;
     if (ttf_font_ready() && !strcmp(ttf_font_path(), path)) return false;
+#if KIIKO_BOARD_METALIO47
+    esp_err_t err=ttf_font_open(path);
+    if (err == ESP_OK) {
+#else
     if (ttf_font_open(path) == ESP_OK) {
+#endif
         if (!ttf_font_path_is_builtin(path)) s_rejected[0] = 0;
+#if KIIKO_BOARD_METALIO47
+        if (!ttf_font_path_is_builtin(path)) s_rejected_attempts=0;
+#endif
         return true;
     }
     if (!ttf_font_path_is_builtin(path)) {
+#if KIIKO_BOARD_METALIO47
+        if (strcmp(s_rejected,path) || s_rejected_mtime!=st.st_mtime || s_rejected_size!=st.st_size)
+            s_rejected_attempts=0;
+        static const unsigned retry_ms[]={1000,3000,10000,30000};
+        unsigned index=s_rejected_attempts<3?s_rejected_attempts:3;
+        if(s_rejected_attempts<4)++s_rejected_attempts;
+        s_rejected_retry_us=err==ESP_ERR_INVALID_RESPONSE?0:
+            esp_timer_get_time()+(int64_t)retry_ms[index]*1000;
+#endif
         snprintf(s_rejected, sizeof(s_rejected), "%s", path);
         s_rejected_mtime = st.st_mtime;
         s_rejected_size = st.st_size;
     }
+#if KIIKO_BOARD_METALIO47
+    if (ttf_font_ready() && ttf_font_is_builtin()) return !had_builtin;
+#else
     if (ttf_font_ready() && ttf_font_is_builtin()) return false;
+#endif
     return ttf_font_open_builtin() == ESP_OK;
 }
 

@@ -740,7 +740,7 @@ int main(void) {
     assert(book_layout_page_image_count(0)==0&&book_layout_page_image(0)==0);
     book_layout_set_image_dims(probe_image,&image_probe_count);
     assert(book_layout_build_blocks(composed.utf8,composed.len,composed.blocks,composed.count,mixed_box,10));
-    assert(image_probe_count==1&&book_layout_page_image_at(0,0,&index,&y,&w,&h)&&w==80&&h==20);
+    assert(image_probe_count==1&&book_layout_page_image_at(0,0,&index,&y,&w,&h)&&w==80&&h==20&&y==(book_layout_image_rect().height-h)/2);
     book_layout_set_image_dims(fixture_image,&composed);html_text_free(&composed);
     char many_images[2000]="<p>甲</p>";
     for(int i=0;i<40;++i)strcat(many_images,"<img src='small.png'/>");

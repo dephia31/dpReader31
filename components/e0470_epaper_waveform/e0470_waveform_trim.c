@@ -13,6 +13,11 @@
 #include <string.h>
 
 #include "epdiy.h"
+#if KIIKO_BOARD_METALIO47
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+#endif
+#endif
 
 #define MAX_PHASES 64
 
@@ -83,7 +88,17 @@ int e0470_waveform_trim(
     }
 
     const uint8_t(*data)[16][4] = (const uint8_t(*)[16][4])src->luts;
+    // S31只在显示任务空闲时构造，工作区放外部RAM，避免挤占联网所需内部堆。
+    // S31 builds tables outside active scanning; external scratch preserves internal network heap.
+#if KIIKO_BOARD_METALIO47
+#ifdef ESP_PLATFORM
+    static EXT_RAM_BSS_ATTR trimmed_seq_t seqs[16][16];
+#else
     static trimmed_seq_t seqs[16][16];
+#endif
+#else
+    static trimmed_seq_t seqs[16][16];
+#endif
     int longest = 0;
 
     for (int to = 0; to < 16; to++) {

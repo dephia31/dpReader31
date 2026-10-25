@@ -4,6 +4,8 @@
  *
  * 图片页：从 TF 卡读取 JPG/PNG，使用独立的完整灰阶刷新。
  * Image page: show SD JPG/PNG with a dedicated full-grayscale refresh.
+ * S31 图片预览保留十六级灰阶，只有文件列表采用黑白快刷。
+ * S31 previews retain sixteen gray levels; only their file list uses BW updates.
  */
 #include <dirent.h>
 #include <stdio.h>
@@ -190,14 +192,28 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     render_content(ctx,fb);
 #if KIIKO_BOARD_METALIO47
-    display_monochrome_frame(fb);
+    if (!s_viewing) display_monochrome_frame(fb);
 #endif
 }
 
 
 static bool present(app_ctx_t *ctx, app_redraw_t redraw) {
     if (redraw == APP_REDRAW_NONE) return true;
+#if KIIKO_BOARD_METALIO47
+    if (!s_viewing) {
+        // 列表单独继承系统黑白策略，预览不能由通用黑白分支抢先提交。
+        // Scope the system BW policy to the list; previews must reach their dedicated presenter.
+        render(ctx, ctx->fb);
+        const bool binary = display_system_binary_set(true);
+        enum EpdDrawError result = redraw == APP_REDRAW_FULL
+            ? update_display_full(ctx->hl) : update_display_mode_diff(ctx->hl, MODE_DU);
+        display_system_binary_set(binary);
+        guard_draw_result(ctx->hl, result);
+        return true;
+    }
+#else
     if (!s_viewing) return false;
+#endif
     render(ctx, ctx->fb);
     guard_draw_result(ctx->hl, update_display_image_gray(ctx->hl));
     return true;
@@ -260,7 +276,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) 
 static bool image_edge_back(app_ctx_t *ctx) { (void)ctx; return true; }
 static bool menu_handle_enabled(app_ctx_t *ctx) { (void)ctx; return false; }
 const app_desc_t app_image = {
+#if KIIKO_BOARD_METALIO47
+    .binary_ui = false,
+#else
     .binary_ui = true,
+#endif
     .title = "图片对比 Images", .detail = "灰阶测试图 / TF 卡 JPG PNG", .enter_full = false,
     .owns_keys = true, .menu_handle_enabled = menu_handle_enabled, .edge_back_enabled = image_edge_back,
     .on_enter = on_enter, .on_exit = image_on_exit, .on_media_lost = on_media_lost,

@@ -802,6 +802,26 @@ bool book_layout_build_blocks(const char* utf8, size_t len, const blk_t* blocks,
         if (paragraph_end) used += gap_for(line_height, heading) + margin_after;
         off = next;
     }
+    // 整页只有一张插图时把它上下居中：贴顶会让插图页看起来像被裁掉了下半页。
+    // Center a sheet that holds one illustration and no text: top alignment left the lower half
+    // empty and read like a cropped page. A recorded offset above zero means a chapter heading
+    // already owns that band, so those pages keep their image where the flow put it.
+    for (size_t page = 0; page < s_count; ++page) {
+        if (book_layout_page_image_count(page) != 1) continue;
+        layout_image_t* rec = &s_images[s_page_img_start[page]];
+        if (rec->y != 0 || rec->height >= s_image_rect.height) continue;
+        size_t end = page + 1 < s_count ? s_pages[page + 1] : s_len;
+        bool text = false;
+        for (size_t i = 0; i < s_block_count && !text; ++i) {
+            const blk_t* block = &s_blocks[i];
+            if (block->image >= 0 || block->offset < s_pages[page] || block->offset >= end) continue;
+            for (size_t k = 0; k < block->len; ++k) {
+                char c = s_text[block->offset + k];
+                if (c != ' ' && c != '\t' && c != '\r' && c != '\n') { text = true; break; }
+            }
+        }
+        if (!text) rec->y = (int16_t)((s_image_rect.height - rec->height) / 2);
+    }
     // 测量会按 run 移动游标；还回去，后面的界面与状态栏仍从系统字体起。
     // Measuring moves the cursor across spans; hand it back so the UI and status bar still
     // start from the system face.

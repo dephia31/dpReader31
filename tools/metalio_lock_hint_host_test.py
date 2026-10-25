@@ -11,6 +11,7 @@ unit=r'''
 #include <assert.h>
 #include <stdbool.h>
 static bool s_boot_lock_active,s_boot_lock_known;
+static unsigned app_settings_wake_presses(void){return 2;}
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

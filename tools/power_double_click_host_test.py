@@ -32,12 +32,15 @@ unit += r'''
 int main(void){
  reset();add(PMU_EVT_KEY_DOWN,100);assert(!read_pico_pmu_take_key_wakeup_single());
  add(PMU_EVT_KEY_SHORT,200);assert(read_pico_pmu_take_key_wakeup_single());assert(!read_pico_pmu_take_key_wakeup_single());
- reset();add(PMU_EVT_KEY_LONG,200);assert(!read_pico_pmu_take_key_wakeup_single());
- reset();add(PMU_EVT_KEY_SHORT,100);add(PMU_EVT_KEY_LONG,200);assert(!read_pico_pmu_take_key_wakeup_single());
+ reset();add(PMU_EVT_KEY_LONG,200);assert(read_pico_pmu_take_key_wakeup_single());
+ reset();add(PMU_EVT_KEY_SHORT,100);add(PMU_EVT_KEY_LONG,200);assert(read_pico_pmu_take_key_wakeup_single());
  reset();add(PMU_EVT_KEY_SHORT,200);ack_error=true;assert(!read_pico_pmu_take_key_wakeup_single());
  ack_error=false;assert(read_pico_pmu_take_key_wakeup_single());
  reset();assert(!read_pico_pmu_take_boot_short_press());s_boot_short=true;
  assert(read_pico_pmu_take_boot_short_press()&&!read_pico_pmu_take_boot_short_press());
+ // 单击开机认长按：按住稍久被记成长按，也仍是开机那一次按键。
+ // One-press boot accepts a long hold: the PMU calls it long, yet it is still the booting press.
+ reset();add(PMU_EVT_KEY_LONG,200);assert(!read_pico_pmu_take_key_wakeup());assert(s_scan_short);
  reset();add(PMU_EVT_KEY_DOWN,100);add(PMU_EVT_KEY_SHORT,180);assert(!read_pico_pmu_take_key_wakeup());
  add(PMU_EVT_KEY_DOWN,250);add(PMU_EVT_KEY_SHORT,320);assert(read_pico_pmu_take_key_wakeup());assert(!read_pico_pmu_take_key_wakeup());
  // UI解码阻塞期间两个短按排队，使用PMU时间而不是消费时间。/ Queued clicks use PMU event time, not UI consumption time.

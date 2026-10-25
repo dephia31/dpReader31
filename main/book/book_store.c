@@ -9,10 +9,18 @@
  * Frozen: never format SD; mount internal storage on demand without blocking usable SD on failure.
  * 冻结：有卡但挂载失效时不把上传静默切换到内置存储；拔卡不复用旧容量。
  * Frozen: present but invalid media must not silently redirect uploads to flash; never reuse removed-card capacity.
- * 冻结：用户确认后仅删已挂载根内的直接普通书籍；文件与进度部分失败必须返回，不通知 UI 版本。
- * Frozen: after user confirmation, delete only direct regular books in mounted roots; report partial failures without notifying UI revision.
+ * 冻结：用户确认后仅删已挂载根（TF 或内置 storage）内的普通书籍文件，路径不得穿越、
+ * 不得用目录或链接替换；文件与进度部分失败必须返回，不通知 UI 版本。
+ * Frozen: after user confirmation, delete only a regular book file under a mounted root (SD or
+ * internal storage), never through traversal, a directory or a link; report partial failures
+ * without notifying UI revision.
  * 冻结：删除前清除同名普通覆盖备份；仅有备份时先恢复，失败保留可恢复的原书。
  * Frozen: clear a matching regular replacement backup before deletion; restore backup-only books first and preserve recovery on failure.
+ * 2026-10-23 变更：书架会列出 books 子目录里的书，也会补入文件管理在卡内任意位置打开过的书，
+ * 原先只受理书根第一层，这些书点删除一律失败。现在按已挂载根受理，其余检查不变。
+ * Changed 2026-10-23: the shelf lists books in nested books folders and backfills books opened
+ * anywhere on the card by the file manager. The old top-level-only rule refused them all; the
+ * mounted-root rule below admits them while keeping every other check.
  */
 #include "book_store.h"
 #include "book_progress.h"
@@ -141,22 +149,29 @@ esp_err_t book_store_delete(const char* path, bool* removed) {
     const char* root;
     const char* name;
     size_t selected_len = strlen(app_settings_books_dir());
-    if (!strncmp(path, app_settings_books_dir(), selected_len) && path[selected_len] == '/') {
-        root = app_settings_books_dir(); name = path + selected_len + 1;
-        if (!sd_ready()) return ESP_ERR_INVALID_STATE;
-    } else if (!strcmp(app_settings_books_dir(), "/sdcard/books") && !strncmp(path, "/sdcard/book/", 13)) {
-        root = "/sdcard/book"; name = path + 13;
-        if (!sd_ready()) return ESP_ERR_INVALID_STATE;
-    } else if (!strncmp(path, "/flash/books/", 13)) {
-        root = "/flash/books"; name = path + 13;
+    if (!strncmp(path, "/flash/books/", 13)) {
         if (!book_store_flash_ready()) return ESP_ERR_INVALID_STATE;
-    } else return ESP_ERR_INVALID_ARG;
-    size_t len = strlen(name);
-    if (!len || len > 255) return ESP_ERR_INVALID_ARG;
-    for (const unsigned char* p = (const unsigned char*)name; *p; ++p) {
-        if (*p < 32 || *p == 127 || *p == '/' || *p == '\\' || *p == ':') return ESP_ERR_INVALID_ARG;
+        root = "/flash/books"; name = path + 13;
+    } else {
+        if (!strncmp(path, app_settings_books_dir(), selected_len) && path[selected_len] == '/') {
+            root = app_settings_books_dir(); name = path + selected_len + 1;
+        } else if (!strncmp(path, "/sdcard/", 8)) {
+            // 书架也会列出 books 子目录里的书，以及文件管理在卡内任意位置打开过的书；删除按已挂载根受理。
+            // The shelf also lists books in nested folders and books opened anywhere on the card,
+            // so deletion accepts any book file under the mounted SD root (including legacy book/).
+            root = "/sdcard"; name = path + 8;
+        } else return ESP_ERR_INVALID_ARG;
+        if (!sd_ready()) return ESP_ERR_INVALID_STATE;
     }
-    const char* ext = strrchr(name, '.');
+    size_t len = strlen(name);
+    if (!len || name[0] == '/' || name[len - 1] == '/' || strstr(name, "//") || strstr(name, "..")) return ESP_ERR_INVALID_ARG;
+    for (const unsigned char* p = (const unsigned char*)name; *p; ++p) {
+        if (*p < 32 || *p == 127 || *p == '\\' || *p == ':') return ESP_ERR_INVALID_ARG;
+    }
+    const char* base = strrchr(name, '/');
+    base = base ? base + 1 : name;
+    if (strlen(base) > 255) return ESP_ERR_INVALID_ARG;
+    const char* ext = strrchr(base, '.');
     if (!ext || (strcasecmp(ext, ".txt") && strcasecmp(ext, ".epub"))) return ESP_ERR_INVALID_ARG;
     struct stat st;
     if (stat(root, &st) != 0 || !S_ISDIR(st.st_mode)) return ESP_ERR_INVALID_STATE;
@@ -173,26 +188,26 @@ esp_err_t book_store_delete(const char* path, bool* removed) {
     // 显式删除也处理覆盖备份，避免下次传书启动恢复已删图书。
     // Explicit deletion handles replacement backups so transfer startup cannot resurrect deleted books.
     const char suffix[] = ".rename-backup";
-    if (len + sizeof(suffix) - 1 <= 255) {
-        char backup[BOOK_STORE_PATH_MAX + sizeof(suffix)];
-        snprintf(backup, sizeof(backup), "%s%s", path, suffix);
+    // 备份名比正文多 13 字节，仍在缓冲内；更长的基名不可能有对应备份文件。
+    // The backup name is 13 bytes longer and still fits; longer base names cannot have one.
+    char backup[BOOK_STORE_PATH_MAX + sizeof(suffix)];
+    snprintf(backup, sizeof(backup), "%s%s", path, suffix);
 #ifdef ESP_PLATFORM
-        result = stat(backup, &st);
+    result = stat(backup, &st);
 #else
-        result = lstat(backup, &st);
+    result = lstat(backup, &st);
 #endif
-        if (result != 0) {
-            if (errno != ENOENT) return ESP_FAIL;
+    if (result != 0) {
+        if (errno != ENOENT) return ESP_FAIL;
+    } else {
+        if (!S_ISREG(st.st_mode)) return ESP_ERR_INVALID_ARG;
+        if (exists) {
+            if (unlink(backup) != 0 && errno != ENOENT) return ESP_FAIL;
         } else {
-            if (!S_ISREG(st.st_mode)) return ESP_ERR_INVALID_ARG;
-            if (exists) {
-                if (unlink(backup) != 0 && errno != ENOENT) return ESP_FAIL;
-            } else {
-                // 未完成覆盖先恢复旧书；后续删除失败时仍保留可见原书。
-                // Restore an interrupted replacement first, keeping the old book visible if deletion fails.
-                if (rename(backup, path) != 0) return ESP_FAIL;
-                exists = true;
-            }
+            // 未完成覆盖先恢复旧书；后续删除失败时仍保留可见原书。
+            // Restore an interrupted replacement first, keeping the old book visible if deletion fails.
+            if (rename(backup, path) != 0) return ESP_FAIL;
+            exists = true;
         }
     }
     if (exists) {

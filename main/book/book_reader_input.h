@@ -52,3 +52,21 @@ static inline int book_reader_tap_tick(book_reader_tap_t *tap, int64_t now_ms, b
     tap->pending = false;
     return tap->direction;
 }
+/// 整页插图用：任意位置的双击都算双击，单击一律延后到双击窗口结束才翻页。
+/// For a whole-page illustration a double tap counts anywhere, and a single tap is deferred until
+/// the double-tap window expires before it turns the page.
+static inline int book_reader_tap_feed_any(book_reader_tap_t *tap, EpdRect body,
+                                          int x, int y, bool vertical, bool rtl, int64_t now_ms) {
+    const int direction = book_reader_tap_direction(body, x, y, vertical, rtl);
+    if (!direction) { tap->pending = false; return 0; }
+    const int dx = x - tap->x, dy = y - tap->y;
+    if (tap->pending && now_ms >= tap->at_ms && now_ms - tap->at_ms <= BOOK_READER_DOUBLE_MS &&
+        dx * dx + dy * dy <= 120 * 120) {
+        tap->pending = false;
+        return BOOK_READER_TAP_FULLSCREEN;
+    }
+    const int expired = tap->pending && now_ms >= tap->at_ms &&
+        now_ms - tap->at_ms > BOOK_READER_DOUBLE_MS ? tap->direction : 0;
+    *tap = (book_reader_tap_t){true, direction, now_ms, x, y};
+    return expired;
+}

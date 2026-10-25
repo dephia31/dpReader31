@@ -98,6 +98,7 @@ int main(int argc,char **argv){
   for(unsigned i=0;i<3;++i){
    int px=sizes[i];char title[64];strcpy(title,text);
    assert(ui_text_title_fit(title,px,300,text)==px&&!strcmp(title,text));
+   assert(ui_text_title_width_px(px,text,text)==ttf_text_width_px(px,text));
    int above,below;ttf_measure_line_px(px,text,&above,&below);
    assert((unsigned)(above+below)>old_height);old_height=above+below;
    record_coverage=true;memset(pixels,15,sizeof(pixels));painted=0;

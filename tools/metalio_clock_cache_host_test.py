@@ -147,6 +147,48 @@ int main(void){
   ui_home_clock_bind_base_cache(NULL,0);paints=0;draw(cold,next,UI_HOME_CLOCK_PS1995,bw,face,60,0);
   assert(hot<paints/4);assert(!memcmp(warm,cold,BYTES));
  }
+
+ // Fixed full previews survive browsing all styles, without evicting either live base.
+ static uint8_t previews[UI_HOME_CLOCK_COUNT][BYTES];
+ const struct tm fixed={.tm_year=126,.tm_mon=0,.tm_mday=1,.tm_wday=4,.tm_hour=10,.tm_min=10,.tm_sec=30};
+ for(rotation=0;rotation<=3;++rotation)for(int bw=0;bw<2;++bw){
+  const EpdRect preview={141,rotation%2?294:120,420,460};
+  ui_home_clock_bind_base_cache(NULL,0);
+  for(unsigned style=0;style<UI_HOME_CLOCK_COUNT;++style){
+   memset(previews[style],0xab,BYTES);
+   ui_home_clock_style_draw(previews[style],preview,&fixed,bw,style);
+  }
+  ui_home_clock_bind_base_cache(memory,sizeof(memory));
+  for(unsigned style=0;style<UI_HOME_CLOCK_COUNT;++style){
+   assert(!ui_home_clock_preview_cached(preview,bw,style));
+   memset(cold,0xff,BYTES);ui_home_clock_preview_draw(cold,preview,bw,style);
+   assert(ui_home_clock_preview_cached(preview,bw,style));
+   memset(warm,0xab,BYTES);ui_home_clock_preview_draw(warm,preview,bw,style);
+   assert(!memcmp(warm,previews[style],BYTES));
+  }
+  for(unsigned style=0;style<UI_HOME_CLOCK_COUNT;++style){
+   memset(warm,0xab,BYTES);paints=texts=0;
+   ui_home_clock_preview_draw(warm,preview,bw,style);
+   assert(!paints&&!texts&&!memcmp(warm,previews[style],BYTES));
+  }
+  // Original live bases must never mistake a complete fixed preview for a live face.
+  memset(warm,0xab,BYTES);paints=0;struct tm live=fixed;live.tm_hour=13;
+  ui_home_clock_style_draw(warm,preview,&live,bw,UI_HOME_CLOCK_CAT);assert(paints);
+  ui_home_clock_bind_base_cache(NULL,0);memset(cold,0xab,BYTES);
+  ui_home_clock_style_draw(cold,preview,&live,bw,UI_HOME_CLOCK_CAT);assert(!memcmp(warm,cold,BYTES));
+  // Font changes invalidate complete numeral snapshots; no imported font is opened here.
+  ui_home_clock_bind_base_cache(memory,sizeof(memory));memset(warm,0xab,BYTES);
+  ui_home_clock_preview_draw(warm,preview,bw,UI_HOME_CLOCK_HOUSE);
+  font_variant=1;ui_home_clock_preview_invalidate();assert(!ui_home_clock_preview_cached(preview,bw,UI_HOME_CLOCK_HOUSE));memset(warm,0xab,BYTES);texts=0;
+  ui_home_clock_preview_draw(warm,preview,bw,UI_HOME_CLOCK_HOUSE);assert(texts==4);
+  ui_home_clock_bind_base_cache(NULL,0);memset(cold,0xab,BYTES);
+  ui_home_clock_style_draw(cold,preview,&fixed,bw,UI_HOME_CLOCK_HOUSE);assert(!memcmp(warm,cold,BYTES));font_variant=0;
+  // Disabled/insufficient scratch keeps the same fixed output rather than reading past a slot.
+  ui_home_clock_bind_base_cache(memory,UI_HOME_CLOCK_BASE_CACHE_BYTES-1);
+  memset(warm,0xab,BYTES);ui_home_clock_preview_draw(warm,preview,bw,UI_HOME_CLOCK_PS1995);
+  assert(!memcmp(warm,previews[UI_HOME_CLOCK_PS1995],BYTES));
+ }
+ puts("PASS: seven fixed10:10:30 previews, gray/BW and4rotations match real cold rasters; warm previews use zero raster/glyph work; live clocks/fonts/fallback remain correct");
  puts("PASS: real cold/warm gray/BW clock rasters match across4rotations, style/minute changes, partial clips, trails, live fonts, enlarged faces, odd crops, reduced motion work and unavailable scratch");
 }
 '''

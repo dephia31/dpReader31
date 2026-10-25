@@ -28,6 +28,8 @@ bool app_book_resume_context(char *p,size_t c,bool *f) { (void)p;(void)c;(void)f
 #include <string.h>
 
 const app_desc_t app_book = {.title="book"};
+bool app_book_volume_key(app_ctx_t *ctx,int direction,app_redraw_t *redraw){(void)ctx;(void)direction;(void)redraw;return false;}
+
 const app_desc_t app_transfer = {.title="transfer"};
 static int power_open_draws, power_controls_draws, power_final_draws;
 static int power_trigger_step = -1, power_tap_step=-1, shutdowns, restarts;
@@ -136,6 +138,10 @@ enum EpdDrawError update_display_area_full_with(EpdiyHighlevelState*h,const void
     if(a.width==UI_QUICK_SLIDER_WIDTH+4)++slider_forced_draws;
     return update_display_area_with(h,w,m,a);
 }
+enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState*h,EpdRect a) {
+    if(a.height==UI_QUICK_HEIGHT)++quick_opens;
+    return update_display_area_with(h,&E0470_WAVEFORM,MODE_GL16,a);
+}
 static unsigned light_brightness=30,light_warmth=50,last_on=30;
 static unsigned light_brightness_position=72,light_warmth_position=120;
 static bool light_dirty;
@@ -173,7 +179,11 @@ EpdRect ui_ai_menu_save_error(ui_ai_menu_t*m,uint8_t*f){(void)f;return m->rect;}
 const void *display_main_gray_waveform(void){return &E0470_WAVEFORM;}
 int metalio_take_volume(void) {if(step!=volume_step)return 0;volume_step=-1;return volume_value;}
 void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool enabled,unsigned b,unsigned w,bool soften_text) {assert(!soften_text);(void)fb;(void)wifi;(void)bluetooth;assert(enabled==light_enabled&&b==light_brightness_position&&w==light_warmth_position);fb[0]=0xaa;++quick_draws;}
-void ui_quick_menu_draw_slider(uint8_t *fb,bool warmth,unsigned value) {(void)fb;assert(value==metalio_frontlight_position(warmth));++slider_draws;}
+void ui_quick_menu_draw_slider(uint8_t *fb,bool warmth,unsigned value) {
+ (void)fb;unsigned expected=warmth?metalio_frontlight_position(true):ui_quick_brightness_position(metalio_frontlight_position(false));
+ int raw=UI_QUICK_SLIDER_Y1-samples[step].y;if(raw<0)raw=0;if(raw>UI_QUICK_SLIDER_RANGE)raw=UI_QUICK_SLIDER_RANGE;
+ assert(value==expected || (samples[step].count==1&&value==(unsigned)raw));++slider_draws;
+}
 static int recent_requests,recent_cancels,status_draws;
 void ble_pt_reconnect_recent(void){++recent_requests;}
 void ble_pt_cancel_recent(void){++recent_cancels;}
@@ -264,7 +274,10 @@ const char* ttf_font_path(void) {return "other";}
 int ttf_font_open(const char*p) {(void)p;font_opens++;sd_font=true;return 0;}
 int ttf_font_open_builtin(void) {assert(media_lost>0);builtin_opens++;sd_font=font_due=false;return 0;}
 int read_pico_sd_get_info(read_pico_sd_info_t*i) {i->present=media_test?present_steps[step]:font_due;i->mounted=media_test?mounted_steps[step]:font_due;return media_test&&!i->mounted?ESP_ERR_INVALID_STATE:0;}
-void read_pico_sd_start_probe(void) {probes++;}
+int read_pico_sd_start_probe(void) {probes++;return ESP_ERR_NOT_FINISHED;}
+void read_pico_sd_poll_health(void) {}
+bool read_pico_sd_needs_recovery(void) {return false;}
+int read_pico_sd_start_recovery(void) {return ESP_ERR_INVALID_STATE;}
 static void lost(app_ctx_t*c) {(void)c;media_lost++;loss_step=step;}
 static void ready(app_ctx_t*c) {(void)c;media_ready++;}
 EpdRect ui_content_refresh_area(void) {return (EpdRect){0,0,684,1000};}
@@ -620,7 +633,7 @@ int main(void) {
     reset();first.on_gesture=gesture;
     add(300,20,1,0);add(300,110,1,0);add(300,120,1,0);add(0,0,0,0);
     add(300,500,1,0);add(0,0,0,0);add(100,400,1,0);add(0,0,0,0);run();
-    assert(quick_draws==1&&quick_opens==2&&!quick_du);
+    assert(quick_draws==1&&quick_opens==1&&!quick_du&&fulls==2);
     assert(events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_TAP]==1);
     reset();main_fast=true;saved_wifi=true;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
@@ -673,6 +686,14 @@ int main(void) {
     add(426,104,1,0);add(0,0,0,0);add(572,104,1,0);add(0,0,0,0);run();
     assert(!light_enabled&&light_brightness==100&&light_warmth==100&&light_saves==2&&!touch_calls);
     assert(slider_partial_draws==2&&!slider_forced_draws);
+    reset();time_step=100000;light_enabled=false;
+    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
+    add(426,342,1,0);add(426,341,1,0);add(0,0,0,0);add(0,0,0,0);run();
+    assert(!light_enabled&&light_brightness_position==1&&light_previews==1&&light_saves==1);
+    assert(slider_draws==2&&slider_partial_draws==2&&!slider_forced_draws);
+    reset();time_step=100000;
+    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
+    add(426,224,1,0);add(0,0,0,0);run();assert(light_brightness==20&&light_brightness_position==48&&light_saves==1);
     reset();time_step=100000;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
     // 当前50%色温不变：按下/抬起不重复绘制，更不产生GL定稿黑框。
@@ -843,7 +864,7 @@ int main(void) {
     assert(ai_open_calls==1&&!ai_restore_calls&&gl_areas==1&&fulls==1&&ticks==1);
     reset();ai_step=1;ai_event=METALIO_AI_LONG;
     add(0,0,0,0);add(0,0,0,0);add(600,500,1,0);add(0,0,0,0);run();
-    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==2&&ai_saved==APP_AI_FRONTLIGHT&&!light_saves&&!touch_calls&&!keys[0]&&fulls==1);
+    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==1&&ai_saved==APP_AI_FRONTLIGHT&&!light_saves&&!touch_calls&&!keys[0]&&fulls==2);
     reset();ai_step=1;ai_event=METALIO_AI_LONG;ai_saved_error=1;
     add(0,0,0,0);add(0,0,0,0);add(600,500,1,0);add(0,0,0,0);run();
     assert(ai_open_calls==1&&!ai_restore_calls&&gl_areas==2&&ai_saved==APP_AI_REFRESH&&!touch_calls);
@@ -864,7 +885,7 @@ int main(void) {
     for(int held=0;held<2;++held){
         reset();ai_step=1;ai_event=METALIO_AI_LONG;ai_second_step=3;ai_second_event=held?METALIO_AI_LONG:METALIO_AI_SHORT;
         for(int i=0;i<5;++i)add(0,0,0,0);run();
-        assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==2&&fulls==1);
+        assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==1&&fulls==2);
     }
     reset();time_step=3000000;power_trigger_step=3;
     for(int i=0;i<5;++i)add(0,0,0,0);run();int power_only_updates=gl_areas;
@@ -873,10 +894,10 @@ int main(void) {
     assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==power_only_updates+1&&power_open_draws==1);
     reset();ai_step=1;ai_event=METALIO_AI_LONG;time_step=3000000;power_tap_step=3;
     for(int i=0;i<5;++i)add(0,0,0,0);run();
-    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==2&&idle_locks==1&&!power_open_draws);
+    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==1&&fulls==2&&idle_locks==1&&!power_open_draws);
     reset();ai_step=1;ai_event=METALIO_AI_LONG;time_step=30000000;idle_minutes=1;
     for(int i=0;i<5;++i)add(0,0,0,0);run();
-    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==2&&idle_locks==1);
+    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==1&&fulls==2&&idle_locks==1);
     puts("PASS: actual AI scheduler one open/close scan,underlay frozen,selection persists without executing,save/OOM fallback,short full/light actions and upload/update/PMU/online guards");
     puts("PASS: actual S31 volume events cycle all four roots, retain page-owned reader/child keys and reject online/power/menu input");
     puts("app_loop: 50 scheduler scenarios passed, including automatic lock, save callback, input reset and busy guards");
@@ -897,6 +918,7 @@ void crash_note_log(void){}
 void app_time_service_poll(bool idle) { (void)idle; }
 
 void ui_avatar_invalidate(void) {}
+bool ui_avatar_quiesce(unsigned timeout){(void)timeout;return true;}
 bool book_cover_jobs_quiesce(unsigned timeout){(void)timeout;return true;}
 void book_lock_collage_invalidate(void) {}
 

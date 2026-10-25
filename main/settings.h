@@ -29,20 +29,20 @@ typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_A
 /// AI键短按独立保存在S31设置；仅成功提交才改变当前映射。/ Persist S31 AI taps, changing the live mapping only after a successful commit.
 app_ai_action_t app_settings_ai_short(void);
 esp_err_t app_settings_set_ai_short(app_ai_action_t action);
-/// S31锁屏：0保留内存待机（默认），1硬件浅睡，2硬件深睡；USB/拿起唤醒时保留待机。
-/// S31 lock: retained(default), hardware light, hardware deep; USB/pickup retain awake standby.
-uint8_t app_settings_lock_sleep(void);
-void app_settings_set_lock_sleep(uint8_t mode);
 #else
 #endif
 void app_settings_set_sleep_mode(app_sleep_mode_t mode);
 const char* app_sleep_mode_name(app_sleep_mode_t mode);
+#if KIIKO_BOARD_METALIO47
+/// S31关机：默认浅睡十分钟后深睡；false彻底断电，成功保存后生效。/ S31 defaults to light sleep then deep after ten minutes; false powers off, effective after saving.
+#else
 /// 电源菜单“关机”：false 为彻底断电，true 为先浅睡 10 分钟再由 PMU 软睡断电。
 /// Power-menu shutdown: false powers fully off; true light-sleeps for 10 minutes, then PMU soft-sleeps.
+#endif
 bool app_settings_staged_shutdown(void);
 void app_settings_set_staged_shutdown(bool staged);
-/// 电源键开机次数：1 单击开机，2 双击开机；默认 2，放在包里不易误开机。
-/// Power-key boot presses: 1 boots on a single press, 2 needs a double click; defaults to 2 so a bag cannot wake it.
+/// 电源键开机次数：1 单击开机，2 双击开机；默认 1，已保存的选择继续保留。
+/// Power-key boot presses: 1 boots on a single press, 2 needs a double click; defaults to 1 and retains an explicit saved choice.
 uint8_t app_settings_wake_presses(void);
 void app_settings_set_wake_presses(uint8_t presses);
 /// 首页进入时强制全刷；默认关闭。/ Full refresh when entering Home; off by default.

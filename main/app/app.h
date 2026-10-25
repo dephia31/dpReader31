@@ -91,6 +91,15 @@ typedef struct {
     bool request_back_ripple;
 } app_ctx_t;
 
+typedef struct {
+    /// true = 两指仍在屏上；false = 双指抬起。/ true while both contacts stay down; false on release.
+    bool active;
+    /// 第一指 / First contact.
+    uint16_t ax, ay;
+    /// 第二指 / Second contact.
+    uint16_t bx, by;
+} app_pinch_t;
+
 struct app_desc_s {
     /// 菜单里显示的标题与副标题。/ Menu title and subtitle.
     const char* title;
@@ -144,6 +153,12 @@ struct app_desc_s {
     bool (*present)(app_ctx_t* ctx, app_redraw_t redraw);
     /// 设置后独占触摸派发，替代 on_touch。/ Exclusive gesture dispatch replaces on_touch.
     app_redraw_t (*on_gesture)(app_ctx_t* ctx, const ui_gesture_event_t* event);
+    /// 可选：本页此刻要原始双指触摸（整页插图缩放）。返回 true 时双指交给 on_pinch，不再走通用手势。
+    /// / Optional: raw two-contact input right now (whole-page illustration zoom). While it returns
+    /// true two contacts go to on_pinch instead of the shared single-finger gesture path.
+    bool (*wants_pinch)(app_ctx_t* ctx);
+    /// 可选：双指事件；active=false 表示两指都已离开。/ Optional two-contact event; active=false on release.
+    app_redraw_t (*on_pinch)(app_ctx_t* ctx, const app_pinch_t* pinch);
     app_redraw_t (*on_touch)(app_ctx_t* ctx, const cst836u_touch_t* touch);
     /// 默认只收 UI_KEY_1；owns_keys 页面在菜单外接收三键。
     /// / Only KEY1 normally; owns_keys pages receive all three keys outside the menu.

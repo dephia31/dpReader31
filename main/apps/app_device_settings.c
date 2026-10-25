@@ -59,7 +59,14 @@
 #include "read_pico_transfer.h"
 #include "esp_log.h"
 #include "ttf_font.h"
+#if KIIKO_BOARD_METALIO47
+#include "font_filename.h"
+#endif
 #include "app_font_context.h"
+#if KIIKO_BOARD_METALIO47
+#include "ui_online_fonts.h"
+static ui_online_fonts_t s_online_fonts;
+#endif
 #include "ui_gesture.h"
 #include "ui_kit.h"
 #include "ui_text_input.h"
@@ -91,11 +98,14 @@ static void settings_card(uint8_t *fb, EpdRect rect, int radius, uint8_t fill, u
 static char s_notice[96];
 typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
                SETTINGS_TIME_EDIT, SETTINGS_SHELF_STYLE, SETTINGS_SYSTEM_FONT,
+#if KIIKO_BOARD_METALIO47
+               SETTINGS_ONLINE_FONTS,
+#endif
                SETTINGS_SYSTEM_SIZE, SETTINGS_SYSTEM_CONTRAST, SETTINGS_MAIN_REFRESH, SETTINGS_LOCK_STYLE,
                SETTINGS_WALLPAPER, SETTINGS_WALLPAPER_PREVIEW,
                SETTINGS_CONFIG, SETTINGS_UPGRADE, SETTINGS_BOOT, SETTINGS_FACTORY_RESET,
 #if KIIKO_BOARD_METALIO47
-               SETTINGS_POWER_SLEEP, SETTINGS_LOCK_SLEEP, SETTINGS_AUTO_LOCK, SETTINGS_PROFILE, SETTINGS_AVATAR,
+               SETTINGS_POWER_SLEEP, SETTINGS_AUTO_LOCK, SETTINGS_PROFILE, SETTINGS_AVATAR,
 #else
                SETTINGS_POWER_SLEEP, SETTINGS_AUTO_LOCK, SETTINGS_PROFILE, SETTINGS_AVATAR,
 #endif
@@ -113,6 +123,9 @@ static int settings_viewport_end(void) {
     return UI_NAV_TOP;
 }
 static void settings_navigation(uint8_t *fb) {
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS)return;
+#endif
     ui_nav_draw(fb,3);
 }
 static int settings_nav_hit(uint16_t x,uint16_t y) {
@@ -372,9 +385,9 @@ static int settings_main_row_height(void) {
 #define SETTINGS_ROW_H settings_main_row_height()
 #define SETTINGS_WIRELESS_ROWS 3
 #if KIIKO_BOARD_METALIO47
-#define SETTINGS_DISPLAY_ROWS 7
+#define SETTINGS_DISPLAY_ROWS 8
 #else
-#define SETTINGS_DISPLAY_ROWS 6
+#define SETTINGS_DISPLAY_ROWS 7
 #endif
 #define SETTINGS_PERSONAL_ROWS 4
 #define SETTINGS_MAINTENANCE_ROWS 5
@@ -384,6 +397,7 @@ static int settings_main_row_height(void) {
 #define SETTINGS_MAINTENANCE_Y (SETTINGS_PERSONAL_Y + SETTINGS_PERSONAL_ROWS * SETTINGS_ROW_H + 78)
 // 设置行图标：32 像素盒，在行高 68 里垂直居中；墨色统一，避免一行一个灰度。
 // Setting row icons: a 32 px box centred in the 68 px row with one shared ink level.
+#define SETTINGS_UNLOCK_ICON 18
 #define SETTINGS_ICON_PX 32
 #define SETTINGS_ICON_INK 0x58
 // 主页面滚动上限：把最后一组的最后一行刚好推到导航栏之上，多留 8px 余量。
@@ -399,9 +413,17 @@ static const char *system_font_label(const char *path) {
     const char *name = strrchr(path, '/');
     name = name ? name + 1 : path;
     static char stem[TTF_FONT_NAME_MAX];
+#if KIIKO_BOARD_METALIO47
+    for(int i=0;i<ttf_font_count();++i) {
+        const ttf_font_item_t *item=ttf_font_item(i);
+        if(item&&!strcmp(item->path,path))return ttf_font_localized_name(item->name);
+    }
+    if(!font_filename_make(name,stem,sizeof(stem),false))snprintf(stem,sizeof(stem),"Font-%08x",(unsigned)font_filename_hash(name));
+#else
     snprintf(stem, sizeof(stem), "%s", name);
     size_t len = strlen(stem);
     if (len >= 4 && !strcasecmp(stem + len - 4, ".ttf")) stem[len - 4] = 0;
+#endif
     if (!strcasecmp(stem, "Hei")) return "思源黑体（TF 卡）";
     return ttf_font_localized_name(stem);
 }
@@ -410,9 +432,15 @@ typedef struct {
     int preview_title, font_title, first, row_height, slots;
 } system_font_layout_t;
 static system_font_layout_t system_font_layout(void) {
+#if KIIKO_BOARD_METALIO47
+    // 顶部预览保持紧凑，为100%–200%字号统一留四行字体；文字仍按系统字号绘制。
+    // Keep previews compact and reserve four font rows at100%–200%, retaining scaled text.
+    system_font_layout_t l = {{36,197,612,118},{36,398,612,154},344,580,640,94,4};
+#else
     system_font_layout_t l = settings_stacked()
         ? (system_font_layout_t){{36,197,612,183},{36,471,612,216},413,722,785,142,2}
         : (system_font_layout_t){{36,197,612,100},{36,379,612,154},322,560,615,99,4};
+#endif
     l.slots=(settings_viewport_end()-42-l.first)/l.row_height;
     return l;
 }
@@ -420,6 +448,11 @@ static EpdRect system_font_item_rect(int slot) {
     system_font_layout_t l = system_font_layout();
     return (EpdRect){36,l.first + slot * l.row_height,612,l.row_height - 16};
 }
+#if KIIKO_BOARD_METALIO47
+static EpdRect system_font_page_button(bool next) {
+    return (EpdRect){next?504:36,settings_viewport_end()-66,144,48};
+}
+#endif
 static EpdRect system_font_sync_button(bool sync) { return (EpdRect){sync ? 351 : 72,683,261,74}; }
 static void draw_system_font_sync(uint8_t *fb) {
     // 仅一个有界弹窗，不额外打开阅读字体。/ One bounded dialog; never load the reading face here.
@@ -804,6 +837,7 @@ static void setting_icon(uint8_t *fb, int index, int cx, int cy) {
         UI_ICON_SLIDERS_HORIZONTAL, // 15 主页刷新模式 / Main refresh mode
         UI_ICON_LOCK,              // 16 锁屏密码 / lock screen password
         UI_ICON_ROTATE_CW,         // 17 屏幕修复 / panel repair
+        UI_ICON_LOCK,              // 18 双击解锁 / double-press unlock
     };
     if (index < 0 || index >= (int)(sizeof(icons) / sizeof(icons[0]))) return;
     ui_draw_icon(fb, cx, cy, SETTINGS_ICON_PX, icons[index], SETTINGS_ICON_INK);
@@ -815,6 +849,14 @@ static void settings_fit_text(char *value, int px, int width) {
     }
 }
 static void fit_value(char *value, int width) { settings_fit_text(value,20,width); }
+
+static void settings_switch(uint8_t *fb, int center_y, bool active) {
+    EpdRect track = {555, center_y - 19, 69, 39};
+    ui_fill_round_rect(fb, track, 19, active ? 0x58 : 0xc4);
+    int cx = active ? track.x + 49 : track.x + 20;
+    epd_fill_circle(cx, track.y + 19, 16, UI_GRAY_WHITE, fb);
+    epd_draw_circle(cx, track.y + 19, 16, 0x78, fb);
+}
 
 static void setting_group(uint8_t *fb, int title_y, const char *title,
                           int card_y, const int icons[], const char *const labels[],
@@ -834,6 +876,11 @@ static void setting_group(uint8_t *fb, int title_y, const char *title,
         if (y + row_height <= 160 || y >= settings_viewport_end()) continue;
         if (i) settings_divider(fb, y, 88, 544);
         setting_icon(fb, icons[i], 67, y + row_height / 2);
+        if (icons[i] == SETTINGS_UNLOCK_ICON) {
+            ui_text_vc(fb, 100, y + row_height / 2, 25, labels[i], EPD_DRAW_ALIGN_LEFT, false);
+            settings_switch(fb, y + row_height / 2, app_settings_wake_presses() == 2);
+            continue;
+        }
         char shown[128]; snprintf(shown,sizeof(shown),"%s",values[i]);
         int value_width = 594 - 100 - 20 - ui_text_fixed_width_px(ui_text_effective_px(25),labels[i]);
         if (value_width > 215) value_width = 215;
@@ -851,11 +898,7 @@ static void setting_toggle(uint8_t *fb, int y, const char *title, const char *de
     settings_card(fb, (EpdRect){36, y, 612, 126}, 22, UI_GRAY_WHITE, 0x70);
     ui_text(fb, 59, y + 24, 27, title, EPD_DRAW_ALIGN_LEFT, false);
     ui_text(fb, 59, y + 75, 19, detail, EPD_DRAW_ALIGN_LEFT, false);
-    EpdRect track = {555, y + 43, 69, 39};
-    ui_fill_round_rect(fb, track, 19, active ? 0x58 : 0xc4);
-    int cx = active ? track.x + 49 : track.x + 20;
-    epd_fill_circle(cx, track.y + 19, 16, UI_GRAY_WHITE, fb);
-    epd_draw_circle(cx, track.y + 19, 16, 0x78, fb);
+    settings_switch(fb, y + 62, active);
 }
 
 static void draw_style_thumbnail(uint8_t *fb, int style, int top) {
@@ -901,6 +944,7 @@ static char s_main_wifi[33];
 static bool s_main_wifi_saved;
 static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS){ui_online_fonts_draw(&s_online_fonts,fb);return;}
     if(s_page==SETTINGS_FRONTLIGHT) {
         epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb); back_header(fb,"前光与振动");
         char value[48]; snprintf(value,sizeof(value),"%u%%",metalio_brightness());
@@ -1040,9 +1084,18 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     }
     if (s_page == SETTINGS_SYSTEM_FONT) {
         back_header(fb, "系统字体");
+#if KIIKO_BOARD_METALIO47
+        ui_online_fonts_draw_entry(fb,79);
+#endif
         system_font_layout_t l = system_font_layout();
         settings_card(fb,l.size,22,UI_GRAY_WHITE,0x70);
         char size[16]; snprintf(size,sizeof(size),"%u%%",app_settings_system_font_size());
+#if KIIKO_BOARD_METALIO47
+        ui_text_vc(fb,60,231,27,"系统字号",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_vc(fb,589,231,27,size,EPD_DRAW_ALIGN_RIGHT,false);
+        ui_text_vc(fb,60,285,18,"轻点切换，最大 200%",EPD_DRAW_ALIGN_LEFT,false);
+        ui_draw_icon(fb,619,231,28,UI_ICON_ROTATE_CW,0x38);
+#else
         if (settings_stacked()) {
             ui_text_vc(fb,60,247,27,"系统字号",EPD_DRAW_ALIGN_LEFT,false);
             ui_text_vc(fb,589,247,27,size,EPD_DRAW_ALIGN_RIGHT,false);
@@ -1053,13 +1106,23 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text_vc(fb,589,247,26,size,EPD_DRAW_ALIGN_RIGHT,false);
         }
         ui_draw_icon(fb,619,247,28,UI_ICON_ROTATE_CW,0x38);
+#endif
         section(fb,l.preview_title,"效果预览");
         settings_card(fb,l.preview,22,UI_GRAY_WHITE,0x70);
+#if KIIKO_BOARD_METALIO47
+        ui_text_vc(fb,60,l.preview.y+43,29,"阅读，让时间慢下来",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_vc(fb,60,l.preview.y+112,25,"Aa 123",EPD_DRAW_ALIGN_LEFT,false);
+#else
         ui_text_vc(fb,60,l.preview.y+(settings_stacked()?68:51),29,"阅读，让时间慢下来",EPD_DRAW_ALIGN_LEFT,false);
         ui_text_vc(fb,60,l.preview.y+(settings_stacked()?151:107),25,"Aa 123",EPD_DRAW_ALIGN_LEFT,false);
+#endif
         section(fb,l.font_title,"选择字体");
         const char *selected = app_settings_system_font_path();
         int count = ttf_font_count(), first = s_font_page*l.slots;
+#if KIIKO_BOARD_METALIO47
+        char total[32];snprintf(total,sizeof(total),"共 %d 款",count+1);
+        ui_text_vc(fb,648,l.font_title+ui_text_effective_px(22)/2,18,total,EPD_DRAW_ALIGN_RIGHT,false);
+#endif
         for (int slot=0;slot<l.slots && first+slot<=count;++slot) {
             int index=first+slot;
             const ttf_font_item_t *item=index?ttf_font_item(index-1):NULL;
@@ -1069,12 +1132,34 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             char label[TTF_FONT_NAME_MAX];
             snprintf(label,sizeof(label),"%s",item?system_font_label(item->path):"思源黑体（内建）");
             settings_fit_text(label,26,box.width-100);
+#if KIIKO_BOARD_METALIO47
+            ui_text_box(fb,(EpdRect){60,box.y+8,box.width-100,box.height-16},26,label,EPD_DRAW_ALIGN_LEFT,false);
+#else
             ui_text_vc(fb,60,box.y+box.height/2,26,label,EPD_DRAW_ALIGN_LEFT,false);
+#endif
             if (active) epd_fill_circle(613,box.y+box.height/2,6,UI_GRAY_BLACK,fb);
         }
-        char pages[24];snprintf(pages,sizeof(pages),"%d / %d",s_font_page+1,(count+l.slots)/l.slots);
+#if KIIKO_BOARD_METALIO47
+        char pages[32];
+#else
+        char pages[24];
+#endif
+        snprintf(pages,sizeof(pages),"%d / %d",s_font_page+1,(count+l.slots)/l.slots);
+#if KIIKO_BOARD_METALIO47
+        int page_count=(count+l.slots)/l.slots;
+        for(int next=0;next<2;++next) {
+            EpdRect r=system_font_page_button(next);
+            bool enabled=next?s_font_page+1<page_count:s_font_page>0;
+            settings_card(fb,r,18,UI_GRAY_WHITE,enabled?0x50:0xc0);
+            ui_draw_icon(fb,r.x+r.width/2,r.y+r.height/2,28,
+                next?UI_ICON_CHEVRON_RIGHT:UI_ICON_CHEVRON_LEFT,enabled?UI_GRAY_BLACK:0xc0);
+        }
+        if(s_notice[0])ui_text_box(fb,(EpdRect){190,settings_viewport_end()-66,304,48},18,s_notice,EPD_DRAW_ALIGN_CENTER,false);
+        else ui_text_vc(fb,342,settings_viewport_end()-42,20,pages,EPD_DRAW_ALIGN_CENTER,false);
+#else
         ui_text_fixed_vc(fb,648,settings_viewport_end()-16,18,pages,EPD_DRAW_ALIGN_RIGHT,false);
         if (s_notice[0]) ui_text_fixed_vc(fb,42,settings_viewport_end()-16,18,s_notice,EPD_DRAW_ALIGN_LEFT,false);
+#endif
         settings_navigation(fb);
         if (s_font_sync_confirm) draw_system_font_sync(fb);
         return;
@@ -1249,42 +1334,21 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     if (s_page == SETTINGS_POWER_SLEEP) {
         back_header(fb, "关机睡眠");
         section(fb, 248, "选择电源菜单中“关机”的方式");
-        const char *labels[] = {"彻底关机", "锁屏待机"};
-        const char *details[] = {"完全断电，长按电源键开机",
-                                 "按下方方式保留锁屏"};
+        const char *labels[] = {"浅睡10分钟后进入深睡", "彻底断电"};
+        const char *details[] = {"默认；按电源键唤醒",
+                                 "长按电源键开机"};
         for (int i = 0; i < 2; ++i) {
             EpdRect box = {36, 300 + i * 154, 612, 132};
-            bool active = app_settings_staged_shutdown() == (i == 1);
+            bool active = app_settings_staged_shutdown() == (i == 0);
             settings_card(fb, box, 22, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
-            ui_text(fb, 64, box.y + 23, 29, labels[i], EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 64, box.y + 23, 24, labels[i], EPD_DRAW_ALIGN_LEFT, false);
             ui_text(fb, 64, box.y + 79, 20, details[i], EPD_DRAW_ALIGN_LEFT, false);
             if (active) epd_fill_circle(609, box.y + 66, 8, UI_GRAY_BLACK, fb);
         }
-        ui_text(fb, 54, 664, 21, "浅睡按键返回，深睡重启恢复。", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 54, 708, 21, "壁纸与票根均可锁屏。", EPD_DRAW_ALIGN_LEFT, false);
-        const char *modes[]={"保留待机", "浅睡省电", "深睡省电"};
-        row(fb, 774, "锁屏省电方式", modes[app_settings_lock_sleep()]);
-        settings_navigation(fb);
-        return;
-    }
-    if (s_page == SETTINGS_LOCK_SLEEP) {
-        back_header(fb, "锁屏省电方式");
-        section(fb, 248, "锁屏后使用的待机方式");
-        const char *labels[]={"保留待机（默认）", "浅睡省电", "深睡省电"};
-        const char *details[]={"保留内存，短按按键返回",
-            "外设暂歇，按电源键唤醒",
-            "短按电源键启动并恢复"};
-        for (int i=0;i<3;i++) {
-            EpdRect box={36,300+i*148,612,128};
-            bool active=app_settings_lock_sleep()==i;
-            settings_card(fb,box,22,active?0xd0:UI_GRAY_WHITE,0x70);
-            ui_text(fb,64,box.y+22,25,labels[i],EPD_DRAW_ALIGN_LEFT,false);
-            ui_text(fb,64,box.y+78,18,details[i],EPD_DRAW_ALIGN_LEFT,false);
-            if(active) epd_fill_circle(609,box.y+64,8,UI_GRAY_BLACK,fb);
-        }
-        ui_text(fb,48,800,20,"USB/拿起唤醒：保留待机",EPD_DRAW_ALIGN_LEFT,false);
-        ui_text(fb,48,856,20,"定时维护不解锁、不点前光",EPD_DRAW_ALIGN_LEFT,false);
-        ui_text(fb,48,912,20,"深睡后先短按，再连接刷机",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text(fb, 54, 664, 18, "浅睡保留内存，深睡启动恢复", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 708, 18, "USB 连接时暂缓休眠", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 810, 18, "日常锁屏沿用先浅后深", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 866, 20, "设置了锁屏密码时仍需验证", EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
     }
@@ -1305,21 +1369,6 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         }
         ui_text(fb, 54, 558, 21, "浅睡时按键直接返回，深睡时会重新开机。", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 54, 594, 21, "锁屏样式同时适用于壁纸与阅读票根。", EPD_DRAW_ALIGN_LEFT, false);
-        // 用户修订：开机按键次数可选，单击更快、双击防误触；深睡唤醒与锁屏解锁共用。
-        // User revision: the boot press count is selectable; one press is faster, two resist accidental wake. Deep-sleep wake and lock unlock share it.
-        section(fb, 650, "按电源键开机");
-        const char *wake_labels[] = {"单击开机", "双击开机"};
-        const char *wake_details[] = {"按一次电源键就开机，更快", "连续按两次，放在包里不易误开机"};
-        for (int i = 0; i < 2; ++i) {
-            int y = 692 + i * 124;
-            bool active = app_settings_wake_presses() == (uint8_t)(i + 1);
-            settings_card(fb, (EpdRect){36, y, 612, 112}, 22, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
-            ui_text(fb, 64, y + 16, 27, wake_labels[i], EPD_DRAW_ALIGN_LEFT, false);
-            ui_text(fb, 64, y + 64, 20, wake_details[i], EPD_DRAW_ALIGN_LEFT, false);
-            if (active) epd_fill_circle(609, y + 56, 8, UI_GRAY_BLACK, fb);
-        }
-        ui_text(fb, 54, 948, 21, "深睡唤醒与锁屏解锁都按这个次数。", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 54, 984, 21, "双击更防误触；单击一按即用。", EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
     }
@@ -1369,7 +1418,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text(fb, 60, 383, 29, "联网 OTA", EPD_DRAW_ALIGN_LEFT, false);
             char detail[96];
 #if KIIKO_BOARD_METALIO47
-            snprintf(detail, sizeof(detail), "%s", s_update.message[0] ? s_update.message : "独立 S31 仅使用本地升级包");
+            snprintf(detail, sizeof(detail), "%s", s_update.message[0] ? s_update.message : "连接 WiFi，优先检查 GitHub 新版本");
 #else
             snprintf(detail, sizeof(detail), "%s", s_update.message[0] ? s_update.message : "连接 WiFi，检查官网发布的新版本");
 #endif
@@ -1562,18 +1611,18 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     unsigned minutes=app_settings_auto_lock_minutes();
     if(minutes)snprintf(idle,sizeof(idle),"%u 分钟",minutes);else strcpy(idle,"关闭");
 #if KIIKO_BOARD_METALIO47
-    const char *display_labels[]={"系统字体","系统对比度","主页刷新模式","首页强刷","自动休眠锁屏","关机睡眠","前光与振动"};
+    const char *display_labels[]={"系统字体","系统对比度","主页刷新模式","首页强刷","自动休眠锁屏","双击解锁","关机睡眠","前光与振动"};
 #else
-    const char *display_labels[]={"系统字体","系统对比度","主页刷新模式","首页强刷","自动休眠锁屏","关机睡眠"};
+    const char *display_labels[]={"系统字体","系统对比度","主页刷新模式","首页强刷","自动休眠锁屏","双击解锁","关机睡眠"};
 #endif
     const char *display_values[]={font_name,contrast,
         app_settings_main_refresh_mode()==APP_MAIN_REFRESH_FAST?"快刷":app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER?"水波纹":"普通",
 #if KIIKO_BOARD_METALIO47
-        app_settings_home_full_refresh()?"开启":"关闭",idle,app_settings_staged_shutdown()?"锁屏待机":"彻底断电","亮度与色温"};
-    const int display_icons[]={2,7,15,11,14,9,7};
+        app_settings_home_full_refresh()?"开启":"关闭",idle,"",app_settings_staged_shutdown()?"先浅后深":"彻底断电","亮度与色温"};
+    const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9,7};
 #else
-        app_settings_home_full_refresh()?"开启":"关闭",idle,app_settings_staged_shutdown()?"先浅后深":"彻底断电"};
-    const int display_icons[]={2,7,15,11,14,9};
+        app_settings_home_full_refresh()?"开启":"关闭",idle,"",app_settings_staged_shutdown()?"先浅后深":"彻底断电"};
+    const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9};
 #endif
     setting_group(fb,SETTINGS_DISPLAY_Y-49,"显示",SETTINGS_DISPLAY_Y,
                   display_icons,display_labels,display_values,SETTINGS_DISPLAY_ROWS);
@@ -1587,7 +1636,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
                   personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
     const char *maintenance_labels[]={"系统升级","保存与恢复","屏幕修复","BOOT 刷机","恢复出厂设置"};
 #if KIIKO_BOARD_METALIO47
-    const char *maintenance_values[]={"本地 TF 卡","配置","清除条纹","电脑刷机","重置系统"};
+    const char *maintenance_values[]={"OTA / TF 卡","配置","清除条纹","电脑刷机","重置系统"};
 #else
     const char *maintenance_values[]={"OTA / TF 卡","配置","清除条纹","电脑刷机","重置系统"};
 #endif
@@ -1702,6 +1751,9 @@ static app_redraw_t reset_tick(void) {
 }
 
 static app_redraw_t on_tick(app_ctx_t *ctx) {
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS)return ui_online_fonts_tick(&s_online_fonts,ctx->now_ms);
+#endif
     // 屏幕修复：先画最终结果，再在 tick 中整屏恢复；成功后不重复推页。
     // Paint the final notice before the tick's full restoration; do not push the page twice on success.
     if (s_panel_repair_pending) {
@@ -1968,6 +2020,17 @@ static app_redraw_t reset_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
 }
 
 static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS){
+        app_redraw_t redraw=ui_online_fonts_gesture(&s_online_fonts,ev);
+        if(s_online_fonts.closed){online_font_cancel_join();ttf_font_scan();s_font_page=0;s_page=SETTINGS_SYSTEM_FONT;}
+        return redraw;
+    }
+    if(s_page==SETTINGS_SYSTEM_FONT&&!s_font_sync_confirm&&ev->type==UI_GESTURE_TAP&&
+       ui_rect_hit(ui_online_fonts_entry_rect(79),ev->x0,ev->y0)){
+        ui_online_fonts_open(&s_online_fonts,false);s_page=SETTINGS_ONLINE_FONTS;return APP_REDRAW_PAGE;
+    }
+#endif
     if (s_page==SETTINGS_SYSTEM_FONT && s_font_sync_confirm) {
         if (ev->type!=UI_GESTURE_TAP) return APP_REDRAW_NONE;
         for (int i=0;i<2;++i) {
@@ -2240,6 +2303,14 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             if (s_main_scroll>SETTINGS_SCROLL_MAX) s_main_scroll=SETTINGS_SCROLL_MAX;
             ui_text_set_system_scale(true);s_notice[0]=0;return APP_REDRAW_PAGE;
         }
+#if KIIKO_BOARD_METALIO47
+        for(int next=0;next<2;++next)if(ui_rect_hit(system_font_page_button(next),ev->x0,y)) {
+            int pages=(ttf_font_count()+l.slots)/l.slots;
+            int page=s_font_page+(next?1:-1);
+            if(page<0||page>=pages)return APP_REDRAW_NONE;
+            s_font_page=page;s_scroll_present_pending=true;return APP_REDRAW_AREA;
+        }
+#endif
         for (int slot=0;slot<l.slots;++slot) {
             if (!ui_rect_hit(system_font_item_rect(slot),ev->x0,y)) continue;
             int index=s_font_page*l.slots+slot;
@@ -2328,21 +2399,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
 #if KIIKO_BOARD_METALIO47
     if (s_page == SETTINGS_POWER_SLEEP) {
-        if(ui_rect_hit((EpdRect){36,774,612,70},ev->x0,ev->y0)) { s_page=SETTINGS_LOCK_SLEEP; return APP_REDRAW_PAGE; }
-        if (y >= 300 && y < 432) {
-            app_settings_set_staged_shutdown(false);
-            return APP_REDRAW_PAGE;
-        }
-        if (y >= 454 && y < 586) {
-            app_settings_set_staged_shutdown(true);
-            return APP_REDRAW_PAGE;
-        }
-        return APP_REDRAW_NONE;
-    }
-    if (s_page == SETTINGS_LOCK_SLEEP) {
-        for(int i=0;i<3;i++) if(ui_rect_hit((EpdRect){36,300+i*148,612,128},ev->x0,ev->y0)) {
-            app_settings_set_lock_sleep((uint8_t)i);
-            return APP_REDRAW_PAGE;
+        for (int i = 0; i < 2; ++i) {
+            if (ui_rect_hit((EpdRect){36, 300 + i * 154, 612, 132}, ev->x0, ev->y0)) {
+                app_settings_set_staged_shutdown(i == 0);
+                return APP_REDRAW_PAGE;
+            }
         }
         return APP_REDRAW_NONE;
     }
@@ -2354,14 +2415,6 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         }
         if (y >= 414 && y < 538) {
             app_settings_set_staged_shutdown(true);
-            return APP_REDRAW_PAGE;
-        }
-        if (y >= 692 && y < 804) {
-            app_settings_set_wake_presses(1);
-            return APP_REDRAW_PAGE;
-        }
-        if (y >= 816 && y < 928) {
-            app_settings_set_wake_presses(2);
             return APP_REDRAW_PAGE;
         }
         return APP_REDRAW_NONE;
@@ -2542,8 +2595,9 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else if(row==2)s_page=SETTINGS_MAIN_REFRESH;
         else if(row==3)app_settings_set_home_full_refresh(!app_settings_home_full_refresh());
         else if(row==4)s_page=SETTINGS_AUTO_LOCK;
+        else if(row==5)app_settings_set_wake_presses(app_settings_wake_presses()==2?1:2);
 #if KIIKO_BOARD_METALIO47
-        else if(row==5)s_page=SETTINGS_POWER_SLEEP;
+        else if(row==6)s_page=SETTINGS_POWER_SLEEP;
         else s_page=SETTINGS_FRONTLIGHT;
 #else
         else s_page=SETTINGS_POWER_SLEEP;
@@ -2584,6 +2638,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 }
 
 static app_redraw_t on_key(app_ctx_t *ctx, int key) {
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS){
+        ui_online_fonts_close(&s_online_fonts);ttf_font_scan();s_font_page=0;s_page=SETTINGS_SYSTEM_FONT;
+        return APP_REDRAW_PAGE;
+    }
+#endif
     s_reset_confirm=s_reset_pending=false;
 #if KIIKO_BOARD_METALIO47
     if (s_page==SETTINGS_BOOT) { s_boot_pending=false; app_cancel_download(); }
@@ -2619,6 +2679,9 @@ static app_redraw_t on_key(app_ctx_t *ctx, int key) {
     return APP_REDRAW_NONE;
 }
 static void settings_exit(app_ctx_t *ctx) {
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS)ui_online_fonts_close(&s_online_fonts);
+#endif
     s_reset_confirm=s_reset_pending=false;
 #if KIIKO_BOARD_METALIO47
     s_boot_pending=false; app_cancel_download();
@@ -2632,6 +2695,9 @@ static void settings_exit(app_ctx_t *ctx) {
     (void)ctx; ui_keyboard_end(); pico_online_cancel_join(); ble_pt_scan_stop(); s_ble_learning = 0;
 }
 static void on_before_lock(app_ctx_t *ctx) {
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS){ui_online_fonts_close(&s_online_fonts);ttf_font_scan();s_font_page=0;s_page=SETTINGS_SYSTEM_FONT;}
+#endif
     s_reset_confirm=s_reset_pending=false;
 #if KIIKO_BOARD_METALIO47
     s_boot_pending=false; app_cancel_download();
@@ -2645,6 +2711,9 @@ static void on_before_lock(app_ctx_t *ctx) {
 }
 static bool no_menu_handle(app_ctx_t *ctx) { (void)ctx; return false; }
 static void settings_media_lost(app_ctx_t *ctx) {
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS){ui_online_fonts_close(&s_online_fonts);s_page=SETTINGS_SYSTEM_FONT;s_font_page=0;}
+#endif
     bookmark_preview_release();
     (void)ctx; s_avatar_ready=s_avatar_pending=false; s_avatar_path[0]=0;
 }
@@ -2661,9 +2730,15 @@ static bool settings_back_swipe_area(app_ctx_t *ctx,const ui_gesture_event_t *ev
 static bool main_page_visible(app_ctx_t *ctx) { (void)ctx; return s_page == SETTINGS_MAIN; }
 static bool settings_navigation_enabled(app_ctx_t *ctx) {
     (void)ctx;
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS)return false;
+#endif
     return !s_reset_pending && !s_local_pending && !s_upgrade_restart && !s_pin_pending && !s_boot_pending;
 }
 static bool settings_present(app_ctx_t *ctx, app_redraw_t redraw) {
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_ONLINE_FONTS)return ui_online_fonts_present(&s_online_fonts,ctx,redraw);
+#endif
     if (s_page == SETTINGS_PIN_ENTRY && (redraw == APP_REDRAW_PAGE || redraw == APP_REDRAW_FULL)) {
         display_main_transition_cancel(); render(ctx, ctx->fb);
         guard_draw_result(ctx->hl, update_display_area_diff_with(ctx->hl, &E0470_WAVEFORM, MODE_GL16, (EpdRect){0,0,UI_LOCK_WIDTH,UI_NAV_REFRESH_END}));

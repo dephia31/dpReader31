@@ -20,7 +20,8 @@
 #define TTF_SIZE_SMALL 0
 #define TTF_SIZE_LARGE 1
 
-#define TTF_FONT_MAX 24
+// 只保存名称/路径索引，不同时加载全部字库。/ Catalogue metadata only; font faces remain loaded on demand.
+#define TTF_FONT_MAX 128
 #define TTF_FONT_NAME_MAX 64
 #define TTF_FONT_PATH_MAX 160
 

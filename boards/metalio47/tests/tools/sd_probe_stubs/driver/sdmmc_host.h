@@ -5,9 +5,16 @@
 
 #include "esp_err.h"
 #include <stddef.h>
+#include <stdbool.h>
+#include <stdint.h>
 esp_err_t test_host_init(void);
 esp_err_t test_host_deinit(void);
-typedef struct { int max_freq_khz, slot; esp_err_t (*init)(void); esp_err_t (*deinit)(void); } sdmmc_host_t;
+typedef struct { int max_freq_khz, slot,flags; esp_err_t (*init)(void); esp_err_t (*deinit)(void);
+    bool (*check_buffer_alignment)(int,const void*,size_t);
+    void* dma_aligned_buffer; size_t unaligned_multi_block_rw_max_chunk_size;
+} sdmmc_host_t;
+static inline bool sdmmc_host_check_buffer_alignment(int slot,const void* p,size_t n){(void)slot;return (uintptr_t)p%4==0&&n%4==0;}
+#define SDMMC_HOST_FLAG_ALLOC_ALIGNED_BUF 64
 typedef struct {
     int width, clk, cmd, d0, d1, d2, d3, cd, wp, flags;
 } sdmmc_slot_config_t;

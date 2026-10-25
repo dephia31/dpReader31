@@ -89,6 +89,7 @@ for name in ('ui_read_pixel','ui_image_bw_rect','icon_nibble','ui_draw_icon'):
 for name in ('epd_draw_circle',):code+=function('components/epdiy/src/epdiy.c',name)
 code+=function('main/ui/ui_kit.c','ui_inset_rect')+function('main/ui/ui_kit.c','ui_draw_control_frame')
 code+='static uint8_t pixel(const uint8_t *fb,int x,int y){return ui_read_pixel(fb,x,y)*17u;}\n'
+code+=body('main/ui/ui_quick_brightness.h').replace('#pragma once','')
 code+=body('main/ui/ui_glass.c')+body('main/ui/ui_quick_menu.c')+body('main/ui/ui_click_feedback.c')
 code+='#define UI_NAV_BACK_ICON_PX 48\n#define READER_SHEET_BACK_PX 52\n'
 code+=function('main/ui/ui_nav.c','ui_nav_back')+function('main/apps/app_book.c','draw_sheet_back')

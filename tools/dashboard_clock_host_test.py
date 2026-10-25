@@ -32,6 +32,7 @@ typedef enum{APP_HOME_FOLDER,APP_HOME_CLOCK,APP_HOME_ASTERISK=2,APP_HOME_MOON=4,
 typedef enum{UI_HOME_CLOCK_PS1995,UI_HOME_CLOCK_ASTERISK,UI_HOME_CLOCK_MOON,UI_HOME_CLOCK_KEHAI,UI_HOME_CLOCK_DALI,UI_HOME_CLOCK_CAT,UI_HOME_CLOCK_HOUSE,UI_HOME_CLOCK_COUNT}ui_home_clock_style_t;
 static app_home_component_t s_component_browse;
 static bool s_component_pending;
+static EpdRect s_component_dirty;
 static unsigned s_widget_phase,s_widget_phase_shown,s_time_phase,s_time_phase_shown,subphase;
 static int64_t s_motion_ms=-100;
 static unsigned clock_phase_now(struct tm *d){return (unsigned)d->tm_sec*10+subphase;}
@@ -68,6 +69,7 @@ static void refresh_days(void){s_date=date;++record_reads;}
 static void epd_fill_rect(EpdRect area,int gray,uint8_t *fb){(void)fb;assert(gray==255&&area.x>=0&&area.y>=0&&area.x+area.width<=684&&area.y+area.height<=1216);}
 static void ui_fill_rect_fast(EpdRect area,int gray,uint8_t *fb){epd_fill_rect(area,gray,fb);}
 static void clock_base_prepare(void){}
+static void component_prepare_neighbor(app_ctx_t *ctx){(void)ctx;}
 static void ui_nav_clock_draw(uint8_t *fb){(void)fb;++clock_paints;}
 static void ui_home_clock_style_draw_region(uint8_t *fb,EpdRect rect,const struct tm *d,bool binary,ui_home_clock_style_t style,EpdRect crop){(void)fb;(void)d;(void)style;assert(binary==fast);assert(rect.width==320||rect.width==420||rect.width==460);assert(crop.width<=rect.width&&crop.height<=rect.height);++clock_faces;}
 static EpdRect ui_home_clock_phase_area(EpdRect rect,unsigned a,unsigned b){(void)a;(void)b;return(EpdRect){rect.x+80,rect.y+40,42,48};}
@@ -81,7 +83,7 @@ static void guard_draw_result(void *hl,enum EpdDrawError result){(void)hl;(void)
 static enum EpdDrawError update_display_full(void *hl){(void)hl;++fulls;return EPD_DRAW_SUCCESS;}
 static enum EpdDrawError update_display_fast_page(void *hl){(void)hl;return EPD_DRAW_SUCCESS;}
 static void render(app_ctx_t *ctx,uint8_t *fb){(void)ctx;(void)fb;++paints;}
-'''+helpers+'\n'+present+'\n'+tick+r'''
+'''+('\nstatic int64_t s_component_warm_after_ms;\nstatic int64_t fake_clock_us;\nstatic int64_t esp_timer_get_time(void){return fake_clock_us;}\n' if 'esp_timer_get_time' in present else '')+helpers+'\n'+present+'\n'+tick+r'''
 int main(void){assert(!display_pipeline_enabled());
  app_ctx_t ctx={0};present(&ctx,APP_REDRAW_FULL);assert(s_clock_minute==100&&paints==1&&fulls==1);
  for(int i=0;i<100;++i)assert(on_tick(&ctx)==APP_REDRAW_NONE);
@@ -100,9 +102,7 @@ int main(void){assert(!display_pipeline_enabled());
  date.tm_sec=1;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(paints==old_paints&&clock_faces==old_faces+1&&pushed.width==42&&pushed.height==48);
  assert(pushed_wave==&E0470_FOLLOW_WAVEFORM&&pushed_mode==MODE_DU);
  date.tm_sec=2;fail=true;on_tick(&ctx);present(&ctx,APP_REDRAW_AREA);assert(s_widget_stamp!=date_stamp(&date));fail=false;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(s_widget_stamp==date_stamp(&date));
- s_view=HOME_COMPONENT;s_component_browse=APP_HOME_KEHAI;present(&ctx,APP_REDRAW_PAGE);date.tm_sec=3;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(pushed.width==42);
- assert(pushed_wave==&E0470_FOLLOW_WAVEFORM&&pushed_mode==MODE_DU);
- fast=false;date.tm_sec=4;on_tick(&ctx);present(&ctx,APP_REDRAW_AREA);assert(pushed_wave==&E0470_FOLLOW_WAVEFORM&&pushed_mode==MODE_DU);
+@PICKER_SECONDS_TEST@
  s_view=HOME_GOAL;date.tm_sec=4;assert(on_tick(&ctx)==APP_REDRAW_NONE);
  s_view=HOME_TIME;s_date=date;present(&ctx,APP_REDRAW_PAGE);old_paints=paints;date.tm_sec=5;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(paints==old_paints&&time_paints==1&&pushed.y<=840&&pushed.y+pushed.height==938);
  assert(pushed_wave==&E0470_FOLLOW_WAVEFORM&&pushed_mode==MODE_DU);
@@ -111,7 +111,7 @@ int main(void){assert(!display_pipeline_enabled());
  date.tm_yday++;assert(on_tick(&ctx)==APP_REDRAW_PAGE&&record_reads==2);present(&ctx,APP_REDRAW_PAGE);s_view=HOME_ROOT;
  minute=-1;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(on_tick(&ctx)==APP_REDRAW_NONE);
  assert(record_reads==2);
- minute=107;date.tm_min++;s_date=date;s_view=HOME_COMPONENT;s_component_browse=APP_HOME_MOON;s_component_pending=true;old_paints=paints;
+ minute=107;date.tm_min++;s_date=date;s_view=HOME_COMPONENT;s_component_browse=APP_HOME_MOON;s_component_pending=true;s_area=s_component_dirty=(EpdRect){36,260,612,812};old_paints=paints;
  fail=true;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(s_component_pending&&paints==old_paints&&picker_bodies==1);
  fail=false;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(!s_component_pending&&paints==old_paints&&picker_bodies==2&&pushed.y==260&&pushed.height==812&&pushed_wave==&hold_gray);
  s_press_pending=true;s_pressed=s_area=(EpdRect){36,472,64,64};int faces=clock_faces;present(&ctx,APP_REDRAW_AREA);assert(picker_controls==1&&clock_faces==faces&&paints==old_paints);s_press_pending=false;
@@ -122,9 +122,24 @@ int main(void){assert(!display_pipeline_enabled());
   if(!ui_home_clock_has_motion(clock_style(widget)))assert(pushed_wave==(binary?&hold_binary:&hold_gray)&&pushed_mode==(binary?MODE_DU:MODE_GL16));
  }
 
+
+@STATIC_PREVIEW_TEST@
+@PICKER_CROP_TEST@
  puts("PASS: minute status/face bounds, visible-only Home/picker Kehai seconds, time-page digit crops, failed-output retry, touch deferral, midnight records unchanged-face hold waveforms in gray/binary modes and no full-frame second paints");
 }
 '''
+unit=unit.replace('@PICKER_SECONDS_TEST@', '\n s_view=HOME_COMPONENT;s_component_browse=APP_HOME_KEHAI;present(&ctx,APP_REDRAW_PAGE);date.tm_sec=3;assert(on_tick(&ctx)==APP_REDRAW_NONE);\n fast=false;date.tm_sec=4;assert(on_tick(&ctx)==APP_REDRAW_NONE);\n' if 'ui_home_clock_preview_draw' in s else ' s_view=HOME_COMPONENT;s_component_browse=APP_HOME_KEHAI;present(&ctx,APP_REDRAW_PAGE);date.tm_sec=3;assert(on_tick(&ctx)==APP_REDRAW_AREA);present(&ctx,APP_REDRAW_AREA);assert(pushed.width==42);\n assert(pushed_wave==&E0470_FOLLOW_WAVEFORM&&pushed_mode==MODE_DU);\n fast=false;date.tm_sec=4;on_tick(&ctx);present(&ctx,APP_REDRAW_AREA);assert(pushed_wave==&E0470_FOLLOW_WAVEFORM&&pushed_mode==MODE_DU);\n')
+unit=unit.replace('@STATIC_PREVIEW_TEST@','\n s_view=HOME_COMPONENT;s_component_browse=APP_HOME_KEHAI;s_component_pending=false;s_widget_pending=false;\n s_clock_minute=minute;ctx.now_ms=2000;date.tm_sec++;\n assert(!visible_motion_clock()&&on_tick(&ctx)==APP_REDRAW_NONE&&!s_widget_pending);\n s_component_browse=APP_HOME_CAT;ctx.now_ms+=1000;date.tm_sec++;\n assert(!visible_motion_clock()&&on_tick(&ctx)==APP_REDRAW_NONE&&!s_widget_pending);\n' if 'ui_home_clock_preview_draw' in s else '')
+unit=unit.replace('@PICKER_CROP_TEST@', r"""
+ fast=false;s_view=HOME_COMPONENT;s_component_browse=APP_HOME_DALI;
+ s_component_pending=true;s_area=s_component_dirty=(EpdRect){36,260,612,716};old_paints=paints;int before_pushes=pushes;
+ fake_clock_us=5000000;ctx.now_ms=100;
+ fail=true;present(&ctx,APP_REDRAW_AREA);assert(s_component_pending&&pushed.height==716&&s_component_warm_after_ms==5600);
+ fail=false;present(&ctx,APP_REDRAW_AREA);
+ assert(!s_component_pending&&pushed.y+pushed.height==976&&pushed_wave==&hold_gray&&pushed_mode==MODE_GL16&&paints==old_paints&&pushes==before_pushes+2);
+ s_clock_minute=minute;assert(on_tick(&ctx)==APP_REDRAW_NONE);
+""" if 'component_prepare_neighbor(ctx)' in tick else '')
+if 'component_prepare_neighbor(ctx)' not in tick:unit=unit.replace('static void component_prepare_neighbor(app_ctx_t *ctx){(void)ctx;}', '')
 with tempfile.TemporaryDirectory() as directory:
  c=Path(directory)/'clock.c';binary=c.with_suffix('');c.write_text(unit)
  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(root/'tools/ui_gesture_stubs'),str(c),'-o',str(binary)],check=True)

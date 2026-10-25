@@ -118,11 +118,15 @@ void pico_online_get_status(pico_update_status_t *out){*out=backend_status;}
 #include "ui/ui_nav_layout.h"
 typedef struct {uint8_t *fb;void *hl;} app_ctx_t;
 static enum {SETTINGS_MAIN,SETTINGS_TEXT_EDIT,SETTINGS_BLUETOOTH,SETTINGS_BLE_SCAN,SETTINGS_SHELF_STYLE,
- SETTINGS_SYSTEM_FONT,SETTINGS_WALLPAPER,SETTINGS_AVATAR,SETTINGS_UPGRADE,SETTINGS_PIN_ENTRY} s_page;
+ SETTINGS_SYSTEM_FONT,SETTINGS_WALLPAPER,SETTINGS_AVATAR,SETTINGS_UPGRADE,SETTINGS_PIN_ENTRY,SETTINGS_ONLINE_FONTS} s_page;
+static int s_online_fonts;
+static int settings_content_end(void){return 1216;}
+static bool ui_online_fonts_present(int *fonts,app_ctx_t *ctx,app_redraw_t redraw){(void)fonts;(void)ctx;(void)redraw;return false;}
 static bool s_input_settle,s_input_layout,s_scroll_present_pending;
 static EpdRect s_input_area;
 typedef struct {int kind;} EpdWaveform;
 static const EpdWaveform E0470_WAVEFORM={0},E0470_FOLLOW_WAVEFORM={1};
+static const EpdWaveform *display_main_bw_waveform(void){return &E0470_WAVEFORM;}
 static const EpdWaveform *display_settings_scroll_waveform(void){return &E0470_WAVEFORM;}
 enum EpdDrawMode {MODE_DU,MODE_GL16};
 enum EpdDrawError {EPD_DRAW_SUCCESS};
@@ -171,7 +175,7 @@ int main(void){
  app_ctx_t ctx={0};s_page=SETTINGS_UPGRADE;
  assert(!settings_present(&ctx,APP_REDRAW_NONE));
  assert(settings_present(&ctx,APP_REDRAW_PAGE)&&diff_pushes==1&&full_pushes==0&&render_calls==1);
- assert(pushed_mode==MODE_GL16&&pushed_waveform==&E0470_WAVEFORM&&pushed_area.y==0&&pushed_area.height==UI_NAV_REFRESH_END);
+ assert(pushed_mode==MODE_GL16&&pushed_waveform==&E0470_WAVEFORM&&pushed_area.y==0&&pushed_area.height==settings_content_end());
  assert(settings_present(&ctx,APP_REDRAW_AREA)&&diff_pushes==2&&full_pushes==0&&render_calls==1);
  assert(pushed_mode==MODE_DU&&pushed_waveform==&E0470_FOLLOW_WAVEFORM&&pushed_area.y==468&&pushed_area.height==64);
  assert(!settings_present(&ctx,APP_REDRAW_FULL));
@@ -220,6 +224,6 @@ assert not any(name in render_body for name in ("pico_online_check(", "pico_onli
 with tempfile.TemporaryDirectory() as folder:
     source, binary = Path(folder)/"test.c", Path(folder)/"test"
     source.write_text(unit)
-    subprocess.run(["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-fsanitize=address,undefined",
+    subprocess.run(["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function", "-Wno-unused-variable", "-fsanitize=address,undefined",
                     "-I"+str(root/"tools/ota_stubs"), "-I"+str(root/"main"), str(source), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

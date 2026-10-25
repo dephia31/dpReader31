@@ -30,6 +30,8 @@ static sdmmc_card_t test_card = {
 #include "../components/read_pico/read_pico_sd.c"
 #undef mkdir
 
+int64_t esp_timer_get_time(void){return 0;}
+esp_err_t sdmmc_get_status(sdmmc_card_t *c){assert(c==&test_card);return ESP_OK;}
 static FATFS test_fat={.free_clst=1};
 BYTE ff_diskio_get_pdrv_card(const sdmmc_card_t *c){assert(c==&test_card);return 0;}
 int f_opendir(FF_DIR *root,const char *path){assert(!strcmp(path,"0:"));root->obj.fs=&test_fat;return FR_OK;}
@@ -68,6 +70,14 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char* path, const sdmmc_host_t* host,
     clock_history[mount_calls++] = host->max_freq_khz;
     assert(test_present);
     assert(!config->format_if_mount_failed);
+    assert(host->dma_aligned_buffer==test_dma_live&&test_dma_live);
+    assert(host->unaligned_multi_block_rw_max_chunk_size==8);
+    assert(!(host->flags&SDMMC_HOST_FLAG_ALLOC_ALIGNED_BUF));
+    assert(host->check_buffer_alignment(0,test_dma_live,4096));
+    assert(!host->check_buffer_alignment(0,(char*)test_dma_live+1,4096));
+    test_external_dma_ptr=test_dma_live;
+    assert(!host->check_buffer_alignment(0,test_dma_live,4096));
+    test_external_dma_ptr=NULL;
     if(test_fail_above_khz && host->max_freq_khz > test_fail_above_khz){*out=NULL;return test_mount_error;}
     *out = &test_card;
     return ESP_OK;
@@ -192,6 +202,13 @@ int main(void) {
     test_present=false;before_space=space_calls;
     assert(read_pico_sd_refresh_space()==ESP_ERR_NOT_FOUND&&space_calls==before_space);
     assert(read_pico_sd_get_info(&info)==ESP_ERR_NOT_FOUND&&!info.mounted&&!info.space_valid);
+    assert(close_card()==ESP_OK&&!sd_dma_buffer&&!test_dma_live&&test_dma_allocs==test_dma_frees);
+    test_present=true;before=mount_calls;
+    test_dma_fail_alloc=true;
+    assert(mount_card(false)==ESP_ERR_NO_MEM&&mount_calls==before&&!sd_dma_buffer);
+    test_dma_fail_alloc=false;test_dma_alignment_error=true;
+    assert(mount_card(false)==ESP_FAIL&&mount_calls==before&&!sd_dma_buffer);
+    assert(test_dma_allocs==test_dma_frees);
     puts("sd_probe: empty boot/insertion, checked CD, bounded settle/fallback, CMD6 busy, OOM, no format suggestion, 256 GiB passed");
     return 0;
 }

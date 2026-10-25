@@ -27,6 +27,8 @@
  * Latest user request: explicit local Ordinary/Ripple share22 phases, with synchronous Ordinary; default/fallback retainGL48 and reader prefill stays192 rows.
  * 用户修订：对齐厂家 2.0.76，默认灰阶表改回完整 GL48（裁剪会削弱黑墨饱和并在强光下偏淡）；保留节拍、条带与恢复路径。
  * User revision: follow vendor 2.0.76 with the full GL48 default table (trimming weakened black saturation and paled under strong light); keep pacing, bands and recovery.
+ * 用户2026-10-24同意独立GL37面板实验：仅验证同一底页的面板/滑块使用原厂裁剪，默认、正文重排和清理仍48相。
+ * User authorizes a separate GL37 panel experiment on2026-10-24: only verified same-body overlays/sliders use vendor trimming; default, body reflow and cleaning remain48 phases.
 
  */
 
@@ -686,7 +688,6 @@ static enum EpdDrawError update_display_area_diff_with_unlocked(EpdiyHighlevelSt
 static enum EpdDrawError update_display_area_full_with_unlocked(EpdiyHighlevelState*, const EpdWaveform*, enum EpdDrawMode, EpdRect);
 
 static enum EpdDrawError update_display_image_gray_unlocked(EpdiyHighlevelState* hl) {
-    if(s_system_binary)return update_display_mode_diff_unlocked(hl,MODE_DU);
     enum EpdDrawError intercepted;
     if (main_before_update(hl, &intercepted)) return intercepted;
     // 图片保留十六级原始灰阶；白底和完整 48 相波形稳定呈现层次。
@@ -967,8 +968,13 @@ enum EpdDrawError display_panel_repair(EpdiyHighlevelState* hl) {
 enum EpdDrawError update_display_image_gray(EpdiyHighlevelState* hl) {
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
+    // 专用图片出口不继承调用方的系统黑白策略，包含失败恢复也保留原始灰阶。
+    // The dedicated image outlet bypasses a caller's BW policy, including recovery, without altering target grays.
+    const bool binary = s_system_binary;
+    s_system_binary = false;
     s_full_refresh_requested = false;
     enum EpdDrawError result = update_display_image_gray_unlocked(hl);
+    s_system_binary = binary;
     s_main_fault=result!=EPD_DRAW_SUCCESS;
     pico_online_display_end(held);
     LATENCY_DISPLAY_END();
@@ -1082,6 +1088,64 @@ enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area
     return result;
 }
 
+// 检查实际提交的对齐物理列，旧中灰到黑白可以走原厂DU，不因“有图片”强制48相。
+// Inspect the aligned physical crop: native DU accepts real old grays and BW targets, independent of image metadata.
+static bool transition_gray_changed(EpdiyHighlevelState* hl, EpdRect area) {
+    if(!hl||!hl->front_fb||!hl->back_fb||hl->front_fb==hl->back_fb||area.width<=0||area.height<=0)return true;
+    const int pw=epd_width(),ph=epd_height();
+    if(pw<=0||ph<=0||(pw&1))return true;
+    enum EpdRotation rotation=epd_get_rotation();
+    bool portrait=rotation==EPD_ROT_PORTRAIT||rotation==EPD_ROT_INVERTED_PORTRAIT;
+    int lw=portrait?ph:pw,lh=portrait?pw:ph;
+    int64_t right=(int64_t)area.x+area.width,bottom=(int64_t)area.y+area.height;
+    int x=area.x<0?0:area.x,y=area.y<0?0:area.y;
+    if(right>lw)right=lw;
+    if(bottom>lh)bottom=lh;
+    if(right<=x||bottom<=y)return true;
+    int w=(int)right-x,h=(int)bottom-y;EpdRect phys;
+    switch(rotation) {
+        case EPD_ROT_LANDSCAPE:phys=(EpdRect){x,y,w,h};break;
+        case EPD_ROT_PORTRAIT:phys=(EpdRect){pw-y-h,x,h,w};break;
+        case EPD_ROT_INVERTED_LANDSCAPE:phys=(EpdRect){pw-x-w,ph-y-h,w,h};break;
+        case EPD_ROT_INVERTED_PORTRAIT:phys=(EpdRect){y,ph-x-w,h,w};break;
+        default:return true;
+    }
+    int x0=phys.x/32*32,x1=(phys.x+phys.width+31)/32*32;
+    if(x1>pw)x1=pw;
+    for(int row=phys.y;row<phys.y+phys.height;++row) {
+        size_t offset=(size_t)row*(pw/2);
+        for(int col=x0/2;col<x1/2;++col){
+            uint8_t to=hl->front_fb[offset+col],from=hl->back_fb[offset+col],delta=to^from;
+            if(!delta)continue;
+            unsigned lo=to&15,hi=to>>4;
+            if(((delta&15)&&lo!=0&&lo!=15)||((delta&240)&&hi!=0&&hi!=15))return true;
+        }
+    }
+    return false;
+}
+
+enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl,EpdRect area) {
+    LATENCY_DISPLAY_BEGIN();
+    bool held=pico_online_display_begin();
+    const bool binary=s_system_binary;
+    s_system_binary=false;
+    enum EpdDrawError result;
+    if(display_needs_full())result=update_display_full_unlocked(hl);
+    else {
+        bool gray=transition_gray_changed(hl,area);
+        // 复用本板现有柔和端点：同色全保持，黑白用原厂DU20，中灰保留原厂完整GL48。
+        // Reuse this board's soft endpoints: hold all equal pairs, use native DU20 for BW and complete GL48 for midgrays.
+        const EpdWaveform* waveform=gray?display_main_shelf_soft_waveform():display_main_bw_waveform();
+        result=update_display_area_diff_with_unlocked(hl,waveform,gray?MODE_GL16:MODE_DU,area);
+        ESP_LOGI(TAG,"gray transition route=%s area=%d,%d,%d,%d result=%d",gray?"gray48-held":"bw20-held",area.x,area.y,area.width,area.height,result);
+    }
+    s_system_binary=binary;
+    s_main_fault=result!=EPD_DRAW_SUCCESS;
+    pico_online_display_end(held);
+    LATENCY_DISPLAY_END();
+    return result;
+}
+
 void guard_draw_result(EpdiyHighlevelState* hl, enum EpdDrawError result) {
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
@@ -1104,4 +1168,61 @@ enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect ar
     pico_online_display_end(held);
     LATENCY_DISPLAY_END();
     return result;
+}
+
+// 只供已确认底页上的面板/滑块；换字体后正文重排和手动清理仍由48相出口负责。
+// Only verified same-body panels/sliders use this route; font reflow and manual cleaning retain48-phase owners.
+static bool s_reader_panel37_failed;
+enum EpdDrawError update_display_reader_panel_fast(EpdiyHighlevelState* hl,EpdRect area) {
+    LATENCY_DISPLAY_BEGIN();
+    bool held=pico_online_display_begin();
+    const bool binary=s_system_binary;
+    s_system_binary=false;
+    const EpdWaveform *wave=NULL;
+    enum EpdDrawError result;
+    if(display_needs_full())result=update_display_full_unlocked(hl);
+    else {
+        if(!s_reader_panel37_failed)wave=display_reader_panel37_waveform();
+        result=wave?update_display_area_diff_with_unlocked(hl,wave,MODE_GL16,area):
+            update_display_area_full_with_unlocked(hl,&E0470_WAVEFORM,MODE_GL16,area);
+        if(wave&&result!=EPD_DRAW_SUCCESS)s_reader_panel37_failed=true;
+    }
+    s_system_binary=binary;
+    s_main_fault=result!=EPD_DRAW_SUCCESS;
+    pico_online_display_end(held);
+    ESP_LOGI(TAG,"reader panel profile=%s result=%d",wave?"GL37":"native48",result);
+    LATENCY_DISPLAY_END();
+    return result;
+}
+
+enum EpdDrawError update_display_reader_panel_gray4(EpdiyHighlevelState* hl,EpdRect area,bool erase_underlay) {
+    if(!display_reader_fast_panels_enabled())return update_display_reader_panel_fast(hl,area);
+    static bool failed;
+    LATENCY_DISPLAY_BEGIN();
+    bool held=pico_online_display_begin();
+    const bool binary=s_system_binary;s_system_binary=false;
+    const EpdWaveform* wave=failed?NULL:display_reader_panel_gray4_waveform(erase_underlay);
+    enum EpdDrawError result;
+    if(!hl||!display_reader_panel_gray4_prepare(hl->front_fb,area))result=EPD_DRAW_NO_PHASES_AVAILABLE;
+    else if(display_needs_full()){wave=NULL;result=update_display_full_unlocked(hl);}
+    else {
+        const EpdWaveform* fallback=wave||s_reader_panel37_failed?NULL:display_reader_panel37_waveform();
+        // 入场必须包含等灰像素；复用单轮批量出口的精确掩码，避免差分跳过旧字或32列对齐扫出面板。
+        // Entry includes equal-gray pixels through exact-crop batch masks, avoiding diff omissions and32-column spill outside the sheet.
+        if(wave&&erase_underlay){
+            use_scan_for(wave,MODE_GL16);
+            result=e0470_text_turn_with_waveform(hl,area,E0470_TURN_RTL,wave);
+            epd_hl_waveform(hl,&E0470_WAVEFORM);
+            rails_keepalive();
+        }
+        else result=wave?update_display_area_diff_with_unlocked(hl,wave,MODE_GL16,area):
+            fallback?update_display_area_diff_with_unlocked(hl,fallback,MODE_GL16,area):
+            update_display_area_full_with_unlocked(hl,&E0470_WAVEFORM,MODE_GL16,area);
+        if(wave&&result!=EPD_DRAW_SUCCESS)failed=true;
+        if(fallback&&result!=EPD_DRAW_SUCCESS)s_reader_panel37_failed=true;
+    }
+    s_system_binary=binary;s_main_fault=result!=EPD_DRAW_SUCCESS;
+    pico_online_display_end(held);
+    ESP_LOGI(TAG,"reader four-gray panel profile=%s result=%d",wave?(erase_underlay?"gray4-entry26":"gray4-16"):"native-gray",result);
+    LATENCY_DISPLAY_END();return result;
 }

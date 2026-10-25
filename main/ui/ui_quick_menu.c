@@ -234,7 +234,7 @@ void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool soften_text) {
 #if KIIKO_BOARD_METALIO47
     if(s_key_pixels)for(unsigned i=0;i<4;++i)save_tile(fb,key_rect(i),s_key_pixels+i*KEY_BYTES);
     for(unsigned i=0;i<4;++i){EpdRect dirty;ui_quick_menu_draw_button(fb,i,(i==0&&wifi)||(i==1&&bluetooth)||(i==3&&frontlight),false,&dirty);}
-    ui_quick_menu_draw_slider(fb,false,brightness);ui_quick_menu_draw_slider(fb,true,warmth);
+    ui_quick_menu_draw_slider(fb,false,ui_quick_brightness_position(brightness));ui_quick_menu_draw_slider(fb,true,warmth);
     ui_fill_round_rect(fb,(EpdRect){UI_LOCK_WIDTH/2-26,UI_QUICK_HEIGHT-24,52,6},3,0x70);
 #else
     if(s_key_pixels){

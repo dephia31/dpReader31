@@ -13,9 +13,6 @@ static esp_app_desc_t current={.version="0.3.3-rc90-metalio-test1",.project_name
 static esp_partition_t inactive={.address=0x510000,.size=0x500000,.label="ota_1"};
 static bool missing,fail_write,fail_end;
 static unsigned begins,aborts,commits;
-static unsigned flash_depth;
-void spi_flash_op_lock(void){++flash_depth;}
-void spi_flash_op_unlock(void){assert(flash_depth);--flash_depth;}
 
 static size_t written;
 const esp_app_desc_t *esp_app_get_description(void) {return &current;}
@@ -60,11 +57,6 @@ int main(void) {
     assert(pico_ota_install(path,message,sizeof(message))==ESP_OK&&written==image_size&&commits==1);
     FILE *f=fopen(path,"wb");assert(f);fputc(ESP_IMAGE_HEADER_MAGIC,f);fclose(f);
     unsigned before=begins; assert(pico_ota_install(path,message,sizeof(message))==ESP_ERR_INVALID_SIZE&&begins==before);
-    assert(pico_online_check()==ESP_ERR_NOT_SUPPORTED&&pico_online_download()==ESP_ERR_NOT_SUPPORTED);
-    assert(!pico_online_busy()&&pico_online_commit()==ESP_ERR_NOT_SUPPORTED);
-    bool first=pico_online_display_begin(),nested=pico_online_display_begin();assert(first&&nested&&flash_depth==2);
-    pico_online_display_end(nested);assert(flash_depth==1);pico_online_display_end(first);assert(!flash_depth);
-    pico_online_display_end(false);assert(!flash_depth);
     remove(path);
-    puts("Metalio OTA: rejects Pico S3, foreign S31, same version, truncation, oversize; inactive slot only; write/validation failures never select a new boot slot; online disabled");
+    puts("Metalio OTA: rejects Pico S3, foreign S31, same version, truncation, oversize; inactive slot only; write/validation failures never select a new boot slot; local TF update");
 }

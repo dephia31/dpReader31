@@ -34,6 +34,11 @@ enum {APP_REDRAW_NONE,APP_REDRAW_AREA,APP_REDRAW_PAGE,APP_REDRAW_FULL};
 enum {READING,SHELF};
 typedef struct {bool touched;}touch_t;
 typedef struct {touch_t *touch;uint8_t *fb;void *hl;}app_ctx_t;
+static int settings_viewport_end(void){return UI_NAV_TOP;}
+#define SETTINGS_UNLOCK_ICON 18
+static unsigned wake_presses=1,switches;
+static unsigned app_settings_wake_presses(void){return wake_presses;}
+static void settings_switch(uint8_t *fb,int y,bool active){(void)fb;assert(y>=160&&y<UI_NAV_TOP);assert(active==(wake_presses==2));++switches;}
 static unsigned scale=100,text_calls,icons,arrows,measures,profile_calls;
 static int s_main_scroll,last_label_y;
 static unsigned pairs;
@@ -51,6 +56,7 @@ for name in ('settings_main_row_height','settings_fit_text','fit_value','setting
 unit+=r'''
 static int s_view=READING;
 static char *s_text="book";
+static char s_reader_notice[64];
 static bool s_reader_fullscreen,immersive,s_reader_clock_pending,wallpaper;
 static int64_t s_reader_clock_minute=-1,s_reader_clock_painted_minute=-1,minute=100;
 enum {READER_PANEL_NONE,READER_PANEL_BACKGROUND_PREVIEW};
@@ -100,11 +106,20 @@ static EpdRect reader_area(void){return (EpdRect){0,160,684,900};}
 unit+=function('paint_reading',book)+'\n'
 files=ROOT/'main/apps/app_files.c'
 unit+=r'''
-typedef struct {bool mounted,space_valid;uint64_t filesystem_bytes,free_bytes,capacity_bytes;}read_pico_sd_info_t;
+typedef struct {bool mounted,space_valid;int space_error;uint64_t filesystem_bytes,free_bytes,capacity_bytes;}read_pico_sd_info_t;
+#define ESP_ERR_NOT_FINISHED -9
 '''
 for name in ('storage_space_valid','storage_amount','storage_usage'):unit+=function(name,files)+'\n'
 unit+=r'''
 int main(void){
+ uint8_t toggle[1]={0};const int unlock_marks[]={SETTINGS_UNLOCK_ICON};
+ const char *unlock_labels[]={"双击解锁"},*unlock_values[]={""};
+ for(scale=100;scale<=200;scale+=25)for(wake_presses=1;wake_presses<=2;++wake_presses){
+  switches=arrows=0;s_main_scroll=0;
+  setting_group(toggle,250,"显示",299,unlock_marks,unlock_labels,unlock_values,1);
+  assert(switches==1&&!arrows);
+ }
+
  uint8_t pixels[1]={0};const int marks[]={0,1,2,3,4,5};
  const char *labels[]={"WiFi","系统字体","系统对比度","主页刷新模式","自动休眠锁屏","关机睡眠"};
  const char *values[]={"很长的网络名称","用户导入的非常长的字体名称","100%","水波纹","10 分钟","先浅后深"};

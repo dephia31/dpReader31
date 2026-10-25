@@ -61,7 +61,8 @@ esp_err_t book_epub_metadata(const char *path, char *title, size_t title_cap, ch
 esp_err_t book_epub_metadata_cached(const char *path, char *title, size_t title_cap,
                                     char *author, size_t author_cap);
 
-/// 有界头部读取，仅探测插图尺寸。/ Probe image dimensions from a bounded header.
+/// PNG先读32字节，JPEG按需扩头；SVG/晚帧头保留有界完整回退。
+/// Probe PNG with32 bytes and grow JPEG headers on demand; retain bounded full fallback for SVG/late frames.
 esp_err_t book_epub_image_dimensions(book_epub_t *book, size_t chapter, const char *src, unsigned *width, unsigned *height);
 #if KIIKO_BOARD_METALIO47
 

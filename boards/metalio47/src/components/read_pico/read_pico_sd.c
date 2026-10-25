@@ -5,6 +5,8 @@
  * SDMMC 探测、挂载、格式化。
  *
  * SDMMC probe, mount, and format.
+ * S31无CD脚：CMD13健康确认后释放消费者，异步恢复；USB/sleep卸载不触发恢复。
+ * S31 has no CD pin: confirm CMD13 loss, close consumers, then recover asynchronously; intentional unmounts remain suspended.
  */
 
 #include "read_pico_sd.h"
@@ -20,6 +22,9 @@
 #include "driver/sdmmc_host.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_memory_utils.h"
+#include "esp_private/esp_cache_private.h"
+#include "esp_timer.h"
 #include "esp_vfs_fat.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -35,11 +40,42 @@
 
 static const char* TAG = "sd_card";
 static sdmmc_card_t* card;
+static void* sd_dma_buffer;
+
+// Follow Metalio's S31 storage reference: keep SD DMA in internal RAM.
+// External application data is copied by the SDK through one bounded bounce buffer.
+// Reference: CloudZao/Metalio-E-INK4-Plus, SdCardManager::PrepareDmaBuffer.
+static bool sd_internal_dma_buffer(int slot, const void* buffer, size_t bytes) {
+    return esp_ptr_internal(buffer) && sdmmc_host_check_buffer_alignment(slot, buffer, bytes);
+}
+
+static esp_err_t prepare_sd_dma(sdmmc_host_t* host) {
+    const uint32_t caps = MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL;
+    size_t alignment = 0;
+    esp_err_t err = esp_cache_get_alignment(caps, &alignment);
+    if (err != ESP_OK) return err;
+    if (alignment < 4) alignment = 4;
+    sd_dma_buffer = heap_caps_aligned_alloc(alignment, 4096, caps);
+    if (!sd_dma_buffer) return ESP_ERR_NO_MEM;
+    host->flags &= ~SDMMC_HOST_FLAG_ALLOC_ALIGNED_BUF;
+    host->check_buffer_alignment = sd_internal_dma_buffer;
+    host->dma_aligned_buffer = sd_dma_buffer;
+    host->unaligned_multi_block_rw_max_chunk_size = 8;
+    return ESP_OK;
+}
+
+static void release_sd_dma(void) {
+    heap_caps_free(sd_dma_buffer);
+    sd_dma_buffer = NULL;
+}
 static int probe_state;
 static bool filesystem_unreadable;
 static portMUX_TYPE state_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool media_invalidated;
-static read_pico_sd_info_t cached_info;
+static read_pico_sd_info_t cached_info = {.error = ESP_ERR_INVALID_STATE};
+static bool space_busy, health_busy, suspended, mounted_once;
+static unsigned health_failures;
+static int64_t health_due_ms, health_failed_ms;
 
 // 失效只影响快照，消费者释放句柄前不得卸载卡。/ Invalidation changes snapshots only; consumers must close handles before unmount.
 static void observe_media_locked(bool present) {
@@ -64,6 +100,11 @@ static void publish_info(const read_pico_sd_info_t* info) {
     esp_err_t detect_err = read_pico_sd_detect(&present);
     portENTER_CRITICAL(&state_lock);
     cached_info = *info;
+    if (info->mounted) {
+        mounted_once = true;
+        health_failures = 0;
+        health_due_ms = esp_timer_get_time() / 1000 + 2000;
+    }
     // 已经确认的拔卡失效不会被后续通信错误或探测成功覆盖。
     // A confirmed removal latch survives later detection faults and probe success.
     if (detect_err == ESP_OK || media_invalidated)
@@ -190,6 +231,11 @@ static esp_err_t mount_card(bool format_if_failed) {
 
     metalio_sd_release_hold();
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+    esp_err_t dma_error = prepare_sd_dma(&host);
+    if (dma_error != ESP_OK) {
+        metalio_usb_serial_reconnect();
+        return dma_error;
+    }
     // S31 slot0四线读取先试40MHz，失败降到20/10MHz。
     // S31 four-bit slot0 first tries 40MHz, with 20/10MHz fallback.
     host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
@@ -241,6 +287,7 @@ static esp_err_t mount_card(bool format_if_failed) {
         card = NULL;
         ESP_LOGW(TAG, "Mount failed: %s", esp_err_to_name(err));
         if (!format_if_failed && err == ESP_FAIL) filesystem_unreadable = probe_unsupported_filesystem(host, &slot);
+        release_sd_dma();
     } else {
         invalidate_mount_space();
         ensure_media_dirs();
@@ -259,6 +306,7 @@ static esp_err_t close_card(void) {
             return err;
         }
         card = NULL;
+        release_sd_dma();
     }
     return ESP_OK;
 }
@@ -296,7 +344,8 @@ esp_err_t read_pico_sd_start_probe(void) {
     portENTER_CRITICAL(&state_lock);
     if (detect_err == ESP_OK) observe_media_locked(present);
     esp_err_t err = ESP_OK;
-    if (probe_state == 1) err = ESP_ERR_NOT_FINISHED;
+    if (suspended) err = ESP_ERR_INVALID_STATE;
+    else if (probe_state == 1 || space_busy || health_busy) err = ESP_ERR_NOT_FINISHED;
     else if (media_invalidated) err = cached_info.error;
     else if (probe_state == 2) err = cached_info.mounted ? ESP_OK :
         cached_info.error != ESP_OK ? cached_info.error : ESP_FAIL;
@@ -343,20 +392,48 @@ esp_err_t read_pico_sd_get_info(read_pico_sd_info_t* info) {
 // 驱动操作期间占用忙状态，不在临界区执行 I/O。/ Reserve busy state across driver I/O outside the critical section.
 static bool begin_operation(void) {
     portENTER_CRITICAL(&state_lock);
-    bool ready = probe_state != 1;
+    bool ready = probe_state != 1 && !space_busy && !health_busy;
     if (ready) probe_state = 1;
     portEXIT_CRITICAL(&state_lock);
     return ready;
 }
 
+static bool begin_space_refresh(void) {
+    portENTER_CRITICAL(&state_lock);
+    bool ready=probe_state!=1&&!space_busy&&!health_busy&&cached_info.mounted&&!media_invalidated;
+    if(ready)space_busy=true;
+    portEXIT_CRITICAL(&state_lock);
+    return ready;
+}
+static esp_err_t finish_space_refresh(void) {
+    read_pico_sd_info_t info;
+    esp_err_t err=read_pico_sd_get_info(&info);
+    if(err==ESP_OK&&info.mounted){err=fill_space(&info);publish_info(&info);}
+    portENTER_CRITICAL(&state_lock);space_busy=false;portEXIT_CRITICAL(&state_lock);
+    return err;
+}
 esp_err_t read_pico_sd_refresh_space(void) {
     read_pico_sd_info_t info;
-    esp_err_t err = read_pico_sd_get_info(&info);
-    if (err != ESP_OK || !info.mounted) return err != ESP_OK ? err : ESP_ERR_INVALID_STATE;
-    if (!begin_operation()) return ESP_ERR_NOT_FINISHED;
-    err = fill_space(&info);
-    publish_info(&info);
-    return err;
+    esp_err_t err=read_pico_sd_get_info(&info);
+    if(err!=ESP_OK||!info.mounted)return err!=ESP_OK?err:ESP_ERR_INVALID_STATE;
+    if(!begin_space_refresh())return ESP_ERR_NOT_FINISHED;
+    return finish_space_refresh();
+}
+static void space_task(void *arg) {
+    (void)arg;(void)finish_space_refresh();vTaskDelete(NULL);
+}
+esp_err_t read_pico_sd_start_space_refresh(void) {
+    read_pico_sd_info_t info;
+    esp_err_t err=read_pico_sd_get_info(&info);
+    if(err!=ESP_OK||!info.mounted)return err!=ESP_OK?err:ESP_ERR_INVALID_STATE;
+    if(!begin_space_refresh())return ESP_ERR_NOT_FINISHED;
+    // 与挂载忙状态分离，统计期间仍报告已挂载；重挂/USB交接须等统计释放卡。
+    // Accounting never masquerades as an unmounted card; remount/USB handoff wait for this owner.
+    if(xTaskCreate(space_task,"sd_space",4096,NULL,2,NULL)!=pdPASS){
+        portENTER_CRITICAL(&state_lock);space_busy=false;portEXIT_CRITICAL(&state_lock);
+        return ESP_ERR_NO_MEM;
+    }
+    return ESP_ERR_NOT_FINISHED;
 }
 
 esp_err_t read_pico_sd_remount(void) {
@@ -371,9 +448,88 @@ esp_err_t read_pico_sd_remount(void) {
     portENTER_CRITICAL(&state_lock);
     memset(&cached_info, 0, sizeof(cached_info));
     media_invalidated = false;
+    suspended = false; health_failures = 0;
     probe_state = 0;
     portEXIT_CRITICAL(&state_lock);
     return read_pico_sd_start_probe();
+}
+
+// 只读CMD13在后台确认总线掉线，不用整卡容量扫描；生命周期操作等待该任务退出。
+// Background read-only CMD13 detects bus loss without a FAT scan; lifecycle operations wait for this owner.
+static void health_task(void *arg) {
+    (void)arg;
+    esp_err_t err = sdmmc_get_status(card);
+    int64_t now = esp_timer_get_time() / 1000;
+    portENTER_CRITICAL(&state_lock);
+    if (!media_invalidated && cached_info.mounted) {
+        if (err == ESP_OK || err == ESP_ERR_NO_MEM || err == ESP_ERR_INVALID_ARG) {
+            health_failures = 0; health_due_ms = now + 2000;
+        }
+        else {
+            if (!health_failures++) health_failed_ms = now;
+            health_due_ms = now + 500;
+            if (health_failures >= 3 && now - health_failed_ms >= 400) {
+                media_invalidated = true;
+                memset(&cached_info, 0, sizeof(cached_info));
+                cached_info.present = true; cached_info.error = err;
+            }
+        }
+    }
+    health_busy = false;
+    portEXIT_CRITICAL(&state_lock);
+    vTaskDelete(NULL);
+}
+void read_pico_sd_poll_health(void) {
+    int64_t now = esp_timer_get_time() / 1000;
+    portENTER_CRITICAL(&state_lock);
+    bool start = !suspended && card && cached_info.mounted && !media_invalidated &&
+        probe_state != 1 && !space_busy && !health_busy && now >= health_due_ms;
+    if (start) health_busy = true;
+    portEXIT_CRITICAL(&state_lock);
+    if (start && xTaskCreate(health_task,"sd_health",3072,NULL,1,NULL) != pdPASS) {
+        portENTER_CRITICAL(&state_lock);
+        health_busy = false; health_due_ms = now + 2000;
+        portEXIT_CRITICAL(&state_lock);
+    }
+}
+bool read_pico_sd_needs_recovery(void) {
+    portENTER_CRITICAL(&state_lock);
+    bool needed = !suspended && probe_state != 1 && !cached_info.mounted &&
+        (media_invalidated || mounted_once || cached_info.present);
+    portEXIT_CRITICAL(&state_lock);
+    return needed;
+}
+bool read_pico_sd_io_ready(void) {
+    portENTER_CRITICAL(&state_lock);
+    bool ready = !suspended && probe_state != 1 && cached_info.mounted && !media_invalidated;
+    portEXIT_CRITICAL(&state_lock);
+    return ready;
+}
+static void recovery_task(void *arg) {
+    (void)arg;
+    esp_err_t err = close_card();
+    if (err == ESP_OK) {
+        portENTER_CRITICAL(&state_lock);
+        media_invalidated = false; health_failures = 0;
+        memset(&cached_info,0,sizeof(cached_info));
+        cached_info.present = true; cached_info.error = ESP_ERR_NOT_FINISHED;
+        portEXIT_CRITICAL(&state_lock);
+        err = mount_card(false);
+    }
+    read_pico_sd_info_t info;
+    fill_info(&info,err);
+    publish_info(&info);
+    ESP_LOGI(TAG,"automatic recovery: %s",esp_err_to_name(err));
+    vTaskDelete(NULL);
+}
+esp_err_t read_pico_sd_start_recovery(void) {
+    if (!read_pico_sd_needs_recovery()) return ESP_ERR_INVALID_STATE;
+    if (!begin_operation()) return ESP_ERR_NOT_FINISHED;
+    if (xTaskCreate(recovery_task,"sd_recover",4096,NULL,3,NULL) == pdPASS) return ESP_OK;
+    portENTER_CRITICAL(&state_lock);
+    probe_state = 2;
+    portEXIT_CRITICAL(&state_lock);
+    return ESP_ERR_NO_MEM;
 }
 
 esp_err_t read_pico_sd_sync(void) {
@@ -393,6 +549,7 @@ esp_err_t read_pico_sd_sync(void) {
     publish_info(&info);
     portENTER_CRITICAL(&state_lock);
     if(cached_info.present && !media_invalidated) probe_state=0;
+    suspended = true;
     portEXIT_CRITICAL(&state_lock);
     return ESP_OK;
 }
@@ -402,7 +559,7 @@ esp_err_t read_pico_sd_format(void) {
     (void)read_pico_sd_get_info(&current);
     portENTER_CRITICAL(&state_lock);
     bool invalid = media_invalidated;
-    bool busy = probe_state == 1;
+    bool busy = probe_state == 1 || space_busy || health_busy || suspended;
     if (!invalid && !busy) probe_state = 1;
     portEXIT_CRITICAL(&state_lock);
     if (invalid) return current.present ? ESP_ERR_INVALID_STATE : ESP_ERR_NOT_FOUND;

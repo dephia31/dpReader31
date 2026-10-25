@@ -107,7 +107,12 @@ static void lcd_do_update(RenderContext_t*ctx){
  const EpdWaveformPhases*p=ctx->waveform->mode_data[ctx->waveform_index]->range_data[ctx->waveform_range];
  first_seen=ctx->current_frame;assert(ctx->cycle_frames==p->phases-first_seen);
  for(int y=0;y<H;++y)assert(rows[y]==(y>=physical_crop.y&&y<physical_crop.y+physical_crop.height));
- for(int x=0;x<W/2;++x)assert((columns[x]!=0)==(x>=physical_crop.x/2&&x<(physical_crop.x+physical_crop.width+1)/2));
+ for(int x=0;x<W/2;++x){
+  unsigned expected=0;
+  if(2*x>=physical_crop.x&&2*x<physical_crop.x+physical_crop.width)expected|=15;
+  if(2*x+1>=physical_crop.x&&2*x+1<physical_crop.x+physical_crop.width)expected|=240;
+  assert(columns[x]==expected);
+ }
  for(int k=0;k<ctx->cycle_frames;++k){
   prepare_context_for_next_frame(ctx);int phase=ctx->current_frame;assert(phase==first_seen+k);
   for(int pair=0;pair<256;++pair)for(int lane=0;lane<4;++lane){
@@ -227,6 +232,25 @@ int main(void){
  assert(!display_reader_fast_text_prepare(&hl,(EpdRect){INT32_MAX,INT32_MAX,INT32_MAX,INT32_MAX}));
  assert(!memcmp(saved,back,BYTES)&&!memcmp(before_front,front,BYTES));
  puts("PASS: exact native DU20 alias,all256 target/history transitions,one batch,complete active/tail phases,four rotations/odd crops,every failed phase preserves history,no out-of-crop quantization");
+ // 入场26相包括原来完全相同的中灰；灰色滑条统一白基线，区域外半字节不得驱动。
+ // Entry26 includes identical midgrays, giving gray controls one white baseline without driving neighboring nibbles.
+ const EpdWaveform *panel=display_reader_panel_gray4_waveform(true);assert(panel);
+ for(int rot=0;rot<4;++rot){rotation=rot;
+  EpdRect area={3,17,161,321};
+  for(int to=5;to<=10;to+=5)for(int from=0;from<16;++from){
+   memset(front,to*17,BYTES);memset(back,from*17,BYTES);memcpy(saved,back,BYTES);
+   reset();fail_at=0;
+   assert(e0470_text_turn_with_waveform(&hl,area,E0470_TURN_RTL,panel)==EPD_DRAW_SUCCESS);
+   assert(calls==1&&first_seen==0&&scans==26);check_crop();
+  }
+  for(int fail=1;fail<=26;++fail){
+   memset(front,0xaa,BYTES);memset(back,0xaa,BYTES);memcpy(saved,back,BYTES);
+   reset();fail_at=fail;
+   assert(e0470_text_turn_with_waveform(&hl,area,E0470_TURN_RTL,panel)==EPD_DRAW_EMPTY_LINE_QUEUE);
+   assert(calls==1&&scans==fail&&!memcmp(back,saved,BYTES));
+  }
+ }
+ puts("PASS: actual26-phase panel batch/all old grays into both midgrays including equal/white targets,one scan,four rotations/odd crop masks exact,all26 failed phases preserve back");
  reset();fail_at=0;int before=calls;
  assert(epd_draw_base_from_phase(epd_full_screen(),diff,epd_full_screen(),MODE_PACKING_1PPB_DIFFERENCE|MODE_GL16,25,rows,columns,&E0470_TEXTTURN_WAVEFORM,-1)==EPD_DRAW_INVALID_CROP);
  assert(epd_draw_base_from_phase(epd_full_screen(),diff,epd_full_screen(),MODE_PACKING_1PPB_DIFFERENCE|MODE_GL16,25,rows,columns,&E0470_TEXTTURN_WAVEFORM,48)==EPD_DRAW_INVALID_CROP);
@@ -244,7 +268,7 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='s31-text-batch-') as folder:
  temp=Path(folder);c=temp/'test.c';c.write_text(unit);binary=temp/'test'
  (temp/'esp_log.h').write_text('#pragma once\n#include <stdio.h>\n#undef ESP_LOGI\n#define ESP_LOGI(tag,fmt,...) do{char msg[256];(void)(tag);(void)snprintf(msg,sizeof(msg),fmt,__VA_ARGS__);}while(0)\n')
- subprocess.run(['cc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-Wno-unknown-attributes','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47=1','-DKIIKO_S31_TEXT_RIPPLE=1','-I'+str(temp),
+ subprocess.run(['cc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-Wno-unknown-attributes','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47=1','-DKIIKO_S31_TEXT_RIPPLE=1','-DKIIKO_S31_FAST_READER_PANELS=1','-I'+str(temp),
  '-I'+str(root/'boards/metalio47/src/main'),'-I'+str(root/'main'),'-I'+str(root/'components/epdiy/src'),'-I'+str(root/'components/epdiy/include'),'-I'+str(root/'components/e0470_epaper_waveform/include'),'-I'+str(root/'components/e0470_epaper_waveform/metalio'),'-I'+str(root/'components/e0470_page_turn/include'),'-I'+str(root/'tools/water_turn_stubs'),'-I'+str(root/'tools/metalio_stubs'),
  str(c),str(root/'boards/metalio47/src/main/metalio_text_ripple.c'),str(root/'boards/metalio47/src/main/display_reader_waveform.c'),str(root/'boards/metalio47/src/components/e0470_page_turn/e0470_page_turn.c'),str(root/'boards/metalio47/src/components/e0470_epaper_waveform/e0470_epaper_waveform.c'),str(root/'components/e0470_epaper_waveform/e0470_waveform_trim.c'),'-o',str(binary)],check=True)
  subprocess.run([str(binary)],check=True,timeout=90)

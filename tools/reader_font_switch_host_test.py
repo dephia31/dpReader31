@@ -44,6 +44,9 @@ static bool book_layout_build_blocks(const char *t,size_t n,int b,size_t c,int r
 static size_t book_layout_page_for_offset(size_t off){assert(locked&&off==expected_offset);return 3;}
 static void app_settings_set_font_path(const char *path){assert(locked);++setting_writes;if(!persist_fails)strcpy(saved,path);}
 static const char *app_settings_font_path(void){return saved;}
+static void reader_font_choice_begin(const char *p){(void)p;}
+static void reader_font_choice_finish(void){}
+static bool ttf_font_path_is_builtin(const char *p){return !p||!*p||!strcmp(p,"builtin");}
 static void save_progress(void){assert(!locked);++progress_saves;}
 static void free_book(void){assert(locked);freed=true;s_text=NULL;}
 static int64_t esp_timer_get_time(void){return 1000000;}

@@ -21,6 +21,8 @@
 #include <dirent.h>
 #if KIIKO_BOARD_METALIO47
 #include <errno.h>
+#include "online_font_names.h"
+#include "font_filename.h"
 #else
 #endif
 #include <fcntl.h>
@@ -644,16 +646,28 @@ static const char* font_basename(const char* path) {
 
 // Finder 拷到 FAT 会留下 ._xxx.ttf（AppleDouble）和 .DS_Store，不是真字体。
 static bool is_junk_name(const char* name) {
+#if KIIKO_BOARD_METALIO47
+    return !strcmp(name,".") || !strcmp(name,"..");
+#else
     return name[0] == '.' || strncmp(name, "._", 2) == 0;
+#endif
 }
 
 static bool is_ttf_name(const char* name) {
+#if KIIKO_BOARD_METALIO47
+    return !is_junk_name(name) && font_filename_supported(name);
+#else
     if (is_junk_name(name)) return false;
     size_t len = strlen(name);
     return len >= 4 && strcasecmp(name + len - 4, ".ttf") == 0;
+#endif
 }
 
 static void font_stem(const char* path, char* out, size_t n) {
+#if KIIKO_BOARD_METALIO47
+    const char *name=font_basename(path);
+    if(!font_filename_make(name,out,n,false))snprintf(out,n,"Font-%08x",(unsigned)font_filename_hash(name));
+#else
     const char* slash = strrchr(path, '/');
     const char* name = slash != NULL ? slash + 1 : path;
     strlcpy(out, name, n);
@@ -661,6 +675,7 @@ static void font_stem(const char* path, char* out, size_t n) {
     if (len >= 4 && strcasecmp(out + len - 4, ".ttf") == 0) {
         out[len - 4] = '\0';
     }
+#endif
 }
 
 static int font_item_cmp(const void* a, const void* b) {
@@ -673,7 +688,11 @@ static bool catalog_has_name(
     const ttf_font_item_t* items, int n, const char* name
 ) {
     for (int i = 0; i < n; i++) {
+#if KIIKO_BOARD_METALIO47
+        if (strcasecmp(items[i].path, name) == 0) return true;
+#else
         if (strcasecmp(items[i].name, name) == 0) return true;
+#endif
     }
     return false;
 }
@@ -699,6 +718,44 @@ int ttf_font_scan(void) {
         if (dir == NULL) continue;
         struct dirent* ent;
         while ((ent = readdir(dir)) != NULL && s_catalog_n < TTF_FONT_MAX) {
+#if KIIKO_BOARD_METALIO47
+            if(!is_ttf_name(ent->d_name))continue;
+            char path[512];
+            if(snprintf(path,sizeof(path),"%s/%s",font_dir,ent->d_name)>=(int)sizeof(path))continue;
+            struct stat st;
+            if(stat(path,&st)||!S_ISREG(st.st_mode))continue;
+            if(!strncmp(ent->d_name,"._",2)) {
+                unsigned char magic[4]={0};FILE *sidecar=fopen(path,"rb");
+                if(sidecar){size_t got=fread(magic,1,4,sidecar);fclose(sidecar);
+                    if(got==4&&!memcmp(magic,"\0\5\26\7",4))continue;}
+            }
+            // 仅原本无法保存的超长路径规范化文件名；不改字节、不覆盖任何现有文件。
+            // Normalize only paths that cannot be persisted; preserve font bytes and never overwrite existing files.
+            if(strlen(path)>=TTF_FONT_PATH_MAX) {
+                size_t prefix=strlen(font_dir)+1;
+                char alias[TTF_FONT_PATH_MAX],target[TTF_FONT_PATH_MAX];
+                if(prefix+25>=TTF_FONT_PATH_MAX ||
+                   !font_filename_make(ent->d_name,alias,TTF_FONT_PATH_MAX-prefix-5,true))continue;
+                bool moved=false;
+                for(unsigned attempt=0;attempt<128;++attempt) {
+                    size_t stem=strlen(alias)-4;
+                    int length=attempt?snprintf(target,sizeof(target),"%s/%.*s-%03x%s",font_dir,(int)stem,alias,attempt,alias+stem):
+                        snprintf(target,sizeof(target),"%s/%s",font_dir,alias);
+                    if(length>=(int)sizeof(target))break;
+                    struct stat existing;
+                    if(!stat(target,&existing))continue;
+                    if(errno!=ENOENT)break;
+                    moved=!rename(path,target);break;
+                }
+                if(!moved)continue;
+                snprintf(path,sizeof(path),"%s",target);
+                rewinddir(dir);
+            }
+            if(catalog_has_name(s_catalog,s_catalog_n,path))continue;
+            font_stem(path,s_catalog[s_catalog_n].name,sizeof(s_catalog[0].name));
+            snprintf(s_catalog[s_catalog_n].path,sizeof(s_catalog[0].path),"%s",path);
+            ++s_catalog_n;
+#else
             if (ent->d_name[0] == '.') continue; // Ignore macOS ._ font sidecars.
             if (!is_ttf_name(ent->d_name)) continue;
             char name[TTF_FONT_NAME_MAX];
@@ -712,9 +769,17 @@ int ttf_font_scan(void) {
             );
             strlcpy(s_catalog[s_catalog_n].name, name, sizeof(s_catalog[0].name));
             s_catalog_n++;
+#endif
         }
         closedir(dir);
     }
+#if KIIKO_BOARD_METALIO47
+    bool duplicate[TTF_FONT_MAX]={0};
+    for(int i=0;i<s_catalog_n;++i)for(int j=0;j<i;++j)
+        if(!strcasecmp(s_catalog[i].name,s_catalog[j].name))duplicate[i]=duplicate[j]=true;
+    for(int i=0;i<s_catalog_n;++i)if(duplicate[i])
+        font_filename_distinguish(s_catalog[i].name,sizeof(s_catalog[i].name),s_catalog[i].path);
+#endif
     if (s_catalog_n > 1) {
         qsort(s_catalog, (size_t)s_catalog_n, sizeof(s_catalog[0]), font_item_cmp);
     }
@@ -774,6 +839,10 @@ const char* ttf_font_display_name(void) {
 
 const char* ttf_font_localized_name(const char* stem) {
     if (!stem) return "";
+#if KIIKO_BOARD_METALIO47
+    const char *online=online_font_catalog_name(stem);
+    if(online)return online;
+#endif
     if (!strcasecmp(stem, "Song")) return "思源宋体";
     if (!strcasecmp(stem, "Hei")) return "思源黑体";
     if (!strcasecmp(stem, "Kai")) return "思源楷体";

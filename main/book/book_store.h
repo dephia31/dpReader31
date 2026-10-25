@@ -40,10 +40,14 @@ size_t book_store_file_limit(const book_store_root_t* root);
 uint64_t book_store_free_bytes(const book_store_root_t* root);
 /// 仅查询内置分区是否已挂载，不触发挂载。/ Inspect flash mount state without mounting.
 bool book_store_flash_ready(void);
-/// 仅删除已挂载书根内的直接 TXT/EPUB 普通文件，然后清对应进度及 last。
-/// Delete only a direct regular TXT/EPUB file in a mounted book root, then forget its progress and last path.
-/// 先清同名普通覆盖备份；仅有备份时先恢复再删除，失败不声称文件已删。
-/// Clear matching regular replacement backups first; restore backup-only files before deletion and report failures as not removed.
+/// 删除已挂载根（书目录、TF 卡或内置 storage）内的普通 TXT/EPUB 书籍，然后清对应进度及 last。
+/// Delete a regular TXT/EPUB book under a mounted root — a book directory, the SD card or internal
+/// storage — then forget its progress and last path. Nested paths are accepted because the shelf
+/// lists books in books subfolders and books the file manager opened elsewhere on the card.
+/// 拒绝目录穿越、目录或链接替换以及非书籍扩展名；先清同名普通覆盖备份，仅有备份时先恢复再删除，
+/// 失败不声称文件已删。
+/// Rejects traversal, directories, links and non-book extensions; clear a matching regular
+/// replacement backup first, restore backup-only files before deletion, and report failures as not removed.
 /// removed 为文件已删或已不存在；此时 NVS 仍可能失败，可再次调用清理。调用方负责关闭句柄及通知版本。
 /// removed means deleted or already absent; NVS may still fail and cleanup can be retried. Caller closes handles and notifies revision.
 esp_err_t book_store_delete(const char* path, bool* removed);

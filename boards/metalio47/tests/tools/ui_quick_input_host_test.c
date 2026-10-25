@@ -42,9 +42,9 @@ int main(void){
  open();assert(feed(0,0,0,false,false,false,true)==UI_QUICK_CLOSE&&!menu.open);
  open();feed(244,284,1,true,false,true,true);assert(feed(244,284,0,false,true,true,true)==UI_QUICK_FRONTLIGHT);
  assert(feed(426,344,1,true,false,true,true)==UI_QUICK_BRIGHTNESS&&menu.slider_value==0);
- assert(feed(426,224,1,false,false,true,true)==UI_QUICK_BRIGHTNESS&&menu.slider_value==50);
+ assert(feed(426,224,1,false,false,true,true)==UI_QUICK_BRIGHTNESS&&menu.slider_value==20);
  assert(menu.slider_position==120);
- assert(feed(426,225,1,false,false,true,true)==UI_QUICK_BRIGHTNESS&&menu.slider_position==119&&menu.slider_value==50);
+ assert(feed(426,225,1,false,false,true,true)==UI_QUICK_BRIGHTNESS&&menu.slider_position==119&&menu.slider_value==20);
  assert(feed(426,224,1,false,false,true,true)==UI_QUICK_BRIGHTNESS&&menu.slider_position==120);
  assert(feed(680,224,1,false,false,true,true)==UI_QUICK_NONE&&menu.open);
  assert(feed(0,0,1,false,false,true,true)==UI_QUICK_BRIGHTNESS&&menu.slider_value==100&&menu.open);

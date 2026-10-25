@@ -9,6 +9,8 @@
 typedef struct {
     char path[288],title[256],author[128];
     bool list,fast,natural;
+    // Reader idle preparation must never render placeholder glyphs with the reading face.
+    bool artwork_only;
     unsigned width,height,stride,contrast,phase;
     int x,y;
 } book_cover_job_t;

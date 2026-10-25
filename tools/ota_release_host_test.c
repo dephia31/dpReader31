@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-static const char *valid = "{\"schema\":1,\"version\":\"0.3.3-rc79\",\"project\":\"Read_Pico\",\"board\":\"RDP-G01-W\",\"layout\":\"pico-dual-4m-v1\",\"minimum_base_version\":\"0.3.3-rc72\",\"url\":\"https://wegooo-cell.github.io/read-pico-reader/Pico-update-0.3.3-rc79.bin\",\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"notes\":\"Test release\",\"size\":4096}";
+static const char *valid = "{\"schema\":1,\"version\":\"0.3.3-rc79\",\"project\":\"" PICO_OTA_PROJECT "\",\"board\":\"" PICO_OTA_BOARD "\",\"layout\":\"" PICO_OTA_LAYOUT "\",\"minimum_base_version\":\"0.3.3-rc72\",\"url\":\"https://wegooo-cell.github.io/read-pico-reader/Pico-update-0.3.3-rc79.bin\",\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"notes\":\"Test release\",\"size\":4096}";
 int main(void) {
  pico_release_t release;
  assert(pico_release_parse(valid,strlen(valid),&release)==ESP_OK);
@@ -29,9 +29,16 @@ int main(void) {
  assert(pico_release_parse(altered,strlen(altered),&release)!=ESP_OK);
  strcpy(altered,valid); char *p=strstr(altered,"4096"); memcpy(p,"1e10",4);
  assert(pico_release_parse(altered,strlen(altered),&release)!=ESP_OK);
- strcpy(altered,valid); p=strstr(altered,"RDP-G01-W"); p[0]='X';
+ strcpy(altered,valid); p=strstr(altered,PICO_OTA_BOARD); p[0]='X';
  assert(pico_release_parse(altered,strlen(altered),&release)!=ESP_OK);
  strcpy(altered,valid); p=strstr(altered,"0123456789abcdef"); p[0]='z';
  assert(pico_release_parse(altered,strlen(altered),&release)!=ESP_OK);
+ snprintf(altered,sizeof(altered),"%s",valid); p=strstr(altered,PICO_OTA_PROJECT);p[0]='X';
+ assert(pico_release_parse(altered,strlen(altered),&release)!=ESP_OK);
+ const unsigned sizes[]={0x400001,0x500000,0x500001};
+ for(unsigned i=0;i<3;++i){p=strstr(valid,"4096");size_t prefix=p-valid;
+  snprintf(altered,sizeof(altered),"%.*s%u%s",(int)prefix,valid,sizes[i],p+4);
+  assert((pico_release_parse(altered,strlen(altered),&release)==ESP_OK)==(sizes[i]<=PICO_OTA_IMAGE_MAX));
+ }
  puts("PASS: release schema, bounded size, hashes, version ordering, board, duplicate/trailing payload and HTTPS origin");
 }

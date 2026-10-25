@@ -37,6 +37,8 @@
  * 用户修订：快捷层只在展开/收起重绘顶部；圆键按下立即局部DU反馈，状态变化不重排底页或生成玻璃。
  * User revision: only opening/closing repaints the top; key presses receive immediate local DU feedback without underlay re-layout or glass regeneration.
  * 用户2026-10-19修订：下拉菜单锁屏前先收起并还原底页；点全刷自动收起，仅对还原后的页面全刷。
+ * 用户2026-10-24修订：S31下拉/AI菜单收回时，恢复完整底页并以一次GC48清理消除矩形残影；合并为收回输出，不增加菜单功能或先局部再全刷。
+ * User revision 2026-10-24: S31 quick/AI close restores the page and uses one GC48 cleanup to remove rectangular ghosts, replacing the close output without new actions or a local pass before cleanup.
  * User revision 2026-10-19: dismiss and restore the underlay before locking; full refresh dismisses the layer and refreshes only the restored page.
  * 用户点击反馈：底栏及圆形返回键按下局部放大，释放复位；只暂存一个小控件，切页、全刷及锁屏丢弃缓存，不回放旧画面。
  * User click feedback: locally enlarge navigation/round backs on press and restore on release. Retain one small control only; navigation, full refresh and lock discard it without replaying old frames.
@@ -120,7 +122,7 @@ static int s_quick_pressed=-1;
 #if KIIKO_BOARD_METALIO47
 static ui_ai_menu_t s_ai;
 static unsigned s_quick_slider_dirty;
-static unsigned s_quick_slider_drawn[2];
+static unsigned s_quick_slider_drawn[2],s_quick_slider_level[2];
 #else
 #endif
 static void quick_reset(void) {
@@ -192,9 +194,11 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
 #if KIIKO_BOARD_METALIO47
         if(s_quick.open){
             s_quick_slider_dirty=0;
-            s_quick_slider_drawn[0]=metalio_frontlight_position(false);
+            s_quick_slider_level[0]=metalio_frontlight_position(false);
+            s_quick_slider_level[1]=metalio_frontlight_position(true);
+            s_quick_slider_drawn[0]=ui_quick_brightness_position(s_quick_slider_level[0]);
             s_quick_slider_drawn[1]=metalio_frontlight_position(true);
-            ui_quick_menu_draw(ctx->fb,status&1u,status&2u,status&8u,s_quick_slider_drawn[0],s_quick_slider_drawn[1],
+            ui_quick_menu_draw(ctx->fb,status&1u,status&2u,status&8u,metalio_frontlight_position(false),s_quick_slider_drawn[1],
                 current==&app_book&&app_book_reader_body_visible());
         }else{
             bool restored=ui_quick_menu_restore(ctx->fb);ui_quick_menu_end();
@@ -213,16 +217,20 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
     (void)started;(void)composed;
 #if KIIKO_BOARD_METALIO47
     EpdRect area=ui_quick_menu_rect();
-    // 玻璃开合沿用Pico的完整灰阶；跟随短表仅用于后续按压和滑块，不能替代材质灰阶。
-    // Match Pico's full grayscale on open/close; short FOLLOW output remains for later presses/sliders, not material rendering.
-    enum EpdDrawError error=full?update_display_full(ctx->hl)
-        :update_display_area_full_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,area);
+    // 收回只提交一次完整底页清理，不先刷矩形再全刷，避免玻璃灰阶与周围白底留下边界。
+    // Close cleans the restored page once, without a preceding rectangle pass or a glass/white boundary.
+    enum EpdDrawError error=(full||!s_quick.open)?update_display_full(ctx->hl)
+        :update_display_gray_transition(ctx->hl,area);
 #else
     enum EpdDrawError error=full?update_display_full(ctx->hl)
         :update_display_area_full_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,ui_quick_menu_rect());
 #endif
     guard_draw_result(ctx->hl,error);
+#if KIIKO_BOARD_METALIO47
+    if(motion&&!full&&s_quick.open&&error==EPD_DRAW_SUCCESS){
+#else
     if(motion&&!full&&error==EPD_DRAW_SUCCESS){
+#endif
         error=update_display_area_diff_with(ctx->hl,&E0470_FOLLOW_WAVEFORM,MODE_DU,motion_area);
         guard_draw_result(ctx->hl,error);
     }
@@ -294,7 +302,14 @@ static void quick_buttons_present(app_ctx_t *ctx,const app_desc_t *current) {
     }
 #if KIIKO_BOARD_METALIO47
     for(unsigned i=0;i<2;++i){
-        unsigned value=metalio_frontlight_position(i!=0);
+        unsigned level=metalio_frontlight_position(i!=0);
+        unsigned value=i?level:ui_quick_brightness_position(level);
+        if(level==s_quick_slider_level[i])value=s_quick_slider_drawn[i];
+        // 拖动时保留原始像素位置，PWM值未跨档也让填充边缘跟手；松手不额外定稿。
+        // Track raw drag pixels even within one PWM step; releasing adds no settle scan.
+        if(s_quick.hit==(int)(4+i) && (s_quick.tracking || s_quick_slider_dirty&(1u<<i)))
+            value=(unsigned)s_quick.slider_position;
+        s_quick_slider_level[i]=level;
         if(value==s_quick_slider_drawn[i])continue;
         EpdRect band=ui_quick_slider_change_rect(i!=0,s_quick_slider_drawn[i],value);
         if(band.height){ui_quick_menu_draw_slider(ctx->fb,i!=0,value);dirty=quick_join(dirty,band);}
@@ -633,19 +648,21 @@ static app_redraw_t volume_key_action(app_ctx_t *ctx,const app_desc_t *current,i
        usb_storage_active() || pico_online_busy())return APP_REDRAW_NONE;
     int key=volume<0?UI_KEY_1:UI_KEY_3;
     if(main_page_ready(ctx,current))return main_key_action(ctx,current,key,false);
+    app_redraw_t redraw = APP_REDRAW_NONE;
+    if(current==&app_book && app_book_volume_key(ctx,volume<0?-1:1,&redraw))return redraw;
     return current->owns_keys && current->on_key?current->on_key(ctx,key):APP_REDRAW_NONE;
 }
 #endif
 
 #if KIIKO_BOARD_METALIO47
-// 所有控件先在内存合成；正常展开/收起各只有一次有界差分，不做额外清白/全刷。
-// Compose all controls in memory; each normal open/close uses one bounded difference, without a white prepass/full refresh.
+// 所有控件先合成；展开保留有界灰阶，收回以一次完整底页清理消除边框，不叠加第二轮。
+// Compose first: open uses bounded grays; close cleans the restored page once without another output.
 static void ai_push(app_ctx_t *ctx,const app_desc_t *current,EpdRect area){
     display_main_transition_cancel();
     bool binary=display_system_binary_set(false);
     bool nav=display_system_navigation_set(false);
     int64_t at=esp_timer_get_time();(void)at;
-    enum EpdDrawError result=update_display_area_diff_with(ctx->hl,display_main_gray_waveform(),MODE_GL16,area);
+    enum EpdDrawError result=s_ai.open?update_display_gray_transition(ctx->hl,area):update_display_full(ctx->hl);
     display_system_navigation_set(nav);display_system_binary_set(binary);
     ESP_LOGI(TAG,"AI menu display=%lldms result=%d",(long long)((esp_timer_get_time()-at)/1000),(int)result);
     guard_draw_result(ctx->hl,result);
@@ -657,7 +674,7 @@ static void ai_push(app_ctx_t *ctx,const app_desc_t *current,EpdRect area){
 static void ai_dismiss(app_ctx_t *ctx,const app_desc_t *current,bool present){
     if(!s_ai.open)return;
     EpdRect rect=s_ai.rect;bool restored=ui_ai_menu_restore(&s_ai,ctx->fb);ui_ai_menu_end(&s_ai);
-    if(!restored){if(current->render)current->render(ctx,ctx->fb);if(present)app_present(ctx,current,APP_REDRAW_PAGE);}
+    if(!restored){if(present)app_present(ctx,current,APP_REDRAW_FULL);else if(current->render)current->render(ctx,ctx->fb);}
     else if(present)ai_push(ctx,current,rect);
 }
 static app_redraw_t ai_short_action(app_ctx_t *ctx,const app_desc_t *current){
@@ -751,6 +768,9 @@ static void debounce_touch(
 }
 
 static bool try_load_saved_sd_font(bool allow_probe) {
+#if KIIKO_BOARD_METALIO47
+    if (!app_sleep_media_ready()) return false;
+#endif
     read_pico_sd_info_t info;
     esp_err_t err = read_pico_sd_get_info(&info);
     if (err == ESP_ERR_NOT_FINISHED) return false;
@@ -761,16 +781,48 @@ static bool try_load_saved_sd_font(bool allow_probe) {
     return app_font_retry_active();
 }
 
-// 先停文件使用者，再换字体；此处只观察挂载，不卸载也不重新挂载。
-// Stop file consumers before font fallback; observe mounting without unmounting or remounting.
+static int64_t s_media_recovery_after_ms;
+static unsigned s_media_recovery_attempts;
+// 页面已释放句柄后才排队恢复；缺卡等待稳定插入，持续故障按1/3/10/30秒退避。
+// Queue recovery only after page handles close; wait for insertion and back off persistent faults by 1/3/10/30 seconds.
+static void recover_media(app_ctx_t *ctx, const read_pico_sd_info_t *info) {
+    if (s_media_recovery_attempts && !info->present) {
+        s_media_recovery_after_ms = ctx->now_ms; return;
+    }
+    if (!read_pico_sd_needs_recovery() || ctx->now_ms < s_media_recovery_after_ms || pico_online_busy()) return;
+    read_pico_transfer_status_t transfer = {0};
+    read_pico_transfer_get_status(&transfer);
+    if (transfer.state == READ_PICO_TRANSFER_UPLOADING) return;
+    bool covers_ready = book_cover_jobs_quiesce(0);
+    bool avatar_ready = ui_avatar_quiesce(0);
+    if (!covers_ready || !avatar_ready) return;
+    esp_err_t err = read_pico_sd_start_recovery();
+    if (err == ESP_ERR_NOT_FINISHED) return;
+    static const unsigned delays[] = {1000,3000,10000,30000};
+    unsigned index = s_media_recovery_attempts < 3 ? s_media_recovery_attempts : 3;
+    s_media_recovery_after_ms = ctx->now_ms + delays[index];
+    if (s_media_recovery_attempts < 4) ++s_media_recovery_attempts;
+}
+// 先停文件使用者和字体；Pico在后续轮询中等任务释放，再异步重挂。
+// Stop page/font consumers first; Pico waits for worker release on later polls before asynchronous remount.
 static bool poll_media(app_ctx_t* ctx, const app_desc_t* current,
                        bool* mounted, bool* invalidated) {
-    if (usb_storage_active()) { *mounted = false; *invalidated = false; return false; }
+#if KIIKO_BOARD_METALIO47
+    if (!app_sleep_media_ready()) return false;
+#endif
+    if (usb_storage_active()) {
+        s_media_recovery_attempts = 0; s_media_recovery_after_ms = 0;
+        *mounted = false; *invalidated = false; return false;
+    }
+    read_pico_transfer_status_t health_transfer = {0};
+    read_pico_transfer_get_status(&health_transfer);
+    if (!pico_online_busy() && health_transfer.state != READ_PICO_TRANSFER_UPLOADING)
+        read_pico_sd_poll_health();
     read_pico_sd_info_t info = {0};
     esp_err_t err = read_pico_sd_get_info(&info);
-    if (err == ESP_ERR_INVALID_STATE && info.present && !*invalidated) {
-        (void)read_pico_sd_start_probe();
-        return false;
+    if (err == ESP_ERR_INVALID_STATE && info.present && !*invalidated && !read_pico_sd_needs_recovery()) {
+        esp_err_t probe = read_pico_sd_start_probe();
+        if (probe == ESP_ERR_NOT_FINISHED) return false;
     }
     if (err == ESP_ERR_NOT_FINISHED) return false;
     bool ready = err == ESP_OK && info.mounted;
@@ -778,9 +830,13 @@ static bool poll_media(app_ctx_t* ctx, const app_desc_t* current,
     bool gained = !*mounted && ready;
     *mounted = ready;
     if (ready) *invalidated = false;
+    if (ready) { s_media_recovery_attempts = 0; s_media_recovery_after_ms = 0; }
     if (gained || lost) { ui_avatar_invalidate(); (void)book_cover_jobs_quiesce(0); book_lock_collage_invalidate(); }
     if (gained && current->on_media_ready) current->on_media_ready(ctx);
-    if (!lost) return false;
+    if (!lost) {
+        if (!ready) recover_media(ctx,&info);
+        return false;
+    }
     *invalidated = true;
     if (current->on_media_lost) current->on_media_lost(ctx);
     if (ttf_font_ready() && !ttf_font_is_builtin()) ttf_font_open_builtin();
@@ -845,6 +901,7 @@ bool app_poll_main_navigation(app_ctx_t *ctx) {
 }
 
 void app_loop_run(const app_loop_config_t* config) {
+    s_media_recovery_attempts = 0; s_media_recovery_after_ms = 0;
     s_presented_main = NULL;
     s_nav_contact_down=s_nav_polled=false;
     const app_desc_t* current = config->first_app != NULL
@@ -870,6 +927,7 @@ void app_loop_run(const app_loop_config_t* config) {
     quick_reset();
     bool menu_open = false;
     ui_gesture_t gesture = {0};
+    bool pinching = false, pinch_input_owned = false, pinch_drain = false;
     ui_power_dialog_t power_dialog = {0};
 #if KIIKO_BOARD_METALIO47
     bool power_dialog_open = false; ui_power_dialog_end();
@@ -1026,8 +1084,40 @@ void app_loop_run(const app_loop_config_t* config) {
             }
         }
         if(ai_owned){quick_input_owned=true;ctx.consumed=true;held_key=-1;cancel_gesture(&ctx,current,&gesture);}
+#else
+        bool ai_owned = false;
 #endif
-        if (!power_input_owned && !menu_open && !quick_input_owned) {
+        if (!touch.touched) pinch_drain = false;
+        pinch_input_owned = pinch_drain;
+        bool pinch_ready = err == ESP_OK && !power_input_owned && !quick_input_owned && !ai_owned && !s_quick.open && !menu_open &&
+            !ctx.request_app && current->wants_pinch && current->on_pinch && current->wants_pinch(&ctx);
+        if (pinching && (!pinch_ready || touch.count < 2)) {
+            pinching = false;
+            if (!power_input_owned && !quick_input_owned && !ai_owned && !s_quick.open && !menu_open && !ctx.request_app &&
+                current->wants_pinch && current->on_pinch && current->wants_pinch(&ctx)) {
+                app_pinch_t end = {.active = false};
+                app_redraw_t redraw = current->on_pinch(&ctx, &end);
+                if (redraw != APP_REDRAW_NONE) app_present(&ctx, current, redraw);
+            }
+            ui_gesture_reset(&gesture);
+            pinch_input_owned = true;
+            pinch_drain = touch.touched;
+        } else if (pinch_ready && touch.count >= 2) {
+            if (!pinching) {
+                held_key = -1; cancel_gesture(&ctx, current, &gesture); pinching = true;
+            }
+            app_pinch_t pinch = {.active = true,
+                .ax = touch.points[0].x, .ay = touch.points[0].y,
+                .bx = touch.points[1].x, .by = touch.points[1].y};
+            app_redraw_t redraw = current->on_pinch(&ctx, &pinch);
+            if (redraw != APP_REDRAW_NONE) app_present(&ctx, current, redraw);
+            pinch_input_owned = true;
+        }
+        // 双指只占输入，不跳过电源、媒体、后台任务与页面请求。
+        // Pinch owns input only: power, media, background work and navigation still run.
+        if (pinch_input_owned) { ctx.consumed = true; ctx.pressed = ctx.released = false; quick_input_owned = true; }
+
+        if (!pinch_input_owned && !power_input_owned && !menu_open && !quick_input_owned) {
 #if KIIKO_BOARD_METALIO47
             if (err != ESP_OK) { ui_quick_menu_cancel_input(&s_quick); metalio_frontlight_commit(); quick_input_owned=s_quick.open; }
 #else
@@ -1063,12 +1153,12 @@ void app_loop_run(const app_loop_config_t* config) {
                     metalio_frontlight_toggle(); (void)metalio_haptic_click();
                 } else if(action==UI_QUICK_BRIGHTNESS || action==UI_QUICK_WARMTH) {
                     const bool warm=action==UI_QUICK_WARMTH;
+                    unsigned value=warm?(unsigned)s_quick.slider_position:ui_quick_brightness_value(s_quick.slider_position);
                     unsigned old=metalio_frontlight_position(warm);
-                    if(old!=(unsigned)s_quick.slider_position) {
-                        metalio_frontlight_preview_position(warm?metalio_frontlight_position(false):s_quick.slider_position,
-                                                  warm?s_quick.slider_position:metalio_frontlight_position(true));
-                        s_quick_slider_dirty|=warm?2u:1u;
-                    }
+                    if(old!=value)
+                        metalio_frontlight_preview_position(warm?metalio_frontlight_position(false):value,
+                                                  warm?value:metalio_frontlight_position(true));
+                    s_quick_slider_dirty|=warm?2u:1u;
                 } else if(action==UI_QUICK_LIGHT_COMMIT) {
                     metalio_frontlight_commit();
                 }
@@ -1270,7 +1360,7 @@ void app_loop_run(const app_loop_config_t* config) {
                 }
             }
         }
-        if (!power_input_owned && !quick_input_owned && !menu_open && current->on_gesture && err == ESP_OK) {
+        if (!pinch_input_owned && !power_input_owned && !quick_input_owned && !menu_open && current->on_gesture && err == ESP_OK) {
             ui_gesture_event_t event;
             if (ui_gesture_feed(&gesture, &ctx, &event)) {
                 app_redraw_t redraw =
@@ -1422,7 +1512,7 @@ void app_loop_run(const app_loop_config_t* config) {
             }
         }
 #if KIIKO_BOARD_METALIO47
-        // 音量键主页面与屏幕左右键一致，子页/阅读仍使用自身映射。/ Volume follows root side keys and page-owned child/reader mappings.
+        // 音量键主页面沿用左右键，阅读固定翻页；覆盖层不透传。/ Volume follows root side keys, fixes reader turns, and cannot pass through overlays.
         int volume=metalio_take_volume();
         if(volume && !power_dialog_open && !power_input_owned && !menu_open && !s_quick.open && !ai_overlay_open() && !quick_input_owned) {
             cancel_gesture(&ctx,current,&gesture); last_input_ms=ctx.now_ms;

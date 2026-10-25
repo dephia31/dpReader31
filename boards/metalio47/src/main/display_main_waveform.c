@@ -10,6 +10,8 @@
  */
 #include "display_main_waveform.h"
 #include "e0470_epaper_waveform.h"
+#include "e0470_waveform_trim.h"
+#include <stdlib.h>
 #include "esp_heap_caps.h"
 #include <stdbool.h>
 #include <string.h>
@@ -214,4 +216,37 @@ const EpdWaveform* display_main_page_bw_waveform(void) {
         s_page_bw_waveform.temp_intervals=E0470_WAVEFORM.temp_intervals;s_page_bw_ready=true;
     }
     return &s_page_bw_waveform;
+}
+
+// 仅面板实验借用官方11/5/0/3裁剪，保留灰阶尾和三相保持；原48相数组不动。
+// Panel experiments alone use vendor11/5/0/3 trimming, retaining gray tails/three holds and untouched48-phase arrays.
+const EpdWaveform* display_reader_panel37_waveform(void) {
+#if KIIKO_S31_READER_PANEL37
+    static bool attempted;
+    static EpdWaveformPhases phases;
+    static const EpdWaveformPhases *ranges[]={&phases};
+    static const EpdWaveformMode mode={MODE_GL16,1,ranges};
+    static const EpdWaveformMode *modes[]={&mode};
+    static EpdWaveform wave={.num_modes=1,.num_temp_ranges=1,.mode_data=modes};
+    if(phases.luts)return &wave;
+    if(attempted)return NULL;
+    attempted=true;
+    const EpdWaveformPhases *source=e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_GL16);
+    if(!source||!source->luts||source->phases!=48||source->phase_times||
+       E0470_FULL_WAVEFORM.num_temp_ranges!=1||!E0470_FULL_WAVEFORM.temp_intervals)return NULL;
+    uint8_t (*data)[16][4]=heap_caps_malloc(48u*16u*4u,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!data)return NULL;
+    const e0470_trim_t trim={.erase_max=11,.sat_cut=5,.white_sat_cut=0,.hold=3};
+    int count=e0470_waveform_trim(source,&trim,data);
+    if(count!=37){free(data);return NULL;}
+    // 控件按真实旧灰阶差分，所有等值保持，绝不把官方白底补推带进拖动反馈。
+    // Controls use actual old-gray differences; hold all equal pairs without importing white-background maintenance.
+    for(int f=0;f<count;++f)for(int v=0;v<16;++v)
+        data[f][v][v/4]&=(uint8_t)~(3u<<(6-2*(v%4)));
+    phases=(EpdWaveformPhases){count,(const uint8_t*)data,NULL};
+    wave.temp_intervals=E0470_FULL_WAVEFORM.temp_intervals;
+    return &wave;
+#else
+    return NULL;
+#endif
 }

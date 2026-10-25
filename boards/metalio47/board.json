@@ -5,9 +5,9 @@
   "project": "Kiikoread_Metalio_S31",
   "image_chip_id": 32,
   "bootloader_offset": 8192,
-  "version": "0.3.3-rc97",
+  "version": "0.3.3-rc102",
   "sdkconfig": "sdkconfig.defaults",
   "partitions": "partitions.csv",
   "settings_namespace": "metalio_s31",
-  "online_ota": false
+  "online_ota": true
 }

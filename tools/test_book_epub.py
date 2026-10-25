@@ -239,8 +239,21 @@ def main():
             # A genuinely large, incompressible unused asset must not reject the entire book.
             files['OPS/images/unused.bin'] = os.urandom(24 * 1024 * 1024)
         case('good_resources', resources)
+        def colon_paths(files):
+            """Some generators scatter chapter names into `*` and `:` patterns; a colon inside a
+            path segment is a legal ZIP entry name and only a leading one can be a scheme."""
+            renamed = {}
+            for name, content in files.items():
+                if isinstance(content, str):
+                    content = content.replace('../text/part', '../text/_*:*:part')
+                renamed['OPS/text/_*:*:' + name[len('OPS/text/'):]
+                        if name.startswith('OPS/text/') else name] = content
+            files.clear()
+            files.update(renamed)
+        case('good_colon_paths', colon_paths)
         case('bad_escape', replace_opf('../text/part%201%26x.xhtml#start', '../../../escape.xhtml'))
         case('bad_url', replace_opf('../text/part%201%26x.xhtml#start', 'https://example.org/a.xhtml'))
+        case('bad_colon_scheme', replace_opf('../text/part%201%26x.xhtml#start', 'book:part1.xhtml'))
         case('bad_percent', replace_opf('../text/part%201%26x.xhtml#start', '../text/%XX.xhtml'))
         case('bad_duplicate', replace_opf('id="c2"', 'id="c1"'))
         case('bad_missingref', replace_opf('idref="c2"', 'idref="missing"'))

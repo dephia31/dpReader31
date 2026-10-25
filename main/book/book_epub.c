@@ -37,7 +37,9 @@
 // 索引载荷格式随标题/锚点池化而变：旧缓存里的定长字段读不出指针，必须整体失效。
 // The index payload changed with the title/anchor pooling: fixed fields in an old cache cannot be
 // turned back into pointers, so every older cache has to lapse.
-#define EPUB_CACHE_VERSION 13u
+// 14：无名页不再缓存「第 N 节」占位标题，旧缓存会把这些名字带回来。
+// 14: unnamed pages no longer cache an invented label, so caches holding one must lapse.
+#define EPUB_CACHE_VERSION 14u
 #define EPUB_META_CACHE_VERSION 1u
 #define EPUB_CSS_MAX (256u * 1024u)
 #define EPUB_CSS_FILE_MAX (128u * 1024u)
@@ -522,7 +524,7 @@ static void xml_reader(xml_t *xml, const char *text, size_t n) {
 /* ---- ZIP 路径及内容 / ZIP paths and content ---- */
 
 static bool resolve_path(const char *base, const char *href, char out[EPUB_PATH_CAP]) {
-    char decoded[EPUB_PATH_CAP]; size_t used = 0;
+    char decoded[EPUB_PATH_CAP]; size_t used = 0; bool first_segment = true;
     for (size_t i = 0; href[i] && href[i] != '#'; ++i) {
         unsigned char c = (unsigned char)href[i];
         if (c == '%') {
@@ -530,7 +532,14 @@ static bool resolve_path(const char *base, const char *href, char out[EPUB_PATH_
             int a = hex(href[i + 1]), b = hex(href[i + 2]); if (a < 0 || b < 0) return false;
             c = (unsigned char)((a << 4) | b); i += 2;
         }
-        if (c < 32 || c == 127 || c == '\\' || c == ':' || c == '?' || used + 1 >= sizeof(decoded)) return false;
+        // 只拒绝首段里的冒号：那位置只可能是协议或盘符。段中是合法的 ZIP 条目名，部分工具
+        // 会把章节文件名打散成 `*` 与 `:` 的组合，整本按原规则会解析失败。
+        // Only a colon in the first segment is refused: there it can only be a scheme or drive
+        // letter. Inside a segment it is a legal ZIP entry name, and some tools scatter chapter
+        // names into `*` and `:` patterns that the old rule rejected wholesale.
+        if (c == ':' && first_segment) return false;
+        if (c == '/') first_segment = false;
+        if (c < 32 || c == 127 || c == '\\' || c == '?' || used + 1 >= sizeof(decoded)) return false;
         decoded[used++] = (char)c;
     }
     decoded[used] = 0;
@@ -689,9 +698,10 @@ static esp_err_t package_parse(book_epub_t *book, const char *opf, char ncx[EPUB
             size_t bytes = zip_entry_size(book->zip, entry);
             if (bytes > EPUB_ENTRY_MAX || bytes > UINT32_MAX - book->total) { err = ESP_ERR_INVALID_SIZE; break; }
             chapter_t *chapter = &book->chapters[book->count]; chapter->zip_index = entry; chapter->offset = book->total;
-            char fallback[EPUB_TITLE_CAP];
-            snprintf(fallback, sizeof(fallback), "第 %u 节", (unsigned)book->count + 1);
-            chapter->title = text_intern_cap(book, fallback, sizeof(fallback));
+            // 无名页先留空：目录会命名，正文题头也会补真名；编造的「第 N 节」不再出现。
+            // Start unnamed: the TOC and body headings supply real names, and no invented
+            // "第 N 节" label ever reaches a page.
+            chapter->title = text_intern_cap(book, "", 1);
             book->total += (uint32_t)bytes; ++book->count;
         }
         if (xml.failed || !book->count) err = ESP_ERR_INVALID_ARG;
@@ -851,9 +861,7 @@ static esp_err_t navigation_parse(book_epub_t *book, const char *path, bool ncx)
         for (size_t i = 0; i < book->count; ++i) if (!(previously_titled[i / 8] & (1u << (i % 8)))) {
             book->chapters[i].titled = false;
             book->chapters[i].nav_titled = false;
-            char fallback[EPUB_TITLE_CAP];
-            snprintf(fallback, sizeof(fallback), "第 %u 节", (unsigned)i + 1);
-            book->chapters[i].title = text_intern_cap(book, fallback, sizeof(fallback));
+            book->chapters[i].title = text_intern_cap(book, "", 1);
         }
     }
     if (err == ESP_OK) {
@@ -1534,7 +1542,12 @@ esp_err_t book_epub_navigation_title(book_epub_t *book, size_t position, char *b
     nav_entry_t *entry = navigation_entry(book, position);
     if (!entry) {
         size_t chapter = book_epub_navigation_chapter(book, position);
-        return chapter == SIZE_MAX ? ESP_ERR_INVALID_ARG : book_epub_chapter_title(book, chapter, buf, cap);
+        if (chapter == SIZE_MAX) return ESP_ERR_INVALID_ARG;
+        esp_err_t err = book_epub_chapter_title(book, chapter, buf, cap);
+        // 只有按 spine 生成的备用目录需要一行标签；正文、题头和书签不给无名页编名。
+        // Only the spine-generated TOC needs a row label; pages, headings and bookmarks stay unnamed.
+        if (err == ESP_OK && !buf[0]) snprintf(buf, cap, "第 %u 节", (unsigned)chapter + 1);
+        return err;
     }
     size_t n = strlen(entry->title);
     if (n >= cap) return ESP_ERR_INVALID_SIZE;
@@ -2185,17 +2198,32 @@ esp_err_t book_epub_image_dimensions(book_epub_t *book, size_t chapter, const ch
     if (!resolve_path(zip_entry_name(book->zip, book->chapters[chapter].zip_index), src, path)) return ESP_ERR_INVALID_ARG;
     int entry = zip_find(book->zip, path);
     if (entry < 0) return ESP_ERR_NOT_FOUND;
-    size_t size = zip_entry_size(book->zip, entry);
-    if (!size) return ESP_ERR_INVALID_SIZE;
-    if (size > 65536) size = 65536;
-    uint8_t *header = psram(size);
-    if (!header) return ESP_ERR_NO_MEM;
-    esp_err_t err = zip_extract_prefix(book->zip, entry, header, size);
-    if (err == ESP_OK) {
-        bool png = size >= 8 && !memcmp(header, "\x89PNG\r\n\x1a\n", 8);
-        if (!book_image_dimensions(header, size, png, width, height)) err = ESP_ERR_NOT_SUPPORTED;
+    size_t resource_size = zip_entry_size(book->zip, entry);
+    if (!resource_size) return ESP_ERR_INVALID_SIZE;
+    // PNG的尺寸在前24字节；不要为每幅漫画读64KiB或完整图片。
+    // PNG dimensions fit in the first24 bytes; do not read64KiB or the full comic page for each probe.
+    uint8_t first[32];
+    size_t size = resource_size < sizeof(first) ? resource_size : sizeof(first);
+    esp_err_t err = zip_extract_prefix(book->zip, entry, first, size);
+    if (err != ESP_OK) return err;
+    bool png = size >= 8 && !memcmp(first, "\x89PNG\r\n\x1a\n", 8);
+    if (book_image_dimensions(first, size, png, width, height)) return ESP_OK;
+    if (size >= 2 && first[0] == 0xff && first[1] == 0xd8) {
+        // JPEG按需扩大到4KiB/64KiB；更晚帧头仍走原有有界完整提取。
+        // Grow JPEG probes to4KiB/64KiB only as needed; later frames retain bounded full extraction.
+        const size_t limits[] = {4096, 65536};
+        for (size_t i = 0; i < sizeof(limits) / sizeof(limits[0]) && size < resource_size; ++i) {
+            size = resource_size < limits[i] ? resource_size : limits[i];
+            uint8_t *header = psram(size);
+            if (!header) return ESP_ERR_NO_MEM;
+            err = zip_extract_prefix(book->zip, entry, header, size);
+            bool found = err == ESP_OK && book_image_dimensions(header, size, false, width, height);
+            free(header);
+            if (err != ESP_OK) return err;
+            if (found) return ESP_OK;
+        }
     }
-    free(header);
+    err = ESP_ERR_NOT_SUPPORTED;
     if (err == ESP_ERR_NOT_SUPPORTED) {
         // 头部不足或 SVG 包装时，复用插图读取路径；缓存到块中，避免每页重复读取。
         // For a late frame header or SVG wrapper, reuse image loading; callers cache dimensions in blocks.

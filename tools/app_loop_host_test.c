@@ -89,6 +89,9 @@ EpdRect ui_nav_status_area(void){return (EpdRect){0,12,684,56};}
 bool ui_nav_refresh_power(uint8_t *fb){(void)fb;if(power_change_step<0||step<power_change_step||power_reported)return false;power_reported=true;++power_header_draws;return true;}
 
 static bool media_test, sd_font, saved_sd_font;
+static bool auto_recovery_test, test_usb_active;
+bool test_usb_storage_active(void){return test_usb_active;}
+static int recovery_calls, health_polls, recovery_step, covers_busy_until, avatar_busy_until;
 static bool mounted_steps[32], present_steps[32];
 static int media_lost, media_ready, builtin_opens, font_opens, probes, loss_step;
 int E0470_WAVEFORM;
@@ -191,7 +194,10 @@ const char* ttf_font_path(void) {return "other";}
 int ttf_font_open(const char*p) {(void)p;font_opens++;sd_font=true;return 0;}
 int ttf_font_open_builtin(void) {assert(media_lost>0);builtin_opens++;sd_font=font_due=false;return 0;}
 int read_pico_sd_get_info(read_pico_sd_info_t*i) {i->present=media_test?present_steps[step]:font_due;i->mounted=media_test?mounted_steps[step]:font_due;return media_test&&!i->mounted?ESP_ERR_INVALID_STATE:0;}
-void read_pico_sd_start_probe(void) {probes++;}
+int read_pico_sd_start_probe(void) {probes++;return auto_recovery_test?ESP_ERR_INVALID_STATE:ESP_ERR_NOT_FINISHED;}
+void read_pico_sd_poll_health(void) {++health_polls;}
+bool read_pico_sd_needs_recovery(void) {return auto_recovery_test&&!mounted_steps[step];}
+int read_pico_sd_start_recovery(void) {assert(media_lost==1&&!sd_font&&step>covers_busy_until&&step>avatar_busy_until);++recovery_calls;recovery_step=step;return ESP_OK;}
 static void lost(app_ctx_t*c) {(void)c;media_lost++;loss_step=step;}
 static void ready(app_ctx_t*c) {(void)c;media_ready++;}
 EpdRect ui_content_refresh_area(void) {return (EpdRect){0,0,684,1000};}
@@ -248,6 +254,7 @@ static void reset(void) {
     main_fast=main_water=false;shelf_exit_arms=0;idle_minutes=0;idle_locks=before_locks=lock_feedback_calls=lock_badges=wake_clean_requests=0;feedback_enabled=false;online_busy=false;
     nav_arms=nav_draws=nav_full_arms=nav_area_draws=0;nav_armed=NULL;
     main_source_visible=main_target_visible=true;
+    auto_recovery_test=test_usb_active=false;recovery_calls=health_polls=0;recovery_step=-1;covers_busy_until=avatar_busy_until=-1;
     media_test=sd_font=saved_sd_font=false;media_lost=media_ready=builtin_opens=font_opens=probes=0;loss_step=-1;
     memset(mounted_steps,0,sizeof(mounted_steps));memset(present_steps,0,sizeof(present_steps));
     long_keys=0;
@@ -451,14 +458,38 @@ int main(void) {
     reset();media_test=true;mounted_steps[0]=true;time_step=600000;first.on_media_lost=lost;first.owns_keys=true;first.on_key_long=long_key;
     add(240,1500,1,0);add(240,1500,1,0);add(240,1500,1,0);run();
     assert(media_lost==1&&keys[1]==1&&!long_keys);
-    // 失效后不自动探测；显式恢复的挂载可重新加载保存字体并再次检测拔卡。
-    // No automatic probing after invalidation; an explicit remount restores saved-font loading and loss detection.
+    // 驱动尚未允许恢复时不强制探测；恢复后重新载入保存字体并再次检测拔卡。
+    // Never force a probe before driver recovery readiness; restore saved fonts and loss detection after recovery.
     reset();media_test=sd_font=saved_sd_font=true;mounted_steps[0]=true;time_step=4000000;first.on_media_lost=lost;
     add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
     assert(media_lost==1&&builtin_opens==1&&!probes&&!font_opens);
     reset();media_test=sd_font=saved_sd_font=true;mounted_steps[0]=mounted_steps[2]=true;time_step=4000000;first.on_media_lost=lost;
     add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
     assert(media_lost==2&&builtin_opens==2&&!probes&&font_opens==1);
+#if KIIKO_BOARD_METALIO47
+#else
+    // 已通知页面并释放后台文件后才恢复；卡恢复一次通知页面并重新载入保存字体。
+    // Recover only after loss callbacks and worker release; ready notifies once and reloads the saved font.
+    reset();media_test=sd_font=saved_sd_font=auto_recovery_test=true;mounted_steps[0]=true;
+    for(int i=1;i<7;++i)present_steps[i]=true;
+    mounted_steps[5]=mounted_steps[6]=true;time_step=600000;covers_busy_until=2;avatar_busy_until=3;
+    first.on_media_lost=lost;first.on_media_ready=ready;
+    for(int i=0;i<7;++i)add(0,0,0,0);run();
+    assert(media_lost==1&&builtin_opens==1&&recovery_calls==1&&recovery_step==4&&media_ready==1&&font_opens==1);
+    // 重挂失败时退避；上传、在线升级、USB独占时均不启动恢复。
+    // Back off failed mounts; upload, OTA and exclusive USB ownership all suppress recovery.
+    reset();media_test=sd_font=auto_recovery_test=true;mounted_steps[0]=true;time_step=600000;
+    for(int i=1;i<20;++i)present_steps[i]=true;first.on_media_lost=lost;
+    for(int i=0;i<12;++i)add(0,0,0,0);run();assert(media_lost==1&&recovery_calls==3);
+    for(int guard=0;guard<3;++guard){
+        reset();media_test=sd_font=auto_recovery_test=true;mounted_steps[0]=true;time_step=600000;
+        for(int i=1;i<8;++i)present_steps[i]=true;first.on_media_lost=lost;
+        if(guard==0)online_busy=true;if(guard==1)transfer_status.state=READ_PICO_TRANSFER_UPLOADING;if(guard==2)test_usb_active=true;
+        for(int i=0;i<8;++i)add(0,0,0,0);run();assert(!recovery_calls);
+        if(guard==2)assert(!health_polls&&!media_lost);
+    }
+    puts("PASS: real loop media recovery joins consumers, restores font once, retries with backoff and respects upload/OTA/USB ownership");
+#endif
     reset();idle_minutes=1;time_step=60000000;first.on_before_lock=before_lock;
     add(0,0,0,0);add(0,0,0,0);run();
     assert(idle_locks==1&&before_locks==1&&wake_clean_requests==1); // Real scheduler flushes before automatic lock.
@@ -679,7 +710,8 @@ void crash_note_log(void){}
 void app_time_service_poll(bool idle) { (void)idle; }
 
 void ui_avatar_invalidate(void) {}
-bool book_cover_jobs_quiesce(unsigned timeout){(void)timeout;return true;}
+bool book_cover_jobs_quiesce(unsigned timeout){(void)timeout;return step>covers_busy_until;}
+bool ui_avatar_quiesce(unsigned timeout){(void)timeout;return step>avatar_busy_until;}
 void book_lock_collage_invalidate(void) {}
 
 bool ble_pt_connected(void) { return false; }

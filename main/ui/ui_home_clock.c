@@ -11,10 +11,10 @@
 #include <string.h>
 #include <stdlib.h>
 #define TAU 6.28318530718f
-typedef struct {uint8_t *fb;EpdRect bounds,clip;bool binary;unsigned phase,trail_start,trail_steps;ui_home_clock_style_t style;} clock_canvas_t;
-typedef struct {EpdRect bounds,clip;int year,month,day,hour,minute,rotation;bool binary,valid;unsigned age;ui_home_clock_style_t style;} clock_base_key_t;
+typedef struct {uint8_t *fb;EpdRect bounds,clip;bool binary;unsigned phase,trail_start,trail_steps;ui_home_clock_style_t style;bool preview;} clock_canvas_t;
+typedef struct {EpdRect bounds,clip;int year,month,day,hour,minute,rotation;bool binary,valid;unsigned age;ui_home_clock_style_t style;bool preview;} clock_base_key_t;
 static uint8_t *s_base_cache;
-static clock_base_key_t s_base_keys[2];
+static clock_base_key_t s_base_keys[UI_HOME_CLOCK_BASE_CACHE_SLOTS];
 static unsigned s_base_age;
 static bool inside(EpdRect inner,EpdRect outer){return inner.x>=outer.x&&inner.y>=outer.y&&
     inner.x+inner.width<=outer.x+outer.width&&inner.y+inner.height<=outer.y+outer.height;}
@@ -31,7 +31,7 @@ static bool base_candidate(const clock_canvas_t *c,EpdRect *physical){
     return (size_t)physical->width*physical->height/2<=UI_HOME_CLOCK_BASE_SLOT_BYTES;
 }
 static bool base_key_matches(const clock_base_key_t *k,const clock_canvas_t *c,const struct tm *date){
-    return k->valid&&k->style==c->style&&((c->style==UI_HOME_CLOCK_HOUSE||c->style==UI_HOME_CLOCK_PS1995)||(k->year==date->tm_year&&k->month==date->tm_mon&&k->day==date->tm_mday&&k->hour==date->tm_hour&&k->minute==date->tm_min))&&k->binary==c->binary&&
+    return k->valid&&k->preview==c->preview&&k->style==c->style&&((c->style==UI_HOME_CLOCK_HOUSE||c->style==UI_HOME_CLOCK_PS1995)||(k->year==date->tm_year&&k->month==date->tm_mon&&k->day==date->tm_mday&&k->hour==date->tm_hour&&k->minute==date->tm_min))&&k->binary==c->binary&&
         k->rotation==epd_get_rotation()&&!memcmp(&k->bounds,&c->bounds,sizeof(EpdRect))&&inside(c->clip,k->clip);
 }
 static void base_copy(clock_canvas_t *c,EpdRect p,unsigned slot,bool restore){
@@ -42,7 +42,7 @@ static void base_copy(clock_canvas_t *c,EpdRect p,unsigned slot,bool restore){
 }
 static bool base_restore(clock_canvas_t *c,const struct tm *date){
     if(!s_base_cache)return false;
-    for(unsigned i=0;i<2;++i)if(base_key_matches(&s_base_keys[i],c,date)){
+    for(unsigned i=0;i<UI_HOME_CLOCK_BASE_CACHE_SLOTS;++i)if(base_key_matches(&s_base_keys[i],c,date)){
         // 只恢复请求区域，奇数列边界保留相邻半字节，不碰表盘外的文字。
         // Restore only the requested crop; odd boundaries preserve neighboring nibbles and labels.
         EpdRect full=packed_bounds(s_base_keys[i].clip),part=ui_rotate_rect_to_fb(c->clip);
@@ -61,9 +61,12 @@ static bool base_restore(clock_canvas_t *c,const struct tm *date){
 static void base_store(clock_canvas_t *c,const struct tm *date){
     EpdRect p;if(!base_candidate(c,&p))return;
     unsigned i=!s_base_keys[0].valid?0:!s_base_keys[1].valid?1:s_base_keys[0].age<s_base_keys[1].age?0:1;
+#if KIIKO_BOARD_METALIO47
+    if(c->preview)i=2u+c->style;
+#endif
     base_copy(c,p,i,false);
     s_base_keys[i]=(clock_base_key_t){.bounds=c->bounds,.clip=c->clip,.year=date->tm_year,.month=date->tm_mon,.day=date->tm_mday,.hour=date->tm_hour,.minute=date->tm_min,
-        .rotation=epd_get_rotation(),.binary=c->binary,.valid=true,.age=++s_base_age,.style=c->style};
+        .rotation=epd_get_rotation(),.binary=c->binary,.valid=true,.age=++s_base_age,.style=c->style,.preview=c->preview};
 }
 static float clamp(float x,float lo,float hi){return fminf(hi,fmaxf(lo,x));}
 static EpdRect intersect(EpdRect a,EpdRect b){
@@ -331,7 +334,7 @@ const char *ui_home_clock_name(ui_home_clock_style_t style){
 }
 void ui_home_clock_trail_draw_region(uint8_t *fb,EpdRect b,const struct tm *date,bool binary,ui_home_clock_style_t style,EpdRect clip,unsigned phase,unsigned trail_start,unsigned trail_steps){
     if(!fb||!date||b.width<=0||b.height<=0||(unsigned)style>=UI_HOME_CLOCK_COUNT)return;
-    clock_canvas_t c={fb,b,intersect(intersect(b,clip),(EpdRect){0,0,epd_rotated_display_width(),epd_rotated_display_height()}),binary,phase,trail_start,trail_steps>600?600:trail_steps,style};
+    clock_canvas_t c={fb,b,intersect(intersect(b,clip),(EpdRect){0,0,epd_rotated_display_width(),epd_rotated_display_height()}),binary,phase,trail_start,trail_steps>600?600:trail_steps,style,false};
     if(c.clip.width<=0||c.clip.height<=0)return;
     // 活动字形不进缓存；秒级裁剪可从同一分钟的完整底图恢复，扩大时间页也复用。
     // Keep live glyphs out of snapshots; second crops restore from the full minute base, including enlarged time views.
@@ -363,6 +366,29 @@ void ui_home_clock_trail_draw_region(uint8_t *fb,EpdRect b,const struct tm *date
 void ui_home_clock_phase_draw_region(uint8_t *fb,EpdRect b,const struct tm *date,bool binary,ui_home_clock_style_t style,EpdRect clip,unsigned phase){ui_home_clock_trail_draw_region(fb,b,date,binary,style,clip,phase,0,0);}
 void ui_home_clock_style_draw_region(uint8_t *fb,EpdRect b,const struct tm *date,bool binary,ui_home_clock_style_t style,EpdRect clip){ui_home_clock_phase_draw_region(fb,b,date,binary,style,clip,date?(unsigned)date->tm_sec*10:0);}
 void ui_home_clock_style_draw(uint8_t *fb,EpdRect bounds,const struct tm *date,bool binary,ui_home_clock_style_t style){ui_home_clock_style_draw_region(fb,bounds,date,binary,style,bounds);}
+#if KIIKO_BOARD_METALIO47
+static const struct tm s_preview_date={.tm_year=126,.tm_mon=0,.tm_mday=1,.tm_wday=4,.tm_hour=10,.tm_min=10,.tm_sec=30};
+bool ui_home_clock_preview_cached(EpdRect bounds,bool binary,ui_home_clock_style_t style) {
+    if(!s_base_cache||bounds.width<=0||bounds.height<=0||(unsigned)style>=UI_HOME_CLOCK_COUNT)return false;
+    clock_canvas_t c={.bounds=bounds,
+        .clip=intersect(bounds,(EpdRect){0,0,epd_rotated_display_width(),epd_rotated_display_height()}),
+        .binary=binary,.style=style,.preview=true};
+    return base_key_matches(&s_base_keys[2u+style],&c,&s_preview_date);
+}
+void ui_home_clock_preview_invalidate(void) {
+    memset(s_base_keys+2,0,sizeof(s_base_keys)-2*sizeof(s_base_keys[0]));
+}
+void ui_home_clock_preview_draw(uint8_t *fb,EpdRect bounds,bool binary,ui_home_clock_style_t style) {
+    if(!fb||bounds.width<=0||bounds.height<=0)return;
+    if((unsigned)style>=UI_HOME_CLOCK_COUNT)style=UI_HOME_CLOCK_PS1995;
+    clock_canvas_t c={.fb=fb,.bounds=bounds,
+        .clip=intersect(bounds,(EpdRect){0,0,epd_rotated_display_width(),epd_rotated_display_height()}),
+        .binary=binary,.style=style,.preview=true};
+    if(base_restore(&c,&s_preview_date))return;
+    ui_home_clock_style_draw(fb,bounds,&s_preview_date,binary,style);
+    base_store(&c,&s_preview_date);
+}
+#endif
 EpdRect ui_home_clock_second_area(EpdRect b,const struct tm *before,const struct tm *after){
     return ui_home_clock_phase_area(b,(unsigned)before->tm_sec*10,(unsigned)after->tm_sec*10);
 }

@@ -6,6 +6,8 @@
 #include "book_cover_auto.h"
 #include "book_title.h"
 #include "ui_image_dither.h"
+#include "read_pico_sd.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -61,7 +63,10 @@ static void prepare(cover_job_slot_t *job,unsigned generation) {
         int result=book_cover_load_io(q->path,q->title,q->author,gray,q->list,&sw,&sh,&job->auto_cache);
         if(result<0){free(gray);return;}
         if(!current(generation)){free(gray);return;}
-        if(!result){job->result.pixels=gray;job->state=AUTO;return;}
+        if(!result){
+            if(q->artwork_only){free(gray);return;}
+            job->result.pixels=gray;job->state=AUTO;return;
+        }
     }
     if(!q->fast){job->result.pixels=gray;q->width=sw;q->height=sh;goto ready;}
     if(q->natural){q->width=sw;q->height=sh;q->stride=(sw+7)/8;}
@@ -133,10 +138,13 @@ unsigned book_cover_jobs_begin(void) {
 }
 static bool same_request(const book_cover_job_t *a,const book_cover_job_t *b) {
     return !strcmp(a->path,b->path)&&!strcmp(a->title,b->title)&&!strcmp(a->author,b->author)&&
-        a->list==b->list&&a->fast==b->fast&&a->natural==b->natural&&a->width==b->width&&a->height==b->height&&
+        a->list==b->list&&a->fast==b->fast&&a->natural==b->natural&&a->artwork_only==b->artwork_only&&a->width==b->width&&a->height==b->height&&
         a->stride==b->stride&&a->contrast==b->contrast&&a->phase==b->phase&&a->x==b->x&&a->y==b->y;
 }
 bool book_cover_jobs_submit(unsigned generation,unsigned slot,const book_cover_job_t *request) {
+    // 挂载交接期间不重新打开旧卡封面；恢复后由书架扫描重排队。
+    // Never reopen old-card cover files during mount handoff; shelf scans requeue after recovery.
+    if(request&&!strncmp(request->path,"/sdcard/",8)&&!read_pico_sd_io_ready())return false;
     if(!s_jobs||!request||slot>=BOOK_COVER_JOB_SLOTS||!request->path[0])return false;
     portENTER_CRITICAL(&s_lock);bool ok=generation==s_generation&&!s_paused;
     if(ok&&s_jobs[slot].state!=EMPTY&&!same_request(&s_jobs[slot].request,request))ok=false;

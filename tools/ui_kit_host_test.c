@@ -85,10 +85,10 @@ static void test_native_titles(void) {
     // 阅读字体已有轮廓，哪怕内建UI有这些字，也应直接用阅读字体和原字号。
     // Use the existing reader outline and original size even when built-in UI glyphs cover the text.
     active_face = 1;
-    char title[64] = "ABZ";
-    int px = ui_text_title_fit(title, 32, 48, "ABZ");
+    char title[64] = "ABY";
+    int px = ui_text_title_fit(title, 32, 48, "ABY");
     assert(px == 32 && !strcmp(title, "AB"));
-    ui_text_title_vc(&fb, 0, 50, px, title, "ABZ", EPD_DRAW_ALIGN_LEFT);
+    ui_text_title_vc(&fb, 0, 50, px, title, "ABY", EPD_DRAW_ALIGN_LEFT);
     assert(painted_ttf && painted_face == 1 && painted_px == 32 && painted_baseline == 55);
     strcpy(title, "AB你好");
     px = ui_text_title_fit(title, 48, 72, "AB你好");
@@ -98,13 +98,13 @@ static void test_native_titles(void) {
     ui_text_set_system_scale(false);
     ui_text_set_system_font(true);
     active_face = 2;
-    strcpy(title, "ABZ");
-    px = ui_text_title_fit(title, 40, 120, "ABZ");
-    assert(px == 40 && !strcmp(title, "ABZ"));
-    ui_text_title_vc(&fb, 0, 50, px, title, "ABZ", EPD_DRAW_ALIGN_LEFT);
+    strcpy(title, "ABY");
+    px = ui_text_title_fit(title, 40, 120, "ABY");
+    assert(px == 40 && !strcmp(title, "ABY"));
+    ui_text_title_vc(&fb, 0, 50, px, title, "ABY", EPD_DRAW_ALIGN_LEFT);
     assert(painted_ttf && painted_face == 2 && painted_px == 40);
     ui_text_set_system_scale(true);
-    ui_text_title_vc(&fb, 0, 50, px, title, "ABZ", EPD_DRAW_ALIGN_LEFT);
+    ui_text_title_vc(&fb, 0, 50, px, title, "ABY", EPD_DRAW_ALIGN_LEFT);
     assert(painted_face == 2 && painted_px == 40);
     active_builtin = true;
     strcpy(title, "ABZ");

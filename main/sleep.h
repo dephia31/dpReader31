@@ -29,6 +29,8 @@ typedef enum {
 } app_wake_source_t;
 
 #if KIIKO_BOARD_METALIO47
+/// 解锁后继续浅睡媒体恢复，未完成时保留挂起的字体/书籍句柄。/ Continue light-sleep media recovery after unlock, retaining pending font/book handles.
+bool app_sleep_media_ready(void);
 /// 主动拼贴锁屏先灭灯并显示圆锁，保留后续短按。/ Manual collage feedback retains later wake clicks.
 void app_lock_feedback(EpdiyHighlevelState *hl);
 /// 深睡必须已有成功保存的恢复点。/ Require a persisted resume checkpoint before lock deep sleep.
@@ -63,11 +65,11 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
 /// Wait for the power key to release so the same press does not wake immediately.
 void app_lock_wait_key_idle(int timeout_ms);
 #if KIIKO_BOARD_METALIO47
-// 中文：test21暂停自动深睡；0表示保留书籍/字体/PIN内存等待真实唤醒。
-// English: test21 suspends automatic deep sleep; zero retains book/font/PIN context until real input.
+// 十分钟交接由S31等待事务内部管理，外层超时不能被当作解锁。
+// The S31 wait transaction owns the ten-minute handoff; an outer timeout is never an unlock.
 #define APP_LOCK_IDLE_TIMEOUT_MS 0U
-/// 按所选省电方式等待按键；拿起/USB保留待机；acc为空则仅按键。
-/// Use the selected lock policy; pickup/USB retain standby, NULL acc accepts keys only.
+#define APP_LOCK_DEEP_AFTER_US INT64_C(600000000)
+/// 锁屏先浅睡十分钟后深睡；USB暂缓，acc为空则仅按键。/ Light sleep then deep after ten minutes; defer for USB, NULL acc accepts keys only.
 #else
 /// ESP 浅睡，按键或拿起唤醒。acc 为空则只等按键。
 /// ESP light sleep; wake on key or pickup. Key only when acc is NULL.

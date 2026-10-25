@@ -9,6 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 FONT = ROOT / 'main/font/app_font_context.c'
 unit = r'''
 #include <assert.h>
+#include <stdint.h>
+typedef int esp_err_t;
+#define ESP_ERR_INVALID_RESPONSE 0x108
+static int64_t s_rejected_retry_us,clock_us;
+static unsigned s_rejected_attempts;
+static int64_t esp_timer_get_time(void){return clock_us;}
+static unsigned transient_failures;
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -47,7 +54,9 @@ static bool ttf_font_path_is_builtin(const char *path){return !*path||!strcmp(pa
 static int ttf_font_count(void){return 0;}
 static void ttf_font_scan(void){}
 static const ttf_font_item_t *ttf_font_item(int index){(void)index;return NULL;}
-static int ttf_font_open(const char *path){++opens;if(!strcmp(path,missing)||!strcmp(path,corrupt)){active[0]=0;return -1;}snprintf(active,sizeof(active),"%s",path);return ESP_OK;}
+static int ttf_font_open(const char *path){++opens;if(!strcmp(path,corrupt)){active[0]=0;return ESP_ERR_INVALID_RESPONSE;}
+ if(!strcmp(path,reader)&&transient_failures){--transient_failures;strcpy(active,"builtin");return -1;}
+ if(!strcmp(path,missing)){active[0]=0;return -1;}snprintf(active,sizeof(active),"%s",path);return ESP_OK;}
 static int ttf_font_open_builtin(void){return ttf_font_open("builtin");}
 static void ui_text_set_system_font(bool on){system_face=on;}
 static void ui_text_set_system_scale(bool on){system_scale=on;}
@@ -87,18 +96,22 @@ int main(void){
  missing[0]=0;assert(app_font_retry_active());strcpy(corrupt,reader);active[0]=0;
  assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
  for(int i=0;i<100;++i)assert(!app_font_retry_active()&&opens==before);
- corrupt[0]=0;s_rejected[0]=0;assert(app_font_retry_active());
+ // 手动重新加载同一文件立即解除旧拒绝，毋须改名或重启。/ Manual reloading clears old rejection without renaming/reboot.
+ corrupt[0]=0;assert(ttf_font_open(reader)==ESP_OK);assert(!app_font_retry_active()&&!s_rejected[0]);
+ active[0]=0;transient_failures=1;assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
+ for(int i=0;i<100;++i)assert(!app_font_retry_active()&&opens==before);
+ clock_us+=1000000;assert(app_font_retry_active()&&!strcmp(active,reader)&&!s_rejected[0]);
+ active[0]=0;transient_failures=4;assert(app_font_retry_active());
+ const int64_t delays[]={1000000,3000000,10000000,30000000};
+ for(unsigned i=0;i<4;++i){before=opens;clock_us+=delays[i]-1;assert(!app_font_retry_active()&&opens==before);
+ ++clock_us;assert(app_font_retry_active()||ttf_font_is_builtin());}
+ assert(!strcmp(active,reader)&&!s_rejected[0]);
  strcpy(chosen,"/fonts/system.ttf");app_font_activate_system();strcpy(missing,chosen);
  assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
  for(int i=0;i<100;++i)assert(!app_font_retry_active()&&opens==before);
  missing[0]=0;
  strcpy(chosen,"/fonts/system.ttf");recovery=true;
  app_font_begin_lock(&saved);assert(ttf_font_is_builtin()&&!system_face);app_font_end_lock(&saved);
- // Recovery fallback is transient: keep both saved paths, restore the reading face on a normal boot.
- app_font_activate_reading();assert(ttf_font_is_builtin()&&!strcmp(reader,"/fonts/reader.ttf"));
- app_font_begin_lock(&saved);app_font_end_lock(&saved);assert(s_reading&&ttf_font_is_builtin()&&!strcmp(reader,"/fonts/reader.ttf"));
- recovery=false;assert(app_font_activate_reading()&&!strcmp(active,reader));
- for(unsigned i=0;i<200;++i){app_font_begin_lock(&saved);assert(!strcmp(active,chosen));app_font_end_lock(&saved);assert(!strcmp(active,reader)&&s_reading&&stroke==reading_weight&&!aa);}
  app_font_begin_lock(NULL);app_font_end_lock(NULL);
  puts("PASS: tickets from reader/system use the same system face/scale; wake restores reader context; missing card/font falls back safely without overwriting saved choices");
 }

@@ -72,8 +72,12 @@ const char* ttf_font_path(void);
 int ttf_font_open(const char*);
 int ttf_font_open_builtin(void);
 typedef struct { bool present, mounted; } read_pico_sd_info_t;
+#define READ_PICO_TRANSFER_UPLOADING 3
 int read_pico_sd_get_info(read_pico_sd_info_t*);
-void read_pico_sd_start_probe(void);
+int read_pico_sd_start_probe(void);
+void read_pico_sd_poll_health(void);
+bool read_pico_sd_needs_recovery(void);
+int read_pico_sd_start_recovery(void);
 
 int epd_rotated_display_width(void);
 int epd_rotated_display_height(void);

@@ -217,14 +217,17 @@ bool read_pico_pmu_take_key_short(void);
 /// 抽干队列；两次有效短按释放相距60..600ms才解锁，按下/长按不计入。
 /// / Wake only after two distinct short releases 60..600 ms apart; DOWN/holds do not count.
 bool read_pico_pmu_take_key_wakeup(void);
+/// 单击策略消费新去抖动作；不读取持续按住电平。/ Single policy consumes a fresh debounced action, never a held level.
+bool read_pico_pmu_take_key_wakeup_single(void);
 #if KIIKO_BOARD_METALIO47
 /// S31改动扩展口方向前暂停采样；有待处理按键时拒绝，恢复后重新同步电平。
 /// Pause S31 sampling before changing expander directions; reject pending keys and resync levels on resume.
 esp_err_t read_pico_pmu_keys_pause(void);
 void read_pico_pmu_keys_resume(void);
+/// 仅在P17独占EXT1唤醒后补记已释放的真实短按，不直接解锁。/ Latch an already released P17-only EXT1 press without bypassing unlock policy.
+void read_pico_pmu_latch_power_wakeup(void);
 #else
-/// 一次短按即可唤醒；开机证据只能消费一次。/ One short press wakes; boot evidence is consumed once.
-bool read_pico_pmu_take_key_wakeup_single(void);
+/// 开机证据只能消费一次。/ Boot evidence is consumed once.
 bool read_pico_pmu_take_boot_short_press(void);
 #endif
 /// 保证 RUNNING 后发 HOST_SOFT_SLEEP，等到 STATUS 为 SOFT_SLEEP（随后 EN=0）。

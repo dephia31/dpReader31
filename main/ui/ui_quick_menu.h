@@ -23,6 +23,7 @@
 #define UI_QUICK_SLIDER_Y0 104
 #define UI_QUICK_SLIDER_Y1 344
 #define UI_QUICK_SLIDER_RANGE (UI_QUICK_SLIDER_Y1-UI_QUICK_SLIDER_Y0)
+#include "ui_quick_brightness.h"
 #else
 #define UI_QUICK_HEIGHT 264
 #define UI_QUICK_CIRCLE_Y 156

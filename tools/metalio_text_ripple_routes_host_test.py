@@ -20,7 +20,9 @@ enum{TOC,SHELF,MODE_GL16,E0470_TURN_LTR,E0470_TURN_RTL};
 #define BOOK_TOC_ROWS 10
 static const char*s_text="text";
 static bool s_clear_confirm,s_reader_text_frame,s_reader_cleanup,s_save_failed,s_reader_turn_pending,s_water_turn_pending;
+static bool s_reader_image_frame,s_reader_image_exit_pending;
 static bool chrome,background;
+static void reader_zoom_reset(void){}
 static int images,effect,full,s_turns,s_turn_direction,s_view,s_water_turn_dir,s_unsaved;
 static unsigned s_page,s_stats_pending_turns,s_session_turns,s_chapter;
 static int64_t s_last_turn_ms,s_stats_activity_ms;
@@ -49,6 +51,12 @@ int main(void){
    assert(s_reader_cleanup==(expected&&n%expected==0));
    assert(s_water_turn_pending==(from_text&&!images&&!background&&effect==1&&!s_reader_cleanup));++cases;
   }
+ }
+ for(int old_image=0;old_image<2;++old_image)for(int changed_chrome=0;changed_chrome<2;++changed_chrome){
+  full=0;images=0;background=false;effect=0;chrome=changed_chrome;
+  s_reader_image_frame=old_image;s_reader_text_frame=!old_image;
+  assert(turn_page(&ctx,1)==(changed_chrome?APP_REDRAW_PAGE:APP_REDRAW_AREA));
+  assert(s_reader_image_exit_pending==(old_image&&!changed_chrome));
  }
  chrome=true;full=0;effect=1;images=0;background=false;s_reader_text_frame=true;s_turns=0;
  assert(turn_page(&ctx,1)==APP_REDRAW_PAGE&&!s_water_turn_pending&&!s_reader_turn_pending);

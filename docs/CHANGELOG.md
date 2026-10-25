@@ -1,7 +1,116 @@
 # 版本变更 / Changelog
 
+## 未发布 · Metalio S31
+
+- “关机睡眠”只保留默认“浅睡10分钟后进入深睡”和“彻底断电”，移除单独的锁屏省电方式；旧保留待机选项不再生效。普通锁屏统一先浅睡，保存检查点后进入深睡，USB及密码验证边界继续保留。
+- 浅睡维护按十分钟截止时间缩短最后一段，临时失败退避重试；深睡前暂停字体文件、触摸、屏幕总线及外设电源，交接失败恢复并保持锁屏。续航与完整唤醒流程仍需实机验证。
+
+## Metalio S31 0.3.3-rc102 · 2026-10-24
+
+- 正常待机解锁后继续恢复 TF 卡、字体和书籍句柄；临时读卡或内存失败按间隔重试，手动重新加载成功会解除旧失败记录。保留异常启动时使用内建字库的保护，不覆盖用户保存的字体选择。
+- 系统与阅读字体列表上限提高到128款；按实际文件路径区分字体，长标签完整截断UTF-8并区分重名。仅收录TTF/OTF，超过路径容量的文件名会安全缩短，字体内容保持不变；字体上传自动处理不适合存储的名称符号。
+- 系统字号100%–200%时，系统字体页保持四行可翻页列表；字体预览借用临时槽，避免替换正在使用的阅读字库。
+- 文字设置、阅读设置采用局部四灰快刷；打开时统一重建灰色底色，修复字号滑条等位置透出底层正文。进入使用一次26相输出，同面板调节保留16相；故障仍回退完整路径。
+- 图片查看保持完整灰阶，透明书封合成时保持接近不透明的人物区域，减少非透明主体透底。
+- 仅更新Metalio S31，保留前光、振动、USB、分区和原厂波形。编译及针对性宿主回归通过；实际待机恢复与残影改善仍需实机确认，不承诺所有画面均无残影。
+
+
+## Metalio S31 0.3.3-rc101 · 2026-10-24
+
+- 下拉菜单与 AI 菜单收回后，恢复底页并进行一次整页清理，替代原来的矩形局部输出，改善边框残影；菜单选项不变，收回时有一次全刷闪动。
+- 图文翻页合并正文与进度输出，保持未变化的像素；黑白变化使用原厂 DU20，中灰变化保留完整 GL48，不降低图片灰阶。
+- 阅读音量上、下键固定为上一页、下一页，不受底部按键自定义影响；修正按键自定义页圆圈键与左键的排列。
+- 保留 S31 独立驱动、前光、振动、设置及分区；Pico 版本保持 rc100。
+
+## Metalio S31 0.3.3-rc100 · 2026-10-24
+
+- 启用原厂 SDK 的交叉签名证书链验证，使官网备用 OTA 可使用已有的现代信任根；不关闭 TLS、主机名或真实证书有效期校验，不加入废弃根证书。
+- 保留 rc98 固定下载；新安装推荐 rc100，GitHub 仍为优先更新源。
+
+
+## Metalio S31 0.3.3-rc98 · 2026-10-24
+
+- 启用独立联网 OTA：GitHub Pages 优先，官网备用；保留 HTTPS、整包 SHA-256、S31 芯片/项目/5 MiB 双槽校验及取消恢复。
+- 官网增加小纸 Pico / Metalio EINK 4 Plus 机型选择；旧 S31 首次通过 USB 或 TF 安装本版，之后可在系统升级检查联网更新。
+
+
 按版本简述对用户可见的变化；使用方法见 [README](../README.zh-CN.md)。
 User-visible changes by release; see [README](../README.md) for usage.
+
+## S31本地测试 / S31 local test / 2026-10-24
+
+- 新增只作用于字体设置、阅读设置两个主面板的四灰快刷实验，保留黑/深灰/浅灰/白，近白控件底色保留浅灰；不扩展到正文、书架或封面。独立16相组合复用短端点和FOLLOW灰推并保留末三相，不裁GL48或正文22相；普通构建默认关闭，扫描故障保留37/48相回退和完整清理。200毫秒是待验证目标，16相名义扫描约192毫秒，墨色/残影需实屏验收。
+  Add an opt-in four-tone experiment for the two primary Font/Reading settings only,retaining black/dark/light/white and near-white control fills without extending it to body/shelf/art. Combine short endpoints/FOLLOW grays in an isolated16-phase profile with three final holds,without trimming GL48/text22. Normal builds disable it and faults retain37/48-gray fallback/full recovery.200ms remains unverified; nominal scanning is192ms and ink/ghosting require hardware comparison.
+- 工具栏进入文字设置、阅读设置时不再先为按下态刷新DU20，松手只提交一次最终面板；取消/移出不补刷，其他按钮保留原反馈。保留当前灰阶波形，未实测总响应或承诺200毫秒。
+  Skip the S31 toolbar DU20 press pass for font/reading settings and present the final sheet once on release; cancellation/outside releases do not flash,while other buttons retain feedback. Keep current grayscale waveforms without an unmeasured200ms claim.
+- 可显式构建阅读面板GL37试验：使用Metalio官方擦除/饱和裁剪，保留16级输入、灰阶尾段与末尾保持，等灰不补推；仅用于确认同一底页的面板和滑块。默认构建、正文重排、图片/书架与全刷仍原路径，内存不足或扫描故障回退48相；画质和时延仍需实屏对照。
+  Add an opt-in reader-panel GL37 experiment using Metalio's erase/saturation trimming with sixteen input levels, retained gray tails/final holds and equal-pixel holding. Scope it to verified same-body panels/sliders; default builds,reflow,images/shelves and cleaning keep their paths, with native48 fallback on OOM/scan faults. Optical quality and latency still require hardware comparison.
+- 系统字体页在100%–200%字号下保留四行选择，压缩字号/预览区，显示字体总数并提供前后翻页按钮；绘制与命中共用几何，阅读字体仍需确认后同步。
+  Retain four S31 system-font rows at100%–200% with compact size/preview sections, a total count and visible page controls sharing paint/hit geometry; reading-face synchronization remains opt-in.
+- 阅读滑块数值未变化时不重绘；确认同一底页后只重绘面板并局部提交，跳过正文/插图准备和预绘。同一字体/阅读设置或字体列表翻页可复用底页，重排/图片/故障等继续回退完整路径；完整48相图形灰阶保持，不宣称实测提速。
+  Deduplicate unchanged S31 slider values and reuse verified body frames for panel-only drawing/presentation without body/image/prefetch work. Same-panel settings/font paging retain guarded reuse; reflow/image/fault paths fall back. Preserve full48-phase graphical grays without an unmeasured latency claim.
+- 补齐阅读/唤醒后自动回退内建字体的三次提示：同次开书累计实际回退事件，持续故障只记一次，临时恢复不清零；手动选内建、离书或关闭提示后重置。异常启动保护不计入，重启仍由用户确认，保存进度失败不重启。
+  Include S31 runtime/wake font fallbacks in the per-book three-episode dialog, deduplicating sustained faults without clearing counts after temporary recovery. Reset on explicit built-in/leaving/dismissal; exclude abnormal-start protection and retain confirmed restart/save-failure guards.
+
+- 透明书封合成时将alpha250–255的近不透明像素归为不透明并还原预乘灰度，避免少量底图渗透被十六灰抖动放大；保留更低透明度、透明边缘及原图缓存，旧完整书封帧自动重建。
+  Snap near-opaque alpha250–255 during S31 cover composition and unpremultiply gray to prevent backdrop leakage amplified by sixteen-gray dithering; retain lower alpha, edges and source caches, rebuilding old composed cover frames.
+
+- 透明书封先从最后成功显示的页面合成，再清除物理旧态并输出完整灰阶，减轻不透明主体下的旧文字透影；保留原始alpha缓存；alpha低于250的真实半透明区域保持。
+  Compose transparent covers from the last presented page before clearing optical history and presenting full grayscale, reducing old-text ghosting beneath opaque artwork while retaining source-alpha caches and semitransparency below250.
+
+- 修复文件管理打开图片时被系统黑白快刷规则二值化的问题：预览恢复十六级灰阶及独立完整灰阶输出，图片文件列表继续黑白快刷；壁纸锁屏及原始波形不变。
+  Restore sixteen-level image previews from Files by bypassing the system BW policy; keep image lists fast BW and retain wallpaper rendering and native waveforms.
+
+- 图文翻页按实际变化分流：黑白目标用原厂DU20，有中灰变化时保留完整GL48中灰相序，未变像素保持，正文与进度合并一次输出；不量化图片。S31下拉/AI菜单收回改为恢复底页后一次GC48清理，不追加菜单功能或先局部再全刷。
+  Route image turns by actual changed targets: native DU20 for BW, complete GL48 midgray sequences otherwise, equal-pixel holding and fused progress without image quantization. S31 quick/AI close cleans the restored page once with GC48, without new menu actions or a preceding local output.
+
+- 修正S31按键自定义页圆圈键与左键配置错位：图示、显示与触摸共用物理排列，长按/推荐说明同步为圆圈键；已有按键保存值保持。
+  Align S31 key customization diagrams, displayed bindings and touch cards in physical circle/left/right order, with circle-key hold/preset labels and saved assignments preserved.
+
+- 阅读音量上键固定上一页、下键固定下一页，不再跟随底部左右键自定义；阅读设置与确认面板保留输入保护。
+  Fix S31 reader volume up/down to previous/next independently of bottom-key bindings, retaining settings and confirmation guards.
+
+- 修复纯图片EPUB开章时为测尺寸完整解压每张图的冗余读取：PNG优先32字节头，JPEG按需扩大探测，SVG与晚帧头保留兼容回退；ZIP前缀探测采用有界小块，实际显示仍完整读取并校验CRC。保留原图、画质、分页与进度。
+  Remove redundant full-image extraction during comic chapter sizing: start PNG with a32-byte header, expand JPEG probes as needed and preserve SVG/late-frame fallback. Bound prefix input reads while retaining full payload CRC for display, artwork quality, pagination and progress.
+
+- 同步六项Pico改进：双击解锁移到显示主列表，新配置默认单击并保留旧选择；阅读票根去除二次灰阶量化；连续三次手动选字回退内建时提供保存进度后重启的提示，保存失败留在原框；时钟选择失败后合并待更新范围；首页冷数据移到PSRAM；冷启动使用现有内建字形显示极简提示并移除全屏启动位图。保留S31硬件、PIN、睡眠及异常启动字体保护。
+  Sync six Pico improvements: root-list unlock preference with a single-press default and saved-choice compatibility; single-pass ticket grayscale; an opt-in restart dialog after three explicit font fallbacks with progress-save failure protection; pending clock-update bounds across failed outputs; cold Home metadata in PSRAM; and an embedded-glyph splash replacing the linked full-frame bitmap. Retain S31 hardware, PIN/sleep flows and abnormal-startup font protection.
+
+- 同步Pico透明书封缓存优化：灰度和透明度按行无损压缩，空闲PSRAM充足时直接在内存生成缓存，减少TF读写；保留完整灰阶、原透明度及阴影，修复FAT换图缓存无法替换的问题。旧缓存首次使用自动重建。
+  Port lossless transparent-cover row caches and spare-PSRAM first builds to S31, preserving grayscale/alpha/shadows and the S31 cache directory; fix FAT cache replacement and rebuild older cache formats on first use.
+
+- 时钟选择页箭头切换合并为一次刷新，按钮内容不变时缩小更新范围；停留空闲时逐个准备相邻表盘，触摸/切换中暂缓，低内存回退按需绘制。选择页继续保留完整灰阶。
+  Merge S31 clock-picker arrow changes into one output, crop unchanged apply controls, and prepare adjacent previews during idle with touch/memory guards, retaining complete grayscale.
+
+- 时钟样式选择页改用固定10:10:30的静态预览；七款表盘首次按需生成后复用缓存，浏览时不再刷新秒针或猫眼。实际首页与时间详情页继续走时，字体或方向变化后重建匹配预览。
+  Use fixed10:10:30 previews in the S31 clock picker, caching each of seven styles on demand without live second/eye updates; Home and time-detail clocks remain live with font/orientation-aware invalidation.
+
+- 对照Metalio官方S31实现，TF使用固定4KiB内部DMA中转，隔离外部RAM的SD DMA/cache路径；保留挂载降档、USB独占和失败回收，吞吐以实机验证为准。
+  Use a bounded4KiB internal SD DMA bounce buffer following the Metalio S31 reference, retaining mount fallbacks,USB ownership and cleanup; measure throughput on hardware.
+
+- 传书时每两秒局部更新设备上的文件名、接收字节和进度条，无变化不刷新，失败更新可重试；网页显示平均速度与耗时，并区分已发送和设备确认保存。
+  Show bounded two-second receive progress on the S31 with small monochrome differences and scan retries; the web page reports average speed/elapsed time and waits for device save confirmation.
+
+- 传书期间的硬件接收缓冲与AMPDU接收窗口对齐，PSRAM传书对照档采用16槽，普通档不变；日常联网、对时及蓝牙共存仍沿用原预算，状态页报告实际生效数量。大文件吞吐改善须以本机对照测试为准。
+  Match bulk-transfer static RX buffers to the AMPDU window (16-slot PSRAM comparison profile), retaining ordinary connection/time/BLE budgets and reporting effective counts; throughput requires same-file hardware comparison.
+
+## S31本地测试 / S31 local test / 2026-10-23
+
+- 修复导入字体缺少“行”等字形时标题漏字：仅使用现有内建字形补齐缺字，统一测量、基线和对齐，保留选定字体、设置及全部字库资产。
+  Fill missing imported title glyphs from existing UI glyphs with matching metrics/baseline/alignment, retaining font selection, settings and unchanged font assets.
+
+- 修复阅读票根封面遗漏：兼容完整比例/网格及无作者旧缓存，阅读空闲时复用有界封面任务准备当前书籍，不在锁屏按键路径解码；标题匹配实际字体缩放或换行，保留完整源书名和自定义书名。
+  Repair ticket artwork with natural/grid and legacy authorless cache reuse, bounded reader-idle preparation without power-key decoding, and face-matched title shrinking/wrapping without mutating book names.
+
+- 前光亮度滑轨前半段调整0–20%、后半段20–100%，扩大暗光微调行程；保留原PWM/设置与线性色温，关闭前光时拖动不点灯，细微移动仍逐像素反馈，松手不追加刷新。网络接收窗口/报文队列采用有界64KiB对照档，静态DMA/原厂射频策略不变。
+  Expand low-light travel: half the brightness track covers0–20%, preserving stored PWM, linear warmth, off-state darkness and per-pixel feedback without release settling. Compare bounded64KiB network receive/packet queues while retaining static DMA/vendor radio policy.
+
+- 对照Metalio公开网络实现统一正常连接、传书、临时对时和扫描的S31运行策略，采用b/g/n、关闭省电与请求12dBm功率上限；IRAM热路径、PSRAM优先分配及有界静态TX/RX预算，保留32KiB TCP窗口和顺序双缓冲写卡。吞吐以本机同文件测试为准。
+  Align S31 connection/transfer/time-sync/scan policies with public Metalio sources: b/g/n, PS_NONE, requested12dBm ceiling, IRAM hot paths, PSRAM-preferred allocations and bounded static TX/RX, retaining32KiB TCP and ordered double-buffered card writes. Throughput requires same-file device measurement.
+- 同步章节内跳页与撤销、EPUB冒号路径/无题页修复、卡内子目录删书、单幅插图居中及双指缩放/拖动；保护空缓存、布局代际和失败重试，双指不穿透AI/电源/下拉层。保留S31原厂波形、前光、振动、USB、设置区与AT尾标兼容。
+  Sync chapter jumps/undo, EPUB colon paths/untitled pages, subdirectory deletion, lone-illustration centering and image pinch/pan; guard null/stale caches, retries and modal input, retaining S31 waveforms, light, haptics, USB, settings and AT-tail support.
+- S31通过有界CMD13健康确认和异步退避恢复TF，USB/睡眠主动卸载不触发自动重挂；浅睡等待实际挂载完成才恢复字体/书籍句柄，失败保留路径与重试。新增双击解锁开关（默认开启），关闭后单击解锁，仍验证PIN；异常启动内建字体保护不变。
+  Add bounded CMD13 health checks and asynchronous TF recovery with intentional USB/sleep unmount exclusion. Wait for real mount completion before reopening font/book IO, retaining paths/retries after failures. Optional single-press unlock defaults to double with PIN and abnormal-boot font protection retained.
 
 ## 本地整合 / Local integration / 2026-10-22
 
@@ -33,6 +142,17 @@ User-visible changes by release; see [README](../README.md) for usage.
   S31 shows a local three-second double-press hint after one locked power press, preserving authentication. Volume keys share root side-key navigation/shelf paging while reader and child mappings remain page-owned.
 
 ## 待发布 / Unreleased
+
+- 合入 EPUB 特殊章节路径兼容、嵌套目录书籍删除、无标题页面不再补占位名及单幅插图居中；新增插图双指缩放、双击放大与拖动。图片缓存失效和刷新失败可安全重试。
+  Accept EPUB colon paths, nested book deletion, unnamed-page titles and lone-image centering. Add pinch/double-tap image zoom and drag, with stale-cache and failed-refresh recovery.
+- 设置 → 显示 → 关机睡眠新增「双击解锁」开关；默认开启，关闭后单击电源键解锁，深睡唤醒沿用同一选择，锁屏密码仍需验证。
+  Add the double-press unlock switch under Display / Power sleep: on by default, off uses one press. Deep wake shares the choice and PIN validation stays required.
+
+- 阅读统计新增「本章跳转」：减/加逐页预选，或点按页码打开数字键盘，确认后跳转到当前排版的本章指定页。跳转后短暂提供「返回跳转前」，保留文字锚点；越界输入不改变阅读进度。
+  Add chapter-page navigation in Reading statistics: step a draft or enter a page on the numeric keypad, then confirm against the current chapter layout. A short-lived return action retains the original text anchor; invalid pages never move progress.
+
+- Pico新增TF卡异常自动恢复：插卡信号防抖，后台确认持续掉线，释放旧文件后重新挂载；首次重挂失败后再检查GPIO并退避重试。恢复成功后更新目录与保存的字体，USB读卡期间暂停自动恢复，不自动格式化。
+  Add Pico TF recovery with debounced detect, background bus checks and stale-consumer cleanup before remount. Check GPIO after the first failed mount and back off retries; refresh directories/fonts on success, suspend recovery during USB ownership and never autoformat.
 
 - Pico新增可选「速读黑白」，纯文字正文和页脚二值化后一次提交本板原厂DU；保留原普通/水波纹、插图/背景和自动全刷规则，兼容已有设置及TF配置备份。字缘更硬、灰色细节减少，速度与残影需实机确认。
   Add optional Pico Fast BW using one native-DU batch for binary text/footer targets, retaining ordinary/ripple, image/background and cleanup paths plus existing settings/TF backup compatibility. Harder edges and fewer gray details require panel speed/ghosting validation.
@@ -726,3 +846,7 @@ The release adds inline images, swipe page turns, configurable idle lock, cleare
   Transfer over the device hotspot or an existing network, with touchscreen/web provisioning and connection/URL QR codes. Manage current storage in the browser, confirm replacements, cancel or retry uploads, and return to the entry location on stop.
 - 可靠性：处理保存失败与部分成功重试、中文文件名和覆盖中断恢复；修复显示欠载后相位队列残留导致的死锁；检测 TF 失效后停止相关消费者并回退字体，插回后需显式重挂。
   Handle save failures, partial-operation retries, Chinese filenames and interrupted replacements. Fix a display queue deadlock after underrun; stop affected consumers and fall back fonts on TF loss, requiring explicit remount after reinsertion.
+# S31 本地测试：在线字体（2026-10-24）
+
+- 系统与阅读字体选择页新增共用在线字体列表，五款按行显示名称、文件大小与下载；分块写 TF，校验完整大小、SHA-256 与字体表，保存原版权及 OFL 文本。
+- 下载不自动切换字体，取消、离页、锁屏和拔卡收尾沿用现有字体及 S31 生命周期；保留异常启动字体保护。本项仅本地构建，未发布。

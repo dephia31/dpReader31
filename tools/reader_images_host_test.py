@@ -33,6 +33,7 @@ unit = r'''
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -116,6 +117,10 @@ static esp_err_t book_chapter_image(size_t chapter,const char *path,uint8_t **ou
  if(reading_image==read_failure)return ESP_FAIL;
  *out=malloc(1);assert(*out);*size=1;*png=false;return ESP_OK;
 }
+static esp_err_t book_chapter_image_dimensions(size_t chapter,const char *path,unsigned *w,unsigned *h){
+ assert(path);if(locked)measured_chapter=chapter;else assert(chapter==s_chapter);
+ if(atoi(path)==read_failure)return ESP_FAIL;*w=60;*h=20;return ESP_OK;
+}
 static bool book_image_dimensions(const uint8_t *data,size_t len,bool png,unsigned *w,unsigned *h){
  (void)png;assert(data&&len==1);*w=60;*h=20;return true;
 }
@@ -145,6 +150,7 @@ static html_run_t *s_runs;
 static size_t s_run_count;
 static void book_layout_set_runs(const html_run_t *runs,size_t count){(void)runs;(void)count;}
 static size_t s_text_len,s_block_count,s_selected_toc=2,s_jump_offset,s_jump_page;
+static struct {bool valid;} s_chapter_jump_undo;
 static size_t s_chapter_lead_skip;
 static unsigned s_chapter_lead_height,s_chapter_lead_row_height;
 static unsigned s_chapter_lead_width;

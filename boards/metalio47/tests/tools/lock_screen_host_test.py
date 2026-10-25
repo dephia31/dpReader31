@@ -142,6 +142,19 @@ int main(void){
  }
  fat_semantics=false;selected_style=0;
 
+ // 只让旧透明书封合成帧失效，完整新帧与其他样式继续恢复。
+ // Reject only old cover-policy frames, retaining new complete art and other styles.
+ selected_style=3;assert(lock_screen_save(framebuffer));
+ uint64_t new_key=wallpaper_key(),old_key=UINT64_C(14695981039346656037);
+ const char *old_path=app_settings_bookmark_path();
+ for(const unsigned char *q=(const unsigned char*)old_path;*q;++q)old_key=(old_key^*q)*UINT64_C(1099511628211);
+ assert(new_key!=old_key);
+ FILE *old_cover=fopen(LOCK_ART_PATH,"r+b");art_header_t old_header;
+ assert(old_cover&&fread(&old_header,1,sizeof(old_header),old_cover)==sizeof(old_header));
+ old_header.wallpaper=old_key;
+ assert(!fseek(old_cover,0,SEEK_SET)&&fwrite(&old_header,1,sizeof(old_header),old_cover)==sizeof(old_header)&&!fclose(old_cover));
+ memset(framebuffer,0xee,sizeof(framebuffer));assert(!lock_screen_restore(framebuffer)&&framebuffer[0]==0xee);
+ assert(lock_screen_save(framebuffer)&&lock_screen_restore(framebuffer));selected_style=0;
  // Wrong PIN, cancel, pickup, physical touch buttons, multitouch and read errors, then valid PIN.
  start();for(int i=0;i<4;++i)tap(342,1021);tap(144,1132);add(0,0,0,0);
  tap(342,1350);add(158,544,1,0);add(158,544,2,0);add(158,544,0,0);

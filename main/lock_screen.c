@@ -42,6 +42,11 @@ static uint64_t wallpaper_key(void){
     const char *path=app_settings_lock_style()==3?app_settings_bookmark_path():app_settings_wallpaper_path();
     uint64_t key=UINT64_C(14695981039346656037);
     for(const unsigned char *p=(const unsigned char*)path;*p;++p)key=(key^*p)*UINT64_C(1099511628211);
+#if KIIKO_BOARD_METALIO47
+    // 透明书封合成策略变化只使旧完整书封帧失效，PNG图层与其他锁屏缓存继续复用。
+    // A cover-policy change invalidates only old composed cover frames, retaining PNG layers and other lock styles.
+    if(app_settings_lock_style()==3)key=(key^UINT64_C(0x5345414c00000001))*UINT64_C(1099511628211);
+#endif
     struct stat st;
     if(stat(path,&st)==0){
         uint64_t info[2]={(uint64_t)st.st_size,(uint64_t)st.st_mtime};
@@ -124,8 +129,8 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
             }
             epd_poweroff();
             if(app_light_sleep_wait_timed(NULL,APP_LOCK_IDLE_TIMEOUT_MS)==APP_WAKE_TIMEOUT){
-                // 稳定性版不因定时等待进入深睡；继续保留拼贴/PIN/前光关闭。
-                // No timed deep sleep in this stability build; retain collage/PIN/lamp-off context.
+                // S31等待事务负责十分钟深睡交接；返回超时仍继续验证。
+                // The S31 wait transaction owns the ten-minute deep handoff; a returned timeout still requires authentication.
                 art_visible=true;
                 continue;
 #else

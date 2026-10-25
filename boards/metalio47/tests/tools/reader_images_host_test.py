@@ -33,6 +33,7 @@ unit = r'''
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,6 +58,17 @@ static size_t s_page_images_for=SIZE_MAX;
 static uint32_t s_page_images_generation;
 static size_t s_page,s_chapter=3,s_image_count;
 static char **s_images;
+// 缩放交互由reader_image_zoom_host_test单独覆盖；本套保持未缩放边界。
+// Zoom interaction has its own production-function suite; keep this cache/reflow suite unzoomed.
+#define READER_IMAGE_ZOOM_MIN 100
+static size_t s_image_zoom_page=SIZE_MAX;
+static int s_image_zoom=READER_IMAGE_ZOOM_MIN,s_image_zoom_cx,s_image_zoom_cy;
+static bool s_image_zoom_bw,s_image_pan_active,s_zoom_active;
+static void reader_zoom_reset(void){s_image_zoom=READER_IMAGE_ZOOM_MIN;s_image_zoom_page=SIZE_MAX;s_image_zoom_bw=s_image_pan_active=s_zoom_active=false;}
+static void continuous_du_reset(void){}
+static bool reader_single_image_page(void){return false;}
+static void draw_zoomed_image(uint8_t *fb,EpdRect r,int z,int x,int y,bool bw){(void)fb;(void)r;(void)z;(void)x;(void)y;(void)bw;assert(!"unexpected zoom route");}
+static struct{bool valid;}s_chapter_jump_undo;
 static bool hidden,locked;
 static int alloc_fail_after=-1,read_failure=-1,decode_failure=-1;
 static unsigned reads,decodes,pixels,notices,invalidations;
@@ -117,6 +129,10 @@ static esp_err_t book_chapter_image(size_t chapter,const char *path,uint8_t **ou
  assert(path);if(locked)measured_chapter=chapter;else assert(chapter==s_chapter);++reads;reading_image=atoi(path);
  if(reading_image==read_failure)return ESP_FAIL;
  *out=malloc(1);assert(*out);*size=1;*png=false;return ESP_OK;
+}
+static esp_err_t book_chapter_image_dimensions(size_t chapter,const char *path,unsigned *w,unsigned *h){
+ assert(path);if(locked)measured_chapter=chapter;else assert(chapter==s_chapter);
+ if(atoi(path)==read_failure)return ESP_FAIL;*w=60;*h=20;return ESP_OK;
 }
 static bool book_image_dimensions(const uint8_t *data,size_t len,bool png,unsigned *w,unsigned *h){
  (void)png;assert(data&&len==1);*w=60;*h=20;return true;

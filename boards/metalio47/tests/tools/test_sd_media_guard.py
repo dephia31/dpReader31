@@ -9,7 +9,8 @@ out = root / 'build/sd-media-test'
 out.mkdir(parents=True, exist_ok=True)
 for name in ('driver/sdmmc_host.h', 'esp_log.h', 'esp_vfs_fat.h',
              'freertos/FreeRTOS.h', 'freertos/task.h', 'read_pico_board.h',
-             'sdmmc_cmd.h', 'esp_err.h', 'esp_heap_caps.h', 'metalio_hw.h'):
+             'esp_timer.h', 'sdmmc_cmd.h', 'esp_err.h', 'esp_heap_caps.h', 'metalio_hw.h',
+             'esp_memory_utils.h','esp_private/esp_cache_private.h'):
     p = out / name
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text('#pragma once\n', encoding='utf-8')
@@ -50,10 +51,15 @@ typedef int esp_err_t;
 #define SDMMC_SLOT_CONFIG_DEFAULT() ((sdmmc_slot_config_t){0})
 static esp_err_t mock_host_init(void){return ESP_OK;}
 static esp_err_t mock_host_deinit(void){return ESP_OK;}
-typedef struct { int max_freq_khz,slot; esp_err_t (*init)(void),(*deinit)(void); } sdmmc_host_t;
+typedef struct { int max_freq_khz,slot,flags; esp_err_t (*init)(void),(*deinit)(void); bool (*check_buffer_alignment)(int,const void*,size_t); void* dma_aligned_buffer; size_t unaligned_multi_block_rw_max_chunk_size; } sdmmc_host_t;
 typedef struct { int width,clk,cmd,d0,d1,d2,d3,cd,wp,flags; } sdmmc_slot_config_t;
 typedef struct { bool format_if_mount_failed; int max_files,allocation_unit_size; } esp_vfs_fat_sdmmc_mount_config_t;
 typedef struct { struct { char name[8]; } cid; struct { uint32_t capacity,sector_size; } csd; } sdmmc_card_t;
+#define SDMMC_HOST_FLAG_ALLOC_ALIGNED_BUF 64
+static bool sdmmc_host_check_buffer_alignment(int slot,const void* p,size_t n){(void)slot;return (uintptr_t)p%4==0&&n%4==0;}
+static bool esp_ptr_internal(const void* p){(void)p;return true;}
+static esp_err_t esp_cache_get_alignment(unsigned caps,size_t* a){(void)caps;*a=64;return ESP_OK;}
+static void* heap_caps_aligned_alloc(size_t a,size_t n,int caps){(void)caps;return aligned_alloc(a,n);}
 #define MALLOC_CAP_INTERNAL 1
 #define MALLOC_CAP_DMA 2
 static void *heap_caps_malloc(size_t n,int caps){(void)caps;return malloc(n);}
@@ -72,8 +78,12 @@ typedef int BaseType_t;
 #define ESP_LOGI(...) ((void)0)
 static bool present=true, drop_during_mount=false, unmount_fail=false, detect_fail=false;
 static int mounts, unmounts, formats;
+static int64_t test_now_us;
+static int status_error;
+static int64_t esp_timer_get_time(void){return test_now_us;}
 static bool made_books, made_fonts, made_pictures;
 static sdmmc_card_t mock_card={.cid={"MOCK"},.csd={2048,512}};
+static int sdmmc_get_status(sdmmc_card_t *c){assert(c==&mock_card);return status_error;}
 static void (*pending)(void*);
 esp_err_t read_pico_sd_detect(bool* detected);
 static void vTaskDelay(int n) {(void)n;}
@@ -197,10 +207,13 @@ int main(void) {
     assert(read_pico_sd_remount()==ESP_ERR_NOT_FINISHED);
     finish_probe();
     unmount_fail=true;
+    void* retained_dma=sd_dma_buffer;assert(retained_dma);
     assert(read_pico_sd_sync()==ESP_FAIL && card==&mock_card);
+    assert(sd_dma_buffer==retained_dma);
     assert(read_pico_sd_get_info(&info)==ESP_FAIL && info.mounted);
     unmount_fail=false;
     assert(read_pico_sd_sync()==ESP_OK && card==NULL);
+    assert(sd_dma_buffer==NULL);
     pthread_t reader;
     assert(pthread_create(&reader,NULL,snapshot_reader,NULL)==0);
     for(int i=0;i<100;i++) {
@@ -209,6 +222,16 @@ int main(void) {
     }
     assert(pthread_join(reader,NULL)==0);
     assert(formats==0);
+    // S31无CD脚时靠三次CMD13错误确认；忙时不得卸载，USB主动卸载不自动恢复。
+    // With no CD pin, confirm three CMD13 failures; never unmount a busy owner or auto-remount USB.
+    status_error=ESP_ERR_TIMEOUT;
+    for(int i=0;i<3;++i){test_now_us+=i?500000:2001000;read_pico_sd_poll_health();assert(pending);assert(read_pico_sd_sync()==ESP_ERR_NOT_FINISHED);finish_probe();}
+    assert(read_pico_sd_needs_recovery()&&!read_pico_sd_io_ready());
+    assert(read_pico_sd_start_recovery()==ESP_OK);assert(!read_pico_sd_io_ready());finish_probe();
+    assert(read_pico_sd_io_ready());status_error=ESP_OK;
+    assert(read_pico_sd_sync()==ESP_OK&&!read_pico_sd_needs_recovery());
+    test_now_us+=3000000;read_pico_sd_poll_health();assert(!pending);
+
     puts("PASS: injected media-provider faults on S31 SD lifecycle, unknown mount, removal, stale reinsertion, busy lifecycle, mid-probe removal, explicit recovery, concurrent snapshots, no autoformat");
 }
 '''

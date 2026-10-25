@@ -1,5 +1,7 @@
 # kiikoread
 
+Use Chapter jump in the reader toolbar’s Reading statistics: step with minus/plus or tap the page number for numeric entry, then confirm Jump. Pages follow the current chapter’s font and layout and never cross chapters. For seven seconds after a jump, Return to previous position restores the original text anchor. Cancelling input leaves progress unchanged.
+
 Local changes awaiting release: **Settings → Display → Shutdown → Power-key boot** selects one or two presses for Pico lock/deep-sleep wake (default: two). PIN verification and the existing unlock hint remain. This preference is stored on the device but is not included in the existing configuration backup format. The white lock badge and power cancel button use icon-set artwork; reading guides stop at the text edges.
 
 > **Licensing:** New original material explicitly marked with the [Personal Study License](licenses/kiikoread-Personal-Study-1.0.txt) permits personal study and prohibits commercial use without separate written permission. **This policy does not relicense rc93 or earlier code/binaries, remove existing Apache-2.0 rights, or override third-party licenses.** See [LICENSE](LICENSE) for the exact scope.
@@ -89,7 +91,7 @@ The board-specific flash and PSRAM timing is in `sdkconfig.defaults`. `sdkconfig
 
 ## Books and fonts
 
-TF storage currently supports FAT16/FAT32; exFAT is not enabled. Capacity alone does not establish compatibility. The local development build retries 40 MHz after a 250 ms settle, then falls back to 20/10 MHz, including busy high-speed negotiation. Failed card-detect communication preserves the last snapshot instead of pretending the card was removed; an unreadable detect signal permits a bounded actual mount attempt. Initialization failures never automatically suggest or perform formatting. Real removal still invalidates open-file state; recovery requires closing consumers and explicit remounting or restarting the device.
+TF storage currently supports FAT16/FAT32; exFAT is not enabled. Capacity alone does not establish compatibility. The local development build retries 40 MHz after a 250 ms settle, then falls back to 20/10 MHz, including busy high-speed negotiation. Failed card-detect communication preserves the last snapshot instead of pretending the card was removed; an unreadable detect signal permits a bounded actual mount attempt. Initialization failures never automatically suggest or perform formatting. The local Pico build debounces card detect and confirms persistent bus loss with background read-only status checks. It closes stale consumers/fonts before remounting, tries the first mount without a GPIO gate, then checks detect and backs off retries. Exclusive USB storage suspends recovery; cards are never automatically formatted. Removing media during writes can still corrupt the affected file.
 
 On first mount, the firmware creates `books`, `fonts`, and `pictures` folders on the TF card if absent. No books are preloaded. The firmware embeds a subset of **Noto Sans SC Medium** for the system UI and distributes no additional font package. Users may place their own compatible fonts in `fonts` for reading. The embedded subset remains under the [SIL Open Font License](main/assets/OFL-Noto.txt).
 

@@ -55,6 +55,8 @@ enum EpdDrawMode { MODE_DU,MODE_GL16,MODE_GC16 };
 static inline void* heap_caps_malloc(size_t n,int caps){(void)caps;return malloc(n);}
 static const int E0470_WAVEFORM = 0;
 static const int E0470_FOLLOW_WAVEFORM = 1;
+static const int test_bw_waveform = 2;
+static inline const int* display_main_bw_waveform(void) { return &test_bw_waveform; }
 #define ESP_LOGI(tag,...) ((void)(tag))
 #define ESP_LOGW(tag,...) ((void)(tag))
 static inline const char* esp_err_to_name(int e) { (void)e; return "error"; }
@@ -88,7 +90,14 @@ static inline void epd_draw_circle(int x,int y,int radius,...) {(void)x;(void)y;
 static inline void epd_draw_line(int x0,int y0,int x1,int y1,...) {(void)x0;(void)y0;(void)x1;(void)y1;}
 static inline int ttf_text_width_px(int px,const char* s) {return (int)strlen(s)*px/2;}
 static inline void display_set_bulk_io(bool b) {(void)b;}
-static inline int update_display_area_diff_with(void* p,...) {(void)p;return 0;}
+static int test_display_calls, test_display_error;
+static EpdRect test_display_area;
+static const int* test_display_wave;
+static enum EpdDrawMode test_display_mode;
+static inline int update_display_area_diff_with(void* p,const int* wave,enum EpdDrawMode mode,EpdRect area) {
+    (void)p; ++test_display_calls; test_display_wave=wave;
+    test_display_mode=mode; test_display_area=area; return test_display_error;
+}
 static inline int update_display_area_full_with(void* p,...) {(void)p;return 0;}
 static inline int update_display_area_with(void* p,...) {(void)p;return 0;}
 static inline int update_display_white(void* p) {(void)p;return 0;}

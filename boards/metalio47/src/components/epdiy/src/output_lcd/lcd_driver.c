@@ -8,6 +8,8 @@ int __DECLARE_RCC_ATOMIC_ENV __attribute__((unused));
 #include "../output_common/render_method.h"
 #include "../output_common/white_border.h"
 #include "esp_cache.h"
+#include "hal/cache_hal.h"
+#include "hal/cache_ll.h"
 #include "esp_heap_caps.h"
 #include "esp_intr_alloc.h"
 #include "hal/gpio_types.h"
@@ -783,10 +785,9 @@ static esp_err_t allocate_lcd_buffers() {
 #else
     const size_t bb_align = LCD_GDMA_DESC_ALIGN;
 #endif
-    lcd.bb_behind_cache = false;
-#if defined(CONFIG_IDF_TARGET_ESP32S31) || defined(CONFIG_IDF_TARGET_ESP32P4)
-    lcd.bb_behind_cache = true; // 内部 SRAM 也可能经 cache，与 esp_lcd RGB 一致
-#endif
+    // 与SDK esp_lcd RGB一致：按实际内部SRAM缓存属性决定写回，避免每块调用无效同步。
+    // Match SDK RGB: use actual internal-SRAM cache attributes, avoiding redundant sync per bounce.
+    lcd.bb_behind_cache = cache_hal_get_cache_line_size(CACHE_LL_LEVEL_INT_MEM, CACHE_TYPE_DATA) > 0;
     for (int i = 0; i < 2; i++) {
         lcd.bounce_buffer[i] =
             heap_caps_aligned_calloc(bb_align, 1, lcd.bb_size, dma_flags);

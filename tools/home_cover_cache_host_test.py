@@ -33,6 +33,7 @@ if __name__ == '__main__':
 #include <time.h>
 #include "ui_image_dither.h"
 #include "book_cover_jobs.h"
+#define EXT_RAM_BSS_ATTR
 #define BOOK_STORE_PATH_MAX 288
 #define BOOK_COVER_W 176
 #define BOOK_COVER_H 240

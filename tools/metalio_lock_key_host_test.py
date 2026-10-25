@@ -37,7 +37,7 @@ static const typeof(state) *read_pico_pmu_get(void){return &state;}
 static void read_pico_clear_ioe_int(void){}
 static void vTaskDelay(int ms){clock_us+=(int64_t)ms*1000;}
 '''
-for name in ('read_pico_pmu_lock_key_serial','keys','read_pico_pmu_keys_pause','read_pico_pmu_keys_resume','read_pico_pmu_drain_events','read_pico_pmu_take_key_wakeup'):
+for name in ('read_pico_pmu_lock_key_serial','keys','read_pico_pmu_keys_pause','read_pico_pmu_keys_resume','read_pico_pmu_latch_power_wakeup','read_pico_pmu_drain_events','read_pico_pmu_take_key_wakeup','read_pico_pmu_take_key_wakeup_single'):
     unit+=function(name,ROOT/'components/read_pico_pmu/metalio_power_adapter.c')+'\n'
 unit+=function('app_lock_wait_key_idle',ROOT/'main/sleep.c')+'\n'
 unit+=r'''
@@ -67,6 +67,22 @@ int main(void){
  sample(true,1100);sample(true,1130);sample(false,1200);sample(false,1230);assert(action==READ_PICO_PMU_KEY_SHORT);
  assert(read_pico_pmu_keys_pause()==ESP_ERR_INVALID_STATE&&action==READ_PICO_PMU_KEY_SHORT&&!keys_paused);
  assert(!read_pico_pmu_take_key_wakeup());sample(true,1300);sample(true,1330);assert(read_pico_pmu_keys_pause()==ESP_ERR_INVALID_STATE);
+ // Single mode accepts one fresh release or long action, never a continuing held level.
+ reset();sample(true,0);sample(true,30);assert(!read_pico_pmu_take_key_wakeup_single());
+ sample(false,80);sample(false,110);assert(read_pico_pmu_take_key_wakeup_single()&&!read_pico_pmu_take_key_wakeup_single());
+ reset();sample(true,0);sample(true,30);sample(true,730);assert(read_pico_pmu_take_key_wakeup_single());
+ sample(true,800);assert(!read_pico_pmu_take_key_wakeup_single());
+ sample(false,810);sample(false,840);assert(!read_pico_pmu_take_key_wakeup_single());
+ // P17-only EXT1 survives a release during rail restore; one event never bypasses double-click.
+ reset();clock_us=1000000;read_pico_pmu_latch_power_wakeup();
+ assert(read_pico_pmu_lock_key_serial()==1&&!read_pico_pmu_take_key_wakeup());
+ sample(true,1100);sample(true,1130);sample(false,1200);sample(false,1230);
+ assert(read_pico_pmu_take_key_wakeup()&&!read_pico_pmu_take_key_wakeup());
+ reset();clock_us=1000000;read_pico_pmu_latch_power_wakeup();read_pico_pmu_latch_power_wakeup();
+ assert(read_pico_pmu_lock_key_serial()==1&&read_pico_pmu_take_key_wakeup_single());
+ reset();assert(read_pico_pmu_keys_pause()==ESP_OK);read_pico_pmu_latch_power_wakeup();assert(!action&&!s_lock_key_serial);
+ reset();sample(true,0);sample(true,30);read_pico_pmu_latch_power_wakeup();assert(!action&&!s_lock_key_serial);
+ sample(false,80);sample(false,110);read_pico_pmu_latch_power_wakeup();assert(s_lock_key_serial==1&&read_pico_pmu_take_key_wakeup_single());
  puts("PASS: production S31 short/long wake consumption, no held-level duplicate, queued click during collage, shared-IRQ independent release and failed-poll timeout");
 }
 '''

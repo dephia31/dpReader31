@@ -53,6 +53,7 @@ typedef enum { UI_GESTURE_SWIPE_L, UI_GESTURE_SWIPE_R, UI_GESTURE_SWIPE_U, UI_GE
 #include <stdatomic.h>
 #include "ui_text_edit.h"
 #include "book_shelf_categories.h"
+#include "book_file_path.h"
 #define ESP_OK 0
 #define ESP_FAIL -1
 #define ESP_ERR_NVS_NOT_FOUND -2
@@ -241,7 +242,11 @@ static bool app_font_activate_system(void){assert(test_draw_locked);test_system_
 static bool app_font_activate_reading(void){assert(test_draw_locked);test_system_face=false;return true;}
 static bool s_toc_jump_open,s_toc_jump_drag;
 static int s_toc_jump_percent;
-typedef enum {READER_PANEL_NONE,READER_PANEL_TOOLS} reader_panel_t;
+typedef enum {READER_PANEL_NONE,READER_PANEL_TOOLS,READER_PANEL_FONT_PICKER,READER_PANEL_FONT_RECOVERY,READER_PANEL_ONLINE_FONTS} reader_panel_t;
+static unsigned font_recovery_resets;static int s_online_fonts,s_font_page;
+static void reader_font_recovery_reset(void){++font_recovery_resets;}
+static void ui_online_fonts_close(int *state){(void)state;}
+static void ttf_font_scan(void){}
 static reader_panel_t s_reader_panel;
 static int s_reader_slider=-1;
 static bool s_reader_slider_endpoint;
@@ -276,6 +281,11 @@ static size_t s_text_len=4,s_block_count;
 typedef struct {int image;unsigned image_width,image_height;} blk_t;
 static blk_t* s_blocks;
 static char **s_images;
+#define READER_IMAGE_ZOOM_MIN 100
+static bool s_image_zoom_bw,s_zoom_active,s_image_pan_active;
+static int s_image_zoom=READER_IMAGE_ZOOM_MIN;
+static size_t s_image_zoom_page=SIZE_MAX;
+static void continuous_du_reset(void){}
 static size_t s_image_count;
 static uint32_t s_progress_revision;
 static unsigned s_cover_generation;
@@ -302,7 +312,7 @@ static void app_settings_set_reader_power_turn(bool on){test_power_turn=on;}
 static void app_settings_set_reader_immersive(bool on){test_reader_immersive=on;}
 static void app_settings_set_reader_hold_refresh(bool on){test_hold_refresh=on;}
 static void app_settings_set_reader_hide_images(bool on){test_hide_images=on;}
-static bool s_reader_footer_pending,s_reader_image_refresh_pending,s_water_turn_pending;
+static bool s_reader_footer_pending,s_reader_image_refresh_pending,s_water_turn_pending,s_reader_image_exit_pending;
 static int s_turns;
 static bool s_bookmark_edit,s_bookmark_delete_confirm,s_bookmark_delete_error;
 static uint32_t s_bookmark_selected;
@@ -405,6 +415,12 @@ static int s_category_count,s_category_capacity,s_category_selected,s_category_m
 static bool s_category_menu;
 static char s_category_root[288];
 """
+import re
+settings_source = source.parents[1] / 'settings.c'
+settings_header = source.parents[1] / 'settings.h'
+unit += re.search(r'^#define APP_BOOK_PARAGRAPH_COUNT \d+', settings_header.read_text(), re.M)[0] + '\n'
+unit += function('app_settings_book_paragraph_value', settings_source) + '\n'
+unit += function('app_settings_book_paragraph_level', settings_source) + '\n'
 unit += function("book_layout_balanced_rect", layout_source) + "\n"
 unit += function("set_reader_view") + "\n"
 unit += function("ble_pt_action_for_usage", source.parents[2] / "components/ble_page_turner/src/ble_page_turner.c") + "\n"
@@ -577,7 +593,7 @@ int main(void) {
     reader_footer_strip_number(footer_name,sizeof(footer_name),"扉页");
     assert(!strcmp(footer_name,"扉页"));
     reader_footer_strip_number(footer_name,sizeof(footer_name),"第1章");
-    assert(!strcmp(footer_name,"未命名章节"));
+    assert(!strcmp(footer_name,""));
     s_jump_page=1;s_jump_offset=145;
     assert(reader_page_offset(1)==145&&reader_page_offset(2)==200);
     s_jump_offset=SIZE_MAX;
