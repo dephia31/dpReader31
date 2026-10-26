@@ -1,6 +1,36 @@
 # dpReader — Firmware Đọc Sách Tiếng Việt Chuyên Biệt cho Metalio E-ink 4 Plus (`metalio4.7`)
 
+<p align="center">
+  <img src="docs/screenshots/00_overview_banner.png" alt="dpReader Overview Banner" width="100%">
+</p>
+
 **dpReader** (`v1.0.0-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
+
+---
+
+## 📸 Giao diện Thực tế Firmware dpReader
+
+| Trang chủ (`app_dashboard.c`) | Kệ sách & Hộp thoại nạp sách (`app_book.c`) |
+| :---: | :---: |
+| <img src="docs/screenshots/01_home_dashboard.png" width="360" alt="Trang chủ dpReader"> | <img src="docs/screenshots/02_bookshelf.png" width="360" alt="Kệ sách Tiếng Việt"> |
+| *Thẻ Đọc tiếp, Đồng hồ Analog, Thống kê đọc trong tháng (GMT+7)* | *Lưới kệ sách tác phẩm kinh điển & Menu nạp sách WiFi / OPDS* |
+
+| Màn hình đọc sách & KOSync (`app_book.c`) | Thư viện sách online OPDS (`opds_client.c`) |
+| :---: | :---: |
+| <img src="docs/screenshots/03_reader_kosync.png" width="360" alt="Trình đọc sách Tiếng Việt & KOSync"> | <img src="docs/screenshots/04_opds_browser.png" width="360" alt="Duyệt và tải sách OPDS"> |
+| *Dàn trang thơ & tiểu thuyết Tiếng Việt, thanh công cụ KOSync* | *Duyệt Calibre-Web `sach.vreader.cloud:8443` & tải trực tiếp* |
+
+| Quản lý tệp & Cập nhật thẻ nhớ (`app_files.c`) | Cài đặt hệ thống Tiếng Việt (`app_device_settings.c`) |
+| :---: | :---: |
+| <img src="docs/screenshots/05_files_ota.png" width="360" alt="Quản lý tệp & Cập nhật thẻ nhớ"> | <img src="docs/screenshots/06_settings_vn.png" width="360" alt="Cài đặt hệ thống"> |
+| *Quản lý thẻ nhớ TF & chạm 2 lần vào file `.bin` để cập nhật kiểu CrossPoint* | *Hồ sơ máy, WiFi, BLE, Ngày & Giờ GMT+7, Đèn nền & Rung* |
+
+### 🌐 Cổng Quản lý Web Portal (`http://dpreader.local`)
+<p align="center">
+  <img src="docs/screenshots/07_web_portal.png" alt="dpReader Web Management Portal" width="100%">
+  <br>
+  <em>Giao diện Web Portal quản lý truyền sách WiFi, cấu hình máy chủ KOSync (<code>https://sync.vreader.cloud</code>) và thư viện OPDS (<code>https://sach.vreader.cloud:8443/opds</code>)</em>
+</p>
 
 ---
 
