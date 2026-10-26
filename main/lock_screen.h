@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：密码锁独占输入，只有验证成功返回。/ English: Password lock owns input; return only after successful verification.
+ * 中文：密码锁独占输入，仅验证成功或已确认的自选宽限返回。/ English: Password lock owns input; return after verification or confirmed opt-in grace.
  */
 #pragma once
 #include "epd_highlevel.h"

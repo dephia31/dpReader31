@@ -18,10 +18,11 @@ typedef int esp_err_t;
 #define ESP_ERR_INVALID_STATE 2
 #define pdMS_TO_TICKS(x) (x)
 typedef struct{bool mounted;}read_pico_sd_info_t;
-static bool s_lock_io_pending,usb,mounted;
+static bool s_lock_io_pending,s_lock_io_no_media,usb,mounted,handles_active;
 static int64_t s_lock_io_retry_us,clock_us;
 static int remaining,mount_error,font_error,book_error,font_calls,book_calls,remounts;
 static int64_t esp_timer_get_time(void){return clock_us;}
+static void metalio_sleep_report_reset(void){}
 static bool usb_storage_active(void){return usb;}
 static int read_pico_sd_get_info(read_pico_sd_info_t *p){
  p->mounted=mounted;
@@ -31,10 +32,10 @@ static int read_pico_sd_get_info(read_pico_sd_info_t *p){
 }
 static int read_pico_sd_remount(void){++remounts;if(mount_error==ESP_ERR_NOT_FINISHED)mounted=remaining==0;return mount_error;}
 static void vTaskDelay(int ms){assert(ms==20);clock_us+=20000;if(!remaining&&mount_error==ESP_ERR_NOT_FINISHED)mounted=true;}
-static int ttf_font_resume_io(void){assert(mounted);++font_calls;return font_error;}
-static int book_resume_io(void){assert(mounted);++book_calls;return book_error;}
+static int ttf_font_resume_io(void){if(!handles_active)return 0;assert(mounted);++font_calls;return font_error;}
+static int book_resume_io(void){if(!handles_active)return 0;assert(mounted);++book_calls;return book_error;}
 '''+function('lock_resume_media_io',s)+function('lock_resume_io_service',s)+function('app_sleep_media_ready',s)+r'''
-static void reset(void){s_lock_io_pending=true;usb=mounted=false;s_lock_io_retry_us=clock_us=0;remaining=remounts=font_calls=book_calls=font_error=book_error=0;mount_error=ESP_ERR_NOT_FINISHED;}
+static void reset(void){s_lock_io_pending=handles_active=true;s_lock_io_no_media=usb=mounted=false;s_lock_io_retry_us=clock_us=0;remaining=remounts=font_calls=book_calls=font_error=book_error=0;mount_error=ESP_ERR_NOT_FINISHED;}
 int main(void){
  reset();remaining=3;assert(lock_resume_media_io(15000)==ESP_OK&&!s_lock_io_pending&&font_calls==1&&book_calls==1&&clock_us==40000);
  reset();mounted=true;assert(lock_resume_media_io(15000)==ESP_OK&&!remounts&&font_calls==1);
@@ -52,6 +53,7 @@ int main(void){
  reset();mounted=true;font_error=7;assert(!app_sleep_media_ready());clock_us=1000000;font_error=0;
  assert(app_sleep_media_ready()&&font_calls==2);reset();usb=true;assert(!app_sleep_media_ready()&&!remounts);
  usb=false;clock_us=1000000;assert(app_sleep_media_ready());
+ reset();s_lock_io_no_media=true;handles_active=false;assert(lock_resume_media_io(0)==ESP_OK&&!s_lock_io_pending&&!remounts&&!font_calls&&!book_calls);
  puts("PASS: async remount waits before font/book IO; bounded timeout, failed-mount retry, USB exclusion, font/book partial failure and one-second retry backoff");
 }
 '''

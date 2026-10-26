@@ -21,7 +21,11 @@ with tempfile.TemporaryDirectory() as folder:
 #include <sys/stat.h>
 #include <setjmp.h>
 #include <errno.h>
+#include <time.h>
 #include "ui_pinpad.h"
+#define UI_LOCK_WIDTH 684
+#define UI_LOCK_HEIGHT 1216
+#define UI_GRAY_WHITE 255
 #define FRAME_BYTES (684u*1216u/2u)
 #define PAD_W 684
 #define PAD_H 1216
@@ -43,6 +47,7 @@ with tempfile.TemporaryDirectory() as folder:
 #define APP_WAKE_TIMEOUT 3
 #define READ_PICO_PMU_KEY_NONE 0
 #define pdMS_TO_TICKS(x) (x)
+typedef int app_wake_source_t;
 typedef void *cst836u_handle_t;typedef void *sc7a20h_handle_t;typedef int esp_err_t;
 typedef struct {int unused;} EpdiyHighlevelState;
 typedef int ble_pt_event_t;typedef int ble_pt_raw_t;
@@ -64,7 +69,13 @@ static int fat_rename(const char *a,const char *b){
 static unsigned stage,idx,waits,verified,ready,held,pushes,fulls,wiped,stops,entries,settles,idle_drains,art_pushes,off_calls;
 static bool valid_storage=true,low_memory,boot_scenario,timeout_scenario,display_failure;
 static unsigned deep_defer,deep_calls;
-static uint64_t now;
+static uint64_t now,slept_ms;
+static uint32_t locked_at,wall_unix,wake_delay;
+static uint8_t s_pin_grace_code_v;
+static bool non_key_wake;
+static uint32_t app_settings_pin_locked_at(void){return locked_at;}
+static time_t grace_time(time_t *p){time_t v=(time_t)wall_unix+now/1000;if(p)*p=v;return v;}
+#define time grace_time
 static int power_pending;
 static jmp_buf deep;
 static struct {int x,y,count,error;} samples[128];static unsigned sample_count;
@@ -80,6 +91,7 @@ static uint8_t *epd_hl_get_framebuffer(EpdiyHighlevelState *h){(void)h;return fr
 enum EpdRotation epd_get_rotation(void){return 1;}
 static void epd_poweron(void){}
 static void epd_poweroff(void){}
+void ui_fill_rect_fast(EpdRect r,int gray,uint8_t *f){assert(!r.x&&!r.y&&r.width==684&&r.height==1216&&gray==255);memset(f,255,FRAME_BYTES);}
 static void ui_lock_fallback_draw(uint8_t *fb){memset(fb,255,FRAME_BYTES);fb[FRAME_BYTES/2]=0;}
 static size_t heap_caps_get_free_size(int caps){(void)caps;return low_memory?1024*1024:8*1024*1024;}
 // 仅模拟强行终止仍在运行的认证循环时回收宿主资源；正常返回必须自行归还。
@@ -101,7 +113,7 @@ static void assert_no_allocations(void){for(unsigned i=0;i<16;++i)assert(!owned[
 #define free tracked_free
 static void *heap_caps_malloc(size_t n,int caps){(void)caps;return malloc(n);}
 static void metalio_frontlight(unsigned brightness,unsigned warmth){assert(!brightness&&warmth==50);++off_calls;}
-static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc);assert(ms==0);++waits;if(timeout_scenario){abort_host_allocations();longjmp(deep,1);}if(deep_calls<deep_defer){assert(!entries&&!pushes&&!verified);++deep_calls;return APP_WAKE_TIMEOUT;}return APP_WAKE_KEY;}
+static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc);assert(ms==0);++waits;now+=wake_delay;slept_ms+=wake_delay;if(non_key_wake){non_key_wake=false;return APP_WAKE_PICKUP;}if(timeout_scenario){abort_host_allocations();longjmp(deep,1);}if(deep_calls<deep_defer){assert(!entries&&!pushes&&!verified);++deep_calls;return APP_WAKE_TIMEOUT;}return APP_WAKE_KEY;}
 static int64_t esp_timer_get_time(void){return now*1000;}
 static int read_pico_pmu_poll(void){return 0;}
 static int read_pico_pmu_take_key_action(void){int action=power_pending;power_pending=0;return action;}
@@ -112,16 +124,18 @@ static bool ble_pt_pop_raw(ble_pt_raw_t *e){(void)e;return false;}
 static void pico_boot_ready(void){++ready;}
 static void pico_boot_hold_resume(void){++held;}
 static int cst836u_read(void *tp,cst836u_touch_t *t){(void)tp;if(idx>=sample_count){*t=(cst836u_touch_t){0};return 0;}typeof(samples[0]) s=samples[idx++];*t=(cst836u_touch_t){.touched=s.count!=0,.count=s.count,.x=s.x,.y=s.y};if(s.error<-1){power_pending=-s.error;return ESP_OK;}return s.error;}
-static void vTaskDelay(int ms){now+=ms;assert(now<35000||timeout_scenario||!valid_storage);}
-static void ui_pinpad_begin(ui_pinpad_t *p,const uint8_t *fb,const char *title){(void)fb;ui_pinpad_end(p);ui_pinpad_reset(p,title,"");if(!low_memory)p->background=malloc(1);}
+static void vTaskDelay(int ms){now+=ms;assert(now-slept_ms<35000||timeout_scenario||!valid_storage);}
+static void ui_pinpad_begin(ui_pinpad_t *p,const uint8_t *fb,const char *title){assert(fb[0]==255&&fb[FRAME_BYTES/2]==255&&fb[FRAME_BYTES-1]==255);ui_pinpad_end(p);ui_pinpad_reset(p,title,"");if(!low_memory)p->background=malloc(1);}
 static void ui_pinpad_paint_input(uint8_t *f,ui_pinpad_t *p){(void)p;f[0]=0xaa;}
-static void ui_pinpad_paint(uint8_t *fb,const ui_pinpad_t *p,EpdRect area){(void)p;if(area.y==470)++settles;if(area.y==0&&area.height==1216)++entries;fb[0]=0xaa;}
+static void ui_pinpad_paint(uint8_t *fb,const ui_pinpad_t *p,EpdRect area){(void)p;if(area.y==470)++settles;if(area.y==0&&area.height==1216){assert(fb[0]==255&&fb[FRAME_BYTES/2]==255);++entries;}fb[0]=0xaa;}
 
 enum EpdDrawError {EPD_GOOD=0,EPD_BAD=1};
 static enum EpdDrawError update_display_area_diff_with(void *h,const int *w,int m,EpdRect a){(void)h;(void)w;(void)a;assert(m==MODE_GL16||m==MODE_DU);++pushes;if(framebuffer[0]!=0xaa)++art_pushes;return display_failure?EPD_BAD:EPD_GOOD;}
 static enum EpdDrawError update_display_full(void *h){(void)h;++fulls;return EPD_GOOD;}
 static void guard_draw_result(void *h,enum EpdDrawError result){(void)h;(void)result;}
 '''.replace('FOLDER',str(p))
+ unit+=function('app_settings_pin_grace_minutes',ROOT/'main/settings.c')+'\n'
+ unit+=function('lock_pin_grace_active',ROOT/'main/sleep.c')+'\n'
  # Declarations precede the backdrop stub; state/hit logic comes from the production pad.
  unit=unit.replace('static void ui_pinpad_paint_input(', 'void ui_pinpad_paint_input(').replace('static void ui_pinpad_begin(', 'void ui_pinpad_begin(').replace('static void ui_pinpad_paint(', 'void ui_pinpad_paint(')
  for n in ('ui_pinpad_full','ui_pinpad_entry_area','ui_pinpad_end','ui_pinpad_reset','key_rect','joined','hit_test','ui_pinpad_handle'):
@@ -129,7 +143,7 @@ static void guard_draw_result(void *h,enum EpdDrawError result){(void)h;(void)re
  for n in ('checksum','wallpaper_key','lock_screen_restore','lock_screen_save','restore_art','present','present_input','lock_screen_authenticate'):
   unit+=function(n,ROOT/'main/lock_screen.c')+'\n'
  unit+=r'''
-static void start(void){assert_no_allocations();idx=sample_count=waits=verified=ready=held=pushes=fulls=entries=settles=idle_drains=art_pushes=off_calls=deep_defer=deep_calls=0;boot_scenario=false;now=0;power_pending=0;memset(framebuffer,0x37,sizeof(framebuffer));assert(lock_screen_save(framebuffer));add(0,0,0,0);}
+static void start(void){assert_no_allocations();idx=sample_count=waits=verified=ready=held=pushes=fulls=entries=settles=idle_drains=art_pushes=off_calls=deep_defer=deep_calls=0;boot_scenario=non_key_wake=false;now=slept_ms=0;wall_unix=locked_at=1792886400;wake_delay=s_pin_grace_code_v=0;power_pending=0;memset(framebuffer,0x37,sizeof(framebuffer));assert(lock_screen_save(framebuffer));add(0,0,0,0);}
 int main(void){
  pin_enabled=false;lock_screen_authenticate(NULL,NULL,NULL,true);pin_enabled=true;
  EpdiyHighlevelState hl={0};
@@ -175,6 +189,21 @@ int main(void){
  start();display_failure=true;correct();lock_screen_authenticate(&hl,(void*)1,(void*)2,false);assert(verified==1&&entries==1&&!settles&&fulls>0);display_failure=false;
  // Cancel never releases the caller: a test observation boundary terminates the retained wait.
  start();tap(144,1132);timeout_scenario=true;if(!setjmp(deep)){lock_screen_authenticate(&hl,(void*)1,(void*)2,true);assert(0);}assert(!verified&&waits==1);timeout_scenario=false;
+ // Grace is decided after the real wake, including the exact expiry boundary.
+ for(unsigned delay=299;delay<=360;delay+=(delay==299?1:60)){
+  start();s_pin_grace_code_v=1;wake_delay=delay*1000;correct();
+  lock_screen_authenticate(&hl,(void*)1,(void*)2,false);
+  assert(waits==1&&verified==(delay>=300)&&entries==(delay>=300));assert_no_allocations();
+ }
+ // Cold hardware boot still demands PIN, even with an unexpired saved grace window.
+ start();s_pin_grace_code_v=4;correct();lock_screen_authenticate(&hl,(void*)1,(void*)2,true);assert(verified==1&&entries==1);
+ for(unsigned failure=0;failure<3;failure++){
+  start();s_pin_grace_code_v=1;
+  if(failure==0)wall_unix=0;else if(failure==1)wall_unix=locked_at-1;else locked_at=0;
+  correct();lock_screen_authenticate(&hl,(void*)1,(void*)2,false);assert(verified==1&&entries==1);
+ }
+ start();s_pin_grace_code_v=1;non_key_wake=true;lock_screen_authenticate(&hl,(void*)1,(void*)2,false);
+ assert(waits==2&&!verified&&!entries);assert_no_allocations();
  // Corrupt credentials remain locked even with a valid-looking sequence.
  start();correct();valid_storage=false;timeout_scenario=true;if(!setjmp(deep)){lock_screen_authenticate(&hl,(void*)1,(void*)2,true);assert(0);}assert(!verified);valid_storage=true;timeout_scenario=false;
  uint8_t *f=malloc(FRAME_BYTES);assert(lock_screen_restore(f));
@@ -208,7 +237,7 @@ int main(void){
  selected_style=0;lock_screen_save(framebuffer);FILE *rotated=fopen(LOCK_ART_PATH,"r+b");assert(rotated);
  uint32_t rotation=2;assert(fseek(rotated,4,SEEK_SET)==0&&fwrite(&rotation,1,sizeof(rotation),rotated)==sizeof(rotation)&&fclose(rotated)==0);assert(!lock_screen_restore(f));
  selected_style=0;lock_screen_save(framebuffer);assert(lock_screen_restore(f));FILE *bad=fopen(LOCK_ART_PATH,"r+b");assert(bad);fputc(0,bad);fclose(bad);assert(!lock_screen_restore(f));free(f);assert_no_allocations();
- assert(stops>=5);puts("PASS: actual exclusive auth loop blocks wrong/cancel/touch keys/pickup/multitouch/read faults; cold boot holds resume; OOM/display errors fail closed; cancel/idle retained wait without timed deep sleep; corrupt credentials/art cannot bypass");
+ assert(stops>=5);puts("PASS: actual exclusive auth loop blocks wrong/cancel/touch keys/pickup/multitouch/read faults; cold boot holds resume; OOM/display errors fail closed; cancel/idle retained wait without timed deep sleep; corrupt credentials/art cannot bypass; white PIN sampling/presentation, grace expiry299/300/360s, cold boot/invalid/rollback clocks and non-key wakes");
 }
 '''
  (p/'test.c').write_text(unit)

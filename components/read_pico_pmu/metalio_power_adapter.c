@@ -101,7 +101,7 @@ uint32_t read_pico_pmu_lock_key_serial(void) {
 }
 esp_err_t read_pico_pmu_keys_pause(void) {
     portENTER_CRITICAL(&key_lock);
-    bool can_pause=ready && !held && action==READ_PICO_PMU_KEY_NONE;
+    bool can_pause=ready && !held && !candidate && action==READ_PICO_PMU_KEY_NONE;
     if (can_pause) { keys_paused=true; ++key_epoch; }
     portEXIT_CRITICAL(&key_lock);
     if(can_pause)metalio_ai_clear();

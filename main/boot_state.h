@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "esp_err.h"
+#include "kiiko_board_config.h"
 
 #define PICO_BOOT_PATH_MAX 288
 typedef struct {
@@ -21,6 +22,10 @@ void pico_boot_ready(void);
 bool pico_boot_recovery(void);
 /// 只观察恢复检查点，不消费也不改写Flash。/ Inspect the resume checkpoint without consuming it or writing Flash.
 bool pico_boot_has_resume(void);
+#if KIIKO_BOARD_METALIO47
+/// 异常启动禁用自动开书，但不能因此丢失先前锁定状态。/ Abnormal boots disable book resume without discarding the prior lock gate.
+bool pico_boot_lock_pending(void);
+#endif
 /// 仅刚刚保存成功的实际锁屏可用作下次深睡启动参考。/ Only a successfully persisted actual lock frame may seed the next deep-sleep boot reference.
 esp_err_t pico_boot_mark_frame_cached(void);
 bool pico_boot_resume_frame_cached(void);

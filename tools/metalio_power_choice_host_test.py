@@ -45,7 +45,7 @@ static void settings_card(uint8_t*f,EpdRect r,int radius,int fill,int border){
 static void ui_text(uint8_t*f,int x,int y,int px,const char*t,int align,bool bold){
  (void)f;(void)x;(void)y;(void)px;(void)align;(void)bold;
  assert(!strstr(t,"锁屏省电方式")&&!strstr(t,"保留待机"));
- if(!strcmp(t,"浅睡10分钟后进入深睡")||!strcmp(t,"彻底断电"))++titles;
+ if(!strcmp(t,"浅睡10分钟后关机")||!strcmp(t,"彻底断电"))++titles;
 }
 static void epd_fill_circle(int x,int y,int r,int c,uint8_t*f){(void)x;(void)y;(void)r;(void)c;(void)f;++dots;}
 static void settings_navigation(uint8_t*f){(void)f;}

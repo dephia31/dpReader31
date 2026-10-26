@@ -23,6 +23,11 @@ esp_err_t metalio_io_read(uint16_t *inputs);
 esp_err_t metalio_prepare_key_wake(void);
 esp_err_t metalio_restore_key_io(void);
 bool metalio_key_down(void);
+/// 两次有效P17低电平才确认电源键；共享GPIO2中断或读失败不能确认。
+/// Confirm power only after two valid low P17 samples; shared GPIO2 or failed reads are insufficient.
+bool metalio_confirm_power_key(void);
+/// 深睡启动硬件初始化时确认的真实按键。/ Real key confirmed early during deep-boot hardware initialization.
+bool metalio_boot_power_key(void);
 int metalio_take_volume(void);
 /// 官方AI/BOOT输入GPIO61，25ms去抖、500ms长按；长按抬手不触发短按。
 /// Vendor AI/BOOT input GPIO61,25ms debounce and500ms hold; release after a hold never produces a tap.

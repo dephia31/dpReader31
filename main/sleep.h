@@ -35,8 +35,12 @@ bool app_sleep_media_ready(void);
 void app_sleep_discard_media_io(void);
 /// 主动拼贴锁屏先灭灯并显示圆锁，保留后续短按。/ Manual collage feedback retains later wake clicks.
 void app_lock_feedback(EpdiyHighlevelState *hl);
-/// 深睡必须已有成功保存的恢复点。/ Require a persisted resume checkpoint before lock deep sleep.
+/// 定时关机必须已有成功保存的恢复点。/ Require a persisted resume checkpoint before timed lock power-off.
 void app_lock_set_resume_ready(bool ready);
+/// 在硬件初始化前锁存深睡电源键唤醒原因。/ Capture a deep-sleep power wake before hardware initialization.
+void app_lock_capture_boot_wakeup(void);
+/// 已确认按键唤醒后检查有效时钟下的免密期限。/ Check grace with a valid clock only after confirmed key wake.
+bool lock_pin_grace_active(void);
 /// 深睡保留物理锁图，卡就绪后恢复真实参考；NULL在解锁绘制前取消。
 /// Retain physical lock art across deep boot and restore references when media is ready; NULL cancels before unlock drawing.
 bool app_lock_resume_frame(EpdiyHighlevelState *hl);
@@ -70,8 +74,8 @@ void app_lock_wait_key_idle(int timeout_ms);
 // 十分钟交接由S31等待事务内部管理，外层超时不能被当作解锁。
 // The S31 wait transaction owns the ten-minute handoff; an outer timeout is never an unlock.
 #define APP_LOCK_IDLE_TIMEOUT_MS 0U
-#define APP_LOCK_DEEP_AFTER_US INT64_C(600000000)
-/// 锁屏先浅睡十分钟后深睡；USB暂缓，acc为空则仅按键。/ Light sleep then deep after ten minutes; defer for USB, NULL acc accepts keys only.
+#define APP_LOCK_OFF_AFTER_US INT64_C(600000000)
+/// 锁屏先浅睡十分钟后同步RTC并硬关机；USB暂缓。/ Light sleep for ten minutes, sync RTC and power off; defer for USB.
 #else
 /// ESP 浅睡，按键或拿起唤醒。acc 为空则只等按键。
 /// ESP light sleep; wake on key or pickup. Key only when acc is NULL.

@@ -2,10 +2,15 @@
 # SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
 """实际用户选字体、重复回退和重启提示：不误计预览，保存失败不重启。"""
 from pathlib import Path
-import ast, subprocess, tempfile
+import ast, json, subprocess, tempfile
 from home_cover_cache_host_test import function
 ROOT=Path(__file__).resolve().parents[1]
 SRC=ROOT/'main/apps/app_book.c'
+view=ROOT/'.kiiko-source-view.json'
+# 设备视图已经裁剪平台分支；只测试实际平台，共享源码仍覆盖两机。
+# Board views have already selected platform branches; test that board, or both in shared sources.
+boards=(int(json.loads(view.read_text())['board']=='metalio47'),) if view.exists() else (0,1)
+has_observer='static void reader_font_fallback_observe(' in SRC.read_text()
 unit=r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -69,7 +74,7 @@ static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&y>=r.y&&x<r.x+r.wi
 '''
 for name in ('reader_font_choice_begin','reader_font_choice_finish','reader_font_recovery_reset',
  'reader_font_recovery_button','reader_font_recovery_gesture','reader_font_recovery_tick'):
-    unit+=(('#if KIIKO_BOARD_METALIO47\n'+function('reader_font_fallback_observe',SRC)+'\n#endif\n') if name=='reader_font_recovery_tick' else '')+function(name,SRC)+'\n'
+    unit+=(('#if KIIKO_BOARD_METALIO47\n'+function('reader_font_fallback_observe',SRC)+'\n#endif\n') if name=='reader_font_recovery_tick' and has_observer else '')+function(name,SRC)+'\n'
 unit+='\n/* INSERT_SELECTION */\n'
 unit+=r'''
 static void reset(void){reader_font_recovery_reset();recovery_mode=false;builtin=ready=true;load_fails=layout_fails=save_fails=s_save_failed=false;
@@ -157,7 +162,7 @@ assert function('gesture_event',SRC).index('reader_font_recovery_gesture')<funct
 with tempfile.TemporaryDirectory() as folder:
  p=Path(folder)
  selection=s[s.index('static app_redraw_t select_reading_font_item('):s.index('static int slider_index(')]
- for board in (0,1):
+ for board in boards:
   selected=subprocess.run(['cc','-E','-P','-x','c',f'-DKIIKO_BOARD_METALIO47={board}','-'],input=selection,text=True,capture_output=True,check=True).stdout
   (p/'test.c').write_text(unit.replace('/* INSERT_SELECTION */',selected))
   subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-Wno-unused-parameter','-fsanitize=address,undefined',f'-DKIIKO_BOARD_METALIO47={board}',str(p/'test.c'),'-o',str(p/'test')],check=True)

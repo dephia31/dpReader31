@@ -51,6 +51,7 @@
 #include "ui_font.h"
 #include "vcom_setup.h"
 #include "debug_panel.h"
+#include "metalio_sleep.h"
 
 static const char* TAG = "read_pico";
 extern const app_desc_t app_boot_recovery;
@@ -153,6 +154,8 @@ static bool prepare_startup_frame(EpdiyHighlevelState *hl,uint8_t *framebuffer,b
 }
 
 void app_main(void) {
+    app_lock_capture_boot_wakeup();
+    ESP_ERROR_CHECK(metalio_sleep_sdk_init());
     // 共享 TF 卡期间复位后，先把内部 PHY 交回串口，再清理已用完的 BOOT 请求。
     // Reclaim Serial/JTAG after a reset during card sharing, then clear the served BOOT request.
     usb_storage_phy_init();
@@ -183,7 +186,11 @@ void app_main(void) {
     // 深睡保留屏幕已有画面：验证缓存后同时恢复前后帧，省去清白和开机图两次推屏。
     // Deep sleep retains the panel image: validate its cache and restore both references, skipping white erase and splash output.
     const bool resuming = pico_boot_has_resume() && reset == ESP_RST_DEEPSLEEP;
-    (void)prepare_startup_frame(&hl,framebuffer,resuming,vcom_ok);
+    // 双击门禁始终显示锁图，不能在“准备资源”页暗中等按键。
+    // A double-press gate retains lock art rather than waiting behind the resource splash.
+    const bool retain_lock = (pico_boot_has_resume() || pico_boot_lock_pending()) &&
+        (reset != ESP_RST_POWERON || app_settings_wake_presses() == 2);
+    (void)prepare_startup_frame(&hl,framebuffer,retain_lock,vcom_ok);
     rp_boot_mark("splash");
     // 直接续读不先加载整份系统字体；密码验证仍先使用所选系统字体。
     // Direct reader resume skips loading the whole system face first; PIN authentication still uses the selected UI face.

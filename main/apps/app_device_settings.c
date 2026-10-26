@@ -658,6 +658,9 @@ static void settings_value(uint8_t *fb,int x,int cy,int px,const char *value) {
     }
     ui_text_vc(fb,x-(arrow?28:0),cy,px,shown,EPD_DRAW_ALIGN_RIGHT,false);
 }
+#if KIIKO_BOARD_METALIO47
+static EpdRect pin_grace_row(void) { return (EpdRect){36,606,612,84}; }
+#endif
 static void row(uint8_t *fb, int y, const char *label, const char *value) {
     ui_text(fb, 54, y + 17, 27, label, EPD_DRAW_ALIGN_LEFT, false);
     settings_value(fb,627,y+20+ui_text_effective_px(21)/2,21,value);
@@ -864,11 +867,18 @@ static void settings_fit_text(char *value, int px, int width) {
 static void fit_value(char *value, int width) { settings_fit_text(value,20,width); }
 
 static void settings_switch(uint8_t *fb, int center_y, bool active) {
+    // 灰色轨道在滚动差分扫描下会经过深色相位产生黑闪；纯黑白无灰阶过渡，任何刷新模式都稳定。
+    // A gray track transits dark phases under the scroll's differential scan and flashes
+    // black; pure black/white holds clean in every refresh mode.
     EpdRect track = {555, center_y - 19, 69, 39};
-    ui_fill_round_rect(fb, track, 19, active ? 0x58 : 0xc4);
+    if (active) ui_fill_round_rect(fb, track, 19, UI_GRAY_BLACK);
+    else {
+        ui_fill_round_rect(fb, track, 19, UI_GRAY_WHITE);
+        ui_draw_round_rect(fb, track, 19, 0x30);
+    }
     int cx = active ? track.x + 49 : track.x + 20;
     epd_fill_circle(cx, track.y + 19, 16, UI_GRAY_WHITE, fb);
-    epd_draw_circle(cx, track.y + 19, 16, 0x78, fb);
+    epd_draw_circle(cx, track.y + 19, 16, 0x30, fb);
 }
 
 static void setting_group(uint8_t *fb, int title_y, const char *title,
@@ -1028,9 +1038,19 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         else if (lock_pin_enabled()) {
             row(fb, 406, "修改密码", "验证原密码  ›");
             row(fb, 512, "关闭密码", "验证原密码  ›");
+#if KIIKO_BOARD_METALIO47
+            const unsigned grace=app_settings_pin_grace_code();
+            const char *text=grace==1?"5 分钟":grace==2?"1 小时":grace==3?"8 小时":grace==4?"24 小时":"关闭";
+            row(fb,pin_grace_row().y+12,"解锁宽限期",text);
+#endif
         } else row(fb, 406, "开启密码", "设置四位密码  ›");
+#if KIIKO_BOARD_METALIO47
+        if(s_notice[0])ui_text_vc(fb,342,730,23,s_notice,EPD_DRAW_ALIGN_CENTER,false);
+        ui_text_vc(fb,342,800,21,"修改和关闭密码需验证原密码",EPD_DRAW_ALIGN_CENTER,false);
+#else
         if (s_notice[0]) ui_text_vc(fb, 342, 680, 23, s_notice, EPD_DRAW_ALIGN_CENTER, false);
         ui_text_vc(fb, 342, 752, 21, "修改和关闭密码需验证原密码", EPD_DRAW_ALIGN_CENTER, false);
+#endif
         settings_navigation(fb); return;
     }
     if (s_page == SETTINGS_PROFILE) {
@@ -1379,8 +1399,8 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     if (s_page == SETTINGS_POWER_SLEEP) {
         back_header(fb, "关机睡眠");
         section(fb, 248, "选择电源菜单中“关机”的方式");
-        const char *labels[] = {"浅睡10分钟后进入深睡", "彻底断电"};
-        const char *details[] = {"默认；按电源键唤醒",
+        const char *labels[] = {"浅睡10分钟后关机", "彻底断电"};
+        const char *details[] = {"浅睡可唤醒；关机后重新开机",
                                  "长按电源键开机"};
         for (int i = 0; i < 2; ++i) {
             EpdRect box = {36, 300 + i * 154, 612, 132};
@@ -1390,9 +1410,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text(fb, 64, box.y + 79, 20, details[i], EPD_DRAW_ALIGN_LEFT, false);
             if (active) epd_fill_circle(609, box.y + 66, 8, UI_GRAY_BLACK, fb);
         }
-        ui_text(fb, 54, 664, 18, "浅睡保留内存，深睡启动恢复", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 664, 18, "关机前保存进度并同步 RTC", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 54, 708, 18, "USB 连接时暂缓休眠", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 54, 810, 18, "日常锁屏沿用先浅后深", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 810, 18, "日常锁屏十分钟后同样关机", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 54, 866, 20, "设置了锁屏密码时仍需验证", EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
@@ -1663,7 +1683,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const char *display_values[]={font_name,contrast,
         app_settings_main_refresh_mode()==APP_MAIN_REFRESH_FAST?"快刷":app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER?"水波纹":"普通",
 #if KIIKO_BOARD_METALIO47
-        app_settings_home_full_refresh()?"开启":"关闭",idle,"",app_settings_staged_shutdown()?"先浅后深":"彻底断电","亮度与色温"};
+        app_settings_home_full_refresh()?"开启":"关闭",idle,"",app_settings_staged_shutdown()?"浅睡后关机":"彻底断电","亮度与色温"};
     const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9,7};
 #else
         app_settings_home_full_refresh()?"开启":"关闭",idle,"",app_settings_staged_shutdown()?"先浅后深":"彻底断电"};
@@ -1696,7 +1716,14 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,160},UI_GRAY_WHITE,fb);
     ui_nav_status(fb);
     ui_text(fb, 36, 91, 52, "设置", EPD_DRAW_ALIGN_LEFT, false);
-    if (s_notice[0]) ui_text_fixed_vc(fb, 36, 138, 20, s_notice, EPD_DRAW_ALIGN_LEFT, false);
+    if (s_notice[0]) {
+        const int notice_x=36+2*ui_text_effective_px(52)+24;
+        char notice[sizeof(s_notice)];snprintf(notice,sizeof(notice),"%s",s_notice);
+        while(notice[0] && ui_text_fixed_width_px(20,notice)>UI_LOCK_WIDTH-notice_x-36) {
+            size_t n=strlen(notice)-1;while(n && ((unsigned char)notice[n]&0xc0)==0x80)--n;notice[n]=0;
+        }
+        ui_text_fixed_vc(fb,notice_x,ui_text_ink_center_y(91,52,"设置"),20,notice,EPD_DRAW_ALIGN_LEFT,false);
+    }
     settings_navigation(fb);
 #if KIIKO_BOARD_METALIO47
     if(app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL){
@@ -2157,6 +2184,14 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if (ctx->now_ms < s_pin_retry_at) { snprintf(s_notice, sizeof(s_notice), "请等待后重试"); return APP_REDRAW_PAGE; }
         pin_setup_open(ctx, ev->y0 >= 512); return APP_REDRAW_PAGE;
     }
+
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_LOCK_PIN && ev->type==UI_GESTURE_TAP && lock_pin_available() && lock_pin_enabled() &&
+       ui_rect_hit(pin_grace_row(),ev->x0,ev->y0)) {
+        app_settings_set_pin_grace_code((app_settings_pin_grace_code()+1)%5);
+        return APP_REDRAW_PAGE;
+    }
+#endif
 
     if (s_page == SETTINGS_BOOT) {
         if (ev->type != UI_GESTURE_TAP || s_boot_pending) return APP_REDRAW_NONE;

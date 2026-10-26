@@ -31,6 +31,7 @@ def fn(name):
 start=s.index('static app_redraw_t on_gesture(')
 modal=block(s.index('    if (s_page==SETTINGS_SYSTEM_FONT && s_font_sync_confirm)',start))
 choose=block(s.index('    if (s_page == SETTINGS_SYSTEM_FONT) {',start))
+grace=block(s.index('    if(s_page==SETTINGS_LOCK_PIN &&',start))
 main=s[s.index('    if (y<160 || y>=UI_NAV_TOP || ev->x0<36',start):s.index('\nstatic app_redraw_t on_key(',start)].rstrip()
 assert main.endswith('}')
 main=main[:-1]
@@ -44,7 +45,7 @@ unit=r'''
 #include <stdio.h>
 #include <string.h>
 typedef struct{int x,y,width,height;}EpdRect;
-typedef enum{APP_REDRAW_NONE,APP_REDRAW_PAGE}app_redraw_t;
+typedef enum{APP_REDRAW_NONE,APP_REDRAW_PAGE,APP_REDRAW_AREA}app_redraw_t;
 typedef struct{int type,x0,y0;}ui_gesture_event_t;
 enum{UI_GESTURE_TAP,UI_GESTURE_SWIPE_U};
 typedef struct{int unused;}app_desc_t;
@@ -69,10 +70,20 @@ static void app_settings_set_font_path(const char*p){++reader_writes;if(!write_f
 static void app_font_activate_system(void){++system_activations;}
 static void ui_text_set_system_scale(bool b){assert(b);}
 static int s_font_page,s_main_scroll,s_style_scroll,s_ble_scroll,s_ble_learning;
-static bool s_font_sync_confirm,s_config_confirm,s_boot_pending;
+static bool s_font_sync_confirm,s_config_confirm,s_boot_pending,s_scroll_present_pending,s_reset_confirm,s_reset_pending;
+static char s_sd_notice[96],s_reset_notice[96];
 static char s_font_sync_path[192],s_notice[96],s_boot_notice[96],s_ble_notice[96],s_ble_feedback[96];
 static int font_scans,profile_edits,wifi_requests;
 static bool home_full;
+static bool pin_enabled=true,pin_available=true;
+static unsigned grace_code;
+static bool lock_pin_enabled(void){return pin_enabled;}
+static bool lock_pin_available(void){return pin_available;}
+static unsigned app_settings_pin_grace_code(void){return grace_code;}
+static void app_settings_set_pin_grace_code(unsigned n){grace_code=n;}
+static uint8_t wake_presses=1;
+static uint8_t app_settings_wake_presses(void){return wake_presses;}
+static void app_settings_set_wake_presses(uint8_t n){wake_presses=n;}
 static void ttf_font_scan(void){++font_scans;}
 static void app_transfer_request_wifi_setup(void){++wifi_requests;}
 static bool ble_pt_pop_raw(ble_pt_raw_t*p){(void)p;return false;}
@@ -80,19 +91,29 @@ static bool app_settings_home_full_refresh(void){return home_full;}
 static void app_settings_set_home_full_refresh(bool v){home_full=v;}
 static void profile_editor_open(bool signature){assert(signature);++profile_edits;}
 #define UI_NAV_TOP 1096
+#define UI_NAV_REFRESH_END 1088
+#define UI_LOCK_HEIGHT 1216
 '''+enum+'\nstatic settings_page_t s_page;\n'+macros+'''
 #define SETTINGS_SCROLL_MAX (SETTINGS_MAINTENANCE_Y+SETTINGS_MAINTENANCE_ROWS*SETTINGS_ROW_H-UI_NAV_TOP+12)
 static bool s_panel_repair_pending;
 static void upgrade_open(void){s_page=SETTINGS_UPGRADE;}
-'''+fn('settings_stacked')+'\n'+fn('settings_profile_height')+'\n'+fn('settings_main_row_height')+'\n'+layout+fn('system_font_layout')+'\n'+fn('system_font_item_rect')+'\n'+fn('system_font_sync_button')+'\n'
+'''+fn('settings_viewport_end')+'\n'+fn('settings_stacked')+'\n'+fn('settings_profile_height')+'\n'+fn('settings_main_row_height')+'\n'+layout+fn('system_font_layout')+'\n'+fn('system_font_item_rect')+'\n'+fn('system_font_sync_button')+'\n'+fn('system_font_page_button')+'\n'
+unit+=fn('pin_grace_row')+'\n'
+unit+='static app_redraw_t grace_tap(int x,int y){ui_gesture_event_t e={UI_GESTURE_TAP,x,y};const ui_gesture_event_t*ev=&e;'+grace+'return APP_REDRAW_NONE;}\n'
 unit+='static app_redraw_t font_tap(int x,int y){ui_gesture_event_t e={UI_GESTURE_TAP,x,y};const ui_gesture_event_t*ev=&e;'+modal+choose+'return APP_REDRAW_NONE;}\n'
 unit+='static app_redraw_t modal_swipe(void){ui_gesture_event_t e={UI_GESTURE_SWIPE_U,400,700};const ui_gesture_event_t*ev=&e;'+modal+'return APP_REDRAW_NONE;}\n'
 unit+='static app_redraw_t main_tap(app_ctx_t*ctx,int x,int y){ui_gesture_event_t e={UI_GESTURE_TAP,x,y};const ui_gesture_event_t*ev=&e;'+main+'}\n'
 unit+=r'''
 int main(void){
  app_ctx_t ctx={0};
+ s_page=SETTINGS_LOCK_PIN;EpdRect gr=pin_grace_row();
+ for(unsigned i=0;i<5;i++){assert(grace_tap(gr.x+1,gr.y+1)==APP_REDRAW_PAGE&&grace_code==(i+1)%5);}
+ assert(grace_tap(gr.x-1,gr.y+1)==APP_REDRAW_NONE&&grace_tap(gr.x,gr.y+gr.height)==APP_REDRAW_NONE);
+ pin_enabled=false;assert(grace_tap(300,650)==APP_REDRAW_NONE);pin_enabled=true;
+ pin_available=false;assert(grace_tap(300,650)==APP_REDRAW_NONE);pin_available=true;
+
  for(int percent=100;percent<=200;percent+=10){
-   scale=percent;s_font_sync_confirm=false;
+   scale=percent;s_font_sync_confirm=false;assert(settings_stacked()==(percent>=150));
    system_font_layout_t l=system_font_layout();
    assert(l.size.y+l.size.height<l.preview_title&&l.preview.y+l.preview.height<l.font_title);
    assert(l.font_title<l.first&&l.first+l.slots*l.row_height<UI_NAV_TOP);
@@ -101,11 +122,11 @@ int main(void){
    assert(SETTINGS_DISPLAY_Y>SETTINGS_WIRELESS_Y+3*SETTINGS_ROW_H);
    assert(SETTINGS_PERSONAL_Y>SETTINGS_DISPLAY_Y+6*SETTINGS_ROW_H);
    const int tops[]={SETTINGS_WIRELESS_Y,SETTINGS_DISPLAY_Y,SETTINGS_PERSONAL_Y,SETTINGS_MAINTENANCE_Y};
-   const int counts[]={3,7,4,4};
-   const int destinations[][7]={{-1,SETTINGS_BLUETOOTH,SETTINGS_TIME},
-     {SETTINGS_SYSTEM_FONT,SETTINGS_SYSTEM_CONTRAST,SETTINGS_MAIN_REFRESH,-2,SETTINGS_AUTO_LOCK,SETTINGS_POWER_SLEEP,SETTINGS_FRONTLIGHT},
+   const int counts[]={3,8,4,6};
+   const int destinations[][8]={{-1,SETTINGS_BLUETOOTH,SETTINGS_TIME},
+     {SETTINGS_SYSTEM_FONT,SETTINGS_SYSTEM_CONTRAST,SETTINGS_MAIN_REFRESH,-2,SETTINGS_AUTO_LOCK,-2,SETTINGS_POWER_SLEEP,SETTINGS_FRONTLIGHT},
      {SETTINGS_SHELF_STYLE,SETTINGS_LOCK_STYLE,SETTINGS_LOCK_PIN,-3},
-     {SETTINGS_UPGRADE,SETTINGS_CONFIG,-4,SETTINGS_BOOT}};
+     {SETTINGS_UPGRADE,SETTINGS_SD_RECOVERY,SETTINGS_CONFIG,-4,SETTINGS_BOOT,SETTINGS_FACTORY_RESET}};
    for(int group=0;group<4;++group)for(int i=0;i<counts[group];++i){
      s_page=SETTINGS_MAIN;int center=tops[group]+i*SETTINGS_ROW_H+SETTINGS_ROW_H/2;s_main_scroll=center-500;ctx.request_app=NULL;
      main_tap(&ctx,300,500);
@@ -118,7 +139,7 @@ int main(void){
    }
    s_main_scroll=SETTINGS_SCROLL_MAX;s_page=SETTINGS_MAIN;
    int last=SETTINGS_MAINTENANCE_Y+SETTINGS_MAINTENANCE_ROWS*SETTINGS_ROW_H-1-s_main_scroll;
-   assert(last<UI_NAV_TOP&&main_tap(&ctx,300,last)==APP_REDRAW_PAGE&&s_page==SETTINGS_BOOT);
+   assert(last<UI_NAV_TOP&&main_tap(&ctx,300,last)==APP_REDRAW_PAGE&&s_page==SETTINGS_FACTORY_RESET);
  }
  scale=100;s_page=SETTINGS_SYSTEM_FONT;s_font_page=0;s_main_scroll=0;s_font_sync_confirm=false;
  for(int i=0;i<11;++i){EpdRect r=system_font_layout().size;assert(font_tap(300,r.y+r.height/2)==APP_REDRAW_PAGE);assert(scale==((i+1)%11)*10+100);}
@@ -135,7 +156,7 @@ int main(void){
  write_fail=true;unsigned before=system_activations;r=system_font_item_rect(2);
  assert(font_tap(300,r.y+r.height/2)==APP_REDRAW_PAGE&&!s_font_sync_confirm&&system_activations==before&&!strcmp(system_path,fonts[0].path));
  write_fail=false;assert(font_tap(300,r.y+r.height+7)==APP_REDRAW_NONE);
- puts("PASS: 11 scales, all 16 destinations, reachable final row, font-size cycle, modal isolation, opt-in sync, no reading-font load and failed-save retry");
+ puts("PASS: 11 scales, all current S31 destinations, reachable final row, font-size cycle, modal isolation, opt-in sync, no reading-font load and failed-save retry");
 }
 '''
 with tempfile.TemporaryDirectory() as folder:

@@ -3,6 +3,8 @@
  * English: Isolated locked-input loop; touch keys, BLE, pickup and cold starts cannot bypass authentication.
  * 用户修订：读取失败或确认未开启时直接返回；正常读取的已有密码必须摘要验证，模糊缓存与局部输入保持。
  * User revision: return for read failure or confirmed disabled state; require digest verification for readable enabled PINs, retaining cached frost and local input.
+ * 用户采纳PR48：S31自选宽限只在真实按键浅睡唤醒后判断，冷启动仍验证。
+ * User accepted PR48: S31 opt-in grace is checked only after real key light wake; cold boots still authenticate.
  */
 #include "lock_screen.h"
 #include "lock_pin.h"
@@ -103,6 +105,11 @@ static void present_input(EpdiyHighlevelState *hl,EpdRect area){
 
 void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7a20h_handle_t acc,bool boot){
     if(!lock_pin_enabled())return;
+#if KIIKO_BOARD_METALIO47
+    // 硬件重新开机仍验证；宽限期只用于本次锁屏的真实按键唤醒。
+    // Hardware boots still authenticate; grace applies only after a real key wake in this lock session.
+    const bool allow_grace=!boot;
+#endif
     uint8_t *fb=epd_hl_get_framebuffer(hl);
     (void)acc;
     (void)ble_pt_stop(2000);
@@ -110,7 +117,13 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
     uint8_t *original=heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)>FRAME_BYTES+1024u*1024u
         ?heap_caps_malloc(FRAME_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT):NULL;
     if(original)memcpy(original,fb,FRAME_BYTES);
+#if KIIKO_BOARD_METALIO47
+    ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT},UI_GRAY_WHITE,fb);
+#endif
     ui_pinpad_t pad={0};ui_pinpad_begin(&pad,fb,"输入密码");
+#if KIIKO_BOARD_METALIO47
+    restore_art(fb,original);
+#endif
     bool waiting=true;
 #if KIIKO_BOARD_METALIO47
     bool art_visible=!boot;
@@ -118,6 +131,9 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
 #endif
     unsigned failures=0;int64_t retry_at=0;
     for(;;){
+#if KIIKO_BOARD_METALIO47
+        bool real_key_wake=false;
+#endif
         if(waiting){
 #if KIIKO_BOARD_METALIO47
             // 入口已经显示拼贴，不重复推屏，也不丢弃生成/缓存期间收到的短按。
@@ -128,9 +144,11 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
                 restore_art(fb,original);present(hl,ui_pinpad_full());
             }
             epd_poweroff();
-            if(app_light_sleep_wait_timed(NULL,APP_LOCK_IDLE_TIMEOUT_MS)==APP_WAKE_TIMEOUT){
-                // S31等待事务负责十分钟深睡交接；返回超时仍继续验证。
-                // The S31 wait transaction owns the ten-minute deep handoff; a returned timeout still requires authentication.
+            app_wake_source_t wake=app_light_sleep_wait_timed(NULL,APP_LOCK_IDLE_TIMEOUT_MS);
+            real_key_wake=wake==APP_WAKE_KEY;
+            if(!real_key_wake){
+                // S31等待事务负责十分钟关机交接；返回超时仍继续验证。
+                // The S31 wait transaction owns timed power-off; a returned timeout still requires authentication.
                 art_visible=true;
                 continue;
 #else
@@ -146,6 +164,13 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
             }
         }
 #if KIIKO_BOARD_METALIO47
+        // 等待结束才复核；超时、共享IRQ和时钟异常不能获得免密资格。
+        // Recheck after waiting; timeout/shared IRQ/invalid time cannot grant grace.
+        if(real_key_wake && allow_grace && lock_pin_available() && lock_pin_grace_active()) {
+            ui_pinpad_end(&pad);free(original);read_pico_pmu_drain_events();
+            ble_pt_event_t e;while(ble_pt_pop_key(&e)){}ble_pt_raw_t raw;while(ble_pt_pop_raw(&raw)){}
+            return;
+        }
         ui_pinpad_reset(&pad,"输入密码",lock_pin_available()?"":"凭据读取失败，请重启后重试");
         if(!lock_pin_available())pad.blocked=true;
         else if(esp_timer_get_time()/1000<retry_at){pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"请等待 10 秒后重试");}
@@ -155,6 +180,9 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
         if(esp_timer_get_time()/1000<retry_at){pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"请等待 10 秒后重试");}
 #endif
         // 直接推送完整密码画面一次，不再补刷第二段背景。/ Present the complete PIN screen once, without a second backdrop stage.
+#if KIIKO_BOARD_METALIO47
+        ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT},UI_GRAY_WHITE,fb);
+#endif
         ui_pinpad_paint(fb,&pad,ui_pinpad_full());present(hl,ui_pinpad_full());
 #if KIIKO_BOARD_METALIO47
         art_visible=false;

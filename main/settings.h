@@ -34,7 +34,7 @@ esp_err_t app_settings_set_ai_short(app_ai_action_t action);
 void app_settings_set_sleep_mode(app_sleep_mode_t mode);
 const char* app_sleep_mode_name(app_sleep_mode_t mode);
 #if KIIKO_BOARD_METALIO47
-/// S31关机：默认浅睡十分钟后深睡；false彻底断电，成功保存后生效。/ S31 defaults to light sleep then deep after ten minutes; false powers off, effective after saving.
+/// S31关机：默认浅睡十分钟后同步RTC并硬关机；false立即断电，保存后生效。/ S31 syncs RTC and powers off after ten minutes of light sleep; false powers off immediately, effective after saving.
 #else
 /// 电源菜单“关机”：false 为彻底断电，true 为先浅睡 10 分钟再由 PMU 软睡断电。
 /// Power-menu shutdown: false powers fully off; true light-sleeps for 10 minutes, then PMU soft-sleeps.
@@ -45,6 +45,14 @@ void app_settings_set_staged_shutdown(bool staged);
 /// Power-key boot presses: 1 boots on a single press, 2 needs a double click; defaults to 1 and retains an explicit saved choice.
 uint8_t app_settings_wake_presses(void);
 void app_settings_set_wake_presses(uint8_t presses);
+#if KIIKO_BOARD_METALIO47
+/// 可选密码宽限期0/5/60/480/1440分钟，默认关闭。/ Optional PIN grace0/5/60/480/1440min, off by default.
+uint8_t app_settings_pin_grace_code(void);
+void app_settings_set_pin_grace_code(uint8_t code);
+unsigned app_settings_pin_grace_minutes(void);
+uint32_t app_settings_pin_locked_at(void);
+void app_settings_record_pin_lock(uint32_t unix_seconds);
+#endif
 /// 首页进入时强制全刷；默认关闭。/ Full refresh when entering Home; off by default.
 bool app_settings_home_full_refresh(void);
 void app_settings_set_home_full_refresh(bool enabled);

@@ -24,6 +24,10 @@ typedef struct {
 static boot_record_t s_record;
 static pico_resume_t s_resume;
 static bool s_recovery, s_resume_pending, s_writable, s_interrupted, s_resume_frame;
+#if KIIKO_BOARD_METALIO47
+static bool s_lock_pending;
+bool pico_boot_lock_pending(void) { return s_lock_pending; }
+#endif
 typedef struct {
     uint32_t magic;
     uint16_t lengths[3];
@@ -127,6 +131,9 @@ void pico_boot_init(bool abnormal_reset) {
     s_resume_frame = false;
     s_interrupted = false;
     s_recovery = abnormal_reset;
+#if KIIKO_BOARD_METALIO47
+    s_lock_pending = false;
+#endif
     nvs_handle_t h;
     esp_err_t err = nvs_open(KIIKO_BOARD_STARTUP_NAMESPACE, NVS_READWRITE, &h);
     s_writable = err == ESP_OK;
@@ -146,6 +153,11 @@ void pico_boot_init(bool abnormal_reset) {
             if (err != ESP_ERR_NVS_NOT_FOUND) s_recovery = true;
             memset(&s_record, 0, sizeof(s_record));
         }
+#if KIIKO_BOARD_METALIO47
+        // 真实锁屏记录独立于字体/开书保护；看门狗不能把锁定当作普通首页启动。
+        // A validated lock record is independent of font/book recovery; watchdogs cannot turn it into an unlocked Home boot.
+        s_lock_pending = valid && s_record.resume_valid;
+#endif
     } else s_recovery = true;
     // 其他版本的缓存清单仍留在卡上，只移除不被本地阅读器支持的恢复/隔离入口。
     // Retain other editions' cache files; remove only resume/quarantine entries unsupported by the local reader.
@@ -232,6 +244,9 @@ bool pico_boot_take_resume(pico_resume_t *resume) {
     return true;
 }
 void pico_boot_clear_resume(void) {
+#if KIIKO_BOARD_METALIO47
+    s_lock_pending = false;
+#endif
     s_resume_pending = false;
     if (!s_record.resume_valid) return;
     s_record.resume_valid = 0;

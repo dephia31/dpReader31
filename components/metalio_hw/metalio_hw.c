@@ -15,6 +15,7 @@
 #include "nvs.h"
 #include "soc/cnnt_io_mux_struct.h"
 #include "esp_timer.h"
+#include "esp_system.h"
 #include "esp_rom_sys.h"
 #include "esp_rom_gpio.h"
 #include "esp_private/esp_gpio_reserve.h"
@@ -30,6 +31,7 @@ static SemaphoreHandle_t mutex;
 // Match reference boot rails: P05 display, P12 touch reset, P14 VOUT high.
 static uint8_t outputs[2]={0x20,0x14};
 static bool tps_on;
+static bool boot_power_key;
 static bool tps_prepared;
 static int64_t tps_wake_us;
 static int tps_last_vcom_mv=-1;
@@ -145,6 +147,13 @@ bool metalio_key_down(void) {
     uint16_t inputs=0xffff;
     return metalio_io_read(&inputs)==ESP_OK && !(inputs&(1u<<15));
 }
+bool metalio_confirm_power_key(void) {
+    uint16_t first=0xffff,again=0xffff;
+    if(metalio_io_read(&first)!=ESP_OK || (first&(1u<<15))) return false;
+    vTaskDelay(pdMS_TO_TICKS(30));
+    return metalio_io_read(&again)==ESP_OK && !(again&(1u<<15));
+}
+bool metalio_boot_power_key(void) { return boot_power_key; }
 void metalio_volume_sample(uint16_t inputs,int64_t now_ms) {
     static uint16_t stable=0xffff,candidate=0xffff;
     static int64_t since;
@@ -323,6 +332,9 @@ esp_err_t metalio_hw_init(void) {
     if (err==ESP_OK) err=fca9555_set_config(ioe,0,0xc0);
     if (err==ESP_OK) err=fca9555_set_config(ioe,1,0xe3);
     if (err!=ESP_OK) return err;
+    // 深睡启动尽早采样真实P17，后续挂卡/字体耗时不能用共享IRQ代替按键。
+    // Sample real P17 early on deep boots; later media/font delays cannot turn a shared IRQ into a press.
+    if(esp_reset_reason()==ESP_RST_DEEPSLEEP)boot_power_key=metalio_confirm_power_key();
     // P14 VOUT 上电后按参考驱动等待轨稳定。/ Allow reference VOUT rail settling time.
     vTaskDelay(pdMS_TO_TICKS(80));
     ledc_timer_config_t timer={.speed_mode=LEDC_LOW_SPEED_MODE,.duty_resolution=LEDC_TIMER_10_BIT,

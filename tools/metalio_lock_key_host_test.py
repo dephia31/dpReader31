@@ -23,9 +23,10 @@ static int64_t candidate_since,down_since,clock_us;
 static int key_lock,action,io_error,poll_error;
 static power_double_click_t s_wake_click;
 static uint16_t inputs=0xffff;
+static unsigned input_reads,fail_read,release_read;
 static unsigned drains;
 static int64_t esp_timer_get_time(void){return clock_us;}
-static int metalio_io_read(uint16_t *value){*value=inputs;return io_error;}
+static int metalio_io_read(uint16_t *value){++input_reads;*value=input_reads==release_read?0xffff:inputs;return input_reads==fail_read?-1:io_error;}
 static void metalio_volume_sample(uint16_t value,int64_t ms){(void)value;(void)ms;}
 static void metalio_volume_clear(void){++drains;}
 #define GPIO_NUM_61 61
@@ -39,10 +40,11 @@ static void vTaskDelay(int ms){clock_us+=(int64_t)ms*1000;}
 '''
 for name in ('read_pico_pmu_lock_key_serial','keys','read_pico_pmu_keys_pause','read_pico_pmu_keys_resume','read_pico_pmu_latch_power_wakeup','read_pico_pmu_drain_events','read_pico_pmu_take_key_wakeup','read_pico_pmu_take_key_wakeup_single'):
     unit+=function(name,ROOT/'components/read_pico_pmu/metalio_power_adapter.c')+'\n'
+unit+=function('metalio_confirm_power_key',ROOT/'components/metalio_hw/metalio_hw.c')+'\n'
 unit+=function('app_lock_wait_key_idle',ROOT/'main/sleep.c')+'\n'
 unit+=r'''
 static void sample(bool down,int ms){inputs=down?0x7fff:0xffff;clock_us=(int64_t)ms*1000;keys();}
-static void reset(void){s_wake_click=(power_double_click_t){0};held=long_sent=candidate=keys_paused=false;key_epoch=s_lock_key_serial=0;candidate_since=down_since=clock_us=0;state.key_state=0;action=io_error=poll_error=drains=0;inputs=0xffff;}
+static void reset(void){s_wake_click=(power_double_click_t){0};held=long_sent=candidate=keys_paused=false;key_epoch=s_lock_key_serial=0;candidate_since=down_since=clock_us=0;state.key_state=0;action=io_error=poll_error=drains=0;inputs=0xffff;input_reads=fail_read=release_read=0;}
 int main(void){
  reset();sample(true,0);sample(false,10);sample(false,40);assert(!held&&!read_pico_pmu_take_key_wakeup());
  // Short clicks wake on the debounced release, not a stale held level.
@@ -61,6 +63,7 @@ int main(void){
  reset();held=true;state.key_state=1;app_lock_wait_key_idle(800);assert(clock_us==800000);
  reset();poll_error=-1;app_lock_wait_key_idle(800);assert(clock_us==800000);
  reset();io_error=-1;sample(true,0);sample(true,1000);assert(!held&&!read_pico_pmu_take_key_wakeup());
+ reset();sample(true,10);assert(candidate&&!held&&read_pico_pmu_keys_pause()==ESP_ERR_INVALID_STATE&&!keys_paused);
  // Masked output latches cannot synthesize a key; resumption starts from the real input level.
  reset();assert(read_pico_pmu_keys_pause()==ESP_OK);sample(true,0);sample(true,1000);assert(!held&&!action);
  inputs=0xffff;read_pico_pmu_keys_resume();assert(!keys_paused&&!held&&!read_pico_pmu_take_key_wakeup());
@@ -83,6 +86,13 @@ int main(void){
  reset();assert(read_pico_pmu_keys_pause()==ESP_OK);read_pico_pmu_latch_power_wakeup();assert(!action&&!s_lock_key_serial);
  reset();sample(true,0);sample(true,30);read_pico_pmu_latch_power_wakeup();assert(!action&&!s_lock_key_serial);
  sample(false,80);sample(false,110);read_pico_pmu_latch_power_wakeup();assert(s_lock_key_serial==1&&read_pico_pmu_take_key_wakeup_single());
+ // Only two valid physical P17 lows qualify; short glitches, other inputs and either I2C fault do not.
+ reset();inputs=0x7fff;assert(metalio_confirm_power_key()&&input_reads==2&&clock_us==30000);
+ for(unsigned i=0;i<4;i++){
+  reset();inputs=0x7fff;
+  if(i<2)fail_read=i+1;else if(i==2)release_read=2;else inputs=0xfffe;
+  assert(!metalio_confirm_power_key()&&!s_lock_key_serial&&!action);
+ }
  puts("PASS: production S31 short/long wake consumption, no held-level duplicate, queued click during collage, shared-IRQ independent release and failed-poll timeout");
 }
 '''

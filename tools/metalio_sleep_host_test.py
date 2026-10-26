@@ -10,14 +10,15 @@ unit=r'''
 #include <stdlib.h>
 #include <stdio.h>
 #include <setjmp.h>
-#define APP_LOCK_DEEP_AFTER_US INT64_C(600000000)
+#define APP_LOCK_OFF_AFTER_US INT64_C(600000000)
 typedef int app_wake_source_t;
 enum {APP_WAKE_NONE,APP_WAKE_KEY,APP_WAKE_PICKUP,APP_WAKE_TIMEOUT};
 typedef void *sc7a20h_handle_t;
 typedef struct {int x_mg,y_mg,z_mg;unsigned status;} sc7a20h_sample_t;
 #define ESP_OK 0
-#define ESP_LOGW(...) ((void)0)
-#define APP_SLEEP_DEEP 1
+#define ESP_LOGW(tag,...) do {if(0)printf(__VA_ARGS__);} while(0)
+static const char *esp_err_to_name(int e){(void)e;return "error";}
+#define APP_SLEEP_OFF 1
 static void *s_lock_sleep_touch;
 static bool s_lock_deep_ready,s_lock_frame_cached,s_lock_io_pending;
 static struct {int64_t pending_at,until;} s_lock_hint;
@@ -41,9 +42,8 @@ static int lock_light_sleep_once(void*a,void*t,bool*k,int64_t until){
  int64_t step=light_step;if(until&&clock_us+step>until)step=until>clock_us?until-clock_us:0;
  clock_us+=step;*k=light_key||(recover_at>=0&&clock_us>=recover_at);return light_fail&&!*k?-1:0;
 }
-static int book_suspend_io(void){return 0;}
-static int book_resume_io(void){return 0;}
-static int app_enter_host_sleep(int m){assert(m==APP_SLEEP_DEEP);assert(clock_us>=APP_LOCK_DEEP_AFTER_US);deep_calls++;if(deep_success)longjmp(deep_jump,1);return -1;}
+static int lock_resume_media_io(unsigned ms){assert(ms==0);return 0;}
+static int app_enter_host_sleep(int m){assert(m==APP_SLEEP_OFF);assert(clock_us>=APP_LOCK_OFF_AFTER_US);deep_calls++;if(deep_success)longjmp(deep_jump,1);return -1;}
 typedef int esp_err_t;
 static bool book_cover_jobs_quiesce(unsigned ms){assert(ms==2000);return true;}
 static bool ui_avatar_quiesce(unsigned ms){assert(ms==2000);return true;}
@@ -95,12 +95,12 @@ int main(void){
  light_step=60000000;deep_success=true;
  if(!setjmp(deep_jump)){app_light_sleep_wait_timed(NULL,0);assert(0);}
  assert(deep_calls==1&&light_calls==10&&clock_us>=600000000&&clock_us<600100000&&cached_marks==(c&&!p));
- assert(frontlight_calls==1); // A timer-to-deep handoff never restores the lamp or reports an unlock.
+ assert(frontlight_calls==1); // A timer-to-off handoff never restores the lamp or reports an unlock.
  }
  // A real wake immediately before the deadline wins over the handoff.
  reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;light_step=60000000;recover_at=599000000;
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!deep_calls);settled();
- // A refused deep handoff returns to bounded light slices and retries after30s, remaining locked.
+ // A refused power-off handoff returns to bounded light slices and retries after30s, remaining locked.
  reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;light_step=60000000;recover_at=649000000;
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&deep_calls==2&&clock_us>=649000000);settled();
  reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;usb=true;key_at=700000000;
@@ -115,7 +115,7 @@ int main(void){
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&light_calls==6);settled();
  reset();s_lock_sleep_touch=(void*)1;s_lock_io_pending=true;key_at=500000;
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!light_calls);settled();
- puts("PASS: production S31 10min actual wait handoff model, no early deep, PIN/art checkpoint boundaries, key priority, USB exclusion, deep refusal then bounded retry, transient light recovery");
+ puts("PASS: production S31 10min actual wait handoff model, no early power-off, PIN/art checkpoint boundaries, key priority, USB exclusion, power-off refusal then bounded retry, transient light recovery");
 }
 '''
 with tempfile.TemporaryDirectory() as d:

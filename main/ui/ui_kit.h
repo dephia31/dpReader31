@@ -126,6 +126,9 @@ void ui_text(
 );
 /// Draw UI metadata at the exact requested size, independent of the global UI-size preference.
 /// 按指定像素字号绘制系统信息，不受全局系统字号设置影响。
+/// 当前UI文字字面范围及视觉中心。/ Current UI face ink extents and centre.
+void ui_text_line_span_px(int px,const char *text,int *above,int *below);
+int ui_text_ink_center_y(int y_top,int px,const char *text);
 void ui_text_fixed(
     uint8_t* framebuffer, int x, int y_top, int px, const char* text,
     enum EpdFontFlags align, bool inverted

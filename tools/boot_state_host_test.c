@@ -20,7 +20,7 @@ static void decode_durable(void) {
     }
 }
 esp_err_t nvs_open(const char *ns, int mode, nvs_handle_t *h) {
-    assert(!strcmp(ns, "pico_startup") && mode == NVS_READWRITE);
+    assert(!strcmp(ns, KIIKO_BOARD_STARTUP_NAMESPACE) && mode == NVS_READWRITE);
     *h=1;staged_present=present;staged_size=durable_size;
     memcpy(staged_raw,durable_raw,durable_size);
     return fail_open ? ESP_FAIL : ESP_OK;
@@ -96,6 +96,11 @@ int main(void) {
     pico_boot_init(false); assert(!pico_boot_take_resume(&out)); pico_boot_ready();
     assert(pico_boot_save_resume(&resume) == ESP_OK); pico_boot_init(true);
     assert(pico_boot_recovery() && !pico_boot_take_resume(&out) && !pico_boot_interrupted_book(interrupted, sizeof(interrupted)));
+#if KIIKO_BOARD_METALIO47
+    // WDT保护禁用字体/开书，但不能顺便取消锁屏。/ Watchdog recovery blocks fonts/books without clearing the lock gate.
+    assert(pico_boot_lock_pending() && !pico_boot_has_resume());
+    pico_boot_clear_resume();assert(!pico_boot_lock_pending());
+#endif
     pico_boot_ready();
     resume.path[0]=0; assert(pico_boot_save_resume(&resume)==ESP_ERR_INVALID_ARG);
     strcpy(resume.path, "/sdcard/../danger.epub"); assert(pico_boot_save_resume(&resume)==ESP_ERR_INVALID_ARG);
@@ -103,6 +108,9 @@ int main(void) {
     assert(pico_boot_book_begin("/other/book.epub")==ESP_ERR_INVALID_ARG);
     durable_raw[durable_size-1] ^= 1;
     pico_boot_init(false); assert(pico_boot_recovery()); pico_boot_ready();
+#if KIIKO_BOARD_METALIO47
+    assert(!pico_boot_lock_pending());
+#endif
     fail_commit=true;
     assert(pico_boot_book_begin("/sdcard/book.epub")==ESP_FAIL);
     pico_boot_init(false); assert(pico_boot_recovery() && !pico_boot_take_resume(&out));
