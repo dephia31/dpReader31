@@ -5,8 +5,12 @@ from pathlib import Path
 import json
 import re
 
-BOARDS = ('pico', 'metalio47')
-BOARD_ALIASES = {'metalio_s31': 'metalio47'}
+BOARDS = ('metalio47',)
+BOARD_ALIASES = {
+    'metalio_s31': 'metalio47',
+    'metalio4.7': 'metalio47',
+    'dpReader_metalio47': 'metalio47',
+}
 
 def canonical_board(board):
     return BOARD_ALIASES.get(board, board)
@@ -117,7 +121,7 @@ def materialize(root, destination, board, tests=False):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--board', choices=(*BOARDS, *BOARD_ALIASES), required=True)
+    parser.add_argument('--board', choices=(*BOARDS, *BOARD_ALIASES), default='metalio47')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--tests', action='store_true')
     args = parser.parse_args()

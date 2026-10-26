@@ -831,7 +831,7 @@ bool ttf_font_is_builtin(void) {
 const char* ttf_font_display_name(void) {
     static char name[TTF_FONT_NAME_MAX];
     const char* path = s_slots[TTF_FONT_SLOT_SYSTEM].f_path;
-    if (ttf_font_is_builtin() || ttf_font_path_is_builtin(path)) return "思源黑体（内建）";
+    if (ttf_font_is_builtin() || ttf_font_path_is_builtin(path)) return "Phông hệ thống (Tích hợp)";
     if (path[0] == '\0') return "";
     font_stem(path, name, sizeof(name));
     return ttf_font_localized_name(name);
@@ -843,14 +843,14 @@ const char* ttf_font_localized_name(const char* stem) {
     const char *online=online_font_catalog_name(stem);
     if(online)return online;
 #endif
-    if (!strcasecmp(stem, "Song")) return "思源宋体";
-    if (!strcasecmp(stem, "Hei")) return "思源黑体";
-    if (!strcasecmp(stem, "Kai")) return "思源楷体";
-    if (!strcasecmp(stem, "FangSong")) return "思源仿宋";
-    if (!strcasecmp(stem, "WenKai")) return "文楷";
-    if (!strcasecmp(stem, "KingHwa")) return "京华老宋";
-    if (!strcasecmp(stem, "ChillKai")) return "寒蝉正楷";
-    if (!strcasecmp(stem, "CangErYunHei05")) return "仓耳云黑05";
+    if (!strcasecmp(stem, "Song")) return "Source Han Serif";
+    if (!strcasecmp(stem, "Hei")) return "Source Han Sans";
+    if (!strcasecmp(stem, "Kai")) return "Source Han Kai";
+    if (!strcasecmp(stem, "FangSong")) return "Source Han FangSong";
+    if (!strcasecmp(stem, "WenKai")) return "LXGW WenKai";
+    if (!strcasecmp(stem, "KingHwa")) return "KingHwa OldSong";
+    if (!strcasecmp(stem, "ChillKai")) return "Chill Kai";
+    if (!strcasecmp(stem, "CangErYunHei05")) return "Tsanger YunHei 05";
     return stem;
 }
 

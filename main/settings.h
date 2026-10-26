@@ -242,3 +242,23 @@ esp_err_t app_settings_backup_save(void);
 /// 校验备份后恢复 NVS；缺失的外部字体或壁纸回退到内建资源。
 /// Validate before restoring NVS; missing external assets fall back safely.
 esp_err_t app_settings_backup_restore(void);
+
+/* ---- Cấu hình đồng bộ KOSync (KOReader Sync) & Thư viện OPDS (Calibre-Web) ---- */
+#define DPREADER_DEFAULT_KOSYNC_URL "https://sync.vreader.cloud"
+#define DPREADER_DEFAULT_OPDS_URL   "https://sach.vreader.cloud:8443/opds"
+
+const char *app_settings_kosync_url(void);
+bool app_settings_set_kosync_url(const char *url);
+const char *app_settings_kosync_user(void);
+bool app_settings_set_kosync_user(const char *user);
+const char *app_settings_kosync_key(void);
+bool app_settings_set_kosync_key(const char *key);
+bool app_settings_kosync_auto(void);
+void app_settings_set_kosync_auto(bool on);
+
+const char *app_settings_opds_url(void);
+bool app_settings_set_opds_url(const char *url);
+const char *app_settings_opds_user(void);
+bool app_settings_set_opds_user(const char *user);
+const char *app_settings_opds_pass(void);
+bool app_settings_set_opds_pass(const char *pass);

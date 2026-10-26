@@ -106,7 +106,7 @@ static void status_fit_signature(char *text, int width) {
     }
 }
 
-static const char *const labels[] = {"首页", "书架", "文件管理", "设置"};
+static const char *const labels[] = {"Trang chủ", "Kệ sách", "Tệp tin", "Cài đặt"};
 static int s_power_signature=-1000;
 static int power_signature(void) {
     const pmu_snapshot_t *pmu=read_pico_pmu_get();
@@ -178,9 +178,9 @@ static void clock_text(char *clock, size_t capacity) {
     time_t now = status_time();
     snprintf(clock,capacity,"--:--");
     if (now > 1704067200) {
-        time_t china = now + 8 * 3600;
+        time_t vn_time = now + 7 * 3600;
         struct tm date;
-        if (gmtime_r(&china, &date)) snprintf(clock, capacity, "%02d:%02d", date.tm_hour, date.tm_min);
+        if (gmtime_r(&vn_time, &date)) snprintf(clock, capacity, "%02d:%02d", date.tm_hour, date.tm_min);
     }
 }
 void ui_nav_clock_draw(uint8_t *fb) {

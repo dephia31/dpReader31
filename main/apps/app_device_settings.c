@@ -172,7 +172,7 @@ static app_redraw_t pin_paint(app_ctx_t *ctx, EpdRect area) {
 }
 static app_redraw_t pin_setup_tick(app_ctx_t *ctx) {
     if (s_pinpad.blocked && ctx->now_ms >= s_pin_retry_at) {
-        ui_pinpad_reset(&s_pinpad, NULL, "请重新输入");
+        ui_pinpad_reset(&s_pinpad, NULL, "Vui lòng nhập lại");
         return pin_paint(ctx, ui_pinpad_entry_area());
     }
     if (!s_pin_pending) return APP_REDRAW_NONE;
@@ -181,15 +181,15 @@ static app_redraw_t pin_setup_tick(app_ctx_t *ctx) {
     esp_err_t error = lock_pin_flow_input(&s_pinflow, s_pinpad.digits);
     if (error == ESP_OK && s_pinflow.step == PIN_FLOW_DONE) {
         pin_setup_close(); s_page = SETTINGS_LOCK_PIN;
-        snprintf(s_notice, sizeof(s_notice), "%s", lock_pin_enabled() ? "锁屏密码已保存" : "锁屏密码已关闭");
+        snprintf(s_notice, sizeof(s_notice), "%s", lock_pin_enabled() ? "Đã lưu mật khẩu khóa màn hình" : "Đã tắt mật khẩu khóa màn hình");
         return APP_REDRAW_PAGE;
     }
-    const char *notice = error == ESP_OK ? "" : error == ESP_ERR_INVALID_RESPONSE ? "两次输入不同，请重设" :
-        error == ESP_ERR_INVALID_ARG ? "原密码不正确，请重试" : "保存失败，请重试";
+    const char *notice = error == ESP_OK ? "" : error == ESP_ERR_INVALID_RESPONSE ? "Hai lần nhập không khớp, vui lòng nhập lại" :
+        error == ESP_ERR_INVALID_ARG ? "Mật khẩu hiện tại không đúng, vui lòng thử lại" : "Lưu thất bại, vui lòng thử lại";
     ui_pinpad_reset(&s_pinpad, lock_pin_flow_title(&s_pinflow), notice);
     if (error == ESP_ERR_INVALID_ARG && prior == PIN_FLOW_OLD && ++s_pin_failures >= 3) {
         s_pin_failures = 0; s_pin_retry_at = ctx->now_ms + 10000;
-        snprintf(s_pinpad.notice, sizeof(s_pinpad.notice), "请等待 10 秒后重试"); s_pinpad.blocked = true;
+        snprintf(s_pinpad.notice, sizeof(s_pinpad.notice), "Vui lòng đợi 10 giây rồi thử lại"); s_pinpad.blocked = true;
     }
     return pin_paint(ctx, (EpdRect){122, 218, 440, 247});
 }
@@ -200,8 +200,8 @@ static bool s_scroll_drag_consumed, s_scroll_present_pending;
 // Bluetooth sub-page: scroll offset, which action is being learned (0 idle, 1 prev, 2 next),
 // and a notice line.
 static int s_ble_scroll, s_ble_learning;
-static char s_ble_notice[64];
-static char s_ble_feedback[64];
+static char s_ble_notice[96];
+static char s_ble_feedback[96];
 static int s_font_page, s_wallpaper_page;
 static bool s_sync_pending;
 static bool s_font_sync_confirm;
@@ -292,7 +292,7 @@ static void upgrade_schedule(bool downloading, uint32_t now) {
     s_update.busy = true;
     s_update.received = 0;
     snprintf(s_update.message, sizeof(s_update.message), "%s", downloading
-        ? "正在下载，短暂断网会自动重连" : "正在连接并检查更新");
+        ? "Đang tải xuống, sẽ tự kết nối lại nếu mạng chập chờn" : "Đang kết nối và kiểm tra bản cập nhật");
     s_upgrade_offer_pending = !downloading;
     upgrade_remember(now);
 }
@@ -308,7 +308,7 @@ static app_redraw_t upgrade_start_pending(void) {
     s_update.busy = false;
     if (s_update.state != PICO_UPDATE_FAILED) s_update.message[0] = 0;
     s_update.state = PICO_UPDATE_FAILED;
-    if (!s_update.message[0]) snprintf(s_update.message, sizeof(s_update.message), "无法开始升级，请退出传书后重试");
+    if (!s_update.message[0]) snprintf(s_update.message, sizeof(s_update.message), "Không thể cập nhật lúc này, hãy thoát truyền sách rồi thử lại");
     snprintf(s_upgrade_notice, sizeof(s_upgrade_notice), "%s", s_update.message);
     return APP_REDRAW_PAGE;
 }
@@ -317,11 +317,11 @@ static app_redraw_t upgrade_start_pending(void) {
 static bool upgrade_note_line(const char **cursor, char *line, size_t capacity) {
     if (!cursor || !*cursor || !line || capacity < 5) return false;
     const char *p = *cursor;
-    while (*p && (strchr("\r\n\t ;", *p) || !strncmp(p, "；", 3)))
-        p += !strncmp(p, "；", 3) ? 3 : 1;
+    while (*p && (strchr("\r\n\t ;", *p) || !strncmp(p, "; ", 3)))
+        p += !strncmp(p, "; ", 3) ? 3 : 1;
     size_t used = 0;
     line[0] = 0;
-    while (*p && !strchr("\r\n;", *p) && strncmp(p, "；", 3)) {
+    while (*p && !strchr("\r\n;", *p) && strncmp(p, "; ", 3)) {
         unsigned char lead = (unsigned char)*p;
         size_t bytes = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : 4;
         if (bytes > strlen(p) || used + bytes >= capacity) break;
@@ -338,7 +338,7 @@ static void draw_upgrade_notes(uint8_t *fb) {
     const char *cursor = s_update.release.notes;
     char line[sizeof(s_update.release.notes)];
     if (!*cursor) {
-        ui_text_fixed(fb, 60, 530, 26, "本次更新暂无说明", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_fixed(fb, 60, 530, 26, "Không có ghi chú phát hành cho bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
         return;
     }
     for (int row = 0; row < 6 && upgrade_note_line(&cursor, line, sizeof(line)); ++row) {
@@ -361,7 +361,7 @@ static EpdRect upgrade_confirm_button(bool online, bool accept) {
 // English: Local TF installation runs on the display's UI task; release caches/rails before flash writes.
 static esp_err_t install_local_update(void) {
     if (!(book_cover_jobs_quiesce(2000) && ui_avatar_quiesce(2000))) {
-        snprintf(s_upgrade_notice,sizeof(s_upgrade_notice),"封面任务正在收尾，请稍后重试");
+        snprintf(s_upgrade_notice,sizeof(s_upgrade_notice),"Đang xử lý ảnh bìa, vui lòng thử lại sau giây lát");
         return ESP_ERR_NOT_FINISHED;
     }
     app_home_cover_mode_changed();
@@ -422,7 +422,7 @@ static char s_editor[96], s_editor_notice[80];
 static ui_text_edit_t s_editor_input;
 static bool s_editor_signature;
 static const char *system_font_label(const char *path) {
-    if (!path || !path[0]) return "思源黑体";
+    if (!path || !path[0]) return "Phông mặc định";
     const char *name = strrchr(path, '/');
     name = name ? name + 1 : path;
     static char stem[TTF_FONT_NAME_MAX];
@@ -437,7 +437,7 @@ static const char *system_font_label(const char *path) {
     size_t len = strlen(stem);
     if (len >= 4 && !strcasecmp(stem + len - 4, ".ttf")) stem[len - 4] = 0;
 #endif
-    if (!strcasecmp(stem, "Hei")) return "思源黑体（TF 卡）";
+    if (!strcasecmp(stem, "Hei")) return "Phông mặc định (Thẻ nhớ)";
     return ttf_font_localized_name(stem);
 }
 typedef struct {
@@ -470,20 +470,20 @@ static EpdRect system_font_sync_button(bool sync) { return (EpdRect){sync ? 351 
 static void draw_system_font_sync(uint8_t *fb) {
     // 仅一个有界弹窗，不额外打开阅读字体。/ One bounded dialog; never load the reading face here.
     settings_card(fb,(EpdRect){48,389,588,401},28,UI_GRAY_WHITE,0x58);
-    ui_text_fixed_vc(fb,342,448,32,"同步到阅读字体？",EPD_DRAW_ALIGN_CENTER,false);
-    char name[80]; snprintf(name,sizeof(name),"已选择「%s」",system_font_label(s_font_sync_path));
+    ui_text_fixed_vc(fb,342,448,32,"Đồng bộ làm phông đọc sách?",EPD_DRAW_ALIGN_CENTER,false);
+    char name[80]; snprintf(name,sizeof(name),"Đã chọn '%s'",system_font_label(s_font_sync_path));
     while (ui_text_fixed_width_px(27,name) > 520 && strlen(name) > 6) {
         size_t n = strlen(name) - 1;
         while (n && ((unsigned char)name[n] & 0xc0) == 0x80) --n;
         name[n] = 0;
     }
     ui_text_fixed_vc(fb,342,516,27,name,EPD_DRAW_ALIGN_CENTER,false);
-    ui_text_fixed_vc(fb,342,570,24,"是否让阅读正文也使用这个字体？",EPD_DRAW_ALIGN_CENTER,false);
-    ui_text_fixed_vc(fb,342,614,23,s_notice[0]?s_notice:"不同步时，保留原来的阅读字体。",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_fixed_vc(fb,342,570,24,"Bạn có muốn dùng phông chữ này cho cả nội dung đọc sách không?",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_fixed_vc(fb,342,614,23,s_notice[0]?s_notice:"Nếu không đồng bộ, phông chữ đọc sách hiện tại sẽ giữ nguyên.",EPD_DRAW_ALIGN_CENTER,false);
     for (int i=0;i<2;++i) {
         EpdRect r=system_font_sync_button(i);
         settings_card(fb,r,20,i ? UI_GRAY_BLACK : UI_GRAY_WHITE,0x58);
-        ui_text_fixed_vc(fb,r.x+r.width/2,r.y+r.height/2,25,i ? "同步阅读字体" : "仅系统字体",EPD_DRAW_ALIGN_CENTER,i);
+        ui_text_fixed_vc(fb,r.x+r.width/2,r.y+r.height/2,25,i ? "Đồng bộ phông đọc sách" : "Chỉ phông hệ thống",EPD_DRAW_ALIGN_CENTER,i);
     }
 }
 static int s_year, s_month, s_day, s_hour, s_minute;
@@ -601,7 +601,7 @@ static void time_open(void) {
         s_year = year; s_month = m; s_day = day; s_hour = s_minute = 0;
     } else {
         struct tm date;
-        time_t local = now + 8 * 3600;
+        time_t local = now + 7 * 3600;
         gmtime_r(&local, &date);
         s_year = date.tm_year + 1900; s_month = date.tm_mon + 1; s_day = date.tm_mday;
         s_hour = date.tm_hour; s_minute = date.tm_min;
@@ -622,7 +622,7 @@ static void time_adjust(int field, int step) {
 
 static bool time_save(void) {
     int64_t epoch = civil_days(s_year, s_month, s_day) * 86400 +
-                    s_hour * 3600 + s_minute * 60 - 8 * 3600;
+                    s_hour * 3600 + s_minute * 60 - 7 * 3600;
     if (epoch < 1704067200 || epoch > 4102444799LL) return false;
     struct timeval tv = {.tv_sec = (time_t)epoch, .tv_usec = 0};
     if (settimeofday(&tv, NULL)) return false;
@@ -632,10 +632,10 @@ static bool time_save(void) {
     if (err == ESP_OK) err = read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0);
     const pmu_snapshot_t *pmu = read_pico_pmu_get();
     if (err != ESP_OK || !pmu || !pmu->time_synced) {
-        snprintf(s_notice, sizeof(s_notice), "系统时间已设置，PMU 同步失败");
+        snprintf(s_notice, sizeof(s_notice), "Đã đặt giờ hệ thống nhưng đồng bộ PMU thất bại");
         return false;
     }
-    snprintf(s_notice, sizeof(s_notice), "时间已保存，并同步到电源管理芯片");
+    snprintf(s_notice, sizeof(s_notice), "Đã lưu thời gian và đồng bộ vào chip nguồn PMU");
     s_page = SETTINGS_TIME;
     return true;
 }
@@ -969,12 +969,12 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #if KIIKO_BOARD_METALIO47
     if(s_page==SETTINGS_ONLINE_FONTS){ui_online_fonts_draw(&s_online_fonts,fb);return;}
     if(s_page==SETTINGS_FRONTLIGHT) {
-        epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb); back_header(fb,"前光与振动");
+        epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb); back_header(fb,"Đèn nền & Rung");
         char value[48]; snprintf(value,sizeof(value),"%u%%",metalio_brightness());
-        row(fb,300,"亮度",value); row(fb,390,"降低 10%","增加 10%");
-        snprintf(value,sizeof(value),"%u%%",metalio_warmth()); row(fb,530,"暖光比例",value);
-        row(fb,620,"冷光","暖光"); row(fb,750,"前光",metalio_frontlight_enabled()?"开启":"关闭");
-        row(fb,850,"触摸振动",metalio_haptic_enabled()?"开启":"关闭");
+        row(fb,300,"Độ sáng",value); row(fb,390,"Giảm 10%","Tăng 10%");
+        snprintf(value,sizeof(value),"%u%%",metalio_warmth()); row(fb,530,"Tỷ lệ ánh sáng ấm",value);
+        row(fb,620,"Ánh sáng lạnh","Ánh sáng ấm"); row(fb,750,"Đèn nền",metalio_frontlight_enabled()?"Bật":"Tắt");
+        row(fb,850,"Rung phản hồi chạm",metalio_haptic_enabled()?"Bật":"Tắt");
         settings_navigation(fb); return;
     }
 #else
@@ -984,15 +984,15 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     ui_clear_page(fb);
     if (s_page == SETTINGS_FACTORY_RESET) {
         ui_nav_status(fb);
-        back_header(fb,"恢复出厂设置");
+        back_header(fb,"Khôi phục cài đặt gốc");
         ui_text_box(fb,(EpdRect){54,260,576,170},26,
-            "重置系统偏好、资料卡、WiFi、蓝牙配对和锁屏密码。",EPD_DRAW_ALIGN_LEFT,false);
+            "Đặt lại tùy chọn hệ thống, hồ sơ, WiFi, Bluetooth và mật khẩu khóa.",EPD_DRAW_ALIGN_LEFT,false);
         ui_text_box(fb,(EpdRect){54,450,576,170},23,
-            "保留书籍、字体、图片、阅读记录和硬件校准。",EPD_DRAW_ALIGN_LEFT,false);
-        if(s_reset_confirm)ui_text_box(fb,(EpdRect){54,645,576,80},23,"确认后将恢复默认设置并重启。",EPD_DRAW_ALIGN_LEFT,false);
+            "Giữ nguyên sách, phông chữ, ảnh, lịch sử đọc và thông số VCOM.",EPD_DRAW_ALIGN_LEFT,false);
+        if(s_reset_confirm)ui_text_box(fb,(EpdRect){54,645,576,80},23,"Sau khi xác nhận sẽ khôi phục cài đặt mặc định và khởi động lại.",EPD_DRAW_ALIGN_LEFT,false);
         if(s_reset_notice[0])ui_text_box(fb,(EpdRect){54,735,576,90},21,s_reset_notice,EPD_DRAW_ALIGN_LEFT,false);
-        ui_draw_button(fb,(EpdRect){54,850,576,78},s_reset_pending?"正在恢复…":s_reset_confirm?"确认恢复并重启":"恢复出厂设置",true);
-        ui_draw_button(fb,(EpdRect){54,950,576,78},"取消",false);
+        ui_draw_button(fb,(EpdRect){54,850,576,78},s_reset_pending?"Đang khôi phục…":s_reset_confirm?"Khôi phục & Khởi động lại":"Khôi phục cài đặt gốc",true);
+        ui_draw_button(fb,(EpdRect){54,950,576,78},"Hủy",false);
         settings_navigation(fb);return;
     }
 
@@ -1001,71 +1001,71 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     ui_nav_status(fb);
 #if KIIKO_BOARD_METALIO47
     if (s_page == SETTINGS_SD_RECOVERY) {
-        back_header(fb,"内存卡恢复");
-        ui_text_fixed(fb,54,270,26,"重新检测内存卡与导入字体",EPD_DRAW_ALIGN_LEFT,false);
-        ui_text_fixed(fb,54,325,23,"依次尝试降频、单线等兼容方式",EPD_DRAW_ALIGN_LEFT,false);
-        ui_text_fixed(fb,54,380,23,"不格式化，不清除书籍和设置",EPD_DRAW_ALIGN_LEFT,false);
+        back_header(fb,"Khôi phục thẻ nhớ");
+        ui_text_fixed(fb,54,270,26,"Quét lại thẻ nhớ và danh sách phông chữ",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_fixed(fb,54,325,23,"Thử hạ xung nhịp và chế độ 1-bit để tăng tương thích thẻ nhớ",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_fixed(fb,54,380,23,"Không định dạng thẻ, không xóa sách và cài đặt",EPD_DRAW_ALIGN_LEFT,false);
         app_sd_recovery_status_t status=app_sd_recovery_status();
-        const char *message="挂卡失败或字体未显示时，可手动重试";
+        const char *message="Dùng khi thẻ nhớ chưa nhận hoặc chưa hiện phông chữ mới";
         switch(status.phase) {
-            case APP_SD_RECOVERY_PREPARE: message="正在释放内存卡资源…";break;
-            case APP_SD_RECOVERY_WAIT: message="正在等待存储任务结束…";break;
-            case APP_SD_RECOVERY_MOUNT: message="正在重新挂载，请勿拔卡…";break;
-            case APP_SD_RECOVERY_FONTS: message="已挂载，正在重新识别字体…";break;
-            case APP_SD_RECOVERY_DONE: message="内存卡已恢复挂载";break;
-            case APP_SD_RECOVERY_FAILED: message="恢复未完成，可稍后重试";break;
+            case APP_SD_RECOVERY_PREPARE: message="Đang giải phóng tài nguyên thẻ nhớ…";break;
+            case APP_SD_RECOVERY_WAIT: message="Đang chờ tác vụ bộ nhớ hoàn tất…";break;
+            case APP_SD_RECOVERY_MOUNT: message="Đang gắn lại thẻ nhớ, vui lòng không rút thẻ…";break;
+            case APP_SD_RECOVERY_FONTS: message="Đã gắn thẻ, đang nhận diện lại phông chữ…";break;
+            case APP_SD_RECOVERY_DONE: message="Đã gắn lại thẻ nhớ thành công";break;
+            case APP_SD_RECOVERY_FAILED: message="Khôi phục chưa hoàn tất, hãy thử lại sau";break;
             default: break;
         }
         ui_text_fixed(fb,54,510,25,message,EPD_DRAW_ALIGN_LEFT,false);
         if(status.phase==APP_SD_RECOVERY_DONE) {
-            char fonts[64];snprintf(fonts,sizeof(fonts),"已识别 %d 款导入字体",status.fonts);
+            char fonts[64];snprintf(fonts,sizeof(fonts),"Đã nhận diện %d phông chữ ngoài",status.fonts);
             ui_text_fixed(fb,54,575,24,fonts,EPD_DRAW_ALIGN_LEFT,false);
             if(!status.selected_font_ready)
-                ui_text_fixed(fb,54,635,22,"原选字体未能加载，请重新选择",EPD_DRAW_ALIGN_LEFT,false);
+                ui_text_fixed(fb,54,635,22,"Không tải được phông đã chọn, vui lòng chọn lại",EPD_DRAW_ALIGN_LEFT,false);
         } else if(status.phase==APP_SD_RECOVERY_FAILED) {
             ui_text_fixed(fb,54,575,21,esp_err_to_name(status.error),EPD_DRAW_ALIGN_LEFT,false);
-            ui_text_fixed(fb,54,635,22,"请检查卡是否插好，或更换内存卡",EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_fixed(fb,54,635,22,"Hãy kiểm tra xem thẻ nhớ đã lắp chặt chưa hoặc thử thẻ khác",EPD_DRAW_ALIGN_LEFT,false);
         }
         if(s_sd_notice[0])ui_text_box(fb,(EpdRect){54,710,576,110},22,s_sd_notice,EPD_DRAW_ALIGN_LEFT,false);
-        ui_draw_button(fb,sd_recovery_button(),app_sd_recovery_busy()?"正在恢复…":"开始恢复",false);
+        ui_draw_button(fb,sd_recovery_button(),app_sd_recovery_busy()?"Đang khôi phục…":"Bắt đầu khôi phục",false);
         settings_navigation(fb);return;
     }
 #endif
     if (s_page == SETTINGS_LOCK_PIN) {
-        back_header(fb, "锁屏密码");
-        row(fb, 266, "四位数字密码", !lock_pin_available() ? "暂不可用" : lock_pin_enabled() ? "已开启" : "已关闭");
-        if (!lock_pin_available()) ui_text_vc(fb, 342, 408, 24, "锁屏设置暂不可用", EPD_DRAW_ALIGN_CENTER, false);
+        back_header(fb, "Mật khẩu màn hình khóa");
+        row(fb, 266, "Mật khẩu 4 chữ số", !lock_pin_available() ? "Tạm không khả dụng" : lock_pin_enabled() ? "Đã bật" : "Đã tắt");
+        if (!lock_pin_available()) ui_text_vc(fb, 342, 408, 24, "Cài đặt màn hình khóa tạm thời không khả dụng", EPD_DRAW_ALIGN_CENTER, false);
         else if (lock_pin_enabled()) {
-            row(fb, 406, "修改密码", "验证原密码  ›");
-            row(fb, 512, "关闭密码", "验证原密码  ›");
+            row(fb, 406, "Đổi mật khẩu", "Xác minh mật khẩu cũ  ›");
+            row(fb, 512, "Tắt mật khẩu", "Xác minh mật khẩu cũ  ›");
 #if KIIKO_BOARD_METALIO47
             const unsigned grace=app_settings_pin_grace_code();
-            const char *text=grace==1?"5 分钟":grace==2?"1 小时":grace==3?"8 小时":grace==4?"24 小时":"关闭";
-            row(fb,pin_grace_row().y+12,"解锁宽限期",text);
+            const char *text=grace==1?"5 phút":grace==2?"1 giờ":grace==3?"8 giờ":grace==4?"24 giờ":"Tắt";
+            row(fb,pin_grace_row().y+12,"Thời gian chờ khóa lại",text);
 #endif
-        } else row(fb, 406, "开启密码", "设置四位密码  ›");
+        } else row(fb, 406, "Bật mật khẩu", "Đặt mật khẩu 4 số  ›");
 #if KIIKO_BOARD_METALIO47
         if(s_notice[0])ui_text_vc(fb,342,730,23,s_notice,EPD_DRAW_ALIGN_CENTER,false);
-        ui_text_vc(fb,342,800,21,"修改和关闭密码需验证原密码",EPD_DRAW_ALIGN_CENTER,false);
+        ui_text_vc(fb,342,800,21,"Cần xác minh mật khẩu hiện tại khi đổi hoặc tắt mật khẩu",EPD_DRAW_ALIGN_CENTER,false);
 #else
         if (s_notice[0]) ui_text_vc(fb, 342, 680, 23, s_notice, EPD_DRAW_ALIGN_CENTER, false);
-        ui_text_vc(fb, 342, 752, 21, "修改和关闭密码需验证原密码", EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_vc(fb, 342, 752, 21, "Cần xác minh mật khẩu hiện tại khi đổi hoặc tắt mật khẩu", EPD_DRAW_ALIGN_CENTER, false);
 #endif
         settings_navigation(fb); return;
     }
     if (s_page == SETTINGS_PROFILE) {
-        back_header(fb, "个人资料");
-        ui_text(fb, 42, 214, 21, "自定义名称与头像", EPD_DRAW_ALIGN_LEFT, false);
-        row(fb, 266, "设备名称", app_settings_device_name());
-        row(fb, 366, "更换头像", app_settings_avatar_path()[0] ? "已选择图片  ›" : "默认图标  ›");
+        back_header(fb, "Hồ sơ cá nhân");
+        ui_text(fb, 42, 214, 21, "Tùy chỉnh tên thiết bị & ảnh đại diện", EPD_DRAW_ALIGN_LEFT, false);
+        row(fb, 266, "Tên thiết bị", app_settings_device_name());
+        row(fb, 366, "Đổi ảnh đại diện", app_settings_avatar_path()[0] ? "Đã chọn ảnh  ›" : "Biểu tượng mặc định  ›");
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_AVATAR) {
-        back_header(fb, "选择头像");
-        section(fb, 232, "TF 卡 pictures 文件夹中的 JPG / PNG 图片");
-        row(fb, 270, "使用默认图标", app_settings_avatar_path()[0] ? "选择  ›" : "当前  ✓");
-        if (!s_wallpaper_count) ui_text(fb, 52, 384, 23, "未找到图片，请放入 pictures 文件夹", EPD_DRAW_ALIGN_LEFT, false);
+        back_header(fb, "Chọn ảnh đại diện");
+        section(fb, 232, "Ảnh JPG / PNG trong thư mục pictures trên thẻ nhớ");
+        row(fb, 270, "Dùng biểu tượng mặc định", app_settings_avatar_path()[0] ? "Chọn  ›" : "Đang dùng  ✓");
+        if (!s_wallpaper_count) ui_text(fb, 52, 384, 23, "Không tìm thấy ảnh, hãy chép vào thư mục pictures", EPD_DRAW_ALIGN_LEFT, false);
         for (int i = 0; i < 7; ++i) {
             int index = s_wallpaper_page * 7 + i;
             if (index >= s_wallpaper_count) break;
@@ -1081,9 +1081,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         return;
     }
     if (s_page == SETTINGS_TEXT_EDIT) {
-        back_header(fb, s_editor_signature ? "状态栏签名" : "设备名称");
-        ui_text(fb, 642, 95, 24, "完成", EPD_DRAW_ALIGN_RIGHT, false);
-        ui_text(fb, 36, 201, 21, s_editor_signature ? "状态栏中间显示，留空则隐藏" : "显示在设置页的资料卡", EPD_DRAW_ALIGN_LEFT, false);
+        back_header(fb, s_editor_signature ? "Chữ ký thanh trạng thái" : "Tên thiết bị");
+        ui_text(fb, 642, 95, 24, "Xong", EPD_DRAW_ALIGN_RIGHT, false);
+        ui_text(fb, 36, 201, 21, s_editor_signature ? "Hiển thị ở giữa thanh trạng thái, để trống sẽ ẩn" : "Hiển thị trên thẻ hồ sơ trong phần Cài đặt", EPD_DRAW_ALIGN_LEFT, false);
         ui_text_input_draw(fb, &s_editor_input, (EpdRect){36, 243, 612, 82}, 28, false, NULL);
         if (s_editor_notice[0]) ui_text_fixed_vc(fb, 36, 510, 22, s_editor_notice, EPD_DRAW_ALIGN_LEFT, false);
         ui_keyboard_draw(fb, UI_SYSTEM_KEYBOARD_TOP);
@@ -1092,10 +1092,10 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     }
     if (s_page == SETTINGS_SHELF_STYLE) {
         ui_nav_back(fb, 36, 79);
-        ui_text_vc(fb, 342, 107, 34, "书架样式", EPD_DRAW_ALIGN_CENTER, false);
-        ui_text(fb, 36, 207, 23, "选择书架外观与排列方式", EPD_DRAW_ALIGN_LEFT, false);
-        static const char *const styles[] = {"深色书轨", "亚克力书架", "列表书架"};
-        static const char *const descriptions[] = {"每页 9 本", "每页 9 本", "作者与进度 · 每页 4 本"};
+        ui_text_vc(fb, 342, 107, 34, "Kiểu hiển thị Tủ sách", EPD_DRAW_ALIGN_CENTER, false);
+        ui_text(fb, 36, 207, 23, "Chọn giao diện và cách sắp xếp Tủ sách", EPD_DRAW_ALIGN_LEFT, false);
+        static const char *const styles[] = {"Thanh kệ tối màu", "Kệ sách Acrylic", "Danh sách"};
+        static const char *const descriptions[] = {"9 cuốn mỗi trang", "9 cuốn mỗi trang", "Tác giả & tiến độ · 4 cuốn mỗi trang"};
         for (int i = 0; i < 3; ++i) {
             int y = 263 + i * 253 - s_style_scroll;
             if (y + 230 < 242 || y >= settings_viewport_end()) continue;
@@ -1117,10 +1117,10 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     }
     if (s_page == SETTINGS_TIME_EDIT) {
         ui_nav_back(fb, 36, 79);
-        ui_text(fb, 36, 151, 47, "日期与时间", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 36, 216, 23, "北京时间 · UTC+8", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 36, 151, 47, "Ngày & Giờ", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 36, 216, 23, "Giờ Việt Nam · GMT+7", EPD_DRAW_ALIGN_LEFT, false);
         ui_hairline(fb, 259, 36, 612, UI_GRAY_LIGHT);
-        static const char *const labels[] = {"年", "月", "日", "时", "分"};
+        static const char *const labels[] = {"Năm", "Thg", "Ngày", "Giờ", "Phút"};
         int values[] = {s_year, s_month, s_day, s_hour, s_minute};
         for (int i = 0; i < 5; ++i) {
             int x = 36 + i * 122;
@@ -1132,23 +1132,23 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_draw_control_frame(fb, (EpdRect){x, 535, 106, 62}, 8, UI_GRAY_BLACK);
             ui_text_vc(fb, x + 53, 566, 30, "−", EPD_DRAW_ALIGN_CENTER, false);
         }
-        ui_text(fb, 36, 649, 23, "点上方 + 或下方 − 调整数字", EPD_DRAW_ALIGN_LEFT, false);
-        ui_draw_button(fb, (EpdRect){36, 767, 612, 78}, "保存时间", false);
-        ui_draw_button(fb, (EpdRect){36, 874, 612, 78}, "取消", false);
+        ui_text(fb, 36, 649, 23, "Chạm dấu + phía trên hoặc − phía dưới để chỉnh số", EPD_DRAW_ALIGN_LEFT, false);
+        ui_draw_button(fb, (EpdRect){36, 767, 612, 78}, "Lưu thời gian", false);
+        ui_draw_button(fb, (EpdRect){36, 874, 612, 78}, "Hủy", false);
         if (s_notice[0]) ui_text(fb, 36, 996, 22, s_notice, EPD_DRAW_ALIGN_LEFT, false);
         return;
     }
     if (s_page == SETTINGS_WIFI) {
         back_header(fb, "WiFi");
-        section(fb, 253, "已保存网络");
-        row(fb, 296, s_main_wifi_saved ? s_main_wifi : "尚未配置", s_main_wifi_saved ? "已保存" : "");
-        row(fb, 408, "连接或更改网络", "前往传输  ›");
-        ui_text(fb, 54, 529, 21, "配网后可在日期与时间中进行 WiFi 对时。", EPD_DRAW_ALIGN_LEFT, false);
+        section(fb, 253, "Đã lưu mạng");
+        row(fb, 296, s_main_wifi_saved ? s_main_wifi : "Chưa cấu hình", s_main_wifi_saved ? "Đã lưu" : "");
+        row(fb, 408, "Kết nối WiFi, truyền sách & cấu hình KOSync/OPDS", "Mở Truyền dữ liệu  ›");
+        ui_text(fb, 54, 529, 21, "Sau khi kết nối WiFi có thể đồng bộ giờ tự động GMT+7.", EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_SYSTEM_FONT) {
-        back_header(fb, "系统字体");
+        back_header(fb, "Phông chữ hệ thống");
 #if KIIKO_BOARD_METALIO47
         ui_online_fonts_draw_entry(fb,79);
 #endif
@@ -1156,36 +1156,36 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb,l.size,22,UI_GRAY_WHITE,0x70);
         char size[16]; snprintf(size,sizeof(size),"%u%%",app_settings_system_font_size());
 #if KIIKO_BOARD_METALIO47
-        ui_text_vc(fb,60,231,27,"系统字号",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_vc(fb,60,231,27,"Cỡ chữ hệ thống",EPD_DRAW_ALIGN_LEFT,false);
         ui_text_vc(fb,589,231,27,size,EPD_DRAW_ALIGN_RIGHT,false);
-        ui_text_vc(fb,60,285,18,"轻点切换，最大 200%",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_vc(fb,60,285,18,"Chạm để chuyển mức, tối đa 200%",EPD_DRAW_ALIGN_LEFT,false);
         ui_draw_icon(fb,619,231,28,UI_ICON_ROTATE_CW,0x38);
 #else
         if (settings_stacked()) {
-            ui_text_vc(fb,60,247,27,"系统字号",EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_vc(fb,60,247,27,"Cỡ chữ hệ thống",EPD_DRAW_ALIGN_LEFT,false);
             ui_text_vc(fb,589,247,27,size,EPD_DRAW_ALIGN_RIGHT,false);
-            ui_text_vc(fb,60,328,18,"轻点切换，最大 200%",EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_vc(fb,60,328,18,"Chạm để chuyển mức, tối đa 200%",EPD_DRAW_ALIGN_LEFT,false);
         } else {
-            ui_text_vc(fb,58,227,25,"系统字号",EPD_DRAW_ALIGN_LEFT,false);
-            ui_text_vc(fb,58,269,18,"轻点切换，最大 200%",EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_vc(fb,58,227,25,"Cỡ chữ hệ thống",EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_vc(fb,58,269,18,"Chạm để chuyển mức, tối đa 200%",EPD_DRAW_ALIGN_LEFT,false);
             ui_text_vc(fb,589,247,26,size,EPD_DRAW_ALIGN_RIGHT,false);
         }
         ui_draw_icon(fb,619,247,28,UI_ICON_ROTATE_CW,0x38);
 #endif
-        section(fb,l.preview_title,"效果预览");
+        section(fb,l.preview_title,"Xem trước hiệu ứng");
         settings_card(fb,l.preview,22,UI_GRAY_WHITE,0x70);
 #if KIIKO_BOARD_METALIO47
-        ui_text_vc(fb,60,l.preview.y+43,29,"阅读，让时间慢下来",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_vc(fb,60,l.preview.y+43,29,"Đọc sách mỗi ngày cùng dpReader",EPD_DRAW_ALIGN_LEFT,false);
         ui_text_vc(fb,60,l.preview.y+112,25,"Aa 123",EPD_DRAW_ALIGN_LEFT,false);
 #else
-        ui_text_vc(fb,60,l.preview.y+(settings_stacked()?68:51),29,"阅读，让时间慢下来",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_vc(fb,60,l.preview.y+(settings_stacked()?68:51),29,"Đọc sách mỗi ngày cùng dpReader",EPD_DRAW_ALIGN_LEFT,false);
         ui_text_vc(fb,60,l.preview.y+(settings_stacked()?151:107),25,"Aa 123",EPD_DRAW_ALIGN_LEFT,false);
 #endif
-        section(fb,l.font_title,"选择字体");
+        section(fb,l.font_title,"Chọn phông chữ");
         const char *selected = app_settings_system_font_path();
         int count = ttf_font_count(), first = s_font_page*l.slots;
 #if KIIKO_BOARD_METALIO47
-        char total[32];snprintf(total,sizeof(total),"共 %d 款",count+1);
+        char total[32];snprintf(total,sizeof(total),"Tổng %d phông",count+1);
         ui_text_vc(fb,648,l.font_title+ui_text_effective_px(22)/2,18,total,EPD_DRAW_ALIGN_RIGHT,false);
 #endif
         for (int slot=0;slot<l.slots && first+slot<=count;++slot) {
@@ -1195,7 +1195,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             EpdRect box=system_font_item_rect(slot);
             settings_card(fb,box,20,active?0xe0:UI_GRAY_WHITE,0x70);
             char label[TTF_FONT_NAME_MAX];
-            snprintf(label,sizeof(label),"%s",item?system_font_label(item->path):"思源黑体（内建）");
+            snprintf(label,sizeof(label),"%s",item?system_font_label(item->path):"Phông mặc định (Tích hợp)");
             settings_fit_text(label,26,box.width-100);
 #if KIIKO_BOARD_METALIO47
             ui_text_box(fb,(EpdRect){60,box.y+8,box.width-100,box.height-16},26,label,EPD_DRAW_ALIGN_LEFT,false);
@@ -1230,8 +1230,8 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         return;
     }
     if (s_page == SETTINGS_SYSTEM_SIZE) {
-        back_header(fb, "系统字号");
-        section(fb, 248, "界面文字大小");
+        back_header(fb, "Cỡ chữ hệ thống");
+        section(fb, 248, "Cỡ chữ giao diện hệ thống");
         for (int i = 0; i < 11; ++i) {
             int value = 100 + i * 10;
             EpdRect box = {36 + (i % 2) * 316, 298 + (i / 2) * 122, 296, 102};
@@ -1245,10 +1245,10 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         return;
     }
     if (s_page == SETTINGS_MAIN_REFRESH) {
-        back_header(fb, "主页刷新模式");
-        section(fb, 248, "首页 · 书架 · 文件管理 · 设置");
-        const char* names[] = {"普通", "快刷", "水波纹"};
-        const char* details[] = {"保留灰阶层次，兼顾画面清晰度", "黑白快刷，亚克力用细棋盘格", "以水波纹切换页面，保留灰阶"};
+        back_header(fb, "Chế độ làm mới Trang chủ");
+        section(fb, 248, "Trang chủ · Tủ sách · Quản lý tệp · Cài đặt");
+        const char* names[] = {"Thường", "Làm mới nhanh", "Sóng nước"};
+        const char* details[] = {"Cân bằng giữa độ mịn thang xám và độ sắc nét", "Làm mới đen trắng nhanh, kệ sách dùng họa tiết caro mịn", "Chuyển trang hiệu ứng sóng nước, giữ độ mịn thang xám"};
         for (int i = 0; i < 3; ++i) {
             const EpdRect box = {36, 298 + i * 158, 612, 132};
             const bool active = app_settings_main_refresh_mode() == (app_main_refresh_mode_t)i;
@@ -1262,9 +1262,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         return;
     }
     if (s_page == SETTINGS_SYSTEM_CONTRAST) {
-        back_header(fb, "系统对比度");
-        section(fb, 248, "调整系统界面的灰阶层次与清晰度");
-        static const char *const names[] = {"柔和", "标准", "清晰", "鲜明", "高对比"};
+        back_header(fb, "Độ tương phản hệ thống");
+        section(fb, 248, "Điều chỉnh độ đậm và độ tương phản thang xám của giao diện");
+        static const char *const names[] = {"Dịu nhẹ", "Chuẩn", "Rõ nét", "Sắc nét", "Tương phản cao"};
         for (int i = 0; i < 5; ++i) {
             int value = 100 + i * 10;
             EpdRect box = {36, 298 + i * 116, 612, 90};
@@ -1279,10 +1279,10 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         return;
     }
     if (s_page == SETTINGS_LOCK_STYLE) {
-        back_header(fb, "锁屏样式");
-        section(fb, 248, "选择电源键锁屏后的画面");
-        const char *labels[] = {"壁纸锁屏", "阅读票根", "书架拼贴", "透明 PNG 书封"};
-        const char *details[] = {"使用 TF 卡中的 JPG / PNG 图片", "书封、进度和阅读记录", "真实封面 · 名称与数量 · 系统字体", "当前页面作底 · 白底 PNG 自动去白"};
+        back_header(fb, "Kiểu màn hình khóa");
+        section(fb, 248, "Chọn hình hiển thị trên màn hình khi khóa máy");
+        const char *labels[] = {"Hình nền khóa", "Thẻ đọc sách", "Ghép bìa Tủ sách", "Khung PNG trong suốt"};
+        const char *details[] = {"Dùng ảnh JPG / PNG trên thẻ nhớ", "Bìa sách, tiến độ và thống kê đọc", "Bìa sách thật · Tên & số lượng · Phông hệ thống", "Lấy trang đang đọc làm nền · Tự động tách nền trắng PNG"};
         const uint8_t values[] = {1, 0, 2, 3};
         for (int i = 0; i < 4; ++i) {
             EpdRect box = {36, 300 + i * 154, 612, 132};
@@ -1292,17 +1292,17 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text(fb, 64, box.y + 79, 20, details[i], EPD_DRAW_ALIGN_LEFT, false);
             if (active) epd_fill_circle(609, box.y + 66, 8, UI_GRAY_BLACK, fb);
         }
-        ui_text(fb,54,966,21,"透明书封放入 pictures · 推荐 684 × 1216",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text(fb,54,966,21,"Chép PNG trong suốt vào pictures · Khuyên dùng 684 × 1216",EPD_DRAW_ALIGN_LEFT,false);
         if (app_settings_wallpaper_path()[0])
-            row(fb, 1010, "当前壁纸", strrchr(app_settings_wallpaper_path(), '/') + 1);
+            row(fb, 1010, "Hình nền hiện tại", strrchr(app_settings_wallpaper_path(), '/') + 1);
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_WALLPAPER) {
-        back_header(fb,s_bookmark_picker?"选择透明书封":"选择壁纸");
-        section(fb,244,s_bookmark_picker?"pictures · 透明 PNG · 保留整张画布":"TF 卡图片 · JPG / PNG · 不超过 50 MB");
+        back_header(fb,s_bookmark_picker?"Chọn khung PNG trong suốt":"Chọn hình nền");
+        section(fb,244,s_bookmark_picker?"pictures · PNG trong suốt · Giữ nguyên khung hình":"Ảnh trên thẻ nhớ · JPG / PNG · Tối đa 50 MB");
         if (!s_wallpaper_count)
-            ui_text(fb, 54, 325, 25, "未找到图片，请放入 TF 卡的 pictures 文件夹", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 54, 325, 25, "Không tìm thấy ảnh, hãy chép vào thư mục pictures trên thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
         for (int i = 0; i < 8; ++i) {
             int index = s_wallpaper_page * 8 + i;
             if (index >= s_wallpaper_count) break;
@@ -1318,7 +1318,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         return;
     }
     if (s_page == SETTINGS_WALLPAPER_PREVIEW) {
-        back_header(fb,s_bookmark_picker?"预览透明书封":"预览壁纸");
+        back_header(fb,s_bookmark_picker?"Xem trước khung trong suốt":"Xem trước hình nền");
         EpdRect image = {166, 194, 352, 626};
         ui_fill_round_rect(fb, image, 8, UI_GRAY_WHITE);
         s_wallpaper_preview_ok = s_wallpaper_selected >= 0 && s_wallpaper_selected < s_wallpaper_count &&
@@ -1326,58 +1326,58 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         if(s_bookmark_picker && s_bookmark_preview)book_lock_bookmark_preview_paint(fb,s_bookmark_preview,image);
         ui_draw_round_rect(fb, image, 8, 0x70);
         if (!s_wallpaper_preview_ok)
-            ui_text_vc(fb, 342, 507, 23, s_bookmark_picker?"PNG无法加载，请更换图片":"图片无法预览", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_vc(fb, 342, 507, 23, s_bookmark_picker?"Không tải được PNG, hãy chọn ảnh khác":"Không thể xem trước ảnh", EPD_DRAW_ALIGN_CENTER, false);
         if (s_wallpaper_selected >= 0 && s_wallpaper_selected < s_wallpaper_count) {
             char name[96]; snprintf(name, sizeof(name), "%s", s_wallpapers[s_wallpaper_selected].name);
             fit_value(name, 570);
             ui_text_vc(fb, 342, 859, 24, name, EPD_DRAW_ALIGN_CENTER, false);
-            char position[40];
-            snprintf(position, sizeof(position), "%d / %d · 上下滑动切换", s_wallpaper_selected + 1, s_wallpaper_count);
+            char position[80];
+            snprintf(position, sizeof(position), "%d / %d · Vuốt lên/xuống để chuyển", s_wallpaper_selected + 1, s_wallpaper_count);
             ui_text_vc(fb, 342, 908, 20, position, EPD_DRAW_ALIGN_CENTER, false);
         }
         if (s_wallpaper_preview_ok) {
             EpdRect button = {94, 962, 496, 70};
             ui_fill_round_rect(fb, button, 22, 0x30);
-            ui_text_vc(fb, 342, 997, 25, s_bookmark_picker?"使用透明书封":"设为锁屏壁纸", EPD_DRAW_ALIGN_CENTER, true);
+            ui_text_vc(fb, 342, 997, 25, s_bookmark_picker?"Dùng khung trong suốt":"Đặt làm hình nền khóa", EPD_DRAW_ALIGN_CENTER, true);
         }
         if (s_wallpaper_confirm) {
             EpdRect dialog = {68, 435, 548, 306};
             ui_fill_round_rect(fb, dialog, 26, UI_GRAY_WHITE);
             ui_draw_control_frame(fb, dialog, 26, 0x50);
-            ui_text_vc(fb, 342, 503, 31, s_bookmark_picker?"开启透明书封锁屏？":"设为壁纸锁屏？", EPD_DRAW_ALIGN_CENTER, false);
-            ui_text_vc(fb, 342, 565, 20, s_bookmark_picker?"以锁屏前当前页面为背景":"确认后，短按电源键将显示此图片", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_vc(fb, 342, 503, 31, s_bookmark_picker?"Bật màn hình khóa PNG trong suốt?":"Đặt làm hình nền khóa?", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_vc(fb, 342, 565, 20, s_bookmark_picker?"Dùng trang đang mở trước khi khóa làm nền":"Sau khi xác nhận, nhấn ngắn nút nguồn sẽ hiện hình nền này", EPD_DRAW_ALIGN_CENTER, false);
             EpdRect cancel = {94, 643, 232, 68}, confirm = {358, 643, 232, 68};
             ui_fill_round_rect(fb, cancel, 18, 0xe0);
             ui_fill_round_rect(fb, confirm, 18, 0x30);
-            ui_text_vc(fb, 210, 677, 24, "取消", EPD_DRAW_ALIGN_CENTER, false);
-            ui_text_vc(fb, 474, 677, 24, "确认", EPD_DRAW_ALIGN_CENTER, true);
+            ui_text_vc(fb, 210, 677, 24, "Hủy", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_vc(fb, 474, 677, 24, "Xác nhận", EPD_DRAW_ALIGN_CENTER, true);
         }
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_TIME) {
-        back_header(fb, "日期与时间");
+        back_header(fb, "Ngày & Giờ");
         time_t now = time(NULL);
-        char shown[64] = "未设置";
+        char shown[64] = "Chưa đặt";
         if (now >= 1704067200) {
-            struct tm tm; time_t local = now + 8 * 3600;
+            struct tm tm; time_t local = now + 7 * 3600;
             if (gmtime_r(&local, &tm)) snprintf(shown, sizeof(shown), "%04d-%02d-%02d  %02d:%02d",
                 tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min);
         }
-        section(fb, 253, "当前时间 · 北京时间");
+        section(fb, 253, "Giờ hiện tại · GMT+7 (Việt Nam)");
         row(fb, 296, shown, "");
-        row(fb, 407, "通过 WiFi 对时", "立即同步  ›");
-        row(fb, 518, "手动设置", "编辑  ›");
-        ui_text(fb, 54, 656, 21, "对时成功后由内部时钟持续走时；无需保持联网。", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 54, 694, 21, "长时间离线可能产生误差，建议定期重新对时。", EPD_DRAW_ALIGN_LEFT, false);
+        row(fb, 407, "Đồng bộ giờ qua WiFi (NTP)", "Đồng bộ ngay  ›");
+        row(fb, 518, "Chỉnh giờ thủ công", "Chỉnh sửa  ›");
+        ui_text(fb, 54, 656, 21, "Sau khi đồng bộ, đồng hồ RTC nội bộ sẽ tự chạy không cần giữ WiFi.", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 694, 21, "Dùng lâu không mạng có thể lệch vài giây, nên thỉnh thoảng đồng bộ lại.", EPD_DRAW_ALIGN_LEFT, false);
         if (s_notice[0]) ui_text(fb, 54, 772, 22, s_notice, EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_AUTO_LOCK) {
-        back_header(fb, "自动休眠锁屏");
-        section(fb, 228, "无操作后自动锁屏");
-        const char *labels[] = {"1 分钟", "5 分钟", "10 分钟", "关闭"};
+        back_header(fb, "Tự động khóa màn hình");
+        section(fb, 228, "Tự động khóa khi không thao tác");
+        const char *labels[] = {"1 phút", "5 phút", "10 phút", "Tắt"};
         const uint8_t values[] = {1, 5, 10, 0};
         for (int i = 0; i < 4; ++i) {
             EpdRect box = {36, 272 + i * 112, 612, 92};
@@ -1386,22 +1386,22 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text_vc(fb, 64, box.y + box.height / 2, 30, labels[i], EPD_DRAW_ALIGN_LEFT, false);
             if (active) epd_fill_circle(609, box.y + box.height / 2, 8, UI_GRAY_BLACK, fb);
         }
-        ui_text(fb, 48, 760, 23, "操作后重新计时，传输和升级期间暂停", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 760, 23, "Tự tính lại thời gian khi có thao tác; tạm dừng khi truyền sách", EPD_DRAW_ALIGN_LEFT, false);
 #if KIIKO_BOARD_METALIO47
-        ui_text(fb, 48, 810, 23, "省电选项见“关机睡眠”", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 810, 23, "Xem thêm tùy chọn tiết kiệm pin ở mục 'Chế độ tắt nguồn / ngủ'", EPD_DRAW_ALIGN_LEFT, false);
 #else
-        ui_text(fb, 48, 810, 23, "锁屏先浅睡，10 分钟后进入深睡", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 810, 23, "Khóa máy sẽ ngủ nhẹ trước, sau 10 phút chuyển sang ngủ sâu", EPD_DRAW_ALIGN_LEFT, false);
 #endif
         settings_navigation(fb);
         return;
     }
 #if KIIKO_BOARD_METALIO47
     if (s_page == SETTINGS_POWER_SLEEP) {
-        back_header(fb, "关机睡眠");
-        section(fb, 248, "选择电源菜单中“关机”的方式");
-        const char *labels[] = {"浅睡10分钟后关机", "彻底断电"};
-        const char *details[] = {"浅睡可唤醒；关机后重新开机",
-                                 "长按电源键开机"};
+        back_header(fb, "Chế độ tắt nguồn / ngủ");
+        section(fb, 248, "Chọn hành vi khi nhấn Tắt nguồn hoặc khi máy tự ngủ");
+        const char *labels[] = {"Ngủ nhẹ 10 phút rồi tắt nguồn", "Ngắt nguồn hoàn toàn"};
+        const char *details[] = {"Ngủ nhẹ bật lên ngay; tắt nguồn sẽ khởi động lại từ đầu",
+                                 "Nhấn giữ nút nguồn để bật máy"};
         for (int i = 0; i < 2; ++i) {
             EpdRect box = {36, 300 + i * 154, 612, 132};
             bool active = app_settings_staged_shutdown() == (i == 0);
@@ -1410,20 +1410,20 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text(fb, 64, box.y + 79, 20, details[i], EPD_DRAW_ALIGN_LEFT, false);
             if (active) epd_fill_circle(609, box.y + 66, 8, UI_GRAY_BLACK, fb);
         }
-        ui_text(fb, 54, 664, 18, "关机前保存进度并同步 RTC", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 54, 708, 18, "USB 连接时暂缓休眠", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 54, 810, 18, "日常锁屏十分钟后同样关机", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 54, 866, 20, "设置了锁屏密码时仍需验证", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 664, 18, "Lưu tiến độ đọc và đồng bộ RTC trước khi tắt nguồn", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 708, 18, "Tạm hoãn ngủ khi đang cắm cáp USB", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 810, 18, "Khi khóa màn hình thường sau 10 phút cũng sẽ tự tắt nguồn", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 866, 20, "Nếu có bật mật khẩu khóa màn hình thì vẫn cần nhập mật khẩu", EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
     }
 #else
     if (s_page == SETTINGS_POWER_SLEEP) {
-        back_header(fb, "关机睡眠");
-        section(fb, 236, "选择电源菜单中“关机”的方式");
-        const char *shutdown_labels[] = {"彻底关机", "先浅睡，10 分钟后深睡"};
-        const char *shutdown_details[] = {"完全断电，长按电源键开机",
-                                          "锁屏画面保留；深睡后短按电源键开机"};
+        back_header(fb, "Chế độ tắt nguồn / ngủ");
+        section(fb, 236, "Chọn hành vi khi nhấn Tắt nguồn hoặc khi máy tự ngủ");
+        const char *shutdown_labels[] = {"Tắt nguồn hẳn", "Ngủ nhẹ trước, sau 10 phút chuyển sang ngủ sâu"};
+        const char *shutdown_details[] = {"Ngắt nguồn hoàn toàn, nhấn giữ nút nguồn để bật máy",
+                                          "Giữ nguyên hình khóa trên màn E-Ink; khi ngủ sâu nhấn nút nguồn để bật"};
         for (int i = 0; i < 2; ++i) {
             int y = 278 + i * 136;
             bool active = app_settings_staged_shutdown() == (i == 1);
@@ -1432,111 +1432,111 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text(fb, 64, y + 72, 20, shutdown_details[i], EPD_DRAW_ALIGN_LEFT, false);
             if (active) epd_fill_circle(609, y + 62, 8, UI_GRAY_BLACK, fb);
         }
-        ui_text(fb, 54, 558, 21, "浅睡时按键直接返回，深睡时会重新开机。", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 54, 594, 21, "锁屏样式同时适用于壁纸与阅读票根。", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 558, 21, "Khi ngủ nhẹ chạm phím mở ngay; ngủ sâu sẽ khởi động lại khi bật.", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 54, 594, 21, "Áp dụng cho cả Hình nền khóa và Thẻ đọc sách.", EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
     }
 #endif
     if (s_page == SETTINGS_BOOT) {
-        back_header(fb, "电脑刷机");
+        back_header(fb, "Nạp ROM qua máy tính");
         settings_card(fb, (EpdRect){36, 254, 612, 298}, 22, UI_GRAY_WHITE, 0x70);
 #if KIIKO_BOARD_METALIO47
-        ui_text(fb, 60, 288, 29, "准备 BOOT 下载口", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 60, 350, 22, "用于本机 S31 固件更新或故障恢复", EPD_DRAW_ALIGN_LEFT, false);
-        ui_draw_button(fb, (EpdRect){60, 438, 564, 78}, s_boot_pending ? "正在准备" :
-            app_download_active() ? "重新恢复下载口" : "恢复下载口", false);
+        ui_text(fb, 60, 288, 29, "Chuẩn bị cổng nạp BOOT", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 60, 350, 22, "Dùng để nạp firmware dpReader hoặc khôi phục qua USB", EPD_DRAW_ALIGN_LEFT, false);
+        ui_draw_button(fb, (EpdRect){60, 438, 564, 78}, s_boot_pending ? "Đang chuẩn bị" :
+            app_download_active() ? "Mở lại cổng nạp ROM" : "Mở cổng nạp ROM", false);
         ui_text(fb, 48, 620, 22, s_boot_notice[0] ? s_boot_notice :
-            app_download_active() ? (s_boot_connected ? "USB 已连接，请在电脑点击“检查连接”" :
-                "等待 USB 连接，可点击上方按钮重新检测") :
-            "连接 USB 后准备下载口，再到电脑检查连接", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 48, 670, 20, "电脑将触发下载模式；等待时可返回退出。", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 48, 714, 20, "电脑确认 S31 身份后，才表示进入 ROM。", EPD_DRAW_ALIGN_LEFT, false);
+            app_download_active() ? (s_boot_connected ? "Đã cắm USB, hãy nhấn 'Kiểm tra kết nối' trên máy tính" :
+                "Đang chờ cáp USB, chạm nút phía trên để kiểm tra lại") :
+            "Cắm cáp USB, mở cổng nạp rồi kiểm tra kết nối trên máy tính", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 670, 20, "Máy tính sẽ kích hoạt chế độ nạp; có thể quay lại để hủy.", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 714, 20, "Sau khi máy tính nhận cổng USB-JTAG/Serial sẽ vào chế độ ROM.", EPD_DRAW_ALIGN_LEFT, false);
 #else
-        ui_text(fb, 60, 288, 29, "进入 BOOT 模式", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 60, 350, 22, "用于官网完整刷机或故障恢复", EPD_DRAW_ALIGN_LEFT, false);
-        ui_draw_button(fb, (EpdRect){60, 438, 564, 78}, s_boot_pending ? "正在进入" : "进入 BOOT 模式", false);
-        ui_text(fb, 48, 620, 22, "请用 USB 连接电脑，再打开官网刷机页", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 60, 288, 29, "Vào chế độ BOOT", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 60, 350, 22, "Dùng để nạp toàn bộ firmware hoặc cứu máy qua cáp USB", EPD_DRAW_ALIGN_LEFT, false);
+        ui_draw_button(fb, (EpdRect){60, 438, 564, 78}, s_boot_pending ? "Đang vào" : "Vào chế độ BOOT", false);
+        ui_text(fb, 48, 620, 22, "Hãy cắm cáp USB vào máy tính rồi chạy công cụ nạp firmware", EPD_DRAW_ALIGN_LEFT, false);
 #endif
         settings_navigation(fb); return;
     }
     if (s_page == SETTINGS_UPGRADE) {
-        back_header(fb, "系统升级");
+        back_header(fb, "Cập nhật hệ thống");
         settings_card(fb, (EpdRect){36, 202, 612, 120}, 22, UI_GRAY_WHITE, 0x70);
-        ui_text(fb, 60, 224, 22, "当前版本", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 60, 224, 22, "Phiên bản hiện tại", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 60, 264, 29, esp_app_get_description()->version, EPD_DRAW_ALIGN_LEFT, false);
         if (s_upgrade_confirm) {
             settings_card(fb, (EpdRect){36, 356, 612, s_upgrade_online ? 574 : 344}, 22, UI_GRAY_WHITE, 0x70);
-            ui_text_fixed(fb, 60, 383, 31, s_upgrade_online ? "发现新版本" : "确认 TF 卡升级", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_fixed(fb, 60, 383, 31, s_upgrade_online ? "Có phiên bản mới" : "Xác nhận cập nhật thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
             ui_text_fixed(fb, 60, 447, 28, s_upgrade_online ? s_update.release.version : s_local_update.candidate_version,
                     EPD_DRAW_ALIGN_LEFT, false);
             if (s_upgrade_online) {
-                ui_text_fixed(fb, 60, 494, 26, "本次更新", EPD_DRAW_ALIGN_LEFT, false);
+                ui_text_fixed(fb, 60, 494, 26, "Bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
                 draw_upgrade_notes(fb);
             }
-            ui_text_fixed(fb, 60, s_upgrade_online ? 770 : 513, 24, "升级期间请保持供电", EPD_DRAW_ALIGN_LEFT, false);
-            ui_text_fixed(fb, 60, s_upgrade_online ? 806 : 560, 23, "设置、阅读记录与 TF 卡文件保留", EPD_DRAW_ALIGN_LEFT, false);
-            ui_draw_button(fb, upgrade_confirm_button(s_upgrade_online, false), s_upgrade_online ? "稍后" : "取消", false);
-            ui_draw_button(fb, upgrade_confirm_button(s_upgrade_online, true), s_upgrade_online ? "开始更新" : "确认升级", true);
+            ui_text_fixed(fb, 60, s_upgrade_online ? 770 : 513, 24, "Vui lòng giữ nguồn điện ổn định trong suốt quá trình cập nhật", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_fixed(fb, 60, s_upgrade_online ? 806 : 560, 23, "Giữ nguyên cài đặt, lịch sử đọc và tệp trên thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
+            ui_draw_button(fb, upgrade_confirm_button(s_upgrade_online, false), s_upgrade_online ? "Để sau" : "Hủy", false);
+            ui_draw_button(fb, upgrade_confirm_button(s_upgrade_online, true), s_upgrade_online ? "Bắt đầu cập nhật" : "Xác nhận cập nhật", true);
         } else {
             settings_card(fb, (EpdRect){36, 356, 612, 278}, 22, UI_GRAY_WHITE, 0x70);
-            ui_text(fb, 60, 383, 29, "联网 OTA", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 60, 383, 29, "Cập nhật OTA", EPD_DRAW_ALIGN_LEFT, false);
             char detail[96];
 #if KIIKO_BOARD_METALIO47
-            snprintf(detail, sizeof(detail), "%s", s_update.message[0] ? s_update.message : "连接 WiFi，优先检查 GitHub 新版本");
+            snprintf(detail, sizeof(detail), "%s", s_update.message[0] ? s_update.message : "Kết nối WiFi để kiểm tra bản cập nhật mới trên GitHub");
 #else
-            snprintf(detail, sizeof(detail), "%s", s_update.message[0] ? s_update.message : "连接 WiFi，检查官网发布的新版本");
+            snprintf(detail, sizeof(detail), "%s", s_update.message[0] ? s_update.message : "Kết nối WiFi để kiểm tra bản cập nhật firmware mới");
 #endif
             fit_value(detail, 540);
             ui_text(fb, 60, 436, 21, detail, EPD_DRAW_ALIGN_LEFT, false);
             if (s_update.state == PICO_UPDATE_AVAILABLE)
                 ui_text(fb, 60, 477, 24, s_update.release.version, EPD_DRAW_ALIGN_LEFT, false);
             if (s_update.state == PICO_UPDATE_DOWNLOADING) draw_upgrade_progress(fb);
-            ui_draw_button(fb, (EpdRect){60, 550, 564, 62}, s_update.busy ? "取消联网更新" :
-                s_update.state == PICO_UPDATE_AVAILABLE ? "开始更新" : "检查更新", s_update.state == PICO_UPDATE_AVAILABLE);
+            ui_draw_button(fb, (EpdRect){60, 550, 564, 62}, s_update.busy ? "Hủy cập nhật OTA" :
+                s_update.state == PICO_UPDATE_AVAILABLE ? "Bắt đầu cập nhật" : "Kiểm tra cập nhật", s_update.state == PICO_UPDATE_AVAILABLE);
             settings_card(fb, (EpdRect){36, 662, 612, 262}, 22, UI_GRAY_WHITE, 0x70);
-            ui_text(fb, 60, 689, 29, "TF 卡升级", EPD_DRAW_ALIGN_LEFT, false);
-            ui_text(fb, 60, 739, 23, "升级包放在 TF 卡根目录", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 60, 689, 29, "Cập nhật từ thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 60, 739, 23, "Đặt tệp cập nhật ở thư mục gốc thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
 #if KIIKO_BOARD_METALIO47
-            ui_text(fb, 60, 786, 21, s_local_update.ready ? s_local_update.candidate_version : "放入 Metalio-S31-update.bin", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 60, 786, 21, s_local_update.ready ? s_local_update.candidate_version : "Chép dpReader-update.bin vào thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
 #else
-            ui_text(fb, 60, 786, 21, s_local_update.ready ? s_local_update.candidate_version : "把官网升级包放入 TF 卡根目录", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text(fb, 60, 786, 21, s_local_update.ready ? s_local_update.candidate_version : "Chép gói cập nhật vào thư mục gốc của thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
 #endif
-            ui_draw_button(fb, (EpdRect){60, 840, 564, 62}, s_local_pending ? "正在安装，请勿断电" :
-                s_local_update.ready ? "安装 TF 卡升级包" : "重新检查 TF 卡", s_local_update.ready);
+            ui_draw_button(fb, (EpdRect){60, 840, 564, 62}, s_local_pending ? "Đang cài đặt, vui lòng không tắt nguồn" :
+                s_local_update.ready ? "Cài đặt gói cập nhật trên thẻ nhớ" : "Kiểm tra lại thẻ nhớ", s_local_update.ready);
         }
         if (s_upgrade_notice[0]) ui_text(fb, 48, 957, 21, s_upgrade_notice, EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 48, 1010, 20, "首次安装或修复，请通过官网完整刷机", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 1010, 20, "Nạp toàn bộ ROM hoặc khôi phục firmware qua cáp USB", EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_CONFIG) {
-        back_header(fb, "保存与恢复配置");
-        section(fb, 248, "换机或刷机后，快速恢复个性化设置");
+        back_header(fb, "Sao lưu & Khôi phục cấu hình");
+        section(fb, 248, "Nhanh chóng khôi phục cài đặt sau khi nạp lại firmware");
         settings_card(fb, (EpdRect){36, 299, 612, 197}, 22, UI_GRAY_WHITE, 0x70);
-        ui_text(fb, 60, 326, 26, "TF 卡根目录", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 60, 377, 23, "配置备份文件", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 60, 435, 19, "文字排版、设备资料、阅读记录与书签", EPD_DRAW_ALIGN_LEFT, false);
-        ui_draw_button(fb, (EpdRect){36, 561, 612, 83}, "保存当前配置到 TF 卡", false);
+        ui_text(fb, 60, 326, 26, "Thư mục gốc thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 60, 377, 23, "Tệp sao lưu cấu hình", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 60, 435, 19, "Bố cục trang, hồ sơ máy, lịch sử đọc và dấu trang", EPD_DRAW_ALIGN_LEFT, false);
+        ui_draw_button(fb, (EpdRect){36, 561, 612, 83}, "Sao lưu cấu hình hiện tại ra thẻ nhớ", false);
         ui_draw_button(fb, (EpdRect){36, 681, 612, 83},
-                       s_config_confirm ? "再次点按，确认恢复配置" : "从 TF 卡恢复配置", false);
+                       s_config_confirm ? "Chạm lần nữa để xác nhận khôi phục cấu hình" : "Khôi phục cấu hình từ thẻ nhớ", false);
         if (s_notice[0]) ui_text(fb, 48, 819, 21, s_notice, EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 48, 899, 19, "包含阅读记录、设备资料和已存 WiFi。", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 48, 939, 19, "书籍、字体和图片仍需留在 TF 卡。", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 48, 979, 19, "备份含 WiFi 密码，请妥善保管 TF 卡。", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 899, 19, "Bao gồm lịch sử đọc, hồ sơ máy, WiFi và đồng bộ KOSync/OPDS.", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 939, 19, "Sách, phông chữ và hình ảnh vẫn lưu trên thẻ nhớ.", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 979, 19, "Bản sao lưu có chứa mật khẩu WiFi, hãy bảo quản thẻ nhớ cẩn thận.", EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_BLE_SCAN) {
         ui_nav_back(fb, 36, 79);
-        ui_text_vc(fb, 342, 107, 34, "扫描设备", EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_vc(fb, 342, 107, 34, "Quét thiết bị", EPD_DRAW_ALIGN_CENTER, false);
         const ble_scan_layout_t l = ble_scan_layout();
         const int scroll = s_ble_scroll;
         // 持续扫描中：告诉用户正在找，以及找到几台。
         // Continuous scan: say that it is running and how many turned up.
         char head[64];
-        if (ble_pt_scanning()) snprintf(head, sizeof(head), "正在搜索…已找到 %u 台", (unsigned)ble_scan_visible_count());
-        else snprintf(head, sizeof(head), "扫描已停止");
+        if (ble_pt_scanning()) snprintf(head, sizeof(head), "Đang tìm… Đã thấy %u thiết bị", (unsigned)ble_scan_visible_count());
+        else snprintf(head, sizeof(head), "Đã dừng quét");
         ui_text(fb, 44, l.status_top - scroll, 23, head, EPD_DRAW_ALIGN_LEFT, false);
         for (int i = 0; i < l.device_rows; ++i) {
             const ble_pt_device_t *dev = ble_scan_visible_at(i);
@@ -1546,7 +1546,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             fit_value(label, 360);
             char value[44];
             snprintf(value, sizeof(value), "%d dBm%s%s", dev->rssi, dev->hid ? " · HID" : "",
-                     dev->bonded ? " · 已配对" : "");
+                     dev->bonded ? " · Đã ghép đôi" : "");
             int top = l.devices_top - scroll + i * BLE_ROW_H;
             if (top + BLE_ROW_H >= 190 && top < settings_viewport_end()) {
                 settings_card(fb, (EpdRect){36, top, 612, BLE_ROW_H - 8}, 18, UI_GRAY_WHITE, 0x70);
@@ -1556,17 +1556,17 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             }
         }
         if (!l.device_rows)
-            ui_text(fb, 44, l.devices_top - scroll + 18, 23, "附近还没有发现设备",
+            ui_text(fb, 44, l.devices_top - scroll + 18, 23, "Chưa tìm thấy thiết bị BLE nào ở gần",
                     EPD_DRAW_ALIGN_LEFT, false);
         ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, 190}, UI_GRAY_WHITE, fb);
         ui_nav_status(fb);
-        back_header(fb, "扫描设备");
+        back_header(fb, "Quét thiết bị");
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_BLUETOOTH) {
         ui_nav_back(fb, 36, 79);
-        ui_text_vc(fb, 342, 107, 34, "蓝牙翻页器", EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_vc(fb, 342, 107, 34, "Điều khiển lật trang BLE", EPD_DRAW_ALIGN_CENTER, false);
         const ble_layout_t l = ble_layout();
 
         // 学习按键时把提示顶到最上面，用户不用滚回去看。
@@ -1575,38 +1575,38 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             settings_card(fb, (EpdRect){36, 202 - s_ble_scroll, 612, 126}, 22, 0xd0, 0x58);
             ui_text_vc(fb, 342, 265 - s_ble_scroll, 24,
                        !s_ble_learning ? s_ble_feedback :
-                       s_ble_learning == 1 ? "请按翻页器上「上一页」要用的键"
-                                           : "请按翻页器上「下一页」要用的键",
+                       s_ble_learning == 1 ? "Hãy nhấn phím muốn dùng làm 'Trang trước' trên điều khiển"
+                                           : "Hãy nhấn phím muốn dùng làm 'Trang sau' trên điều khiển",
                        EPD_DRAW_ALIGN_CENTER, false);
             if (!s_ble_learning)
-                ui_text_vc(fb, 342, 305 - s_ble_scroll, 19, "轻点此处返回蓝牙开关", EPD_DRAW_ALIGN_CENTER, false);
+                ui_text_vc(fb, 342, 305 - s_ble_scroll, 19, "Chạm vào đây để quay lại công tắc Bluetooth", EPD_DRAW_ALIGN_CENTER, false);
         } else {
-            setting_toggle(fb, l.toggle_top, "启用蓝牙", "开启后可配对蓝牙翻页器；关闭会释放蓝牙内存",
+            setting_toggle(fb, l.toggle_top, "Bật Bluetooth", "Bật để kết nối điều khiển lật trang BLE; tắt sẽ giải phóng RAM",
                            app_settings_ble_turner());
         }
 
-        section(fb, l.status_top - 38, "状态");
+        section(fb, l.status_top - 38, "Trạng thái");
         char ble_status[80];
-        if (!app_settings_ble_turner()) snprintf(ble_status, sizeof(ble_status), "已关闭");
+        if (!app_settings_ble_turner()) snprintf(ble_status, sizeof(ble_status), "Đã tắt");
         else if (!ble_pt_running()) {
 #if KIIKO_BOARD_METALIO47
-            snprintf(ble_status, sizeof(ble_status), "启动中…");
+            snprintf(ble_status, sizeof(ble_status), "Đang khởi động…");
 #else
             read_pico_transfer_status_t network;
             read_pico_transfer_get_status(&network);
-            snprintf(ble_status, sizeof(ble_status), network.state != READ_PICO_TRANSFER_STOPPED ? "WiFi 使用中，蓝牙暂停" : "启动中…");
+            snprintf(ble_status, sizeof(ble_status), network.state != READ_PICO_TRANSFER_STOPPED ? "Đang dùng WiFi, tạm dừng Bluetooth" : "Đang khởi động…");
 #endif
         }
-        else if (ble_pt_connected()) snprintf(ble_status, sizeof(ble_status), "已连接 %s", ble_pt_connected_name());
-        else if (ble_pt_connecting()) snprintf(ble_status, sizeof(ble_status), "连接中…");
-        else snprintf(ble_status, sizeof(ble_status), "未连接");
-        ble_row(fb, l.status_top, "当前", ble_status);
+        else if (ble_pt_connected()) snprintf(ble_status, sizeof(ble_status), "Đã kết nối %s", ble_pt_connected_name());
+        else if (ble_pt_connecting()) snprintf(ble_status, sizeof(ble_status), "Đang kết nối…");
+        else snprintf(ble_status, sizeof(ble_status), "Chưa kết nối");
+        ble_row(fb, l.status_top, "Hiện tại", ble_status);
         if (l.notice_top >= 0) ui_text(fb, 44, l.notice_top, 21, s_ble_notice, EPD_DRAW_ALIGN_LEFT, false);
 
         // 已配对：点行连接，右侧按钮删除。/ Bonded peers: the row connects, the button forgets.
-        section(fb, l.bonds_title_top, "已配对");
+        section(fb, l.bonds_title_top, "Đã ghép đôi");
         if (!l.bond_rows)
-            ble_row(fb, l.bonds_title_top + 38, "暂无已配对设备", "");
+            ble_row(fb, l.bonds_title_top + 38, "Chưa có thiết bị ghép đôi", "");
         for (int i = 0; i < l.bond_rows && i < BLE_PT_MAX_BONDS; ++i) {
             const ble_pt_bond_t *bond = ble_pt_bond((uint8_t)i);
             if (!bond) continue;
@@ -1614,15 +1614,15 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             snprintf(label, sizeof(label), "%s", bond->name[0] ? bond->name : bond->addr);
             fit_value(label, 300);
             const bool live = ble_pt_connected() && !strcmp(ble_pt_connected_name(), bond->name);
-            ble_row(fb, l.bond_top[i], label, live ? "已连接" : "连接  ›");
-            ui_draw_button(fb, ble_button_rect(l.bond_top[i]), "删除", false);
+            ble_row(fb, l.bond_top[i], label, live ? "Đã kết nối" : "Kết nối  ›");
+            ui_draw_button(fb, ble_button_rect(l.bond_top[i]), "Xóa", false);
         }
 
-        ble_row(fb, l.scan_entry_top, "添加翻页器", "扫描设备");
+        ble_row(fb, l.scan_entry_top, "Thêm điều khiển lật trang", "Quét thiết bị");
         ui_draw_icon(fb,(624)-8,l.scan_entry_top + 38,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
 
-        section(fb, l.learn_title_top, "按键映射");
-        static const char *const learn_names[] = {"上一页", "下一页"};
+        section(fb, l.learn_title_top, "Gán phím điều khiển");
+        static const char *const learn_names[] = {"Trang trước", "Trang sau"};
         static const ble_pt_action_t learn_actions[] = {BLE_PT_ACTION_PREV, BLE_PT_ACTION_NEXT};
         for (int i = 0; i < 2; ++i) {
             // 学到的键直接显示出来；没学过就走内置映射。
@@ -1630,15 +1630,15 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             char bound_label[40];
             ble_pt_frame_t bound;
             if (ble_pt_binding(learn_actions[i], &bound)) format_bound_key(&bound, bound_label, sizeof(bound_label));
-            else snprintf(bound_label, sizeof(bound_label), "内置按键");
+            else snprintf(bound_label, sizeof(bound_label), "Phím mặc định");
             ble_row(fb, l.learn_top[i], learn_names[i], bound_label);
-            ui_draw_button(fb, ble_button_rect(l.learn_top[i]), "学习", false);
+            ui_draw_button(fb, ble_button_rect(l.learn_top[i]), "Học phím", false);
         }
-        ui_text(fb, 48, l.footer_top, 20, "上下、左右及 PageUp / PageDown 均可翻页", EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 48, l.footer_top + 34, 20, "仅支持 BLE 翻页器，按键只在阅读时生效", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, l.footer_top, 20, "Phím Lên/Xuống, Trái/Phải và PageUp/PageDown đều lật trang", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, l.footer_top + 34, 20, "Hỗ trợ điều khiển lật trang BLE khi đang đọc sách", EPD_DRAW_ALIGN_LEFT, false);
         ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, 190}, UI_GRAY_WHITE, fb);
         ui_nav_status(fb);
-        back_header(fb, "蓝牙翻页器");
+        back_header(fb, "Điều khiển lật trang BLE");
         settings_navigation(fb);
         return;
     }
@@ -1656,73 +1656,73 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text_fixed_vc(fb,98,avatar_y+41,49,"K",EPD_DRAW_ALIGN_CENTER,true);
         }
         char name[64];snprintf(name,sizeof(name),"%s",app_settings_device_name());
-        int width=588-ui_text_fixed_width_px(ui_text_effective_px(20),"编辑")-188;
+        int width=588-ui_text_fixed_width_px(ui_text_effective_px(20),"Sửa")-188;
         while (name[0] && ui_text_fixed_width_px(ui_text_effective_px(32),name)>width) {
             size_t n=strlen(name)-1;while(n&&((unsigned char)name[n]&0xc0)==0x80)--n;name[n]=0;
         }
         ui_text_vc(fb,164,profile_y+53,32,name,EPD_DRAW_ALIGN_LEFT,false);
-        ui_text_vc(fb,588,profile_y+53,20,"编辑",EPD_DRAW_ALIGN_RIGHT,false);
+        ui_text_vc(fb,588,profile_y+53,20,"Sửa",EPD_DRAW_ALIGN_RIGHT,false);
         ui_draw_icon(fb,625,profile_y+profile_h/2,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
     }
-    char wifi[56];snprintf(wifi,sizeof(wifi),"%s",s_main_wifi_saved?s_main_wifi:"未配置");
-    const char *connection_labels[]={"WiFi","蓝牙翻页器","日期与时间"};
-    const char *connection_values[]={wifi,app_settings_ble_turner()?"已开启":"已关闭","设置"};
+    char wifi[56];snprintf(wifi,sizeof(wifi),"%s",s_main_wifi_saved?s_main_wifi:"Chưa cấu hình");
+    const char *connection_labels[]={"WiFi","Điều khiển lật trang BLE","Ngày & Giờ"};
+    const char *connection_values[]={wifi,app_settings_ble_turner()?"Đã bật":"Đã tắt","Cài đặt"};
     const int connection_icons[]={0,1,6};
-    setting_group(fb,SETTINGS_WIRELESS_Y-49,"连接与时间",SETTINGS_WIRELESS_Y,
+    setting_group(fb,SETTINGS_WIRELESS_Y-49,"Kết nối & Thời gian",SETTINGS_WIRELESS_Y,
                   connection_icons,connection_labels,connection_values,SETTINGS_WIRELESS_ROWS);
     char font_name[96],contrast[24],idle[24],signature[96];
     snprintf(font_name,sizeof(font_name),"%s · %u%%",system_font_label(app_settings_system_font_path()),app_settings_system_font_size());
     snprintf(contrast,sizeof(contrast),"%u%%",app_settings_system_contrast());
     unsigned minutes=app_settings_auto_lock_minutes();
-    if(minutes)snprintf(idle,sizeof(idle),"%u 分钟",minutes);else strcpy(idle,"关闭");
+    if(minutes)snprintf(idle,sizeof(idle),"%u phút",minutes);else strcpy(idle,"Tắt");
 #if KIIKO_BOARD_METALIO47
-    const char *display_labels[]={"系统字体","系统对比度","主页刷新模式","首页强刷","自动休眠锁屏","双击解锁","关机睡眠","前光与振动"};
+    const char *display_labels[]={"Phông chữ hệ thống","Độ tương phản hệ thống","Chế độ làm mới Trang chủ","Làm mới kỹ Trang chủ","Tự động khóa màn hình","Nhấn đúp mở khóa","Chế độ tắt nguồn / ngủ","Đèn nền & Rung"};
 #else
-    const char *display_labels[]={"系统字体","系统对比度","主页刷新模式","首页强刷","自动休眠锁屏","双击解锁","关机睡眠"};
+    const char *display_labels[]={"Phông chữ hệ thống","Độ tương phản hệ thống","Chế độ làm mới Trang chủ","Làm mới kỹ Trang chủ","Tự động khóa màn hình","Nhấn đúp mở khóa","Chế độ tắt nguồn / ngủ"};
 #endif
     const char *display_values[]={font_name,contrast,
-        app_settings_main_refresh_mode()==APP_MAIN_REFRESH_FAST?"快刷":app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER?"水波纹":"普通",
+        app_settings_main_refresh_mode()==APP_MAIN_REFRESH_FAST?"Làm mới nhanh":app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER?"Sóng nước":"Thường",
 #if KIIKO_BOARD_METALIO47
-        app_settings_home_full_refresh()?"开启":"关闭",idle,"",app_settings_staged_shutdown()?"浅睡后关机":"彻底断电","亮度与色温"};
+        app_settings_home_full_refresh()?"Bật":"Tắt",idle,"",app_settings_staged_shutdown()?"Ngủ nhẹ rồi tắt":"Ngắt nguồn hoàn toàn","Độ sáng & Nhiệt màu"};
     const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9,7};
 #else
-        app_settings_home_full_refresh()?"开启":"关闭",idle,"",app_settings_staged_shutdown()?"先浅后深":"彻底断电"};
+        app_settings_home_full_refresh()?"Bật":"Tắt",idle,"",app_settings_staged_shutdown()?"Ngủ nhẹ rồi sâu":"Ngắt nguồn hoàn toàn"};
     const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9};
 #endif
-    setting_group(fb,SETTINGS_DISPLAY_Y-49,"显示",SETTINGS_DISPLAY_Y,
+    setting_group(fb,SETTINGS_DISPLAY_Y-49,"Hiển thị",SETTINGS_DISPLAY_Y,
                   display_icons,display_labels,display_values,SETTINGS_DISPLAY_ROWS);
-    snprintf(signature,sizeof(signature),"%s",app_settings_status_signature()[0]?app_settings_status_signature():"未设置");
-    const char *personal_labels[]={"书架样式","锁屏样式","锁屏密码","状态栏签名"};
-    const char *personal_values[]={app_settings_shelf_style()==5?"列表书架":app_settings_shelf_style()==1?"深色书轨":"亚克力书架",
-        app_settings_lock_style()==3?"透明书封":app_settings_lock_style()==2?"书架拼贴":app_settings_lock_style()==1?"壁纸":"阅读票根",
-        lock_pin_enabled()?"已开启":"已关闭",signature};
+    snprintf(signature,sizeof(signature),"%s",app_settings_status_signature()[0]?app_settings_status_signature():"Chưa đặt");
+    const char *personal_labels[]={"Kiểu hiển thị Tủ sách","Kiểu màn hình khóa","Mật khẩu màn hình khóa","Chữ ký thanh trạng thái"};
+    const char *personal_values[]={app_settings_shelf_style()==5?"Danh sách":app_settings_shelf_style()==1?"Thanh kệ tối màu":"Kệ sách Acrylic",
+        app_settings_lock_style()==3?"Khung PNG trong suốt":app_settings_lock_style()==2?"Ghép bìa Tủ sách":app_settings_lock_style()==1?"Hình nền":"Thẻ đọc sách",
+        lock_pin_enabled()?"Đã bật":"Đã tắt",signature};
     const int personal_icons[]={4,5,16,10};
-    setting_group(fb,SETTINGS_PERSONAL_Y-49,"个性化功能",SETTINGS_PERSONAL_Y,
+    setting_group(fb,SETTINGS_PERSONAL_Y-49,"Cá nhân hóa",SETTINGS_PERSONAL_Y,
                   personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
 #if KIIKO_BOARD_METALIO47
-    const char *maintenance_labels[]={"系统升级","内存卡恢复","保存与恢复","屏幕修复","BOOT 刷机","恢复出厂设置"};
-    const char *maintenance_values[]={"OTA / TF 卡","挂卡与字体","配置","清除条纹","电脑刷机","重置系统"};
+    const char *maintenance_labels[]={"Cập nhật hệ thống","Khôi phục thẻ nhớ","Sao lưu & Khôi phục","Khử bóng mờ màn hình","Nạp ROM (BOOT)","Khôi phục cài đặt gốc"};
+    const char *maintenance_values[]={"OTA / Thẻ nhớ","Thẻ nhớ & Phông chữ","Cấu hình","Làm sạch vệt mờ","Nạp ROM qua máy tính","Đặt lại hệ thống"};
     const int maintenance_icons[]={12,11,8,17,13,11};
 #else
-    const char *maintenance_labels[]={"系统升级","保存与恢复","屏幕修复","BOOT 刷机","恢复出厂设置"};
-    const char *maintenance_values[]={"OTA / TF 卡","配置","清除条纹","电脑刷机","重置系统"};
+    const char *maintenance_labels[]={"Cập nhật hệ thống","Sao lưu & Khôi phục","Khử bóng mờ màn hình","Nạp ROM (BOOT)","Khôi phục cài đặt gốc"};
+    const char *maintenance_values[]={"OTA / Thẻ nhớ","Cấu hình","Làm sạch vệt mờ","Nạp ROM qua máy tính","Đặt lại hệ thống"};
     const int maintenance_icons[]={12,8,17,13,11};
 #endif
-    setting_group(fb,SETTINGS_MAINTENANCE_Y-49,"升级和恢复",SETTINGS_MAINTENANCE_Y,
+    setting_group(fb,SETTINGS_MAINTENANCE_Y-49,"Cập nhật & Khôi phục",SETTINGS_MAINTENANCE_Y,
                   maintenance_icons,maintenance_labels,maintenance_values,SETTINGS_MAINTENANCE_ROWS);
     // 主列表也要有一行提示位：确认、修复结果都写在这里，不然点了没有任何回音。
     // The main list needs a notice line too: confirmation and the repair result land here, or a tap
     // would have no answer at all.
     ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,160},UI_GRAY_WHITE,fb);
     ui_nav_status(fb);
-    ui_text(fb, 36, 91, 52, "设置", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text(fb, 36, 91, 52, "Cài đặt", EPD_DRAW_ALIGN_LEFT, false);
     if (s_notice[0]) {
         const int notice_x=36+2*ui_text_effective_px(52)+24;
         char notice[sizeof(s_notice)];snprintf(notice,sizeof(notice),"%s",s_notice);
         while(notice[0] && ui_text_fixed_width_px(20,notice)>UI_LOCK_WIDTH-notice_x-36) {
             size_t n=strlen(notice)-1;while(n && ((unsigned char)notice[n]&0xc0)==0x80)--n;notice[n]=0;
         }
-        ui_text_fixed_vc(fb,notice_x,ui_text_ink_center_y(91,52,"设置"),20,notice,EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_fixed_vc(fb,notice_x,ui_text_ink_center_y(91,52,"Cài đặt"),20,notice,EPD_DRAW_ALIGN_LEFT,false);
     }
     settings_navigation(fb);
 #if KIIKO_BOARD_METALIO47
@@ -1744,7 +1744,7 @@ static bool settings_take_lock_style_return(void) {
 static app_redraw_t settings_open_lock_images(app_ctx_t *ctx, const char *path, bool transparent) {
     extern const app_desc_t app_image;
     if(!app_image_request_lock_picker(path,transparent)) {
-        snprintf(s_notice,sizeof(s_notice),"图片路径无法打开，请重新选择");
+        snprintf(s_notice,sizeof(s_notice),"Không mở được đường dẫn ảnh, vui lòng chọn lại");
         return APP_REDRAW_PAGE;
     }
     ctx->request_app=&app_image;
@@ -1808,8 +1808,8 @@ static bool ble_receive_feedback(void) {
             const ble_pt_action_t action = s_ble_learning == 1 ? BLE_PT_ACTION_PREV : BLE_PT_ACTION_NEXT;
             const esp_err_t error = ble_pt_bind(action, &raw.frame);
             snprintf(s_ble_feedback, sizeof(s_ble_feedback), "%s",
-                     error == ESP_OK ? (action == BLE_PT_ACTION_PREV ? "识别成功 · 已绑定上一页" : "识别成功 · 已绑定下一页")
-                                     : "识别成功 · 绑定保存失败，请重试");
+                     error == ESP_OK ? (action == BLE_PT_ACTION_PREV ? "Nhận diện thành công · Đã gán phím Trang trước" : "Nhận diện thành công · Đã gán phím Trang sau")
+                                     : "Nhận diện được nhưng lưu thất bại, vui lòng thử lại");
             s_ble_learning = 0;
             s_ble_scroll = 0;
             changed = true;
@@ -1818,7 +1818,7 @@ static bool ble_receive_feedback(void) {
             break;
         }
         if (!s_ble_feedback[0]) {
-            snprintf(s_ble_feedback, sizeof(s_ble_feedback), "识别成功 · 已收到翻页器按键");
+            snprintf(s_ble_feedback, sizeof(s_ble_feedback), "Nhận diện thành công · Đã nhận tín hiệu phím");
             s_ble_scroll = 0;
             changed = true;
         }
@@ -1842,7 +1842,7 @@ static app_redraw_t reset_tick(void) {
     }
     if(error==ESP_OK) {esp_restart();return APP_REDRAW_NONE;}
     s_reset_confirm=false;
-    snprintf(s_reset_notice,sizeof(s_reset_notice),"恢复未完成，请稍后重试：%s",esp_err_to_name(error));
+    snprintf(s_reset_notice,sizeof(s_reset_notice),"Khôi phục chưa hoàn tất, hãy thử lại: %s",esp_err_to_name(error));
     return APP_REDRAW_PAGE;
 }
 
@@ -1861,10 +1861,10 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
         s_panel_repair_pending = false;
         if (s_page != SETTINGS_MAIN) return APP_REDRAW_NONE;
         s_scroll_present_pending = false;
-        snprintf(s_notice, sizeof(s_notice), "屏幕修复完成；若条纹仍在可再做一次");
+        snprintf(s_notice, sizeof(s_notice), "Đã làm sạch màn hình; nếu còn vệt mờ có thể chạy thêm lần nữa");
         render(ctx, ctx->fb);
         if (display_panel_repair(ctx->hl) != EPD_DRAW_SUCCESS) {
-            snprintf(s_notice, sizeof(s_notice), "屏幕输出未完成，请稍后重试");
+            snprintf(s_notice, sizeof(s_notice), "Màn hình đang bận hiển thị, vui lòng thử lại sau");
             return APP_REDRAW_FULL;
         }
         return APP_REDRAW_DONE;
@@ -1959,7 +1959,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
         s_boot_connected=metalio_download_connected();
         if (err==ESP_OK) s_boot_notice[0]=0;
         else snprintf(s_boot_notice,sizeof(s_boot_notice),err==ESP_ERR_NOT_FINISHED ?
-            "存储或传输正在使用，请稍后重试" : "BOOT 切换失败：%s",esp_err_to_name(err));
+            "Bộ nhớ hoặc truyền tệp đang bận, vui lòng thử lại sau" : "Chuyển chế độ BOOT lỗi: %s",esp_err_to_name(err));
         return APP_REDRAW_PAGE;
     }
     if (s_page==SETTINGS_BOOT && app_download_active()) {
@@ -2019,12 +2019,12 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     }
     ESP_LOGI(TAG, "time sync network=%d ready=%d utc=%lu result=%s",
              network.mode, network.network_ready, (unsigned long)utc, esp_err_to_name(err));
-    const char *notice = err == ESP_OK ? "WiFi 对时完成，内部时钟已接管" :
-        network_time_received ? "已获取网络时间，内部时钟写入失败" :
-        err == ESP_ERR_NOT_FOUND ? "请先在 WiFi 设置中配置网络" :
-        err == ESP_ERR_INVALID_STATE ? "WiFi 尚未连接，请稍后再试" :
-        err == ESP_ERR_TIMEOUT ? "网络对时超时，请检查网络后重试" :
-        "网络对时失败，请检查网络后重试";
+    const char *notice = err == ESP_OK ? "Đã đồng bộ giờ qua WiFi và lưu vào RTC" :
+        network_time_received ? "Đã lấy giờ mạng nhưng ghi vào RTC lỗi" :
+        err == ESP_ERR_NOT_FOUND ? "Vui lòng kết nối mạng trong phần Cài đặt WiFi trước" :
+        err == ESP_ERR_INVALID_STATE ? "WiFi chưa kết nối, vui lòng thử lại sau" :
+        err == ESP_ERR_TIMEOUT ? "Quá thời gian đồng bộ giờ, hãy kiểm tra WiFi rồi thử lại" :
+        "Đồng bộ giờ thất bại, hãy kiểm tra WiFi rồi thử lại";
     snprintf(s_notice, sizeof(s_notice), "%s", notice);
     return APP_REDRAW_PAGE;
 }
@@ -2057,15 +2057,15 @@ static app_redraw_t profile_editor_gesture(app_ctx_t *ctx, const ui_gesture_even
     return result == UI_KEYBOARD_CHANGED ? profile_editor_paint(ctx, false) : APP_REDRAW_NONE;
 save_text:
     if (ui_keyboard_pending()) {
-        snprintf(s_editor_notice, sizeof(s_editor_notice), "请先选择候选字");
+        snprintf(s_editor_notice, sizeof(s_editor_notice), "Vui lòng chọn từ gợi ý trước");
         return APP_REDRAW_PAGE;
     }
     if (s_editor_signature) app_settings_set_status_signature(s_editor);
     else if (s_editor[0]) app_settings_set_device_name(s_editor);
-    else { snprintf(s_editor_notice, sizeof(s_editor_notice), "设备名称不能为空"); return APP_REDRAW_PAGE; }
+    else { snprintf(s_editor_notice, sizeof(s_editor_notice), "Tên thiết bị không được để trống"); return APP_REDRAW_PAGE; }
     const char *saved = s_editor_signature ? app_settings_status_signature() : app_settings_device_name();
     if (strcmp(saved, s_editor)) {
-        snprintf(s_editor_notice, sizeof(s_editor_notice), "保存失败，请检查设置存储空间");
+        snprintf(s_editor_notice, sizeof(s_editor_notice), "Lưu thất bại, hãy kiểm tra bộ nhớ cài đặt");
         return APP_REDRAW_PAGE;
     }
     ui_keyboard_end();
@@ -2131,7 +2131,7 @@ static app_redraw_t sd_recovery_gesture(app_ctx_t *ctx,const ui_gesture_event_t 
     if(ui_rect_hit(sd_recovery_button(),ev->x0,ev->y0)) {
         esp_err_t error=app_sd_recovery_begin(ctx->now_ms);
         snprintf(s_sd_notice,sizeof(s_sd_notice),"%s",error==ESP_OK?"":
-            "请先退出传书、USB读卡和升级，再重试");
+            "Hãy thoát Truyền sách, USB và Cập nhật trước khi thử lại");
         return APP_REDRAW_PAGE;
     }
     if(ev->y0<190 && ev->x0<170) {s_page=SETTINGS_MAIN;settings_prepare_profile();return APP_REDRAW_PAGE;}
@@ -2162,7 +2162,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             if (i) {
                 app_settings_set_font_path(s_font_sync_path);
                 if (strcmp(app_settings_font_path(),s_font_sync_path)) {
-                    snprintf(s_notice,sizeof(s_notice),"保存失败，请重试");return APP_REDRAW_PAGE;
+                    snprintf(s_notice,sizeof(s_notice),"Lưu thất bại, vui lòng thử lại");return APP_REDRAW_PAGE;
                 }
             }
             s_notice[0]=0;s_font_sync_confirm=false;return APP_REDRAW_PAGE;
@@ -2181,7 +2181,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     if (s_page == SETTINGS_LOCK_PIN && ev->type == UI_GESTURE_TAP && lock_pin_available() &&
         (ui_rect_hit((EpdRect){36,406,612,70},ev->x0,ev->y0) ||
          (lock_pin_enabled() && ui_rect_hit((EpdRect){36,512,612,70},ev->x0,ev->y0)))) {
-        if (ctx->now_ms < s_pin_retry_at) { snprintf(s_notice, sizeof(s_notice), "请等待后重试"); return APP_REDRAW_PAGE; }
+        if (ctx->now_ms < s_pin_retry_at) { snprintf(s_notice, sizeof(s_notice), "Vui lòng đợi giây lát rồi thử lại"); return APP_REDRAW_PAGE; }
         pin_setup_open(ctx, ev->y0 >= 512); return APP_REDRAW_PAGE;
     }
 
@@ -2429,7 +2429,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             unsigned next=prior>=200?100:prior+10;
             app_settings_set_system_font_size(next);
             if (app_settings_system_font_size()!=next) {
-                snprintf(s_notice,sizeof(s_notice),"保存失败，请重试");return APP_REDRAW_PAGE;
+                snprintf(s_notice,sizeof(s_notice),"Lưu thất bại, vui lòng thử lại");return APP_REDRAW_PAGE;
             }
             s_font_page=0;
             if (s_main_scroll>SETTINGS_SCROLL_MAX) s_main_scroll=SETTINGS_SCROLL_MAX;
@@ -2452,7 +2452,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             snprintf(s_font_sync_path,sizeof(s_font_sync_path),"%s",item?item->path:"");
             app_settings_set_system_font_path(s_font_sync_path);
             if (strcmp(app_settings_system_font_path(),s_font_sync_path)) {
-                snprintf(s_notice,sizeof(s_notice),"保存失败，请重试");return APP_REDRAW_PAGE;
+                snprintf(s_notice,sizeof(s_notice),"Lưu thất bại, vui lòng thử lại");return APP_REDRAW_PAGE;
             }
             app_font_activate_system();s_notice[0]=0;
             s_font_sync_confirm=strcmp(app_settings_font_path(),s_font_sync_path)!=0;
@@ -2542,7 +2542,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     if (s_page == SETTINGS_TIME) {
         if (y >= 407 && y < 477) {
             s_notice[0] = 0; s_sync_pending = true;
-            snprintf(s_notice, sizeof(s_notice), "正在获取网络时间…");
+            snprintf(s_notice, sizeof(s_notice), "Đang lấy giờ mạng (NTP GMT+7)…");
             return APP_REDRAW_PAGE;
         }
         if (y >= 518 && y < 588) { time_open(); return APP_REDRAW_PAGE; }
@@ -2576,15 +2576,15 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             s_config_confirm = false;
             esp_err_t err = app_settings_backup_save();
             snprintf(s_notice, sizeof(s_notice), "%s",
-                     err == ESP_OK ? "已保存到 TF 卡根目录" :
-                     err == ESP_ERR_INVALID_STATE ? "未识别到 TF 卡，请插卡后重试" :
-                     "保存失败，请检查 TF 卡剩余空间");
+                     err == ESP_OK ? "Đã sao lưu vào thư mục gốc thẻ nhớ" :
+                     err == ESP_ERR_INVALID_STATE ? "Không nhận diện được thẻ nhớ, hãy kiểm tra thẻ rồi thử lại" :
+                     "Lưu thất bại, hãy kiểm tra dung lượng trống trên thẻ nhớ");
             return APP_REDRAW_PAGE;
         }
         if (y >= 681 && y < 764) {
             if (!s_config_confirm) {
                 s_config_confirm = true;
-                snprintf(s_notice, sizeof(s_notice), "恢复将覆盖当前设置，请再点按一次确认");
+                snprintf(s_notice, sizeof(s_notice), "Sẽ ghi đè cài đặt hiện tại, chạm lần nữa để xác nhận");
                 return APP_REDRAW_PAGE;
             }
             s_config_confirm = false;
@@ -2602,12 +2602,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             if (err == ESP_OK)
                 (void)read_pico_transfer_get_saved_wifi(saved_ssid, &wifi_saved);
             snprintf(s_notice, sizeof(s_notice), "%s",
-                     err == ESP_OK ? (wifi_saved ? "配置与阅读记录已恢复；WiFi 请重新连接" :
-                                                   "配置与阅读记录已恢复") :
-                     err == ESP_ERR_INVALID_STATE ? "未识别到 TF 卡，请插卡后重试" :
-                     err == ESP_ERR_NOT_FOUND ? "未找到配置备份文件" :
-                     err == ESP_ERR_INVALID_RESPONSE ? "配置文件损坏或版本不兼容" :
-                     "恢复未完成，请重试");
+                     err == ESP_OK ? (wifi_saved ? "Đã khôi phục cấu hình và lịch sử đọc; hãy kết nối lại WiFi" :
+                                                   "Đã khôi phục cấu hình và lịch sử đọc") :
+                     err == ESP_ERR_INVALID_STATE ? "Không nhận diện được thẻ nhớ, hãy kiểm tra thẻ rồi thử lại" :
+                     err == ESP_ERR_NOT_FOUND ? "Không tìm thấy tệp sao lưu cấu hình trên thẻ nhớ" :
+                     err == ESP_ERR_INVALID_RESPONSE ? "Tệp cấu hình bị hỏng hoặc không tương thích phiên bản" :
+                     "Khôi phục chưa hoàn tất, vui lòng thử lại");
             return APP_REDRAW_PAGE;
         }
         return APP_REDRAW_NONE;
@@ -2622,7 +2622,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         // 学习时轻点取消；识别结果轻点后返回开关。/ Tap to cancel learning or dismiss the received-key result.
         if (s_ble_learning) {
             s_ble_learning = 0;
-            snprintf(s_ble_notice, sizeof(s_ble_notice), "已取消学习");
+            snprintf(s_ble_notice, sizeof(s_ble_notice), "Đã hủy học phím");
             return APP_REDRAW_PAGE;
         }
         if (s_ble_feedback[0] && ty >= 202 - s_ble_scroll && ty < 328 - s_ble_scroll) {
@@ -2638,12 +2638,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             // self-locked stack leaves the user no way to try again.
             if (!app_settings_ble_turner()) ble_pt_reset_failure();
             snprintf(s_ble_notice, sizeof(s_ble_notice), "%s",
-                     app_settings_ble_turner() ? "已开启，正在等待设备" : "已关闭，蓝牙内存已释放");
+                     app_settings_ble_turner() ? "Đã bật, đang chờ thiết bị kết nối" : "Đã tắt và giải phóng bộ nhớ Bluetooth");
             return APP_REDRAW_PAGE;
         }
         if (ty >= l.scan_entry_top && ty < l.scan_entry_top + BLE_ROW_H) {
             if (!app_settings_ble_turner() || !ble_pt_running()) {
-                snprintf(s_ble_notice, sizeof(s_ble_notice), "请先开启蓝牙翻页器"); return APP_REDRAW_PAGE;
+                snprintf(s_ble_notice, sizeof(s_ble_notice), "Vui lòng bật Bluetooth trước"); return APP_REDRAW_PAGE;
             }
             // 进扫描页就开持续扫描，离页时停掉。/ Scan continuously while the page is open.
             ble_pt_scan_start(BLE_PT_SCAN_FOREVER);
@@ -2659,7 +2659,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             // the whole row, so comparing y alone makes the entire row count as the button.
             if (ev->x0 >= btn.x && ev->x0 < btn.x + btn.width && ty >= btn.y && ty < btn.y + btn.height) {
                 if (!ble_pt_connected()) {
-                    snprintf(s_ble_notice, sizeof(s_ble_notice), "请先连接翻页器再学习按键");
+                    snprintf(s_ble_notice, sizeof(s_ble_notice), "Vui lòng kết nối thiết bị lật trang trước khi học phím");
                     return APP_REDRAW_PAGE;
                 }
                 ble_pt_raw_t stale;
@@ -2684,19 +2684,19 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             if (ev->x0 >= btn.x && ev->x0 < btn.x + btn.width && ty >= btn.y && ty < btn.y + btn.height) {
 #if KIIKO_BOARD_METALIO47
                 const esp_err_t forgotten=ble_pt_forget(bond->addr);
-                snprintf(s_ble_notice,sizeof(s_ble_notice),"%s",forgotten==ESP_OK?"已删除该配对":
-                    forgotten==ESP_ERR_INVALID_STATE?"请先开启蓝牙，再删除配对":"删除失败，请重试");
+                snprintf(s_ble_notice,sizeof(s_ble_notice),"%s",forgotten==ESP_OK?"Đã xóa thiết bị ghép đôi":
+                    forgotten==ESP_ERR_INVALID_STATE?"Vui lòng bật Bluetooth trước khi xóa ghép đôi":"Xóa thất bại, vui lòng thử lại");
 #else
                 if (ble_pt_connected()) ble_pt_disconnect();
                 ble_pt_forget(bond->addr);
-                snprintf(s_ble_notice, sizeof(s_ble_notice), "已删除该配对");
+                snprintf(s_ble_notice, sizeof(s_ble_notice), "Đã xóa thiết bị ghép đôi");
 #endif
                 return APP_REDRAW_PAGE;
             }
             if (ty >= l.bond_top[i] && ty < l.bond_top[i] + BLE_ROW_H) {
                 if (ble_pt_connected() || ble_pt_connecting()) ble_pt_disconnect();
                 snprintf(s_ble_notice, sizeof(s_ble_notice),
-                         ble_pt_connect(bond->addr) == ESP_OK ? "正在连接…" : "连接失败，请重试");
+                         ble_pt_connect(bond->addr) == ESP_OK ? "Đang kết nối…" : "Kết nối thất bại, vui lòng thử lại");
                 return APP_REDRAW_PAGE;
             }
         }
@@ -2717,7 +2717,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             ble_pt_scan_stop();
             if (ble_pt_connected() || ble_pt_connecting()) ble_pt_disconnect();
             snprintf(s_ble_notice, sizeof(s_ble_notice),
-                     ble_pt_connect(dev->addr) == ESP_OK ? "正在连接…" : "连接失败，请重试");
+                     ble_pt_connect(dev->addr) == ESP_OK ? "Đang kết nối…" : "Kết nối thất bại, vui lòng thử lại");
             s_page = SETTINGS_BLUETOOTH;
             s_ble_scroll = 0;
             return APP_REDRAW_PAGE;
@@ -2779,7 +2779,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             // refresh can never cover that stripe. One tap runs the blind full-screen pass, which
             // then pushes the current page -- navigation bar included -- back onto the panel.
             s_panel_repair_pending=true;
-            snprintf(s_notice,sizeof(s_notice),"屏幕修复中…");
+            snprintf(s_notice,sizeof(s_notice),"Đang làm sạch màn hình…");
             return APP_REDRAW_PAGE;
         }
 #if KIIKO_BOARD_METALIO47
@@ -2971,7 +2971,7 @@ const app_desc_t app_device_settings = {
 #else
     .binary_ui = false,
 #endif
-    .title = "设置 Settings", .detail = "显示、连接与设备", .enter_full = false,
+    .title = "Cài đặt Settings", .detail = "Hiển thị, kết nối & thiết bị", .enter_full = false,
     .owns_keys = true, .menu_handle_enabled = no_menu_handle,
     .main_page_visible = main_page_visible, .edge_back_enabled = settings_edge_back,
     .back_swipe_area=settings_back_swipe_area,

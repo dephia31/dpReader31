@@ -16,7 +16,7 @@ typedef struct { uint32_t points[1]; unsigned char count, limit; } glyph_cache_t
 typedef struct {
     path_t paths[UI_IME_RAW_MAX + 1];
     uint16_t matches[512];
-    uint8_t seen_chars[(0x9fff - 0x4e00 + 8) / 8];
+    uint8_t seen_chars[(0x2000 + 8) / 8];
     glyph_cache_t glyphs[];
 } workspace_t;
 static workspace_t *s_workspace;
@@ -169,8 +169,8 @@ bool ui_ime_candidates_page(const char *raw, bool nine, const char *preferred,
                 uint32_t cp;
                 if (!read_pico_search_candidates(roman, &cp, 1, rank)) continue;
                 found = true;
-                if (cp < 0x4e00 || cp > 0x9fff) continue;
-                unsigned index = cp - 0x4e00, mask = 1u << (index & 7);
+                if (cp >= 0x2000) continue;
+                unsigned index = cp, mask = 1u << (index & 7);
                 if (s_workspace->seen_chars[index / 8] & mask) continue;
                 s_workspace->seen_chars[index / 8] |= mask;
                 char text[5]; glyph(cp, text);

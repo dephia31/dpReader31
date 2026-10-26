@@ -1202,12 +1202,12 @@ static esp_err_t respond_error(httpd_req_t *req, int code) {
     const char *status = code == 413 ? "413 Content Too Large" : code == 507 ? "507 Insufficient Storage" :
                          code == 408 ? "408 Request Timeout" : code == 409 ? "409 Conflict" :
                          code == 404 ? "404 Not Found" : code == 500 ? "500 Internal Server Error" : "400 Bad Request";
-    const char *body = code == 413 ? "{\"error\":\"文件超过单文件上限\"}" :
-                       code == 507 ? "{\"error\":\"存储空间不足或写入失败\"}" :
-                       code == 408 ? "{\"error\":\"连接中断或接收超时，请重试\"}" :
-                       code == 409 ? "{\"error\":\"同名文件已存在，请选择替换或跳过\",\"conflict\":true}" :
-                       code == 404 ? "{\"error\":\"图书不存在\"}" :
-                       code == 500 ? "{\"error\":\"操作失败，请重试\"}" : "{\"error\":\"文件名、格式或请求无效\"}";
+    const char *body = code == 413 ? "{\"error\":\"Tệp vượt quá giới hạn dung lượng\"}" :
+                       code == 507 ? "{\"error\":\"Không đủ dung lượng lưu trữ hoặc lỗi ghi\"}" :
+                       code == 408 ? "{\"error\":\"Mất kết nối hoặc quá thời gian nhận, vui lòng thử lại\"}" :
+                       code == 409 ? "{\"error\":\"Tệp cùng tên đã tồn tại, hãy chọn ghi đè hoặc bỏ qua\",\"conflict\":true}" :
+                       code == 404 ? "{\"error\":\"Sách không tồn tại\"}" :
+                       code == 500 ? "{\"error\":\"Thao tác thất bại, vui lòng thử lại\"}" : "{\"error\":\"Tên tệp, định dạng hoặc yêu cầu không hợp lệ\"}";
     // 同名文件或无效请求不代表无线服务损坏，保持网页可继续上传。
     // A conflict or malformed request must not turn a healthy radio service into an error page.
     set_error(code >= 500 || code == 408 ? (code == 408 ? ESP_ERR_TIMEOUT : ESP_FAIL) : ESP_OK);
@@ -1354,24 +1354,24 @@ static int receive_body(void *ctx, char *buf, size_t n) { return httpd_req_recv(
 
 static esp_err_t wifi_handler(httpd_req_t *req) {
     if (!provisioning_request(req))
-        return wifi_response(req, "403 Forbidden", "{\"error\":\"请在设备热点页面配置网络\"}");
+        return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng cấu hình mạng trên trang Điểm phát sóng\"}");
     if (req->method == HTTP_DELETE) {
-        if (req->content_len) return wifi_response(req, "400 Bad Request", "{\"error\":\"遗忘请求不应包含正文\"}");
+        if (req->content_len) return wifi_response(req, "400 Bad Request", "{\"error\":\"Yêu cầu quên mạng không hợp lệ\"}");
         esp_err_t err = read_pico_transfer_forget_wifi();
         return wifi_response(req, err == ESP_OK ? "200 OK" : "500 Internal Server Error",
-            err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"无法遗忘网络，请重试\"}");
+            err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"Không thể quên mạng WiFi, vui lòng thử lại\"}");
     }
     if (!req->content_len || req->content_len > 256)
-        return wifi_response(req, "400 Bad Request", "{\"error\":\"网络配置正文长度无效\"}");
+        return wifi_response(req, "400 Bad Request", "{\"error\":\"Độ dài dữ liệu cấu hình mạng không hợp lệ\"}");
     char body[257] = {0};
     if (!receive_credentials_body(body, req->content_len, receive_body, receive_stopped, receive_now, req)) {
         clear_secret(body, sizeof(body));
-        return wifi_response(req, "408 Request Timeout", "{\"error\":\"接收配置超时，请重试\"}");
+        return wifi_response(req, "408 Request Timeout", "{\"error\":\"Quá thời gian nhận cấu hình, vui lòng thử lại\"}");
     }
     transfer_credentials_t next;
     bool valid = parse_credentials(body, req->content_len, &next);
     clear_secret(body, sizeof(body));
-    if (!valid) return wifi_response(req, "400 Bad Request", "{\"error\":\"SSID须为1至32字节；密码留空，或8至63个ASCII字符、64位十六进制密钥\"}");
+    if (!valid) return wifi_response(req, "400 Bad Request", "{\"error\":\"SSID từ 1-32 ký tự; mật khẩu để trống hoặc 8-63 ký tự ASCII\"}");
     esp_err_t err = ESP_ERR_INVALID_STATE;
     if (claim_config()) {
         err = store_credentials(&next);
@@ -1383,7 +1383,7 @@ static esp_err_t wifi_handler(httpd_req_t *req) {
     }
     clear_secret(&next, sizeof(next));
     return wifi_response(req, err == ESP_OK ? "200 OK" : "500 Internal Server Error",
-        err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"保存网络失败，原配置未主动清除，请重试\"}");
+        err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"Lưu cấu hình mạng thất bại, vui lòng thử lại\"}");
 }
 
 static int receive_http(void *ctx, char *buf, size_t n) {
@@ -1432,13 +1432,13 @@ static esp_err_t file_response(httpd_req_t *req, file_result_t result, bool dele
         cJSON_AddBoolToObject(json, "ok", !result.progress_cleanup_failed);
         if (result.progress_cleanup_failed) {
             cJSON_AddBoolToObject(json, "progress_cleanup_failed", true);
-            cJSON_AddStringToObject(json, "error", deletion ? "文件已删除，但阅读进度清理失败；请重试清理进度" :
-                "文件已保存，但旧阅读进度清理失败；请重试清理进度");
+            cJSON_AddStringToObject(json, "error", deletion ? "Đã xóa tệp nhưng chưa xóa được tiến độ đọc; hãy thử xóa lại tiến độ" :
+                "Đã lưu tệp nhưng chưa xóa được tiến độ cũ; hãy thử xóa lại tiến độ");
             httpd_resp_set_status(req, "500 Internal Server Error");
         }
         if (result.storage_cleanup_failed) {
             cJSON_AddBoolToObject(json, "storage_cleanup_failed", true);
-            cJSON_AddStringToObject(json, "warning", "新书已保存，旧书备份清理失败；备份已保留，请勿重复上传");
+            cJSON_AddStringToObject(json, "warning", "Đã lưu sách mới, bản sao lưu cũ vẫn được giữ lại");
             ESP_LOGW("transfer", "committed with retained backup");
         }
         return send_json(req, json);
@@ -1450,7 +1450,7 @@ static esp_err_t file_response(httpd_req_t *req, file_result_t result, bool dele
 }
 
 static esp_err_t books_handler(httpd_req_t *req) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开管理页面\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở trang quản lý từ địa chỉ hiển thị trên máy\"}");
     char query[1024] = {0}, encoded[766], name[256] = {0}, path[448];
     if (httpd_req_get_url_query_len(req) && httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK) return respond_error(req, 400);
     esp_err_t name_err = httpd_query_key_value(query, "name", encoded, sizeof(encoded));
@@ -1462,12 +1462,12 @@ static esp_err_t books_handler(httpd_req_t *req) {
         cJSON *json = cJSON_CreateObject();
         if (!json) return ESP_ERR_NO_MEM;
         cJSON_AddStringToObject(json, "root", s_root);
-        cJSON_AddStringToObject(json, "root_label", s_cfg.is_flash ? "内置存储" : "TF 卡");
+        cJSON_AddStringToObject(json, "root_label", s_cfg.is_flash ? "Bộ nhớ trong" : "Thẻ nhớ");
         if (named) {
             struct stat st;
             if (stat(path, &st)) {
                 int result = errno == ENOENT ? 404 : 507; cJSON_Delete(json);
-                if (result == 404) return wifi_response(req, "404 Not Found", "{\"error\":\"图书不存在\"}");
+                if (result == 404) return wifi_response(req, "404 Not Found", "{\"error\":\"Sách không tồn tại\"}");
                 return respond_error(req, result);
             }
             if (!S_ISREG(st.st_mode)) { cJSON_Delete(json); return respond_error(req, 400); }
@@ -1507,7 +1507,7 @@ static esp_err_t books_handler(httpd_req_t *req) {
     portENTER_CRITICAL(&s_lock);
     bool accepted = admission_begin(s_stopping, &s_upload_active);
     portEXIT_CRITICAL(&s_lock);
-    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"正在上传或切换网络，请稍后重试\"}");
+    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"Đang tải lên hoặc chuyển mạng, vui lòng thử lại sau\"}");
     file_result_t result = retry ? (file_result_t){.status = !s_cfg.file_changed_cb || s_cfg.file_changed_cb(path) == ESP_OK ? 200 : 500} :
         delete_managed(path, s_cfg.file_changed_cb);
     portENTER_CRITICAL(&s_lock);
@@ -1544,20 +1544,40 @@ static esp_err_t signature_handler(httpd_req_t *req) {
     char text[96] = {0};
     if (req->method == HTTP_POST && (req->content_len > 95 ||
         !recv_small_body(req, text, sizeof(text)) || !transfer_signature_valid(text, req->content_len)))
-        return wifi_response(req, "400 Bad Request", "{\"error\":\"签名最多95字节，不能含换行或控制字符\"}");
+        return wifi_response(req, "400 Bad Request", "{\"error\":\"Chữ ký tối đa 95 byte và không chứa ký tự điều khiển\"}");
     portENTER_CRITICAL(&s_lock);
     bool accepted = admission_begin(s_stopping, &s_upload_active);
     portEXIT_CRITICAL(&s_lock);
-    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"正在传输，请完成后再设置签名\"}");
+    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"Đang truyền dữ liệu, vui lòng thử lại sau\"}");
     esp_err_t err = req->method == HTTP_POST ? s_cfg.signature_set_cb(text) :
                    s_cfg.signature_get_cb(text, sizeof(text)) ? ESP_OK : ESP_FAIL;
     portENTER_CRITICAL(&s_lock); s_upload_active = false; portEXIT_CRITICAL(&s_lock);
-    if (err != ESP_OK) return wifi_response(req, "500 Internal Server Error", "{\"error\":\"签名保存或读取失败，请重试\"}");
+    if (err != ESP_OK) return wifi_response(req, "500 Internal Server Error", "{\"error\":\"Không thể lưu hoặc đọc chữ ký\"}");
     cJSON *json = cJSON_CreateObject();
     if (!json) return ESP_ERR_NO_MEM;
     cJSON_AddStringToObject(json, "signature", text);
     cJSON_AddBoolToObject(json, "ok", true);
     return send_json(req, json);
+}
+
+static esp_err_t sync_config_handler(httpd_req_t *req) {
+    if (!management_request(req)) return respond_error(req, 403);
+    if (!s_cfg.sync_cfg_get_cb || !s_cfg.sync_cfg_set_cb) return respond_error(req, 503);
+    char body[768] = {0};
+    if (req->method == HTTP_POST) {
+        if (!req->content_len || req->content_len >= sizeof(body) || !recv_small_body(req, body, sizeof(body)))
+            return wifi_response(req, "400 Bad Request", "{\"error\":\"Dữ liệu cấu hình KOSync/OPDS không hợp lệ\"}");
+    }
+    portENTER_CRITICAL(&s_lock);
+    bool accepted = admission_begin(s_stopping, &s_upload_active);
+    portEXIT_CRITICAL(&s_lock);
+    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"Thiết bị đang bận truyền tệp, vui lòng thử lại sau\"}");
+    esp_err_t err = ESP_OK;
+    if (req->method == HTTP_POST) err = s_cfg.sync_cfg_set_cb(body);
+    if (err == ESP_OK && !s_cfg.sync_cfg_get_cb(body, sizeof(body))) err = ESP_FAIL;
+    portENTER_CRITICAL(&s_lock); s_upload_active = false; portEXIT_CRITICAL(&s_lock);
+    if (err != ESP_OK) return wifi_response(req, "400 Bad Request", "{\"error\":\"Không thể lưu cấu hình KOSync/OPDS (kiểm tra lại URL http/https)\"}");
+    return wifi_response(req, "200 OK", body);
 }
 
 static esp_err_t clock_handler(httpd_req_t *req) {
@@ -1576,7 +1596,7 @@ static esp_err_t clock_handler(httpd_req_t *req) {
     return wifi_response(req, "200 OK", "{\"ok\":true}");
 }
 static esp_err_t titles_handler(httpd_req_t *req) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开管理页面\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở trang quản lý từ địa chỉ hiển thị trên máy\"}");
     if (!s_cfg.title_get_cb || !s_cfg.title_set_cb) return respond_error(req, 503);
     char query[1024] = {0}, choice[16] = {0}, encoded[766], name[256] = {0};
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
@@ -1642,7 +1662,7 @@ static esp_err_t titles_handler(httpd_req_t *req) {
 }
 
 static esp_err_t upload_handler(httpd_req_t *req) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开管理页面\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở trang quản lý từ địa chỉ hiển thị trên máy\"}");
     char query[512], encoded[361], name[121], path[288], part[296], replace[8];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "name", encoded, sizeof(encoded)) != ESP_OK || !decode_name(encoded, name))
@@ -1654,7 +1674,7 @@ static esp_err_t upload_handler(httpd_req_t *req) {
     portENTER_CRITICAL(&s_lock);
     if (!admission_begin(s_stopping, &s_upload_active)) {
         portEXIT_CRITICAL(&s_lock);
-        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"网络正在切换，请连接后重试\"}");
+        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"Đang chuyển mạng, hãy kết nối rồi thử lại\"}");
     }
     s_status.state = READ_PICO_TRANSFER_UPLOADING; s_status.last_error = ESP_OK;
     memcpy(s_status.cur_name, name, strlen(name) + 1);
@@ -1674,8 +1694,8 @@ static esp_err_t upload_handler(httpd_req_t *req) {
 }
 
 static esp_err_t media_upload_handler(httpd_req_t *req, const char *root, unsigned kind, size_t limit) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开管理页面\"}");
-    if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"请插入 TF 卡后重试\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở trang quản lý từ địa chỉ hiển thị trên máy\"}");
+    if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"Vui lòng lắp thẻ nhớ rồi thử lại\"}");
 #if KIIKO_BOARD_METALIO47
     char query[896], encoded[768], name[121], path[320], part[328], replace[8];
     size_t name_cap=strlen(root)+1<160?160-strlen(root)-1:0;
@@ -1698,11 +1718,11 @@ static esp_err_t media_upload_handler(httpd_req_t *req, const char *root, unsign
     char wallpaper[8] = {0};
     bool set_wallpaper = kind == 1 && httpd_query_key_value(query, "wallpaper", wallpaper, sizeof(wallpaper)) == ESP_OK && !strcmp(wallpaper, "1");
     if (set_wallpaper && !s_cfg.wallpaper_set_cb)
-        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"锁屏壁纸设置不可用\"}");
+        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"Cài đặt hình nền khóa hiện không khả dụng\"}");
     portENTER_CRITICAL(&s_lock);
     if (!admission_begin(s_stopping, &s_upload_active)) {
         portEXIT_CRITICAL(&s_lock);
-        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"网络正在切换，请稍后重试\"}");
+        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"Đang chuyển mạng, vui lòng thử lại sau\"}");
     }
     s_status.state = READ_PICO_TRANSFER_UPLOADING; s_status.last_error = ESP_OK;
     memcpy(s_status.cur_name, name, strlen(name) + 1);
@@ -1717,7 +1737,7 @@ static esp_err_t media_upload_handler(httpd_req_t *req, const char *root, unsign
     if (result.changed) { s_status.done_count++; s_status.changed_count++; }
     portEXIT_CRITICAL(&s_lock);
     if (wallpaper_failed)
-        return wifi_response(req, "500 Internal Server Error", "{\"error\":\"图片已上传，但设置锁屏壁纸失败\"}");
+        return wifi_response(req, "500 Internal Server Error", "{\"error\":\"Đã tải ảnh lên nhưng đặt hình nền khóa thất bại\"}");
     return file_response(req, result, false, path);
 }
 
@@ -1730,8 +1750,8 @@ static esp_err_t font_upload_handler(httpd_req_t *req) {
 }
 
 static esp_err_t file_upload_handler(httpd_req_t *req) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开\"}");
-    if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"请插入 TF 卡后重试\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở từ địa chỉ hiển thị trên máy\"}");
+    if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"Vui lòng lắp thẻ nhớ rồi thử lại\"}");
     char query[800], encoded[720], relative[240], replace[8], path[256];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "path", encoded, sizeof(encoded)) != ESP_OK ||
@@ -1742,7 +1762,7 @@ static esp_err_t file_upload_handler(httpd_req_t *req) {
     portENTER_CRITICAL(&s_lock);
     if (!admission_begin(s_stopping, &s_upload_active)) {
         portEXIT_CRITICAL(&s_lock);
-        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"网络正在切换，请稍后重试\"}");
+        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"Đang chuyển mạng, vui lòng thử lại sau\"}");
     }
     s_status.state = READ_PICO_TRANSFER_UPLOADING; s_status.last_error = ESP_OK;
     snprintf(s_status.cur_name, sizeof(s_status.cur_name), "%s", name);
@@ -1767,31 +1787,31 @@ static esp_err_t files_error(httpd_req_t *req, const char *status, const char *m
 typedef struct { char name[241]; uint64_t size; bool directory; } transfer_file_entry_t;
 
 static esp_err_t files_list_handler(httpd_req_t *req) {
-    if (!management_request(req)) return files_error(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开\"}");
-    if (s_cfg.is_flash) return files_error(req, "400 Bad Request", "{\"error\":\"TF 卡尚未就绪\"}");
+    if (!management_request(req)) return files_error(req, "403 Forbidden", "{\"error\":\"Vui lòng mở từ địa chỉ hiển thị trên máy\"}");
+    if (s_cfg.is_flash) return files_error(req, "400 Bad Request", "{\"error\":\"Thẻ nhớ chưa sẵn sàng\"}");
     char query[800] = {0}, encoded[720] = {0}, relative[240] = {0}, path[256];
     if (httpd_req_get_url_query_len(req) && httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK)
-        return files_error(req, "400 Bad Request", "{\"error\":\"目录地址过长\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn thư mục quá dài\"}");
     esp_err_t path_result = httpd_query_key_value(query, "path", encoded, sizeof(encoded));
     if (path_result != ESP_OK && path_result != ESP_ERR_NOT_FOUND)
-        return files_error(req, "400 Bad Request", "{\"error\":\"目录地址无效\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn thư mục không hợp lệ\"}");
     if (path_result == ESP_OK && !sd_decode_relative(encoded, relative, true))
-        return files_error(req, "400 Bad Request", "{\"error\":\"目录地址无效\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn thư mục không hợp lệ\"}");
     if (!sd_absolute(relative, path, sizeof(path)))
-        return files_error(req, "400 Bad Request", "{\"error\":\"目录地址过长\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn thư mục quá dài\"}");
     char page_text[12] = {0};
     size_t page = 0;
     if (httpd_query_key_value(query, "page", page_text, sizeof(page_text)) == ESP_OK) {
         char *end = NULL;
         unsigned long value = strtoul(page_text, &end, 10);
         if (!page_text[0] || *end || value > 100000)
-            return files_error(req, "400 Bad Request", "{\"error\":\"页码无效\"}");
+            return files_error(req, "400 Bad Request", "{\"error\":\"Số trang không hợp lệ\"}");
         page = value;
     }
     DIR *dir = opendir(path);
-    if (!dir) return files_error(req, "404 Not Found", "{\"error\":\"目录不存在或无法读取\"}");
+    if (!dir) return files_error(req, "404 Not Found", "{\"error\":\"Thư mục không tồn tại hoặc không thể đọc\"}");
     transfer_file_entry_t *items = heap_caps_calloc(TRANSFER_FILE_PAGE_SIZE, sizeof(*items), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!items) { closedir(dir); return files_error(req, "500 Internal Server Error", "{\"error\":\"内存不足\"}"); }
+    if (!items) { closedir(dir); return files_error(req, "500 Internal Server Error", "{\"error\":\"Không đủ bộ nhớ\"}"); }
     size_t total = 0, count = 0;
     for (int pass = 0; pass < 2; ++pass) {
         rewinddir(dir);
@@ -2006,12 +2026,12 @@ static void sync_upload_root_after_edit(const char *action, const char *source, 
 }
 
 static esp_err_t files_mutation_handler(httpd_req_t *req) {
-    if (!management_request(req)) return files_error(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开\"}");
-    if (s_cfg.is_flash) return files_error(req, "400 Bad Request", "{\"error\":\"TF 卡尚未就绪\"}");
+    if (!management_request(req)) return files_error(req, "403 Forbidden", "{\"error\":\"Vui lòng mở từ địa chỉ hiển thị trên máy\"}");
+    if (s_cfg.is_flash) return files_error(req, "400 Bad Request", "{\"error\":\"Thẻ nhớ chưa sẵn sàng\"}");
     char body[800] = {0};
     if (!req->content_len || !recv_small_body(req, body, sizeof(body)) ||
         strstr(body, "\\u0000") || !flat_file_request(body))
-        return files_error(req, "400 Bad Request", "{\"error\":\"操作参数无效\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Tham số thao tác không hợp lệ\"}");
     cJSON *json = cJSON_Parse(body);
     const cJSON *action = json ? cJSON_GetObjectItemCaseSensitive(json, "action") : NULL;
     const cJSON *from = json ? cJSON_GetObjectItemCaseSensitive(json, "path") : NULL;
@@ -2021,21 +2041,21 @@ static esp_err_t files_mutation_handler(httpd_req_t *req) {
         (!strcmp(action->valuestring, "delete") ? false :
          (!cJSON_IsString(to) || !sd_relative_valid(to->valuestring, false)))) {
         cJSON_Delete(json);
-        return files_error(req, "400 Bad Request", "{\"error\":\"文件路径无效\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn tệp không hợp lệ\"}");
     }
     char source[256], target[256] = {0};
     bool has_target = strcmp(action->valuestring, "delete") != 0;
     if (!sd_absolute(from->valuestring, source, sizeof(source)) ||
         (has_target && !sd_absolute(to->valuestring, target, sizeof(target)))) {
         cJSON_Delete(json);
-        return files_error(req, "400 Bad Request", "{\"error\":\"文件路径过长\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn tệp quá dài\"}");
     }
     bool accepted;
     portENTER_CRITICAL(&s_lock);
     accepted = admission_begin(s_stopping, &s_upload_active);
     if (accepted) s_status.state = READ_PICO_TRANSFER_UPLOADING;
     portEXIT_CRITICAL(&s_lock);
-    if (!accepted) { cJSON_Delete(json); return files_error(req, "503 Service Unavailable", "{\"error\":\"设备正忙，请稍后重试\"}"); }
+    if (!accepted) { cJSON_Delete(json); return files_error(req, "503 Service Unavailable", "{\"error\":\"Thiết bị đang bận, vui lòng thử lại sau\"}"); }
     int status = 400;
     bool may_have_changed = false;
     struct stat st;
@@ -2092,10 +2112,10 @@ static esp_err_t files_mutation_handler(httpd_req_t *req) {
     set_error(ESP_OK);
     cJSON_Delete(json);
     if (status == 200) return files_error(req, "200 OK", "{\"ok\":true}");
-    if (status == 404) return files_error(req, "404 Not Found", "{\"error\":\"文件或目录不存在\"}");
-    if (status == 409) return files_error(req, "409 Conflict", "{\"error\":\"目标文件已存在\"}");
-    if (status == 507) return files_error(req, "507 Insufficient Storage", "{\"error\":\"TF 卡空间不足或读写失败\"}");
-    return files_error(req, "400 Bad Request", "{\"error\":\"当前操作不支持该文件\"}");
+    if (status == 404) return files_error(req, "404 Not Found", "{\"error\":\"Tệp hoặc thư mục không tồn tại\"}");
+    if (status == 409) return files_error(req, "409 Conflict", "{\"error\":\"Tệp đích đã tồn tại\"}");
+    if (status == 507) return files_error(req, "507 Insufficient Storage", "{\"error\":\"Thẻ nhớ hết dung lượng hoặc lỗi đọc/ghi\"}");
+    return files_error(req, "400 Bad Request", "{\"error\":\"Thao tác này không hỗ trợ định dạng tệp đó\"}");
 }
 
 /* ---- 生命周期 / Lifecycle ---- */
@@ -2248,7 +2268,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     // File metadata and wallpaper settings access NVS; the HTTP stack must remain readable while caches are disabled.
     // 在无线电启动前预留网页任务，避免 WiFi 内存碎片导致任务创建失败。
     // Reserve the HTTP task before starting the radio to avoid WiFi heap fragmentation.
-    http.stack_size = 12288; http.max_uri_handlers = 18; http.max_open_sockets = 3;
+    http.stack_size = 12288; http.max_uri_handlers = 20; http.max_open_sockets = 3;
     http.recv_wait_timeout = 15;
     http.send_wait_timeout = 15;
     http.task_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
@@ -2278,6 +2298,8 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
         { .uri = "/books", .method = HTTP_POST, .handler = books_handler },
         { .uri = "/signature", .method = HTTP_GET, .handler = signature_handler },
         { .uri = "/signature", .method = HTTP_POST, .handler = signature_handler },
+        { .uri = "/sync-config", .method = HTTP_GET, .handler = sync_config_handler },
+        { .uri = "/sync-config", .method = HTTP_POST, .handler = sync_config_handler },
         { .uri = "/clock", .method = HTTP_POST, .handler = clock_handler },
         { .uri = "/titles", .method = HTTP_GET, .handler = titles_handler },
         { .uri = "/titles", .method = HTTP_POST, .handler = titles_handler },
@@ -2894,12 +2916,12 @@ static esp_err_t respond_error(httpd_req_t *req, int code) {
     const char *status = code == 413 ? "413 Content Too Large" : code == 507 ? "507 Insufficient Storage" :
                          code == 408 ? "408 Request Timeout" : code == 409 ? "409 Conflict" :
                          code == 404 ? "404 Not Found" : code == 500 ? "500 Internal Server Error" : "400 Bad Request";
-    const char *body = code == 413 ? "{\"error\":\"文件超过单文件上限\"}" :
-                       code == 507 ? "{\"error\":\"存储空间不足或写入失败\"}" :
-                       code == 408 ? "{\"error\":\"连接中断或接收超时，请重试\"}" :
-                       code == 409 ? "{\"error\":\"同名文件已存在，请选择替换或跳过\",\"conflict\":true}" :
-                       code == 404 ? "{\"error\":\"图书不存在\"}" :
-                       code == 500 ? "{\"error\":\"操作失败，请重试\"}" : "{\"error\":\"文件名、格式或请求无效\"}";
+    const char *body = code == 413 ? "{\"error\":\"Tệp vượt quá giới hạn dung lượng\"}" :
+                       code == 507 ? "{\"error\":\"Không đủ dung lượng lưu trữ hoặc lỗi ghi\"}" :
+                       code == 408 ? "{\"error\":\"Mất kết nối hoặc quá thời gian nhận, vui lòng thử lại\"}" :
+                       code == 409 ? "{\"error\":\"Tệp cùng tên đã tồn tại, hãy chọn ghi đè hoặc bỏ qua\",\"conflict\":true}" :
+                       code == 404 ? "{\"error\":\"Sách không tồn tại\"}" :
+                       code == 500 ? "{\"error\":\"Thao tác thất bại, vui lòng thử lại\"}" : "{\"error\":\"Tên tệp, định dạng hoặc yêu cầu không hợp lệ\"}";
     // 同名文件或无效请求不代表无线服务损坏，保持网页可继续上传。
     // A conflict or malformed request must not turn a healthy radio service into an error page.
     set_error(code >= 500 || code == 408 ? (code == 408 ? ESP_ERR_TIMEOUT : ESP_FAIL) : ESP_OK);
@@ -2983,24 +3005,24 @@ static int receive_body(void *ctx, char *buf, size_t n) { return httpd_req_recv(
 
 static esp_err_t wifi_handler(httpd_req_t *req) {
     if (!provisioning_request(req))
-        return wifi_response(req, "403 Forbidden", "{\"error\":\"请在设备热点页面配置网络\"}");
+        return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng cấu hình mạng trên trang Điểm phát sóng\"}");
     if (req->method == HTTP_DELETE) {
-        if (req->content_len) return wifi_response(req, "400 Bad Request", "{\"error\":\"遗忘请求不应包含正文\"}");
+        if (req->content_len) return wifi_response(req, "400 Bad Request", "{\"error\":\"Yêu cầu quên mạng không hợp lệ\"}");
         esp_err_t err = read_pico_transfer_forget_wifi();
         return wifi_response(req, err == ESP_OK ? "200 OK" : "500 Internal Server Error",
-            err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"无法遗忘网络，请重试\"}");
+            err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"Không thể quên mạng WiFi, vui lòng thử lại\"}");
     }
     if (!req->content_len || req->content_len > 256)
-        return wifi_response(req, "400 Bad Request", "{\"error\":\"网络配置正文长度无效\"}");
+        return wifi_response(req, "400 Bad Request", "{\"error\":\"Độ dài dữ liệu cấu hình mạng không hợp lệ\"}");
     char body[257] = {0};
     if (!receive_credentials_body(body, req->content_len, receive_body, receive_stopped, receive_now, req)) {
         clear_secret(body, sizeof(body));
-        return wifi_response(req, "408 Request Timeout", "{\"error\":\"接收配置超时，请重试\"}");
+        return wifi_response(req, "408 Request Timeout", "{\"error\":\"Quá thời gian nhận cấu hình, vui lòng thử lại\"}");
     }
     transfer_credentials_t next;
     bool valid = parse_credentials(body, req->content_len, &next);
     clear_secret(body, sizeof(body));
-    if (!valid) return wifi_response(req, "400 Bad Request", "{\"error\":\"SSID须为1至32字节；密码留空，或8至63个ASCII字符、64位十六进制密钥\"}");
+    if (!valid) return wifi_response(req, "400 Bad Request", "{\"error\":\"SSID từ 1-32 ký tự; mật khẩu để trống hoặc 8-63 ký tự ASCII\"}");
     esp_err_t err = ESP_ERR_INVALID_STATE;
     if (claim_config()) {
         err = store_credentials(&next);
@@ -3012,7 +3034,7 @@ static esp_err_t wifi_handler(httpd_req_t *req) {
     }
     clear_secret(&next, sizeof(next));
     return wifi_response(req, err == ESP_OK ? "200 OK" : "500 Internal Server Error",
-        err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"保存网络失败，原配置未主动清除，请重试\"}");
+        err == ESP_OK ? "{\"ok\":true}" : "{\"error\":\"Lưu cấu hình mạng thất bại, vui lòng thử lại\"}");
 }
 
 static int receive_http(void *ctx, char *buf, size_t n) {
@@ -3061,13 +3083,13 @@ static esp_err_t file_response(httpd_req_t *req, file_result_t result, bool dele
         cJSON_AddBoolToObject(json, "ok", !result.progress_cleanup_failed);
         if (result.progress_cleanup_failed) {
             cJSON_AddBoolToObject(json, "progress_cleanup_failed", true);
-            cJSON_AddStringToObject(json, "error", deletion ? "文件已删除，但阅读进度清理失败；请重试清理进度" :
-                "文件已保存，但旧阅读进度清理失败；请重试清理进度");
+            cJSON_AddStringToObject(json, "error", deletion ? "Đã xóa tệp nhưng chưa xóa được tiến độ đọc; hãy thử xóa lại tiến độ" :
+                "Đã lưu tệp nhưng chưa xóa được tiến độ cũ; hãy thử xóa lại tiến độ");
             httpd_resp_set_status(req, "500 Internal Server Error");
         }
         if (result.storage_cleanup_failed) {
             cJSON_AddBoolToObject(json, "storage_cleanup_failed", true);
-            cJSON_AddStringToObject(json, "warning", "新书已保存，旧书备份清理失败；备份已保留，请勿重复上传");
+            cJSON_AddStringToObject(json, "warning", "Đã lưu sách mới, bản sao lưu cũ vẫn được giữ lại");
             ESP_LOGW("transfer", "committed with retained backup");
         }
         return send_json(req, json);
@@ -3079,7 +3101,7 @@ static esp_err_t file_response(httpd_req_t *req, file_result_t result, bool dele
 }
 
 static esp_err_t books_handler(httpd_req_t *req) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开管理页面\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở trang quản lý từ địa chỉ hiển thị trên máy\"}");
     char query[1024] = {0}, encoded[766], name[256] = {0}, path[448];
     if (httpd_req_get_url_query_len(req) && httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK) return respond_error(req, 400);
     esp_err_t name_err = httpd_query_key_value(query, "name", encoded, sizeof(encoded));
@@ -3091,12 +3113,12 @@ static esp_err_t books_handler(httpd_req_t *req) {
         cJSON *json = cJSON_CreateObject();
         if (!json) return ESP_ERR_NO_MEM;
         cJSON_AddStringToObject(json, "root", s_root);
-        cJSON_AddStringToObject(json, "root_label", s_cfg.is_flash ? "内置存储" : "TF 卡");
+        cJSON_AddStringToObject(json, "root_label", s_cfg.is_flash ? "Bộ nhớ trong" : "Thẻ nhớ");
         if (named) {
             struct stat st;
             if (stat(path, &st)) {
                 int result = errno == ENOENT ? 404 : 507; cJSON_Delete(json);
-                if (result == 404) return wifi_response(req, "404 Not Found", "{\"error\":\"图书不存在\"}");
+                if (result == 404) return wifi_response(req, "404 Not Found", "{\"error\":\"Sách không tồn tại\"}");
                 return respond_error(req, result);
             }
             if (!S_ISREG(st.st_mode)) { cJSON_Delete(json); return respond_error(req, 400); }
@@ -3136,7 +3158,7 @@ static esp_err_t books_handler(httpd_req_t *req) {
     portENTER_CRITICAL(&s_lock);
     bool accepted = admission_begin(s_stopping, &s_upload_active);
     portEXIT_CRITICAL(&s_lock);
-    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"正在上传或切换网络，请稍后重试\"}");
+    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"Đang tải lên hoặc chuyển mạng, vui lòng thử lại sau\"}");
     file_result_t result = retry ? (file_result_t){.status = !s_cfg.file_changed_cb || s_cfg.file_changed_cb(path) == ESP_OK ? 200 : 500} :
         delete_managed(path, s_cfg.file_changed_cb);
     portENTER_CRITICAL(&s_lock);
@@ -3173,20 +3195,40 @@ static esp_err_t signature_handler(httpd_req_t *req) {
     char text[96] = {0};
     if (req->method == HTTP_POST && (req->content_len > 95 ||
         !recv_small_body(req, text, sizeof(text)) || !transfer_signature_valid(text, req->content_len)))
-        return wifi_response(req, "400 Bad Request", "{\"error\":\"签名最多95字节，不能含换行或控制字符\"}");
+        return wifi_response(req, "400 Bad Request", "{\"error\":\"Chữ ký tối đa 95 byte và không chứa ký tự điều khiển\"}");
     portENTER_CRITICAL(&s_lock);
     bool accepted = admission_begin(s_stopping, &s_upload_active);
     portEXIT_CRITICAL(&s_lock);
-    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"正在传输，请完成后再设置签名\"}");
+    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"Đang truyền dữ liệu, vui lòng thử lại sau\"}");
     esp_err_t err = req->method == HTTP_POST ? s_cfg.signature_set_cb(text) :
                    s_cfg.signature_get_cb(text, sizeof(text)) ? ESP_OK : ESP_FAIL;
     portENTER_CRITICAL(&s_lock); s_upload_active = false; portEXIT_CRITICAL(&s_lock);
-    if (err != ESP_OK) return wifi_response(req, "500 Internal Server Error", "{\"error\":\"签名保存或读取失败，请重试\"}");
+    if (err != ESP_OK) return wifi_response(req, "500 Internal Server Error", "{\"error\":\"Không thể lưu hoặc đọc chữ ký\"}");
     cJSON *json = cJSON_CreateObject();
     if (!json) return ESP_ERR_NO_MEM;
     cJSON_AddStringToObject(json, "signature", text);
     cJSON_AddBoolToObject(json, "ok", true);
     return send_json(req, json);
+}
+
+static esp_err_t sync_config_handler(httpd_req_t *req) {
+    if (!management_request(req)) return respond_error(req, 403);
+    if (!s_cfg.sync_cfg_get_cb || !s_cfg.sync_cfg_set_cb) return respond_error(req, 503);
+    char body[768] = {0};
+    if (req->method == HTTP_POST) {
+        if (!req->content_len || req->content_len >= sizeof(body) || !recv_small_body(req, body, sizeof(body)))
+            return wifi_response(req, "400 Bad Request", "{\"error\":\"Dữ liệu cấu hình KOSync/OPDS không hợp lệ\"}");
+    }
+    portENTER_CRITICAL(&s_lock);
+    bool accepted = admission_begin(s_stopping, &s_upload_active);
+    portEXIT_CRITICAL(&s_lock);
+    if (!accepted) return wifi_response(req, "409 Conflict", "{\"error\":\"Thiết bị đang bận truyền tệp, vui lòng thử lại sau\"}");
+    esp_err_t err = ESP_OK;
+    if (req->method == HTTP_POST) err = s_cfg.sync_cfg_set_cb(body);
+    if (err == ESP_OK && !s_cfg.sync_cfg_get_cb(body, sizeof(body))) err = ESP_FAIL;
+    portENTER_CRITICAL(&s_lock); s_upload_active = false; portEXIT_CRITICAL(&s_lock);
+    if (err != ESP_OK) return wifi_response(req, "400 Bad Request", "{\"error\":\"Không thể lưu cấu hình KOSync/OPDS (kiểm tra lại URL http/https)\"}");
+    return wifi_response(req, "200 OK", body);
 }
 
 static esp_err_t clock_handler(httpd_req_t *req) {
@@ -3205,7 +3247,7 @@ static esp_err_t clock_handler(httpd_req_t *req) {
     return wifi_response(req, "200 OK", "{\"ok\":true}");
 }
 static esp_err_t titles_handler(httpd_req_t *req) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开管理页面\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở trang quản lý từ địa chỉ hiển thị trên máy\"}");
     if (!s_cfg.title_get_cb || !s_cfg.title_set_cb) return respond_error(req, 503);
     char query[1024] = {0}, choice[16] = {0}, encoded[766], name[256] = {0};
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
@@ -3271,7 +3313,7 @@ static esp_err_t titles_handler(httpd_req_t *req) {
 }
 
 static esp_err_t upload_handler(httpd_req_t *req) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开管理页面\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở trang quản lý từ địa chỉ hiển thị trên máy\"}");
     char query[512], encoded[361], name[121], path[288], part[296], replace[8];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "name", encoded, sizeof(encoded)) != ESP_OK || !decode_name(encoded, name))
@@ -3283,7 +3325,7 @@ static esp_err_t upload_handler(httpd_req_t *req) {
     portENTER_CRITICAL(&s_lock);
     if (!admission_begin(s_stopping, &s_upload_active)) {
         portEXIT_CRITICAL(&s_lock);
-        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"网络正在切换，请连接后重试\"}");
+        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"Đang chuyển mạng, hãy kết nối rồi thử lại\"}");
     }
     s_status.state = READ_PICO_TRANSFER_UPLOADING; s_status.last_error = ESP_OK;
     memcpy(s_status.cur_name, name, strlen(name) + 1);
@@ -3303,8 +3345,8 @@ static esp_err_t upload_handler(httpd_req_t *req) {
 }
 
 static esp_err_t media_upload_handler(httpd_req_t *req, const char *root, unsigned kind, size_t limit) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开管理页面\"}");
-    if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"请插入 TF 卡后重试\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở trang quản lý từ địa chỉ hiển thị trên máy\"}");
+    if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"Vui lòng lắp thẻ nhớ rồi thử lại\"}");
     char query[512], encoded[361], name[121], path[320], part[328], replace[8];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "name", encoded, sizeof(encoded)) != ESP_OK ||
@@ -3317,11 +3359,11 @@ static esp_err_t media_upload_handler(httpd_req_t *req, const char *root, unsign
     char wallpaper[8] = {0};
     bool set_wallpaper = kind == 1 && httpd_query_key_value(query, "wallpaper", wallpaper, sizeof(wallpaper)) == ESP_OK && !strcmp(wallpaper, "1");
     if (set_wallpaper && !s_cfg.wallpaper_set_cb)
-        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"锁屏壁纸设置不可用\"}");
+        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"Cài đặt hình nền khóa hiện không khả dụng\"}");
     portENTER_CRITICAL(&s_lock);
     if (!admission_begin(s_stopping, &s_upload_active)) {
         portEXIT_CRITICAL(&s_lock);
-        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"网络正在切换，请稍后重试\"}");
+        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"Đang chuyển mạng, vui lòng thử lại sau\"}");
     }
     s_status.state = READ_PICO_TRANSFER_UPLOADING; s_status.last_error = ESP_OK;
     memcpy(s_status.cur_name, name, strlen(name) + 1);
@@ -3336,7 +3378,7 @@ static esp_err_t media_upload_handler(httpd_req_t *req, const char *root, unsign
     if (result.changed) { s_status.done_count++; s_status.changed_count++; }
     portEXIT_CRITICAL(&s_lock);
     if (wallpaper_failed)
-        return wifi_response(req, "500 Internal Server Error", "{\"error\":\"图片已上传，但设置锁屏壁纸失败\"}");
+        return wifi_response(req, "500 Internal Server Error", "{\"error\":\"Đã tải ảnh lên nhưng đặt hình nền khóa thất bại\"}");
     return file_response(req, result, false, path);
 }
 
@@ -3349,8 +3391,8 @@ static esp_err_t font_upload_handler(httpd_req_t *req) {
 }
 
 static esp_err_t file_upload_handler(httpd_req_t *req) {
-    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开\"}");
-    if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"请插入 TF 卡后重试\"}");
+    if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở từ địa chỉ hiển thị trên máy\"}");
+    if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"Vui lòng lắp thẻ nhớ rồi thử lại\"}");
     char query[800], encoded[720], relative[240], replace[8], path[256];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "path", encoded, sizeof(encoded)) != ESP_OK ||
@@ -3361,7 +3403,7 @@ static esp_err_t file_upload_handler(httpd_req_t *req) {
     portENTER_CRITICAL(&s_lock);
     if (!admission_begin(s_stopping, &s_upload_active)) {
         portEXIT_CRITICAL(&s_lock);
-        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"网络正在切换，请稍后重试\"}");
+        return wifi_response(req, "503 Service Unavailable", "{\"error\":\"Đang chuyển mạng, vui lòng thử lại sau\"}");
     }
     s_status.state = READ_PICO_TRANSFER_UPLOADING; s_status.last_error = ESP_OK;
     snprintf(s_status.cur_name, sizeof(s_status.cur_name), "%s", name);
@@ -3386,31 +3428,31 @@ static esp_err_t files_error(httpd_req_t *req, const char *status, const char *m
 typedef struct { char name[241]; uint64_t size; bool directory; } transfer_file_entry_t;
 
 static esp_err_t files_list_handler(httpd_req_t *req) {
-    if (!management_request(req)) return files_error(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开\"}");
-    if (s_cfg.is_flash) return files_error(req, "400 Bad Request", "{\"error\":\"TF 卡尚未就绪\"}");
+    if (!management_request(req)) return files_error(req, "403 Forbidden", "{\"error\":\"Vui lòng mở từ địa chỉ hiển thị trên máy\"}");
+    if (s_cfg.is_flash) return files_error(req, "400 Bad Request", "{\"error\":\"Thẻ nhớ chưa sẵn sàng\"}");
     char query[800] = {0}, encoded[720] = {0}, relative[240] = {0}, path[256];
     if (httpd_req_get_url_query_len(req) && httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK)
-        return files_error(req, "400 Bad Request", "{\"error\":\"目录地址过长\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn thư mục quá dài\"}");
     esp_err_t path_result = httpd_query_key_value(query, "path", encoded, sizeof(encoded));
     if (path_result != ESP_OK && path_result != ESP_ERR_NOT_FOUND)
-        return files_error(req, "400 Bad Request", "{\"error\":\"目录地址无效\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn thư mục không hợp lệ\"}");
     if (path_result == ESP_OK && !sd_decode_relative(encoded, relative, true))
-        return files_error(req, "400 Bad Request", "{\"error\":\"目录地址无效\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn thư mục không hợp lệ\"}");
     if (!sd_absolute(relative, path, sizeof(path)))
-        return files_error(req, "400 Bad Request", "{\"error\":\"目录地址过长\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn thư mục quá dài\"}");
     char page_text[12] = {0};
     size_t page = 0;
     if (httpd_query_key_value(query, "page", page_text, sizeof(page_text)) == ESP_OK) {
         char *end = NULL;
         unsigned long value = strtoul(page_text, &end, 10);
         if (!page_text[0] || *end || value > 100000)
-            return files_error(req, "400 Bad Request", "{\"error\":\"页码无效\"}");
+            return files_error(req, "400 Bad Request", "{\"error\":\"Số trang không hợp lệ\"}");
         page = value;
     }
     DIR *dir = opendir(path);
-    if (!dir) return files_error(req, "404 Not Found", "{\"error\":\"目录不存在或无法读取\"}");
+    if (!dir) return files_error(req, "404 Not Found", "{\"error\":\"Thư mục không tồn tại hoặc không thể đọc\"}");
     transfer_file_entry_t *items = heap_caps_calloc(TRANSFER_FILE_PAGE_SIZE, sizeof(*items), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!items) { closedir(dir); return files_error(req, "500 Internal Server Error", "{\"error\":\"内存不足\"}"); }
+    if (!items) { closedir(dir); return files_error(req, "500 Internal Server Error", "{\"error\":\"Không đủ bộ nhớ\"}"); }
     size_t total = 0, count = 0;
     for (int pass = 0; pass < 2; ++pass) {
         rewinddir(dir);
@@ -3625,12 +3667,12 @@ static void sync_upload_root_after_edit(const char *action, const char *source, 
 }
 
 static esp_err_t files_mutation_handler(httpd_req_t *req) {
-    if (!management_request(req)) return files_error(req, "403 Forbidden", "{\"error\":\"请从设备显示的地址打开\"}");
-    if (s_cfg.is_flash) return files_error(req, "400 Bad Request", "{\"error\":\"TF 卡尚未就绪\"}");
+    if (!management_request(req)) return files_error(req, "403 Forbidden", "{\"error\":\"Vui lòng mở từ địa chỉ hiển thị trên máy\"}");
+    if (s_cfg.is_flash) return files_error(req, "400 Bad Request", "{\"error\":\"Thẻ nhớ chưa sẵn sàng\"}");
     char body[800] = {0};
     if (!req->content_len || !recv_small_body(req, body, sizeof(body)) ||
         strstr(body, "\\u0000") || !flat_file_request(body))
-        return files_error(req, "400 Bad Request", "{\"error\":\"操作参数无效\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Tham số thao tác không hợp lệ\"}");
     cJSON *json = cJSON_Parse(body);
     const cJSON *action = json ? cJSON_GetObjectItemCaseSensitive(json, "action") : NULL;
     const cJSON *from = json ? cJSON_GetObjectItemCaseSensitive(json, "path") : NULL;
@@ -3640,21 +3682,21 @@ static esp_err_t files_mutation_handler(httpd_req_t *req) {
         (!strcmp(action->valuestring, "delete") ? false :
          (!cJSON_IsString(to) || !sd_relative_valid(to->valuestring, false)))) {
         cJSON_Delete(json);
-        return files_error(req, "400 Bad Request", "{\"error\":\"文件路径无效\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn tệp không hợp lệ\"}");
     }
     char source[256], target[256] = {0};
     bool has_target = strcmp(action->valuestring, "delete") != 0;
     if (!sd_absolute(from->valuestring, source, sizeof(source)) ||
         (has_target && !sd_absolute(to->valuestring, target, sizeof(target)))) {
         cJSON_Delete(json);
-        return files_error(req, "400 Bad Request", "{\"error\":\"文件路径过长\"}");
+        return files_error(req, "400 Bad Request", "{\"error\":\"Đường dẫn tệp quá dài\"}");
     }
     bool accepted;
     portENTER_CRITICAL(&s_lock);
     accepted = admission_begin(s_stopping, &s_upload_active);
     if (accepted) s_status.state = READ_PICO_TRANSFER_UPLOADING;
     portEXIT_CRITICAL(&s_lock);
-    if (!accepted) { cJSON_Delete(json); return files_error(req, "503 Service Unavailable", "{\"error\":\"设备正忙，请稍后重试\"}"); }
+    if (!accepted) { cJSON_Delete(json); return files_error(req, "503 Service Unavailable", "{\"error\":\"Thiết bị đang bận, vui lòng thử lại sau\"}"); }
     int status = 400;
     bool may_have_changed = false;
     struct stat st;
@@ -3711,10 +3753,10 @@ static esp_err_t files_mutation_handler(httpd_req_t *req) {
     set_error(ESP_OK);
     cJSON_Delete(json);
     if (status == 200) return files_error(req, "200 OK", "{\"ok\":true}");
-    if (status == 404) return files_error(req, "404 Not Found", "{\"error\":\"文件或目录不存在\"}");
-    if (status == 409) return files_error(req, "409 Conflict", "{\"error\":\"目标文件已存在\"}");
-    if (status == 507) return files_error(req, "507 Insufficient Storage", "{\"error\":\"TF 卡空间不足或读写失败\"}");
-    return files_error(req, "400 Bad Request", "{\"error\":\"当前操作不支持该文件\"}");
+    if (status == 404) return files_error(req, "404 Not Found", "{\"error\":\"Tệp hoặc thư mục không tồn tại\"}");
+    if (status == 409) return files_error(req, "409 Conflict", "{\"error\":\"Tệp đích đã tồn tại\"}");
+    if (status == 507) return files_error(req, "507 Insufficient Storage", "{\"error\":\"Thẻ nhớ hết dung lượng hoặc lỗi đọc/ghi\"}");
+    return files_error(req, "400 Bad Request", "{\"error\":\"Thao tác này không hỗ trợ định dạng tệp đó\"}");
 }
 
 /* ---- 生命周期 / Lifecycle ---- */
@@ -3815,13 +3857,14 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     else if (err != ESP_ERR_INVALID_STATE) goto fail;
     err = transfer_create_netif(cfg->mode == READ_PICO_TRANSFER_MODE_AP, &s_netif);
     if (err != ESP_OK) goto fail;
+    (void)esp_netif_set_hostname(s_netif, "dpreader");
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&init); if (err != ESP_OK) goto fail;
     s_wifi = true;
     if (cfg->mode == READ_PICO_TRANSFER_MODE_AP) {
         uint8_t mac[6];
         err = esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP); if (err != ESP_OK) goto fail;
-        snprintf((char *)wifi.ap.ssid, sizeof(wifi.ap.ssid), "kiikoread-%02X%02X", mac[4], mac[5]);
+        snprintf((char *)wifi.ap.ssid, sizeof(wifi.ap.ssid), "dpReader-%02X%02X", mac[4], mac[5]);
         strcpy((char *)wifi.ap.password, READ_PICO_TRANSFER_PASSWORD);
         wifi.ap.ssid_len = strlen((char *)wifi.ap.ssid); wifi.ap.channel = 1;
         wifi.ap.max_connection = 1; wifi.ap.authmode = WIFI_AUTH_WPA2_PSK;
@@ -3857,7 +3900,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     // File metadata and wallpaper settings access NVS; the HTTP stack must remain readable while caches are disabled.
     // 在无线电启动前预留网页任务，避免 WiFi 内存碎片导致任务创建失败。
     // Reserve the HTTP task before starting the radio to avoid WiFi heap fragmentation.
-    http.stack_size = 12288; http.max_uri_handlers = 18; http.max_open_sockets = 3;
+    http.stack_size = 12288; http.max_uri_handlers = 20; http.max_open_sockets = 3;
     http.recv_wait_timeout = 15;
     http.send_wait_timeout = 15;
     http.task_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
@@ -3886,6 +3929,8 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
         { .uri = "/books", .method = HTTP_POST, .handler = books_handler },
         { .uri = "/signature", .method = HTTP_GET, .handler = signature_handler },
         { .uri = "/signature", .method = HTTP_POST, .handler = signature_handler },
+        { .uri = "/sync-config", .method = HTTP_GET, .handler = sync_config_handler },
+        { .uri = "/sync-config", .method = HTTP_POST, .handler = sync_config_handler },
         { .uri = "/clock", .method = HTTP_POST, .handler = clock_handler },
         { .uri = "/titles", .method = HTTP_GET, .handler = titles_handler },
         { .uri = "/titles", .method = HTTP_POST, .handler = titles_handler },

@@ -178,13 +178,13 @@ static void power_control_base(uint8_t *fb,int slot,bool glass) {
         ui_draw_control_frame(fb,r,radius,0x70);
     }
     if(!slot){
-        ui_text_box(fb,(EpdRect){r.x+80,r.y+45,r.width-160,60},40,"滑动关机",EPD_DRAW_ALIGN_CENTER,false);
+        ui_text_box(fb,(EpdRect){r.x+80,r.y+45,r.width-160,60},40,"Trượt để tắt máy",EPD_DRAW_ALIGN_CENTER,false);
         return;
     }
     int cx=r.x+r.width/2,cy=r.y+r.height/2;
     // 重启和取消都用图标库的描边字形，和锁、电源同一套线宽。/ Restart and cancel both use the icon set's stroke marks, matching the lock and power line weight.
     ui_draw_icon(fb,cx,cy-20,44,slot==1?UI_ICON_ROTATE_CW:UI_ICON_X,UI_GRAY_BLACK);
-    ui_text_box(fb,(EpdRect){cx-66,cy+18,132,38},24,slot==1?"重启":"取消",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_box(fb,(EpdRect){cx-66,cy+18,132,38},24,slot==1?"Khởi động lại":"Hủy",EPD_DRAW_ALIGN_CENTER,false);
 }
 void ui_power_dialog_end(void) {
     heap_caps_free(s_control_backdrop);s_control_backdrop=NULL;
@@ -226,6 +226,6 @@ void ui_power_final_draw(uint8_t *fb, bool restarting) {
     ui_clear_page(fb);
     const int cx = UI_LOCK_WIDTH / 2;
     ui_draw_icon(fb, cx, 486, 72, restarting ? UI_ICON_ROTATE_CW : UI_ICON_POWER, UI_GRAY_BLACK);
-    ui_text(fb, cx, 548, 48, restarting ? "正在重启" : "kiikoread 已关机", EPD_DRAW_ALIGN_CENTER, false);
-    if (!restarting) ui_text(fb, cx, 624, 26, "长按电源键开机", EPD_DRAW_ALIGN_CENTER, false);
+    ui_text(fb, cx, 548, 48, restarting ? "Đang khởi động lại" : "dpReader đã tắt máy", EPD_DRAW_ALIGN_CENTER, false);
+    if (!restarting) ui_text(fb, cx, 624, 26, "Nhấn giữ nút nguồn để bật máy", EPD_DRAW_ALIGN_CENTER, false);
 }

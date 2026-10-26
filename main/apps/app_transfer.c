@@ -38,6 +38,8 @@
 #include "book_store.h"
 #include "book_progress.h"
 #include "book_title.h"
+#include "kosync_client.h"
+#include "cJSON.h"
 #include "display.h"
 #if KIIKO_BOARD_METALIO47
 #include "display_main_waveform.h"
@@ -97,6 +99,62 @@ static esp_err_t transfer_signature_set(const char *text) {
     if (strcmp(app_settings_status_signature(), text)) return ESP_FAIL;
     __atomic_add_fetch(&s_signature_revision, 1, __ATOMIC_RELEASE);
     return ESP_OK;
+}
+
+static bool transfer_sync_cfg_get(char *out_json, size_t cap) {
+    if (!out_json || !cap) return false;
+    cJSON *root = cJSON_CreateObject();
+    if (!root) return false;
+    cJSON_AddStringToObject(root, "kosync_url", app_settings_kosync_url());
+    cJSON_AddStringToObject(root, "kosync_user", app_settings_kosync_user());
+    cJSON_AddBoolToObject(root, "kosync_has_key", app_settings_kosync_key()[0] != 0);
+    cJSON_AddBoolToObject(root, "kosync_auto", app_settings_kosync_auto());
+    cJSON_AddStringToObject(root, "opds_url", app_settings_opds_url());
+    cJSON_AddStringToObject(root, "opds_user", app_settings_opds_user());
+    cJSON_AddBoolToObject(root, "opds_has_pass", app_settings_opds_pass()[0] != 0);
+    cJSON_AddBoolToObject(root, "ok", true);
+    char *printed = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!printed) return false;
+    bool ok = strlen(printed) < cap;
+    if (ok) strlcpy(out_json, printed, cap);
+    cJSON_free(printed);
+    return ok;
+}
+
+static esp_err_t transfer_sync_cfg_set(const char *in_json) {
+    if (!in_json) return ESP_ERR_INVALID_ARG;
+    cJSON *root = cJSON_Parse(in_json);
+    if (!root) return ESP_ERR_INVALID_ARG;
+    bool ok = true;
+    const cJSON *ks_url = cJSON_GetObjectItemCaseSensitive(root, "kosync_url");
+    const cJSON *ks_user = cJSON_GetObjectItemCaseSensitive(root, "kosync_user");
+    const cJSON *ks_pass = cJSON_GetObjectItemCaseSensitive(root, "kosync_pass");
+    const cJSON *ks_auto = cJSON_GetObjectItemCaseSensitive(root, "kosync_auto");
+    const cJSON *op_url = cJSON_GetObjectItemCaseSensitive(root, "opds_url");
+    const cJSON *op_user = cJSON_GetObjectItemCaseSensitive(root, "opds_user");
+    const cJSON *op_pass = cJSON_GetObjectItemCaseSensitive(root, "opds_pass");
+
+    if (cJSON_IsString(ks_url) && ks_url->valuestring)
+        ok = ok && app_settings_set_kosync_url(ks_url->valuestring);
+    if (cJSON_IsString(ks_user) && ks_user->valuestring)
+        ok = ok && app_settings_set_kosync_user(ks_user->valuestring);
+    if (cJSON_IsString(ks_pass) && ks_pass->valuestring && ks_pass->valuestring[0]) {
+        char md5_hex[33] = {0};
+        kosync_md5_string(ks_pass->valuestring, md5_hex);
+        ok = ok && app_settings_set_kosync_key(md5_hex);
+    }
+    if (cJSON_IsBool(ks_auto))
+        app_settings_set_kosync_auto(cJSON_IsTrue(ks_auto));
+    if (cJSON_IsString(op_url) && op_url->valuestring)
+        ok = ok && app_settings_set_opds_url(op_url->valuestring);
+    if (cJSON_IsString(op_user) && op_user->valuestring)
+        ok = ok && app_settings_set_opds_user(op_user->valuestring);
+    if (cJSON_IsString(op_pass) && op_pass->valuestring && op_pass->valuestring[0])
+        ok = ok && app_settings_set_opds_pass(op_pass->valuestring);
+
+    cJSON_Delete(root);
+    return ok ? ESP_OK : ESP_ERR_INVALID_ARG;
 }
 
 static bool transfer_book_file(const char *path) {
@@ -216,16 +274,16 @@ static EpdRect method_control_rect(int id) {
 static void draw_methods(uint8_t *fb) {
     ui_clear_page(fb);
     ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, transfer_content_end()}, 0xe0, fb);
-    transfer_header(fb, "Wifi/热点传书", NULL);
-    ui_text(fb, 42, 180, 21, "选择方式", EPD_DRAW_ALIGN_LEFT, false);
+    transfer_header(fb, "Truyền WiFi / Điểm phát", NULL);
+    ui_text(fb, 42, 180, 21, "Chọn phương thức", EPD_DRAW_ALIGN_LEFT, false);
     EpdRect card = {36, 224, 612, 224};
     ui_fill_round_rect(fb, card, 24, UI_GRAY_WHITE);
     ui_draw_round_rect(fb, card, 24, 0x60);
     ui_draw_round_rect(fb, (EpdRect){37, 225, 610, 222}, 23, 0x60);
-    static const char *titles[] = {"WiFi传书", "热点传书"};
+    static const char *titles[] = {"Truyền qua WiFi", "Điểm phát sóng"};
     static const char *details[] = {
-        "与手机或电脑连接同一个无线网络",
-        "由墨水屏创建临时网络，离线也能传书"
+        "Kết nối cùng mạng WiFi với điện thoại hoặc máy tính",
+        "Máy tự phát WiFi riêng để truyền sách không cần mạng"
     };
     for (int i = 0; i < 2; ++i) {
         EpdRect row = method_control_rect(i);
@@ -242,8 +300,8 @@ static void draw_methods(uint8_t *fb) {
         ui_fill_round_rect(fb, (EpdRect){36, 478, 612, 76}, 20, 0xd8);
         ui_text_vc(fb, 342, 516, 20, s_method_message, EPD_DRAW_ALIGN_CENTER, false);
     }
-    ui_text(fb, 42, 594, 19, "浏览器传书支持 EPUB、TXT、字体和图片文件。", EPD_DRAW_ALIGN_LEFT, false);
-    ui_text(fb, 42, 634, 18, "传输完成后，新内容会自动出现在书架或字体列表。", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text(fb, 42, 594, 19, "Hỗ trợ tải sách EPUB, TXT, phông chữ, ảnh và cấu hình KOSync/OPDS.", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text(fb, 42, 634, 18, "Sau khi tải lên, sách và phông chữ mới sẽ tự động xuất hiện.", EPD_DRAW_ALIGN_LEFT, false);
     transfer_navigation(fb,2);
 }
 
@@ -306,19 +364,19 @@ static void draw_networks(uint8_t* fb) {
     ui_clear_page(fb);
     ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, transfer_content_end()}, 0xe0, fb);
     if (s_forget_confirm) {
-        transfer_header(fb, "遗忘网络", "仅清除 WiFi 连接信息，不影响图书");
+        transfer_header(fb, "Quên mạng", "Chỉ xóa thông tin mạng WiFi, không ảnh hưởng tới sách");
         char name[33];
         snprintf(name, sizeof(name), "%s", s_saved_ssid);
         fit_label(name, UI_PX_BODY, ui_content_width());
         ui_text(fb, UI_MARGIN, 350, UI_PX_BODY, name, EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, UI_MARGIN, 450, UI_PX_CAPTION, s_network_message, EPD_DRAW_ALIGN_LEFT, false);
-        provisioning_button(fb, network_control_rect(11), "确认遗忘", 11);
-        provisioning_button(fb, network_control_rect(12), "取消", 12);
+        provisioning_button(fb, network_control_rect(11), "Xác nhận quên", 11);
+        provisioning_button(fb, network_control_rect(12), "Hủy", 12);
         transfer_navigation(fb,3);
         return;
     }
-    transfer_header(fb, "无线网络", NULL);
-    ui_text(fb, 42, 182, 24, "当前网络", EPD_DRAW_ALIGN_LEFT, false);
+    transfer_header(fb, "Mạng WiFi", NULL);
+    ui_text(fb, 42, 182, 24, "Mạng hiện tại", EPD_DRAW_ALIGN_LEFT, false);
     EpdRect current = {36, 224, 612, 154};
     ui_fill_round_rect(fb, current, 22, UI_GRAY_WHITE);
     network_border(fb, current, 22);
@@ -326,8 +384,8 @@ static void draw_networks(uint8_t* fb) {
         char saved[40]; snprintf(saved, sizeof(saved), "%s", s_saved_ssid); fit_label(saved, 29, 375);
         ui_nav_wifi_icon(fb, 74, 265, 28, UI_GRAY_BLACK);
         ui_text(fb, 104, 243, 29, saved, EPD_DRAW_ALIGN_LEFT, false);
-        const char *state = s_status.network_ready ? "已连接" :
-            s_network_connect_pending || s_status.state == READ_PICO_TRANSFER_STARTING ? "正在连接…" : "已保存 · 尚未连接";
+        const char *state = s_status.network_ready ? "Đã kết nối" :
+            s_network_connect_pending || s_status.state == READ_PICO_TRANSFER_STARTING ? "Đang kết nối…" : "Đã lưu · Chưa kết nối";
         ui_text(fb, 64, 297, 23, state, EPD_DRAW_ALIGN_LEFT, false);
         char address[80];
         const char *url = !strncmp(s_status.url, "http://", 7) ? s_status.url + 7 : s_status.url;
@@ -336,7 +394,7 @@ static void draw_networks(uint8_t* fb) {
         ui_text(fb, 64, 336, 21, address, EPD_DRAW_ALIGN_LEFT, false);
         network_button(fb, 6, s_status.network_ready ? "断开" : "连接", !s_status.network_ready);
         if (s_pressed == 11) ui_draw_pressed_round_rect(fb, network_control_rect(11), 14);
-        ui_text_vc(fb, 563, 341, 21, "遗忘网络", EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_vc(fb, 563, 341, 21, "Quên mạng", EPD_DRAW_ALIGN_CENTER, false);
     } else {
         ui_text(fb, 64, 253, 29, "尚未保存网络", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 64, 312, 23, "请从下方列表选择 2.4 GHz WiFi", EPD_DRAW_ALIGN_LEFT, false);
@@ -377,7 +435,7 @@ static void draw_networks(uint8_t* fb) {
         network_button(fb, 7, "‹", false);
         network_button(fb, 9, "›", false);
     }
-    network_button(fb, 8, s_scan_error == ESP_OK ? "重新扫描" : "重试扫描", false);
+    network_button(fb, 8, s_scan_error == ESP_OK ? "Quét lại" : "重试扫描", false);
     if (s_network_count <= NETWORK_ROWS) ui_draw_icon(fb, 597, 906, 32, UI_ICON_ROTATE_CW, UI_GRAY_BLACK);
     ui_text(fb, 42, 976, 21, "支持 2.4 GHz WiFi（信道 1–13）", EPD_DRAW_ALIGN_LEFT, false);
     char message[96];
@@ -402,8 +460,8 @@ static void draw_password(uint8_t* fb) {
     ui_text_input_draw(fb, &s_password_input, password_control_rect(47), UI_PX_BODY,
                        !s_password_visible, NULL);
     ui_text_fixed_vc(fb, 36, 399, 22, s_network_message[0] ? s_network_message : "支持英文、数字、符号和空格", EPD_DRAW_ALIGN_LEFT, false);
-    provisioning_button(fb, password_control_rect(44), "取消", 44);
-    provisioning_button(fb, password_control_rect(45), s_password_visible ? "隐藏" : "显示", 45);
+    provisioning_button(fb, password_control_rect(44), "Hủy", 44);
+    provisioning_button(fb, password_control_rect(45), s_password_visible ? "隐藏" : "Hiển thị", 45);
     provisioning_button(fb, password_control_rect(46), "连接并保存", 46);
     ui_keyboard_draw(fb, UI_SYSTEM_KEYBOARD_TOP);
 }
@@ -624,7 +682,7 @@ static app_redraw_t password_paint(app_ctx_t *ctx, bool field, bool controls) {
         ui_text_fixed_vc(ctx->fb, 36, 399, 22, s_network_message[0] ? s_network_message : "支持英文、数字、符号和空格", EPD_DRAW_ALIGN_LEFT, false);
         for (int i = 44; i <= 46; ++i) {
             EpdRect button = password_control_rect(i); ui_clear_rect_fast(ctx->fb, button);
-            provisioning_button(ctx->fb, button, i == 44 ? "取消" : i == 45 ? s_password_visible ? "隐藏" : "显示" : "连接并保存", i);
+            provisioning_button(ctx->fb, button, i == 44 ? "Hủy" : i == 45 ? s_password_visible ? "隐藏" : "Hiển thị" : "连接并保存", i);
         }
     }
     if (update.field || controls) update.area = update.area.width ? ui_rect_union(update.area, extra) : extra;
@@ -733,7 +791,7 @@ static void draw_status(uint8_t* fb) {
     }
     char capacity[112];
     if (s_media_lost) snprintf(capacity, sizeof(capacity), "TF 卡已移除，原存储已停用");
-    else snprintf(capacity, sizeof(capacity), "%s · 剩余 %.1f MB%s", s_root.is_flash ? "内置" : "TF 卡",
+    else snprintf(capacity, sizeof(capacity), "%s · 剩余 %.1f MB%s", s_root.is_flash ? "Máy" : "Thẻ nhớ",
                   s_free / 1048576.0, s_root.is_flash ? " · 单文件 ≤ 1 MB" : "");
     ui_text(fb, area.x + 28, area.y + 190, 18, capacity, EPD_DRAW_ALIGN_LEFT, false);
     ui_text(fb, area.x + 28, area.y + 228, 18,
@@ -790,7 +848,7 @@ static void render_content(app_ctx_t* ctx, uint8_t* fb) {
     if (s_view == TRANSFER_NETWORKS) { draw_networks(fb); return; }
     if (s_view == TRANSFER_PASSWORD) { draw_password(fb); return; }
     ui_clear_page(fb);
-    transfer_header(fb, s_mode == READ_PICO_TRANSFER_MODE_AP ? "热点传书" : "WiFi 传书", NULL);
+    transfer_header(fb, s_mode == READ_PICO_TRANSFER_MODE_AP ? "Điểm phát sóng" : "WiFi 传书", NULL);
     EpdRect connection = {36, 168, 612, 132};
     ui_fill_round_rect(fb, connection, 24, UI_GRAY_WHITE);
     ui_draw_round_rect(fb, connection, 24, 0x98);
@@ -1039,6 +1097,7 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
                 .file_moved_cb = transfer_file_moved,
                 .wallpaper_set_cb = transfer_set_wallpaper,
                 .signature_get_cb = transfer_signature_get, .signature_set_cb = transfer_signature_set,
+                .sync_cfg_get_cb = transfer_sync_cfg_get, .sync_cfg_set_cb = transfer_sync_cfg_set,
                 .title_get_cb = NULL, .title_set_cb = NULL};
             err = read_pico_transfer_start(&cfg);
             s_session_started = err == ESP_OK;

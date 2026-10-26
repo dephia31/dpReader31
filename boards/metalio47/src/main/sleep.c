@@ -304,7 +304,7 @@ static void lock_hint_service(void) {
                 }
                 ui_fill_round_rect(fb,r,28,UI_GRAY_WHITE);
                 ui_draw_round_rect(fb,r,28,UI_GRAY_BLACK);
-                ui_text_fixed_vc(fb,w/2,r.y+r.height/2,28,"双击电源键解锁",EPD_DRAW_ALIGN_CENTER,false);
+                ui_text_fixed_vc(fb,w/2,r.y+r.height/2,28,"Nhấn đúp nút nguồn để mở khóa",EPD_DRAW_ALIGN_CENTER,false);
                 lock_hint_present();
             }
         }

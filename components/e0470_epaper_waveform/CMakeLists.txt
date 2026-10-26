@@ -1,5 +1,4 @@
 include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/board.cmake")
-if(KIIKO_BOARD_METALIO47)
 kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "e0470_epaper_waveform.c" "e0470_waveform_trim.c")
 idf_component_register(
     SRCS ${kiiko_selected_sources}
@@ -7,14 +6,3 @@ idf_component_register(
     PRIV_INCLUDE_DIRS "metalio" "waveforms"
     REQUIRES epdiy
 )
-
-else()
-kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "e0470_epaper_waveform.c" "e0470_waveform_trim.c")
-idf_component_register(
-    SRCS ${kiiko_selected_sources}
-    INCLUDE_DIRS "include"
-    PRIV_INCLUDE_DIRS "waveforms"
-    REQUIRES epdiy
-)
-
-endif()

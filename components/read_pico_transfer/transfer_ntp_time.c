@@ -14,9 +14,8 @@
 esp_err_t transfer_sync_time_ntp_cancelable(uint32_t *utc_seconds, bool (*cancelled)(void)) {
     if(!utc_seconds) return ESP_ERR_INVALID_ARG;
     *utc_seconds=0;
-    // 原厂MetalioRtc使用time.windows.com；国内公网源作为单次请求备用。
-    // The reference MetalioRtc uses time.windows.com; retain public fallback sources.
-    static const char *const servers[]={"time.windows.com","ntp.aliyun.com","time.cloud.tencent.com"};
+    // Máy chủ đồng bộ giờ NTP ưu tiên cho khu vực Việt Nam và quốc tế.
+    static const char *const servers[]={"vn.pool.ntp.org","0.asia.pool.ntp.org","time.cloudflare.com","time.google.com"};
     esp_err_t result=ESP_ERR_TIMEOUT;
     for(unsigned source=0;source<sizeof(servers)/sizeof(servers[0]);source++) {
         if (cancelled && cancelled()) return ESP_ERR_INVALID_STATE;

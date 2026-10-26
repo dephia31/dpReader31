@@ -101,7 +101,10 @@ static bool layout_valid(void) {
     const esp_partition_t *a = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
     const esp_partition_t *b = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_1, NULL);
     const esp_partition_t *data = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
-    return a && b && data && a->address == 0x10000 && b->address == 0x510000 &&
+    const bool valid_addrs = a && b &&
+        ((a->address == 0x10000 && b->address == 0x510000) ||
+         (a->address == 0x80000 && b->address == 0x580000));
+    return valid_addrs && data &&
         a->size == 0x500000 && b->size == 0x500000 && data->address == 0xd000 && data->size == 0x2000;
 }
 static bool online(bool *owned) {
@@ -110,13 +113,13 @@ static bool online(bool *owned) {
     if (!(status.mode == READ_PICO_TRANSFER_MODE_STA && status.network_ready)) {
         char ssid[33]; bool saved = false;
         if (read_pico_transfer_get_saved_wifi(ssid, &saved) != ESP_OK || !saved) {
-            state(PICO_UPDATE_FAILED, "请先在 WiFi 设置中连接网络"); return false;
+            state(PICO_UPDATE_FAILED, "Vui lòng kết nối WiFi trong Cài đặt trước"); return false;
         }
         read_pico_transfer_stop();
         read_pico_transfer_cfg_t cfg = {.mode = READ_PICO_TRANSFER_MODE_STA, .network_only = true};
         *owned = true;
         if (read_pico_transfer_start(&cfg) != ESP_OK) {
-            state(PICO_UPDATE_FAILED, "WiFi 连接失败，请重试"); return false;
+            state(PICO_UPDATE_FAILED, "Kết nối WiFi thất bại, vui lòng thử lại"); return false;
         }
     }
     int64_t deadline = esp_timer_get_time() + 30000000;
@@ -127,7 +130,7 @@ static bool online(bool *owned) {
             if (time(NULL) < 1704067200) {
                 uint32_t utc;
                 if (read_pico_transfer_sync_time_online(&utc) != ESP_OK) {
-                    state(PICO_UPDATE_FAILED, "网络对时失败，请对时后重试"); return false;
+                    state(PICO_UPDATE_FAILED, "Đồng bộ giờ mạng thất bại, hãy thử lại"); return false;
                 }
             }
             return !atomic_load(&s_cancel);
@@ -135,7 +138,7 @@ static bool online(bool *owned) {
         if (status.state == READ_PICO_TRANSFER_ERROR || esp_timer_get_time() >= deadline) break;
         vTaskDelay(pdMS_TO_TICKS(100));
     }
-    if (!atomic_load(&s_cancel)) state(PICO_UPDATE_FAILED, "网络连接超时，请重试");
+    if (!atomic_load(&s_cancel)) state(PICO_UPDATE_FAILED, "Quá thời gian kết nối mạng, vui lòng thử lại");
     return false;
 }
 typedef struct {
@@ -214,7 +217,7 @@ static int read_chunk(esp_http_client_handle_t client, uint8_t *buffer, int cap,
 static bool check_feed(void) {
     char *json = heap_caps_malloc(8193, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     pico_release_t *release = heap_caps_calloc(1, sizeof(*release), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!json || !release) { state(PICO_UPDATE_FAILED, "内存不足，请退出传书后重试"); goto failed; }
+    if (!json || !release) { state(PICO_UPDATE_FAILED, "Không đủ bộ nhớ, hãy thoát truyền sách rồi thử lại"); goto failed; }
     // GitHub Pages清单优先，官网清单备用；同一缓冲区顺序请求，无并发TLS连接。
     // Prefer GitHub Pages metadata, falling back to the website with one shared buffer and no concurrent TLS clients.
     static const char *const feeds[] = {PICO_OTA_FEED_URL, PICO_OTA_FEED_FALLBACK_URL};
@@ -240,17 +243,17 @@ static bool check_feed(void) {
         json[received] = 0;
         if (n >= 0 && complete && pico_release_parse(json, received, release) == ESP_OK) { valid = true; break; }
     }
-    if (!valid) { state(PICO_UPDATE_FAILED, "更新服务器连接失败或清单无效，请稍后重试"); goto failed; }
+    if (!valid) { state(PICO_UPDATE_FAILED, "Không kết nối được máy chủ cập nhật, vui lòng thử lại sau"); goto failed; }
     const esp_app_desc_t *running = esp_app_get_description();
     if (strcmp(release->project, running->project_name) || !layout_valid() ||
         pico_version_compare(running->version, release->minimum_base_version) < 0) {
-        state(PICO_UPDATE_FAILED, "基础包不兼容，请先通过官网完整刷机"); goto failed;
+        state(PICO_UPDATE_FAILED, "Gói cơ sở không tương thích, cần nạp lại toàn bộ ROM"); goto failed;
     }
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     memcpy(&s_status->release, release, sizeof(*release));
     xSemaphoreGive(s_mutex);
     state(pico_version_compare(release->version, running->version) > 0 ? PICO_UPDATE_AVAILABLE : PICO_UPDATE_LATEST,
-          pico_version_compare(release->version, running->version) > 0 ? "发现新版本，可下载安装" : "当前已是最新版本");
+          pico_version_compare(release->version, running->version) > 0 ? "Có phiên bản mới, sẵn sàng tải và cài đặt" : "Đang ở phiên bản mới nhất");
     heap_caps_free(json); heap_caps_free(release);
     return true;
 failed:
@@ -270,11 +273,11 @@ static bool download(void) {
     pico_release_t *release = heap_caps_malloc(sizeof(*release), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     uint8_t *buffer = heap_caps_malloc(4096, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     uint8_t *header = heap_caps_malloc(288, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!release || !buffer || !header) { state(PICO_UPDATE_FAILED, "内存不足，无法下载升级包"); goto failed; }
+    if (!release || !buffer || !header) { state(PICO_UPDATE_FAILED, "Không đủ bộ nhớ để tải gói cập nhật"); goto failed; }
     xSemaphoreTake(s_mutex, portMAX_DELAY); *release = s_status->release; xSemaphoreGive(s_mutex);
     const esp_partition_t *target = esp_ota_get_next_update_partition(NULL);
     if (!layout_valid() || !target || target == esp_ota_get_running_partition() || release->size > target->size) {
-        state(PICO_UPDATE_FAILED, "基础包不兼容，请通过官网完整刷机"); goto failed;
+        state(PICO_UPDATE_FAILED, "Gói cơ sở không tương thích, cần nạp lại toàn bộ ROM"); goto failed;
     }
     // 两个允许的 HTTPS 源使用同一固定文件名和 SHA，连接失败才切换备用源。
     // Both trusted HTTPS origins use the same immutable name/hash; switch only after connection failure.
@@ -384,7 +387,7 @@ static void worker(void *unused) {
         // Disable radio power saving for updates, then restore it on success, cancellation or failure.
         restore_ps = esp_wifi_get_ps(&previous_ps) == ESP_OK && esp_wifi_set_ps(WIFI_PS_NONE) == ESP_OK;
         if (!memory_available(32768, 8192, 262144))
-            state(PICO_UPDATE_FAILED, "内存不足，请退出传书后重试");
+            state(PICO_UPDATE_FAILED, "Không đủ bộ nhớ, hãy thoát truyền sách rồi thử lại");
         else if (s_download) (void)download(); else (void)check_feed();
     }
     if (restore_ps) (void)esp_wifi_set_ps(previous_ps);
@@ -403,7 +406,7 @@ static esp_err_t start(bool downloading) {
     if (busy || (downloading && !available)) return ESP_ERR_INVALID_STATE;
     if (s_joinable) { xSemaphoreTake(s_done, portMAX_DELAY); s_joinable = false; }
     if (!memory_available(49152, 16384, 524288)) {
-        state(PICO_UPDATE_FAILED, "内存不足，请退出传书后重试");
+        state(PICO_UPDATE_FAILED, "Không đủ bộ nhớ, hãy thoát truyền sách rồi thử lại");
         return ESP_ERR_NO_MEM;
     }
     atomic_store(&s_cancel, false);
@@ -412,7 +415,7 @@ static esp_err_t start(bool downloading) {
     s_status->busy = true; s_status->received = 0;
     xSemaphoreGive(s_mutex);
     state(downloading ? PICO_UPDATE_DOWNLOADING : PICO_UPDATE_CHECKING,
-          downloading ? "正在下载，短暂断网会自动重连" : "正在连接并检查更新");
+          downloading ? "Đang tải xuống, sẽ tự kết nối lại nếu mạng chập chờn" : "Đang kết nối và kiểm tra bản cập nhật");
     if (xTaskCreate(worker, "kiikoread_ota", 12288, NULL, 4, NULL) != pdPASS) {
         xSemaphoreTake(s_mutex, portMAX_DELAY); s_status->busy = false; xSemaphoreGive(s_mutex);
         state(PICO_UPDATE_FAILED, "内存不足，无法开始升级"); return ESP_ERR_NO_MEM;

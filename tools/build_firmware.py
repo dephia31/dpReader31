@@ -43,7 +43,7 @@ def check_image(data, board):
         raise ValueError('Invalid ESP app image')
     field = lambda start: data[start:start + 32].split(b'\0')[0].decode('ascii')
     chip = struct.unpack_from('<H', data, 12)[0]
-    if chip != info['image_chip_id'] or field(80) != info['project'] or field(48) != info['version']:
+    if chip != info['image_chip_id'] or field(80) not in (info['project'], 'Kiikoread_Metalio_S31', 'dpReader') or field(48) != info['version']:
         raise ValueError('Image chip/project/version does not match selected board')
     return {'chip_id': chip, 'project': field(80), 'version': field(48), 'size': len(data),
             'sha256': hashlib.sha256(data).hexdigest()}
@@ -113,7 +113,18 @@ def export(build, output, board):
                                              'size': source.stat().st_size, 'sha256': digest})
         checksums.append(f'{digest}  {name}\n')
         args.append(f'{offset:#x} {name}')
-    shutil.copy2(app, output / f"kiikoread-{board}-{identity['version']}.bin")
+    shutil.copy2(app, output / 'dpReader_metalio47_firmware.bin')
+    shutil.copy2(app, output / f"dpReader-{board}-{identity['version']}.bin")
+    # Build merged full image (offset 0x0) for one-file flashing: dpReader_metalio47_full.bin
+    max_end = max(offset + source.stat().st_size for _, source, offset in parts)
+    full_img = bytearray(b'\xff' * max_end)
+    for _, source, offset in parts:
+        blob = source.read_bytes()
+        full_img[offset:offset + len(blob)] = blob
+    full_bin_path = output / 'dpReader_metalio47_full.bin'
+    full_bin_path.write_bytes(bytes(full_img))
+    checksums.append(f'{hashlib.sha256(full_img).hexdigest()}  dpReader_metalio47_full.bin\n')
+    checksums.append(f"{identity['sha256']}  dpReader_metalio47_firmware.bin\n")
     (output / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
     (output / 'flash_args').write_text('\n'.join(args) + '\n')
     command = ['python', '-m', 'esptool', '--chip', loader['chip'], '--port', 'PORT',
@@ -123,13 +134,16 @@ def export(build, output, board):
     command.extend(['write-flash', '@flash_args'])
     (output / 'flash-command.txt').write_text(shlex.join(command) + '\n')
     (output / 'SHA256SUMS.txt').write_text(''.join(checksums))
-    (output / '使用说明.txt').write_text(
-        f"本地测试固件 / {info['name']} / {info['idf_target']} / {identity['version']}\n"
-        "只用于对应设备，不可跨板型刷写。应用Bin仅用于已有正确分区的升级，不可写到地址0。\n"
-        "完整初装地址见flash_args，保留数据时不要全片擦除。当前工具只编译，不会连接或刷写设备。\n")
+    (output / 'HUONG_DAN_FLASH.txt').write_text(
+        f"Firmware dpReader / {info['name']} / {info['idf_target']} / {identity['version']}\n"
+        "- File gộp đầy đủ (nạp tại địa chỉ 0x0): dpReader_metalio47_full.bin\n"
+        "- File chỉ riêng ứng dụng (nạp tại 0x10000 hoặc cập nhật thẻ nhớ): dpReader_metalio47_firmware.bin\n"
+        "- Chi tiết câu lệnh esptool xem trong flash-command.txt và flash_args.\n")
     result = {'board': board, 'target': info['idf_target'], **identity,
               'partitions': entries, 'bootloader_offset': expected_offsets['bootloader'],
               'esptool_stub': loader['stub'], 'free_app_bytes': entries['ota_0'][3] - identity['size'],
+              'firmware_bin': str(output / 'dpReader_metalio47_firmware.bin'),
+              'full_bin': str(full_bin_path),
               'experimental_pie_pixels': bool(experimental_pie),
               'experimental_text_ripple': bool(experimental_ripple),
               'experimental_reader_panel37': bool(experimental_panel37),
@@ -139,7 +153,7 @@ def export(build, output, board):
               'local_transfer_start_test': bool(transfer_start),
               'built': True, 'device_flashed': False, 'published': False}
     (output / 'verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
-    with zipfile.ZipFile(output.parent / f"kiikoread-{board}-{identity['version']}-USB.zip", 'w', zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(output.parent / f"dpReader-{board}-{identity['version']}-USB.zip", 'w', zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(output.iterdir()):
             if path.is_file():
                 archive.write(path, path.name)
@@ -170,7 +184,7 @@ def build_one(board, args):
                '-DMETALIO_UI_GRAY22_EXPERIMENT=OFF',
                '-DMETALIO_NETWORK_PROBE=' + ('ON' if board == 'metalio47' and args.s31_network_probe else 'OFF'),
                '-DMETALIO_LOCAL_TRANSFER_START=' + ('ON' if board == 'metalio47' and getattr(args, 's31_transfer_startup_test', False) else 'OFF'),
-               'reconfigure', 'build']
+               *(['reconfigure'] if not (build / 'build.ninja').exists() else []), 'build']
     if args.dry_run:
         print(json.dumps({'board': board, 'sdk': str(sdk), 'command': command}, ensure_ascii=False))
         return None
@@ -197,8 +211,10 @@ def build_one(board, args):
                   'CONFIG_ESP_WIFI_AMPDU_TX_ENABLED':'y','CONFIG_ESP_WIFI_AMPDU_RX_ENABLED':'y',
                   'CONFIG_ESP_WIFI_TX_BA_WIN':'64','CONFIG_LWIP_SO_RCVBUF':'y'}
         lines=[line for line in lines if not any(line.startswith(key+'=') or line=='# '+key+' is not set' for key in transfer)]
-        path.write_text('\n'.join(lines+[key+'=y' for key in required]+
-                                  [key+'='+value for key,value in transfer.items()])+'\n')
+        new_sdkconfig = '\n'.join(lines+[key+'=y' for key in required]+
+                                  [key+'='+value for key,value in transfer.items()])+'\n'
+        if path.read_text() != new_sdkconfig:
+            path.write_text(new_sdkconfig)
     cache = getattr(args, 'managed_' + board)
     if cache:
         shutil.copytree(cache, source / 'managed_components', dirs_exist_ok=True)
@@ -229,7 +245,7 @@ def build_one(board, args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--board', choices=(*BOARDS, *BOARD_ALIASES, 'all'), required=True)
+    parser.add_argument('--board', choices=(*BOARDS, *BOARD_ALIASES, 'all'), default='metalio47')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/boards')
     parser.add_argument('--python', type=Path, default=Path(sys.executable))
     parser.add_argument('--tools', type=Path)

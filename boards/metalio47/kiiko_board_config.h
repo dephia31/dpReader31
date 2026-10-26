@@ -18,7 +18,7 @@
 
 /* ---- 身份 / Identity ---- */
 #define KIIKO_BOARD_ID "metalio47"
-#define KIIKO_BOARD_PROJECT "Kiikoread_Metalio_S31"
+#define KIIKO_BOARD_PROJECT "dpReader"
 /// ESP32-S31 的 esp_image 头 chip_id（esp_chip_info.h 里 CHIP_ESP32S31 = 32）。
 /// esp_image header chip id for the ESP32-S31 (CHIP_ESP32S31 = 32 in esp_chip_info.h).
 #define KIIKO_BOARD_IMAGE_CHIP_ID 0x0020
@@ -69,8 +69,8 @@
 /// Values kept byte-identical to the standalone test31-test36 firmware so existing backups
 /// and the default device name keep matching.
 /// 与独立固件 test31～test36 保持逐字节一致，已有备份与默认设备名继续可用。
-#define KIIKO_BOARD_BACKUP_PREFIX "Metalio-S31-settings"
-#define KIIKO_BOARD_PRODUCT_NAME "Metalio S31"
+#define KIIKO_BOARD_BACKUP_PREFIX "dpReader-settings"
+#define KIIKO_BOARD_PRODUCT_NAME "dpReader"
 
 /* ---- 显示策略 / Display policy ---- */
 /// One epd_clear_checked baseline instead of the Pico blind-repair cycles.

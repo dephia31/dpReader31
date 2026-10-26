@@ -6,7 +6,7 @@
 void lock_pin_flow_end(lock_pin_flow_t *flow){lock_pin_wipe(flow,sizeof(*flow));}
 void lock_pin_flow_begin(lock_pin_flow_t *flow,bool disable){lock_pin_flow_end(flow);flow->disable=disable;flow->step=lock_pin_enabled()?PIN_FLOW_OLD:PIN_FLOW_NEW;}
 const char *lock_pin_flow_title(const lock_pin_flow_t *flow){
-    return flow->step==PIN_FLOW_OLD?"验证原密码":flow->step==PIN_FLOW_NEW?"设置新密码":flow->step==PIN_FLOW_CONFIRM?"再次输入密码":"锁屏密码";
+    return flow->step==PIN_FLOW_OLD?"Xác minh mã PIN cũ":flow->step==PIN_FLOW_NEW?"Đặt mã PIN mới":flow->step==PIN_FLOW_CONFIRM?"Nhập lại mã PIN":"Mã PIN khóa máy";
 }
 esp_err_t lock_pin_flow_input(lock_pin_flow_t *flow,const char pin[5]){
     if(!pin)return ESP_ERR_INVALID_ARG;

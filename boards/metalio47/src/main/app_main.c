@@ -12,8 +12,10 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <time.h>
 
 #include "app_loop.h"
 #include "app_content_open.h"
@@ -110,15 +112,15 @@ static void draw_startup_frame(uint8_t *framebuffer) {
     ui_clear_page(framebuffer);
     const int cx = epd_rotated_display_width() / 2;
     const int cy = epd_rotated_display_height() / 2;
-    static const char *const wordmark[] = {"K", "i", "i", "k", "o", "r", "e", "a", "d"};
-    static const char *const caption[] = {"准", "备", "资", "源"};
+    static const char *const wordmark[] = {"d", "p", "R", "e", "a", "d", "e", "r"};
+    static const char *const caption[] = {"Đ", "a", "n", "g", " ", "k", "h", "ở", "i", " ", "đ", "ộ", "n", "g", ".", ".", "."};
     const struct {
         const char *text;
         const char *const *letters;
         int count, px, tracking, gray, center_y;
     } lines[] = {
-        {"Kiikoread", wordmark, 9, 72, 2, 0, cy - 50},
-        {"准备资源", caption, 4, 24, 8, 7, cy + 20},
+        {"dpReader", wordmark, 8, 72, 2, 0, cy - 50},
+        {"Đang khởi động...", caption, 17, 24, 2, 7, cy + 20},
     };
     // 以实际字宽居中，疏朗品牌字距与浅灰提示形成层次，不引入新的字体或位图。
     // Center measured advances; tracked branding and a muted caption add hierarchy without new fonts or bitmaps.
@@ -154,6 +156,8 @@ static bool prepare_startup_frame(EpdiyHighlevelState *hl,uint8_t *framebuffer,b
 }
 
 void app_main(void) {
+    setenv("TZ", "ICT-7", 1);
+    tzset();
     app_lock_capture_boot_wakeup();
     ESP_ERROR_CHECK(metalio_sleep_sdk_init());
     // 共享 TF 卡期间复位后，先把内部 PHY 交回串口，再清理已用完的 BOOT 请求。

@@ -189,7 +189,7 @@ static void copy_title(char *dst, size_t cap, const char *src) {
 
 static void title_for(home_book_t *item) {
     if (!book_title_from_path(item->path, item->title, sizeof(item->title)))
-        copy_title(item->title, sizeof(item->title), "未命名");
+        copy_title(item->title, sizeof(item->title), "Chưa đặt tên");
 }
 
 static void consider_book(const char *path, const struct stat *st) {
@@ -403,12 +403,12 @@ static bool date_now(struct tm *out) {
     time_t now=time(NULL);
     if(now<1704067200) { const pmu_snapshot_t *pmu=read_pico_pmu_get(); if(pmu&&pmu->time_synced)now=pmu->unix_sec; }
     if(now<1704067200) {memset(out,0,sizeof(*out));return false;}
-    now+=8*3600;gmtime_r(&now,out);return true;
+    now+=7*3600;gmtime_r(&now,out);return true;
 }
 static int64_t date_stamp(const struct tm *d) {return ((int64_t)d->tm_year*366+d->tm_yday)*86400+d->tm_hour*3600+d->tm_min*60+d->tm_sec;}
 static unsigned clock_phase_now(struct tm *date) {
     struct timeval now;
-    if(!gettimeofday(&now,NULL)&&now.tv_sec>=1704067200){time_t local=now.tv_sec+8*3600;gmtime_r(&local,date);return date->tm_sec*10+(unsigned)now.tv_usec/100000;}
+    if(!gettimeofday(&now,NULL)&&now.tv_sec>=1704067200){time_t local=now.tv_sec+7*3600;gmtime_r(&local,date);return date->tm_sec*10+(unsigned)now.tv_usec/100000;}
     return (unsigned)date->tm_sec*10;
 }
 static bool clock_motion_due(app_ctx_t *ctx){return ctx->now_ms<=0||ctx->now_ms<s_motion_ms||ctx->now_ms-s_motion_ms>=100;}
@@ -438,7 +438,7 @@ static void clock_draw_region(uint8_t *fb,EpdRect bounds,const struct tm *date,b
     // Retain the ring on this page through minute hand updates; start anew on a view change.
     ui_home_clock_trail_draw_region(fb,bounds,date,binary,style,clip,phase,trail->start,trail->steps);
 }
-static const char *component_name(app_home_component_t component) {return component==APP_HOME_FOLDER?"最近阅读书夹":ui_home_clock_name(clock_style(component));}
+static const char *component_name(app_home_component_t component) {return component==APP_HOME_FOLDER?"Ngăn sách gần đây":ui_home_clock_name(clock_style(component));}
 static EpdRect time_clock_bounds(void) {return(EpdRect){122,275,460,503};}
 static EpdRect component_clock_bounds(void){return s_view==HOME_COMPONENT?(EpdRect){141,294,420,460}:(EpdRect){24,640,320,350};}
 static EpdRect component_clock_graphics(void){return s_view==HOME_COMPONENT?component_clock_bounds():(EpdRect){24,640,320,326};}
@@ -500,8 +500,8 @@ static void ring(uint8_t *fb,int cx,int cy,int radius,int thick,uint32_t seconds
     }
 }
 static void calendar(uint8_t *fb,int x,int y,int step_x,int step_y,int px,unsigned goal) {
-    static const char *const weekdays[]={"日","一","二","三","四","五","六"};
-    if(!s_reading_days_valid) {label(fb,x+3*step_x,y+100,20,"请先设置日期与时间",EPD_DRAW_ALIGN_CENTER,0x60);return;}
+    static const char *const weekdays[]={"CN","T2","T3","T4","T5","T6","T7"};
+    if(!s_reading_days_valid) {label(fb,x+3*step_x,y+100,20,"Vui lòng cài đặt ngày giờ trước",EPD_DRAW_ALIGN_CENTER,0x60);return;}
     unsigned start=(s_date.tm_wday+7-(s_date.tm_mday-1)%7)%7;
     for(int i=0;i<7;++i)label(fb,x+i*step_x,y-step_y,20,weekdays[i],EPD_DRAW_ALIGN_CENTER,0x70);
     for(unsigned day=1;day<=month_length(&s_date);++day) {
@@ -613,9 +613,9 @@ static void render_root(uint8_t *fb) {
 #else
 #define HOME_STAGE(name) do {} while(0)
 #endif
-    ui_nav_status(fb);ui_text(fb,36,91,52,"首页",EPD_DRAW_ALIGN_LEFT,false);
+    ui_nav_status(fb);ui_text(fb,36,91,52,"Trang chủ",EPD_DRAW_ALIGN_LEFT,false);
     char value[80];unsigned seconds=today_seconds();
-    snprintf(value,sizeof(value),"%u 分钟",seconds/60);fit(value,24,180);label(fb,490,118,24,value,EPD_DRAW_ALIGN_RIGHT,0x30);
+    snprintf(value,sizeof(value),"%u phút",seconds/60);fit(value,24,180);label(fb,490,118,24,value,EPD_DRAW_ALIGN_RIGHT,0x30);
     ring(fb,540,118,30,7,seconds,app_settings_home_goal_minutes()*60);
     if(s_avatar_ready)ui_wallpaper_draw_avatar(fb,s_avatar,(EpdRect){588,88,60,60},30);
     else {epd_fill_circle(618,118,30,0x30,fb);label(fb,618,118,30,"K",EPD_DRAW_ALIGN_CENTER,0xff);}
@@ -631,7 +631,7 @@ static void render_root(uint8_t *fb) {
         int x=side?648:36;epd_fill_circle(x,252,14,0xff,fb);circle_frame(fb,x,252,14);
         ui_fill_rect_fast((EpdRect){side?x:0,237,side?36:36,30},0xff,fb);
     }
-    label_on(fb,60,222,24,"最近阅读",EPD_DRAW_ALIGN_LEFT,0x60,card_gray);
+    label_on(fb,60,222,24,"Đọc gần đây",EPD_DRAW_ALIGN_LEFT,0x60,card_gray);
     if(s_excerpt[0]) {
         char quote[BOOK_EXCERPT_CAP+12];snprintf(quote,sizeof(quote),"“%s”",s_excerpt);
         int px=22;while(px>16&&ui_text_fixed_width_px(px,quote)>426)--px;
@@ -646,47 +646,47 @@ static void render_root(uint8_t *fb) {
         draw_cover(fb,b,(EpdRect){60,continue_card_pressed()?274:278,176,240});
         int rows=title_lines(fb,b->title,card_gray);
         if(b->author[0]) {char author[128];snprintf(author,sizeof(author),"%s",b->author);fit(author,25,358);label_on(fb,264,rows==2?406:367,25,author,EPD_DRAW_ALIGN_LEFT,0x50,card_gray);}
-        snprintf(value,sizeof(value),"已读 %u%%",b->has_progress?b->progress.pct:0);
+        snprintf(value,sizeof(value),"Đã đọc %u%%",b->has_progress?b->progress.pct:0);
         label_on(fb,264,482,27,value,EPD_DRAW_ALIGN_LEFT,0x20,card_gray);
-        label_on(fb,622,482,24,"继续阅读 ›",EPD_DRAW_ALIGN_RIGHT,0,card_gray);
+        label_on(fb,622,482,24,"Đọc tiếp ›",EPD_DRAW_ALIGN_RIGHT,0,card_gray);
         EpdRect track={264,511,358,7};ui_fill_round_rect(fb,track,3,0xcc);
         track.width=358*(b->has_progress?b->progress.pct:0)/100;if(track.width)ui_fill_round_rect(fb,track,3,0x30);
-    } else label_on(fb,342,410,23,"打开一本书后，会在这里继续阅读",EPD_DRAW_ALIGN_CENTER,0x60,card_gray);
+    } else label_on(fb,342,410,23,"Sau khi mở sách, bạn có thể đọc tiếp ngay tại đây",EPD_DRAW_ALIGN_CENTER,0x60,card_gray);
     HOME_STAGE("card_body");
     ui_draw_separator(fb,606,36,612,0x50);
     if(app_settings_home_component()==APP_HOME_FOLDER) {
         ui_home_folder_draw(fb,s_folder,s_folder_fast,(EpdRect){24,604,320,350});
-        label(fb,184,985,22,"最近阅读",EPD_DRAW_ALIGN_CENTER,0x50);
+        label(fb,184,985,22,"Đọc gần đây",EPD_DRAW_ALIGN_CENTER,0x50);
     } else {
         clock_draw_region(fb,(EpdRect){24,640,320,350},&s_date,app_settings_main_fast_refresh(),clock_style(app_settings_home_component()),(EpdRect){24,640,320,326},s_widget_phase);
         label(fb,184,985,22,component_name(app_settings_home_component()),EPD_DRAW_ALIGN_CENTER,0x50);
     }
     HOME_STAGE("component");
     if(s_reading_days_valid) {
-        static const char *const wd[]={"星期日","星期一","星期二","星期三","星期四","星期五","星期六"};
-        snprintf(value,sizeof(value),"%d月%d日",s_date.tm_mon+1,s_date.tm_mday);
+        static const char *const wd[]={"Chủ Nhật","Thứ Hai","Thứ Ba","Thứ Tư","Thứ Năm","Thứ Sáu","Thứ Bảy"};
+        snprintf(value,sizeof(value),"Ngày %2$d/%1$d",s_date.tm_mon+1,s_date.tm_mday);
         label(fb,354,665,30,value,EPD_DRAW_ALIGN_LEFT,0);
         label(fb,642,665,24,wd[s_date.tm_wday],EPD_DRAW_ALIGN_RIGHT,0x50);
         int start=(s_date.tm_wday+7-(s_date.tm_mday-1)%7)%7;
         int rows=(start+month_length(&s_date)+6)/7;
         calendar(fb,375,754,42,rows==6?38:48,26,app_settings_home_goal_minutes()*60);
-    } else label(fb,496,754,22,"请先设置日期与时间",EPD_DRAW_ALIGN_CENTER,0x60);
-    label(fb,642,985,22,"· 已闭环",EPD_DRAW_ALIGN_RIGHT,0x50);
+    } else label(fb,496,754,22,"Vui lòng cài đặt ngày giờ trước",EPD_DRAW_ALIGN_CENTER,0x60);
+    label(fb,642,985,22,"· Đạt mục tiêu",EPD_DRAW_ALIGN_RIGHT,0x50);
     HOME_STAGE("calendar");
     ui_nav_draw(fb,0);
     HOME_STAGE("nav");
 #undef HOME_STAGE
 }
 static void render_goal(uint8_t *fb) {
-    header(fb,"月阅读记录");char value[64];
-    snprintf(value,sizeof(value),s_reading_days_valid?"%d年%d月":"日期未设置",s_date.tm_year+1900,s_date.tm_mon+1);
+    header(fb,"Lịch đọc trong tháng");char value[64];
+    snprintf(value,sizeof(value),s_reading_days_valid?"Thg %2$d/%1$d":"Chưa đặt ngày giờ",s_date.tm_year+1900,s_date.tm_mon+1);
     label(fb,36,226,34,value,EPD_DRAW_ALIGN_LEFT,0);
     ring(fb,622,226,22,6,today_seconds(),s_goal_draft*60);
     calendar(fb,78,348,88,56,32,s_goal_draft*60);
-    label(fb,36,678,24,"今日阅读",EPD_DRAW_ALIGN_LEFT,0x50);
-    snprintf(value,sizeof(value),"%u 分钟",today_seconds()/60);label(fb,648,678,30,value,EPD_DRAW_ALIGN_RIGHT,0);
-    label(fb,36,744,30,"每日闭环目标",EPD_DRAW_ALIGN_LEFT,0);
-    label(fb,36,784,22,"达到目标的日期会显示下划线",EPD_DRAW_ALIGN_LEFT,0x60);
+    label(fb,36,678,24,"Hôm nay",EPD_DRAW_ALIGN_LEFT,0x50);
+    snprintf(value,sizeof(value),"%u phút",today_seconds()/60);label(fb,648,678,30,value,EPD_DRAW_ALIGN_RIGHT,0);
+    label(fb,36,744,30,"Mục tiêu đọc mỗi ngày",EPD_DRAW_ALIGN_LEFT,0);
+    label(fb,36,784,22,"Những ngày đạt mục tiêu sẽ có gạch chân",EPD_DRAW_ALIGN_LEFT,0x60);
     ui_fill_round_rect(fb,(EpdRect){36,820,612,114},57,0xe0);
     home_frame(fb,(EpdRect){36,820,612,114},57);
     epd_fill_circle(99,877,43,0xff,fb);epd_fill_circle(585,877,43,0xff,fb);
@@ -695,14 +695,14 @@ static void render_goal(uint8_t *fb) {
     ui_fill_rect_fast((EpdRect){573,876,24,3},s_goal_draft==180?0xa0:0x30,fb);
     ui_fill_rect_fast((EpdRect){584,866,3,24},s_goal_draft==180?0xa0:0x30,fb);
     snprintf(value,sizeof(value),"%u",s_goal_draft);label(fb,342,861,46,value,EPD_DRAW_ALIGN_CENTER,0);
-    label(fb,342,902,20,"分钟",EPD_DRAW_ALIGN_CENTER,0x50);
+    label(fb,342,902,20,"phút",EPD_DRAW_ALIGN_CENTER,0x50);
     const unsigned presets[]={15,30,60};
     for(unsigned i=0;i<3;++i) {
         EpdRect box={36+i*214,920,184,56};ui_fill_round_rect(fb,box,28,s_goal_draft==presets[i]?0xe0:0xf0);home_frame(fb,box,28);
-        snprintf(value,sizeof(value),"%u 分钟",presets[i]);label(fb,box.x+92,948,25,value,EPD_DRAW_ALIGN_CENTER,0x20);
+        snprintf(value,sizeof(value),"%u phút",presets[i]);label(fb,box.x+92,948,25,value,EPD_DRAW_ALIGN_CENTER,0x20);
     }
-    if(s_save_error)label(fb,342,990,23,"保存未完成，请再试一次",EPD_DRAW_ALIGN_CENTER,0x30);
-    ui_fill_round_rect(fb,(EpdRect){36,1008,612,72},28,0x20);label(fb,342,1044,28,"保存",EPD_DRAW_ALIGN_CENTER,0xff);
+    if(s_save_error)label(fb,342,990,23,"Chưa lưu được, vui lòng thử lại",EPD_DRAW_ALIGN_CENTER,0x30);
+    ui_fill_round_rect(fb,(EpdRect){36,1008,612,72},28,0x20);label(fb,342,1044,28,"Lưu",EPD_DRAW_ALIGN_CENTER,0xff);
 }
 static void render_component_controls(uint8_t *fb) {
     circle_frame(fb,68,504,32);circle_frame(fb,616,504,32);
@@ -710,7 +710,7 @@ static void render_component_controls(uint8_t *fb) {
     bool current=s_component_browse==app_settings_home_component();
     bool pressed=s_press_pending&&s_pressed.y==996;
     ui_fill_round_rect(fb,(EpdRect){36,996,612,76},38,pressed?0xe0:0x20);
-    label(fb,342,1034,30,current?"返回首页":"使用此样式",EPD_DRAW_ALIGN_CENTER,pressed?0x20:0xff);
+    label(fb,342,1034,30,current?"Về Trang chủ":"Dùng kiểu này",EPD_DRAW_ALIGN_CENTER,pressed?0x20:0xff);
 }
 static void render_components_body(uint8_t *fb) {
     if(s_component_browse==APP_HOME_FOLDER)ui_home_folder_draw(fb,s_folder,s_folder_fast,(EpdRect){132,282,420,459});
@@ -723,17 +723,17 @@ static void render_components_body(uint8_t *fb) {
     }
     label(fb,342,787,36,component_name(s_component_browse),EPD_DRAW_ALIGN_CENTER,0);
     unsigned selected=component_index(s_component_browse);
-    static const char *const details[]={"圆形表盘，十二个月相刻度","圆滑短底座，清晰数字表盘","短时针、长分针，圆点为秒针","猫眼左右转动，没有尾巴","柔软轮廓，弯曲的罗马数字","深灰放射图案，白色指针配细描边","尖屋顶、圆形开口，四个数字刻度","三本最近阅读，透过磨砂书夹显示"};
+    static const char *const details[]={"Mặt tròn cổ điển với 12 vạch chu kỳ mặt trăng","Chân đế bo tròn, mặt số rõ nét","Kim giờ ngắn, kim phút dài, chấm tròn làm kim giây","Mắt mèo liếc trái phải ngộ nghĩnh","Đường nét mềm mại với chữ số La Mã uốn cong","Họa tiết tia xám đậm, kim trắng viền mảnh","Đồng hồ mái nhọn cổ điển với 4 mốc số","Hiển thị 3 sách đọc gần đây trên giá sách mờ"};
     label(fb,342,838,23,details[selected],EPD_DRAW_ALIGN_CENTER,0x60);
     for(unsigned i=0;i<HOME_COMPONENT_OPTIONS;++i)epd_fill_circle(342-(HOME_COMPONENT_OPTIONS-1)*12+i*24,909,i==selected?6:4,i==selected?0x20:app_settings_main_fast_refresh()?0x60:0xc0,fb);
     char value[24];snprintf(value,sizeof(value),"%u / %u",selected+1,(unsigned)HOME_COMPONENT_OPTIONS);label(fb,342,953,23,value,EPD_DRAW_ALIGN_CENTER,0x60);
     bool current=s_component_browse==app_settings_home_component();
-    if(s_save_error)label(fb,342,1008,23,"保存未完成，请再试一次",EPD_DRAW_ALIGN_CENTER,0x30);
-    else if(current)label(fb,342,1008,23,"当前使用",EPD_DRAW_ALIGN_CENTER,0x50);
+    if(s_save_error)label(fb,342,1008,23,"Chưa lưu được, vui lòng thử lại",EPD_DRAW_ALIGN_CENTER,0x30);
+    else if(current)label(fb,342,1008,23,"Đang dùng",EPD_DRAW_ALIGN_CENTER,0x50);
     render_component_controls(fb);
 }
 static void render_components(uint8_t *fb) {
-    header(fb,"首页组件");label(fb,36,195,24,"选择你喜欢的样式",EPD_DRAW_ALIGN_LEFT,0x60);
+    header(fb,"Tiện ích Trang chủ");label(fb,36,195,24,"Chọn giao diện bạn yêu thích",EPD_DRAW_ALIGN_LEFT,0x60);
     render_components_body(fb);
 }
 static void render_time_value(uint8_t *fb,const struct tm *date) {
@@ -742,14 +742,14 @@ static void render_time_value(uint8_t *fb,const struct tm *date) {
     ui_fill_rect_fast((EpdRect){72,840,540,98},0xff,fb);label(fb,342,884,px,value,EPD_DRAW_ALIGN_CENTER,0);
 }
 static void render_time(uint8_t *fb) {
-    header(fb,"时间");char value[64];
-    if(s_reading_days_valid)snprintf(value,sizeof(value),"%d年%d月%d日",s_date.tm_year+1900,s_date.tm_mon+1,s_date.tm_mday);else snprintf(value,sizeof(value),"请先设置日期与时间");
+    header(fb,"Thời gian");char value[64];
+    if(s_reading_days_valid)snprintf(value,sizeof(value),"Ngày %3$d/%2$d/%1$d",s_date.tm_year+1900,s_date.tm_mon+1,s_date.tm_mday);else snprintf(value,sizeof(value),"Vui lòng cài đặt ngày giờ trước");
     label(fb,342,219,30,value,EPD_DRAW_ALIGN_CENTER,0x50);
     clock_draw_region(fb,time_clock_bounds(),&s_date,app_settings_main_fast_refresh(),clock_style(app_settings_home_component()),time_clock_bounds(),s_time_phase);
     label(fb,342,804,32,component_name(app_settings_home_component()),EPD_DRAW_ALIGN_CENTER,0x30);
-    render_time_value(fb,&s_date);label(fb,342,975,23,"北京时间 · 24小时制",EPD_DRAW_ALIGN_CENTER,0x60);
+    render_time_value(fb,&s_date);label(fb,342,975,23,"Giờ Việt Nam (GMT+7) · 24 giờ",EPD_DRAW_ALIGN_CENTER,0x60);
     bool pressed=s_press_pending&&s_pressed.y==996;
-    ui_fill_round_rect(fb,(EpdRect){36,996,612,76},38,pressed?0xe0:0x20);label(fb,342,1034,30,"切换时钟样式",EPD_DRAW_ALIGN_CENTER,pressed?0x20:0xff);
+    ui_fill_round_rect(fb,(EpdRect){36,996,612,76},38,pressed?0xe0:0x20);label(fb,342,1034,30,"Đổi kiểu đồng hồ",EPD_DRAW_ALIGN_CENTER,pressed?0x20:0xff);
 }
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     (void)ctx;ui_clear_page(fb);ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT},0xff,fb);
@@ -1095,7 +1095,7 @@ static bool main_page_visible(app_ctx_t *ctx) {(void)ctx;return s_view==HOME_ROO
 static EpdRect area_hint(app_ctx_t *ctx) {(void)ctx;return s_area;}
 static void home_exit(app_ctx_t *ctx){(void)ctx;book_cover_jobs_cancel(s_cover_generation);s_cover_generation=0;}
 const app_desc_t app_dashboard={
-    .title="首页 Home",.detail="继续阅读与月阅读记录",.enter_full=false,.owns_keys=true,.menu_handle_enabled=no_menu_handle,
+    .title="Trang chủ Home",.detail="Đọc tiếp & Lịch đọc tháng",.enter_full=false,.owns_keys=true,.menu_handle_enabled=no_menu_handle,
     .main_page_visible=main_page_visible,.persistent_navigation=true,.on_enter=on_enter,.on_exit=home_exit,.on_media_lost=on_media_lost,.on_media_ready=on_media_ready,
     .render=render,.present=present,.on_tick=on_tick,.on_gesture=on_gesture,.on_key=on_key,.area_hint=area_hint,
 };

@@ -1,42 +1,190 @@
-# kiikoread · Metalio S31
+# dpReader — Firmware Đọc Sách Tiếng Việt Chuyên Biệt cho Metalio E-ink 4 Plus (`metalio4.7`)
 
-Publicly available kiikoread firmware sources adapted for **Metalio E-INK4 Plus / ESP32-S31**, specifically **V1.5, 34-pin E0470A14-AF** hardware. This is an independent adaptation, not an official Metalio release.
+**dpReader** (`v1.0.0-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
 
-[简体中文](README.zh-CN.md) · [日本語](README.ja-JP.md) · [Web installer](https://kiikoread.com/?device=metalio#flash-action) · [Pico project](https://github.com/wegooo-cell/read-pico-reader)
+---
 
-## Current official release: rc104
+## ✨ Tính năng nổi bật trên dpReader
 
-- [Web installer and version selection](https://kiikoread.com/?device=metalio&version=rc104#flash-action)
-- [rc104 application, TF/USB packages and SHA-256](https://github.com/wegooo-cell/read-pico-reader/releases/tag/metalio-s31-v0.3.3-rc104)
-- [Changelog](docs/CHANGELOG.md) · [Board and build documentation](docs/BOARDS.md)
+1. **Cô lập phần cứng `metalio47` & Tinh giản hệ thống (Debloat):**
+   - Loại bỏ toàn bộ mã nguồn của các bo mạch ngoại lai (`pico` / `ESP32-S3`), bảng mã GBK, bộ gõ Pinyin, từ điển chữ Hán và các kho phông chữ trực tuyến nội địa Trung Quốc.
+   - Tối ưu hóa bộ nhớ Flash và RAM nội bộ cho kết nối WiFi/TLS và điều khiển lật trang Bluetooth (BLE Page Turner).
+2. **Giao diện & Phông chữ Tiếng Việt 100%:**
+   - Toàn bộ giao diện hệ thống, cài đặt, thông báo, màn hình khóa và cổng truyền sách Web Portal (`http://dpreader.local`) được Việt hóa hoàn toàn.
+   - Nhúng sẵn phông chữ hệ thống Tiếng Việt sắc nét (`Noto Sans Medium` `wght=500`, đầy đủ 134 ký tự Tiếng Việt dựng sẵn + dấu tổ hợp + ký hiệu điều hướng UI).
+   - Thuật toán **ngắt dòng theo từ Tiếng Việt (Word-Wrap)** cho cả `EPUB` và `TXT` (không cắt ngang giữa âm tiết Tiếng Việt), tự động nhận diện mục lục Tiếng Việt (`Chương`, `Phần`, `Hồi`, `Quyển`, `Tập`, `Mục`, `Lời mở đầu`, `Ngoại truyện`...) và tìm kiếm sách không phân biệt dấu Tiếng Việt.
+   - Đồng bộ giờ chuẩn Việt Nam (`GMT+7` / `ICT-7`) qua cụm máy chủ NTP `vn.pool.ntp.org`.
+3. **Đồng bộ tiến độ đọc KOReader Sync (`KOSync`):**
+   - Tích hợp module `kosync_client` sử dụng thuật toán băm tài liệu chuẩn `partialMD5` tương thích 100% với **KOReader** trên Android, Kindle, Kobo, Boox.
+   - Máy chủ mặc định: **`https://sync.vreader.cloud`** (hỗ trợ nhập rút gọn `sync.vreader.cloud` và tùy chỉnh máy chủ riêng trên Web Portal).
+   - Hỗ trợ tự động đồng bộ tiến độ đọc khi mở/đóng sách hoặc bấm nút đồng bộ nhanh ngay trong menu đọc sách.
+4. **Duyệt & Tải sách trực tiếp từ Thư viện OPDS (`Calibre-Web`):**
+   - Tích hợp trình duyệt `opds_client` chuẩn OPDS 1.2 Atom XML ngay tại **Tủ sách -> `+ Nhập sách` -> `Thư viện OPDS`**.
+   - Danh mục OPDS mặc định: **`https://sach.vreader.cloud:8443/opds`** (hỗ trợ tài khoản HTTP Basic Auth và tùy chỉnh địa chỉ trên Web Portal).
+   - Hỗ trợ duyệt thư mục, phân trang và tải trực tiếp sách `.epub` / `.txt` về thẻ nhớ `/sdcard/books`.
+5. **Đa dạng phương thức Cập nhật & Flash Firmware:**
+   - Nâng cấp trực tiếp bằng **Thẻ nhớ MicroSD** từ cả **ROM gốc nhà sản xuất (`CloudZao/Metalio-E-INK4-Plus`)** lẫn **ROM `Kiikoread`** mà không cần máy tính hay cáp USB.
+   - Tự động nhận diện và hiển thị lại toàn bộ sách cũ trong thư mục `/sdcard/metalio/e-ink/books` của ROM gốc nhà sản xuất.
+   - Hỗ trợ chạm trực tiếp vào bất kỳ file `.bin` nào trong **Quản lý tệp (`Tệp`)** để cài đặt bản cập nhật ngay trên máy (giống **CrossPoint Reader**).
 
-Official binaries remain archived in the shared release repository; this repository maintains Metalio S31 sources. Older test Releases here are previews. Metalio and Pico use separate chip targets, power drivers, waveforms and partitions; their images are not interchangeable.
+---
 
-## Features
+## 📦 Các tệp Firmware phát hành (Thư mục [`releases/`](releases/))
 
-- Home, bookshelf, file manager and settings; EPUB/TXT reading and embedded images.
-- Imported TTF/OTF system and reading fonts, a128-entry catalogue, weight and antialiasing controls.
-- S31 warm/cool frontlight, fine low-brightness adjustment, vibration, AI-key shortcuts and BLE page turners.
-- Wi-Fi, hotspot and USB file transfer, browser flashing and online OTA with GitHub Pages preferred and the website as fallback.
-- Reading tickets, wallpaper, cover collages and transparent-cover locks, PIN verification and reader resume.
-- rc103 provides two shutdown choices: default light sleep followed by deep sleep after ten minutes, or complete power-off. The separate lock-power selector is removed. Overnight battery use and deep-wake behavior still require hardware validation.
+| Tệp nhị phân | Kích thước | Mục đích sử dụng | Địa chỉ / Đường dẫn |
+| :--- | :--- | :--- | :--- |
+| **[`releases/dpReader_metalio47_firmware.bin`](releases/dpReader_metalio47_firmware.bin)** | `~3.82 MB` | Dùng để **cập nhật qua thẻ nhớ MicroSD** (từ ROM gốc hoặc từ `dpReader`) hoặc nạp nhanh phân vùng `ota_0`. | Thẻ nhớ SD hoặc `0x10000` |
+| **[`releases/dpReader_metalio47_full.bin`](releases/dpReader_metalio47_full.bin)** | `~3.88 MB` | File gộp toàn bộ 4 phân vùng (`bootloader` + `partition-table` + `otadata` + `firmware`) để nạp mới hoàn toàn hoặc cứu máy qua cáp USB-C. | `0x0` |
+| **[`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)** | — | Mã kiểm tra toàn vẹn `SHA-256` của các bản build. | — |
 
-## Install and update
+---
 
-Open the [official installer](https://kiikoread.com/?device=metalio#flash-action) in desktop Chrome or Edge and select **Metalio EINK 4 Plus**.
+## 🔄 Phần 1: Các Cách Update Firmware qua Thẻ nhớ MicroSD (Không cần cáp USB Flash)
 
-**First installation requires restoring the official Metalio firmware and entering BOOT from that firmware.** A compatible existing kiikoread base can update directly. The installer defaults to preserving settings, offers optional data clearing, retains TF files and creates no pre-flash backup.
+> **Lưu ý chung khi dùng thẻ nhớ MicroSD:**
+> - Thẻ nhớ phải ở định dạng **FAT32** (không dùng `exFAT` hay `NTFS`).
+> - Khi cập nhật bằng thẻ nhớ, luôn sử dụng file ứng dụng đơn **`dpReader_metalio47_firmware.bin`** (không dùng file gộp `full.bin`).
 
-Use the Release's `Metalio-S31-update.bin` for a TF update from device settings. An application Bin requires the compatible S31 dual-slot base; never write it directly to `0x0`. Use the website or matching USB package for a complete installation.
+### Cách 1: Chuyển từ Firmware gốc xuất xưởng của nhà sản xuất (`CloudZao/Metalio-E-INK4-Plus`) sang `dpReader`
+Nếu máy của bạn đang chạy ROM gốc của nhà sản xuất (bản có trợ lý giọng nói AI Baiwen, giao diện LVGL):
+1. Lắp thẻ nhớ vào máy tính hoặc bật chế độ **Transfer -> USB transfer** ngay trên máy Metalio để kết nối thẻ nhớ qua cáp USB.
+2. Sao chép file **`dpReader_metalio47_firmware.bin`** vào **thư mục gốc (Root)** của thẻ nhớ và đổi tên thành chính xác:
+   ```text
+   Metalio-E-Ink4-Plus.bin
+   ```
+3. Tắt nguồn máy đọc sách rồi bật lại (nhấn giữ nút Nguồn 3 giây để tắt, sau đó bật lại).
+4. Ngay khi khởi động, ROM gốc `CloudZao` sẽ tự động phát hiện file `/sdcard/Metalio-E-Ink4-Plus.bin` và hiện hộp thoại **"SD卡发现新固件" (Phát hiện firmware mới trên thẻ nhớ SD)** -> chạm chọn **"立刻升级" (Nâng cấp ngay)**.
+5. Đợi thanh tiến trình chạy đến `100%`. Máy sẽ tự động xóa file `.bin` mồi trên thẻ nhớ và khởi động thẳng vào giao diện **dpReader Tiếng Việt** (toàn bộ sách `.epub`/`.txt` cũ trong `/sdcard/metalio/e-ink/books` sẽ tự động xuất hiện trên Tủ sách của `dpReader`!).
 
-## Build
+### Cách 2: Chuyển từ nhánh Firmware `Metalio-S31-kiikoread` sang `dpReader`
+Nếu máy của bạn đang chạy bản `Kiikoread` tiếng Trung/Anh/Nhật:
+1. Sao chép file **`dpReader_metalio47_firmware.bin`** vào **thư mục gốc (Root)** của thẻ nhớ và đổi tên thành:
+   ```text
+   Metalio-S31-update.bin
+   ```
+2. Trên máy đọc sách, mở **设置 (Cài đặt) -> 系统升级 (Cập nhật hệ thống) -> 安装 TF 卡升级包 (Cài đặt gói cập nhật trên thẻ nhớ)**.
+3. Máy sẽ kiểm tra chữ ký, ghi vào phân vùng OTA và tự khởi động lại vào **dpReader Tiếng Việt**.
 
-The shared `main/` reader/UI is selected with the hardware backend in `boards/metalio47/`. Use the matching ESP32-S31 SDK, toolchain and locked managed components. See [docs/BOARDS.md](docs/BOARDS.md) for complete commands and the documented waveform/fallback boundaries. The rc104 build configuration is shown in the [Chinese build guide](README.zh-CN.md#构建).
+### Cách 3: Cập nhật phiên bản mới khi máy đã chạy `dpReader` (Kiểu CrossPoint hoặc Cài đặt)
+Khi máy đã ở giao diện **dpReader**, bạn có thể cập nhật các bản build mới bằng **1 trong 2 cách**:
+- **Phương án 3A — Duyệt và bấm trực tiếp file `.bin` trong Quản lý tệp (Giống CrossPoint Reader):**
+  1. Chép file `.bin` (ví dụ `dpReader_metalio47_firmware.bin`, không cần đổi tên) vào bất kỳ thư mục nào trên thẻ nhớ (hoặc tải lên qua WiFi Transfer).
+  2. Mở ứng dụng **Quản lý tệp (`Tệp`)** trên máy đọc sách, điều hướng tới file `.bin`:
+     - **Chạm lần 1:** Máy kiểm tra header & hiển thị thông báo *"Gói cập nhật 1.0.0-vn: chạm lần nữa để cài đặt"*.
+     - **Chạm lần 2:** Máy tự động ngắt cao áp màn hình E-ink an toàn, ghi firmware mới vào phân vùng OTA và tự khởi động lại.
+- **Phương án 3B — Cài đặt từ mục Cập nhật hệ thống:**
+  1. Chép file vào thư mục gốc thẻ nhớ với một trong các tên: `dpReader-update.bin`, `dpReader_metalio47_firmware.bin`, `Metalio-E-Ink4-Plus.bin`, hoặc `Metalio-S31-update.bin`.
+  2. Vào **Cài đặt -> Cập nhật hệ thống -> Cài đặt gói cập nhật trên thẻ nhớ**.
 
-Keep the raw GC48/GL48/DU20 tables and board power sequencing. Validate chip, project, version, partitions and checksums before using an image.
+---
 
-## License and contributions
+## 💻 Phần 2: Các Cách Flash Firmware qua Cáp USB-C (Dành cho nạp mới toàn bộ / Chia lại phân vùng / Cứu máy)
 
-[LICENSE](LICENSE), [third-party notices](THIRD_PARTY_NOTICES.md) and per-file identifiers retain the same scope as the Pico project: existing Apache-2.0 and third-party rights remain; explicitly marked new original material follows the Personal Study License, with commercial use requiring the relevant rights holder's permission.
+Nếu bạn muốn nạp sạch toàn bộ bảng phân vùng chuẩn của `dpReader` (để có thêm **5.87 MB** bộ nhớ trong `/flash` khi dùng máy không thẻ nhớ) hoặc cứu máy khi treo logo, hãy nạp qua cáp USB-C.
 
-Use this repository's Issues and Pull Requests for S31 contributions. Include the firmware version, board revision and reproduction steps. Hardware and vendor references: [CloudZao/Metalio-E-INK4-Plus](https://github.com/CloudZao/Metalio-E-INK4-Plus).
+### Bước 1: Đưa máy Metalio E-ink 4 Plus về chế độ Nạp ROM (Download Mode / BOOT)
+Chọn **1 trong 2 cách**:
+- **Cách 1 (Trên màn hình cảm ứng — Nếu máy đang ở `dpReader` hoặc `Kiikoread`):**
+  - Vào **Cài đặt -> Nạp ROM qua máy tính (BOOT) -> Mở cổng nạp ROM**, sau đó cắm cáp USB-C vào máy tính.
+- **Cách 2 (Bằng phím cứng — Áp dụng cho mọi ROM hoặc khi máy đang tắt nguồn):**
+  - Cắm cáp USB-C kết nối máy đọc sách với máy tính.
+  - Nhấn giữ đồng thời **Nút Giữa (phím BOOT - GPIO61)** và **Nút Nguồn** khoảng 3–5 giây cho đến khi máy tính nhận thiết bị cổng COM / `USB JTAG/serial debug unit`.
+
+### Bước 2: Chọn công cụ Flash trên máy tính
+
+#### Cách 4: Flash trực tiếp bằng Trình duyệt Web (Chrome / Edge — Không cần cài phần mềm)
+1. Mở trình duyệt **Google Chrome** hoặc **Microsoft Edge**, truy cập trang công cụ chính thức của Espressif:
+   👉 **`https://espressif.github.io/esptool-js/`**
+2. Tại mục **Program**:
+   - Nhấn nút **Connect** và chọn cổng `USB JTAG/serial debug unit`.
+   - Tại ô **Flash Address**, nhập địa chỉ: **`0x0`**
+   - Tại ô **File**, chọn file **`dpReader_metalio47_full.bin`**.
+3. *(Lưu ý: **Không** bấm nút `Erase Flash` để bảo toàn thông số hiệu chuẩn màn hình `VCOM` trong phân vùng NVS).*
+4. Nhấn nút **Program** và đợi thanh tiến trình chạy hoàn tất `100%` (khoảng 35 giây).
+5. Rút cáp USB và nhấn giữ **Nút Nguồn 3 giây** để khởi động lại máy.
+
+#### Cách 5: Flash bằng công cụ dòng lệnh `esptool.py` (Windows / macOS / Linux)
+Cài đặt `esptool` (`pip install esptool`), sau đó mở Terminal / Command Prompt tại thư mục chứa file `.bin`:
+
+- **Nạp trọn bộ Full Flash (Bootloader + Partition Table + OTA Data + Firmware) từ địa chỉ `0x0`:**
+  ```bash
+  python3 -m esptool --chip esp32s31 --baud 460800 write_flash 0x0 releases/dpReader_metalio47_full.bin
+  ```
+- **Hoặc chỉ nạp nhanh phân vùng ứng dụng `ota_0` tại địa chỉ `0x10000`:**
+  ```bash
+  python3 -m esptool --chip esp32s31 --baud 460800 write_flash 0x10000 releases/dpReader_metalio47_firmware.bin
+  ```
+
+#### Bảng sơ đồ phân vùng Flash 16MB (`boards/metalio47/partitions.csv`)
+| Phân vùng | Loại / Phụ loại | Địa chỉ (`Offset`) | Kích thước | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- |
+| `bootloader` | Bootloader | `0x2000` | `24 KB` | Bootloader cấp 2 của `ESP32-S31` (bắt đầu tại `0x2000`) |
+| `partition-table` | Partition Table | `0x8000` | `4 KB` | Bảng phân vùng hệ thống |
+| `nvs` | `data` / `nvs` | `0x9000` | `16 KB` | Lưu cài đặt máy, WiFi, thông số VCOM, cấu hình KOSync & OPDS |
+| `otadata` | `data` / `ota` | `0xd000` | `8 KB` | Trạng thái phân vùng OTA đang khởi động |
+| `phy_init` | `data` / `phy` | `0xf000` | `4 KB` | Dữ liệu hiệu chuẩn RF WiFi/BLE |
+| `ota_0` | `app` / `ota_0` | `0x10000` | `5 MB` (`0x500000`) | Phân vùng chứa Firmware chính |
+| `ota_1` | `app` / `ota_1` | `0x510000` | `5 MB` (`0x500000`) | Phân vùng OTA dự phòng (cập nhật qua thẻ nhớ / mạng) |
+| `storage` | `data` / `fat` | `0xa10000` | `~5.87 MB` (`0x5e0000`) | Bộ nhớ trong `/flash` lưu tiến độ đọc, chỉ mục sách, bộ nhớ đệm |
+| `coredump` | `data` / `coredump` | `0xff0000` | `64 KB` (`0x10000`) | Lưu nhật ký coredump khi xảy ra lỗi |
+
+---
+
+## ☁️ Phần 3: Hướng dẫn Thiết lập Đồng bộ KOSync & Thư viện OPDS
+
+1. Trên máy đọc sách, mở **Tủ sách -> `+ Nhập sách` -> Truyền WiFi / Điểm phát** (hoặc **Quản lý tệp -> Truyền WiFi**).
+2. Kết nối máy vào mạng WiFi và mở địa chỉ hiển thị trên màn hình (ví dụ `http://dpreader.local` hoặc `http://192.168.1.xxx`) bằng trình duyệt điện thoại hoặc máy tính.
+3. Kéo xuống mục **Đồng bộ KOSync & Thư viện OPDS**:
+   - **Máy chủ KOSync:** Mặc định là **`https://sync.vreader.cloud`** (có thể nhập `sync.vreader.cloud`). Điền tài khoản/mật khẩu KOReader Sync và bật *Tự động đồng bộ tiến độ khi mở/đóng sách*.
+   - **Danh mục OPDS:** Mặc định là **`https://sach.vreader.cloud:8443/opds`** (có thể nhập `sach.vreader.cloud:8443/opds`). Điền tài khoản/mật khẩu OPDS nếu kho sách yêu cầu xác thực.
+   - Nhấn **Lưu cấu hình KOSync & OPDS**.
+4. **Sử dụng trên máy đọc sách:**
+   - **Tải sách OPDS:** Vào **Tủ sách -> `+ Nhập sách` -> `Thư viện OPDS`**, chạm vào danh mục hoặc đầu sách để tải trực tiếp về `/sdcard/books`.
+   - **Đồng bộ KOSync:** Tiến độ đọc sẽ tự động đồng bộ khi mở/đóng sách hoặc khi bấm biểu tượng **Đồng bộ KOSync** trong thanh công cụ đọc sách.
+
+---
+
+## 🛠️ Phần 4: Hướng dẫn Build từ Mã nguồn (Dành cho Developer)
+
+### 1. Yêu cầu môi trường
+- **ESP-IDF v6.1** (có hỗ trợ target `esp32s31` và toolchain `riscv32-esp-elf`)
+- **Python 3.10+** kèm thư viện `fonttools` và `esptool`
+
+```bash
+mkdir -p ~/esp && cd ~/esp
+git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git v6.1
+cd ~/esp/v6.1
+./install.sh esp32s31
+source ~/esp/v6.1/export.sh
+pip install fonttools esptool
+```
+
+### 2. Biên dịch & Đóng gói Firmware
+```bash
+# 1. Nạp biến môi trường ESP-IDF v6.1
+source ~/esp/v6.1/export.sh
+
+# 2. (Tùy chọn) Tái tạo phông chữ hệ thống Tiếng Việt builtin.ttf
+python3 tools/gen_builtin_font.py \
+  --src /usr/share/fonts/truetype/noto/NotoSans-Medium.ttf \
+  --out main/assets/builtin.ttf
+
+# 3. Biên dịch & đóng gói tự động bản dpReader_metalio47
+python3 tools/build_firmware.py --board dpReader_metalio47
+```
+
+### 3. Lệnh gộp (Merge) thủ công 1 file duy nhất bằng `esptool`
+```bash
+python3 -m esptool --chip esp32s31 merge-bin \
+  -o dpReader_metalio47_full.bin \
+  --flash-mode dio --flash-freq 80m --flash-size 16MB \
+  0x2000  build/boards/metalio47/build/bootloader/bootloader.bin \
+  0x8000  build/boards/metalio47/build/partition_table/partition-table.bin \
+  0xd000  build/boards/metalio47/build/ota_data_initial.bin \
+  0x10000 build/boards/metalio47/build/dpReader.bin
+```
+
+---
+
+## 📄 Giấy phép (License)
+Dựa trên nền tảng mã nguồn mở `Metalio-S31-kiikoread` (Apache-2.0 / Personal Study License). Phiên bản **dpReader** được tùy biến và tối ưu hóa dành cho cộng đồng người dùng máy đọc sách E-ink tại Việt Nam.

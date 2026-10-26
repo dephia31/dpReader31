@@ -57,8 +57,8 @@ bool ui_ai_menu_begin(ui_ai_menu_t *m,uint8_t *fb,app_ai_action_t selected,bool 
     }
     // 最后一项是反白而非加粗；标题与标签必须黑字，且在玻璃处理完成后绘制。
     // The final flag means inverted,not bold. Draw black labels only after glass processing.
-    ui_text_fixed_vc(fb,r.x+r.width/2,r.y+32,28,"AI 快捷键",EPD_DRAW_ALIGN_CENTER,false);
-    static const char*labels[]={"全刷一次","书签开关","前光开关","返回首页","不设功能"};
+    ui_text_fixed_vc(fb,r.x+r.width/2,r.y+32,28,"Phím tắt nhanh",EPD_DRAW_ALIGN_CENTER,false);
+    static const char*labels[]={"Làm mới","Dấu trang","Đèn nền","Trang chủ","Tắt phím"};
     static const ui_icon_t icons[]={UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_X};
     for(int i=0;i<APP_AI_ACTION_COUNT;++i){
         EpdRect option=ui_ai_menu_option(m,i);int cx=option.x+option.width/2,cy=r.y+106;
@@ -72,7 +72,7 @@ bool ui_ai_menu_begin(ui_ai_menu_t *m,uint8_t *fb,app_ai_action_t selected,bool 
             epd_fill_circle(cx+22,cy-22,4,UI_GRAY_BLACK,fb);
         }
     }
-    ui_text_fixed_vc(fb,r.x+r.width/2,r.y+224,18,"选择短按功能 · 书签仅在阅读中生效",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_fixed_vc(fb,r.x+r.width/2,r.y+224,18,"Chọn tác vụ nhấn ngắn · Dấu trang chỉ hoạt động khi đọc sách",EPD_DRAW_ALIGN_CENTER,false);
     return true;
 }
 int ui_ai_menu_feed(ui_ai_menu_t *m,const app_ctx_t *ctx,bool valid){
@@ -88,5 +88,5 @@ int ui_ai_menu_feed(ui_ai_menu_t *m,const app_ctx_t *ctx,bool valid){
 EpdRect ui_ai_menu_save_error(ui_ai_menu_t*m,uint8_t*fb){
     EpdRect r={m->rect.x+16,m->rect.y+204,m->rect.width-32,36};
     ui_fill_round_rect(fb,r,16,UI_GRAY_WHITE);
-    ui_text_fixed_vc(fb,r.x+r.width/2,r.y+r.height/2,20,"保存失败，请重试",EPD_DRAW_ALIGN_CENTER,false);return r;
+    ui_text_fixed_vc(fb,r.x+r.width/2,r.y+r.height/2,20,"Lưu thất bại, vui lòng thử lại",EPD_DRAW_ALIGN_CENTER,false);return r;
 }

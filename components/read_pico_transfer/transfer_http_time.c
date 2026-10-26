@@ -22,7 +22,7 @@ static esp_err_t time_header(esp_http_client_event_t *event) {
 }
 esp_err_t transfer_sync_time_https(uint32_t *utc_seconds) {
     if(!utc_seconds) return ESP_ERR_INVALID_ARG;
-    static const char *const sources[]={"https://www.baidu.com/","https://www.qq.com/"};
+    static const char *const sources[]={"https://www.cloudflare.com/","https://www.google.com/"};
     esp_err_t err=ESP_ERR_TIMEOUT;
     for(unsigned i=0;i<sizeof(sources)/sizeof(sources[0]);i++) {
         http_time_headers_t headers={0};

@@ -34,25 +34,25 @@ static void render(app_ctx_t *ctx, uint8_t *fb) {
     ui_clear_page(fb);
     ui_nav_status(fb);
     ui_nav_back(fb, 58, 117);
-    ui_text_vc(fb, 342, 117, 36, "启动恢复", EPD_DRAW_ALIGN_CENTER, false);
+    ui_text_vc(fb, 342, 117, 36, "Khôi phục khởi động", EPD_DRAW_ALIGN_CENTER, false);
     ui_fill_rect_fast((EpdRect){36, 195, 612, 2}, 0x58, fb);
     EpdRect card = {36, 244, 612, 320};
     ui_fill_round_rect(fb, card, 24, 0xf0);
     ui_draw_round_rect(fb, card, 24, 0x38);
-    ui_text(fb, 58, 270, 30, s_removed ? "书籍已删除" : s_confirm ? "确认删除这本书？" : "上次打开此书时中断", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text(fb, 58, 270, 30, s_removed ? "Đã xóa sách" : s_confirm ? "Xác nhận xóa cuốn sách này?" : "Gián đoạn khi mở sách này lần trước", EPD_DRAW_ALIGN_LEFT, false);
     const char *name = strrchr(s_path, '/');
     char label[288]; snprintf(label, sizeof(label), "%s", name ? name + 1 : s_path);
     fit(label, 560);
     ui_text(fb, 58, 345, 27, label, EPD_DRAW_ALIGN_LEFT, false);
-    ui_text(fb, 58, 423, 24, s_confirm ? "删除后需要重新导入这本书。" : "可能是开书时断电或解析异常。", EPD_DRAW_ALIGN_LEFT, false);
-    ui_text(fb, 58, 482, 24, s_confirm ? "其他书籍和设置会保留。" : "已停止自动重试，可先返回首页。", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text(fb, 58, 423, 24, s_confirm ? "Sau khi xóa sẽ cần nhập lại cuốn sách này." : "Có thể do mất nguồn hoặc lỗi phân tích tệp khi mở sách.", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text(fb, 58, 482, 24, s_confirm ? "Các sách khác và cài đặt vẫn được giữ nguyên." : "Đã dừng tự động mở lại, bạn có thể về Trang chủ.", EPD_DRAW_ALIGN_LEFT, false);
     if (s_message[0]) ui_text(fb, 58, 609, 24, s_message, EPD_DRAW_ALIGN_LEFT, false);
     EpdRect back = {36, 710, 612, 82}, remove = {36, 820, 612, 82};
     ui_fill_round_rect(fb, back, 20, 0xf0); ui_draw_round_rect(fb, back, 20, 0x38);
-    ui_text_vc(fb, 342, 751, 28, s_confirm ? "取消删除" : "返回首页", EPD_DRAW_ALIGN_CENTER, false);
+    ui_text_vc(fb, 342, 751, 28, s_confirm ? "Hủy xóa" : "Về Trang chủ", EPD_DRAW_ALIGN_CENTER, false);
     if (!s_removed) {
         ui_fill_round_rect(fb, remove, 20, UI_GRAY_BLACK);
-        ui_text_vc(fb, 342, 861, 28, s_confirm ? "确认删除" : "删除这本书", EPD_DRAW_ALIGN_CENTER, true);
+        ui_text_vc(fb, 342, 861, 28, s_confirm ? "Xác nhận xóa" : "Xóa cuốn sách này", EPD_DRAW_ALIGN_CENTER, true);
     }
     ui_nav_draw(fb, 0);
 }
@@ -114,8 +114,8 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     if (!s_removed && ui_rect_hit((EpdRect){36, 820, 612, 82}, ev->x0, ev->y0)) {
         if (!s_confirm) { s_confirm = true; return APP_REDRAW_PAGE; }
         esp_err_t err = delete_book();
-        snprintf(s_message, sizeof(s_message), "%s", err == ESP_OK ? "已删除，可返回首页" :
-            s_removed ? "已删除，阅读记录清理失败" : err == ESP_ERR_INVALID_STATE ? "存储未就绪，请插卡后重试" : "删除失败，请重试或用文件管理处理");
+        snprintf(s_message, sizeof(s_message), "%s", err == ESP_OK ? "Đã xóa, có thể về Trang chủ" :
+            s_removed ? "Đã xóa tệp nhưng chưa xóa được lịch sử đọc" : err == ESP_ERR_INVALID_STATE ? "Bộ nhớ chưa sẵn sàng, vui lòng lắp thẻ nhớ rồi thử lại" : "Xóa thất bại, hãy thử lại hoặc xóa trong Quản lý tệp");
         if (s_removed) s_confirm = false;
         return APP_REDRAW_PAGE;
     }
@@ -125,6 +125,6 @@ static app_redraw_t on_key(app_ctx_t *ctx, int key) {
     (void)key; ctx->request_app = app_home_page(); return APP_REDRAW_NONE;
 }
 const app_desc_t app_boot_recovery = {
-    .title = "启动恢复", .detail = "中断图书恢复", .owns_keys = true,
+    .title = "Khôi phục khởi động", .detail = "Khôi phục sự cố mở sách", .owns_keys = true,
     .on_enter = on_enter, .render = render, .on_gesture = on_gesture, .on_key = on_key,
 };

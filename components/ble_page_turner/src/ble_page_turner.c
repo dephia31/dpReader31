@@ -1130,7 +1130,7 @@ static void step_poll(void) {
                         break;
                     }
                 }
-                step_fail("连接失败");
+                step_fail("Kết nối thất bại");
             }
             break;
 
@@ -1144,13 +1144,13 @@ static void step_poll(void) {
                 start_discovery();
             }
             if (s_discovery_done) {
-                if (!s_hid_found) step_fail("不是 HID 设备");
+                if (!s_hid_found) step_fail("Không phải thiết bị HID");
                 else {
                     ble_pt_crumb(BLE_PT_CRUMB_HID);
                     step_begin(STEP_SECURE);
                 }
             } else if (step_over(12000)) {
-                step_fail("服务发现超时");
+                step_fail("Quá hạn tìm dịch vụ BLE");
             }
             break;
 
@@ -1171,7 +1171,7 @@ static void step_poll(void) {
                 ble_pt_crumb(BLE_PT_CRUMB_READY);
                 step_begin(STEP_READY);
             } else if (step_over(8000)) {
-                step_fail("没有可订阅的输入报告");
+                step_fail("Không có báo cáo đầu vào HID");
             }
             break;
 
@@ -1224,7 +1224,7 @@ static int gap_cb(struct ble_gap_event *event, void *arg) {
                 // 换不换地址类型、要不要放弃，都交给状态机：这里只负责把结果报出去。
                 // Whether to retry another address type or give up belongs to the state machine;
                 // this only reports the outcome.
-                snprintf(s_failure, sizeof(s_failure), "连接失败 (%d)", event->connect.status);
+                snprintf(s_failure, sizeof(s_failure), "Kết nối thất bại (%d)", event->connect.status);
                 return 0;
             }
             s_conn_handle = event->connect.conn_handle;
@@ -1466,7 +1466,7 @@ esp_err_t ble_pt_connect(const char *addr) {
             s_pending_at = (uint32_t)(esp_timer_get_time() / 1000);
             return ESP_OK;
         }
-        snprintf(s_failure, sizeof(s_failure), "发起连接失败 (%d)", rc);
+        snprintf(s_failure, sizeof(s_failure), "Khởi tạo kết nối thất bại (%d)", rc);
         return ESP_FAIL;
     }
     // 链路由状态机按 CrossMux 的顺序推进：等链路 → 确认 HID → 配对 → 订阅。
@@ -1498,7 +1498,7 @@ void ble_pt_disconnect(void) {
     if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE) ble_gap_terminate(s_conn_handle, 0x13);
 }
 
-// 界面上的"已连接"就是"链路建立了"，与我们的 HID 订阅是否成功无关。以前这里报的是
+// 界面上的"Đã kết nối"就是"链路建立了"，与我们的 HID 订阅是否成功无关。以前这里报的是
 // "订阅可用"，而订阅可能失败、翻页器却照旧发通知，于是页面永远停在「连接中」。
 // "Connected" in the UI means the link exists, regardless of whether our HID subscription
 // succeeded. This used to report "subscription usable", and since a subscription can fail while
@@ -1575,7 +1575,7 @@ static esp_err_t start_locked(void) {
         largest_internal < BLE_PT_MIN_LARGEST_INTERNAL || free_psram < BLE_PT_MIN_FREE_PSRAM) {
         ESP_LOGW(TAG, "not enough memory: internal %u B free / %u B largest, psram %u B free",
                  (unsigned)free_internal, (unsigned)largest_internal, (unsigned)free_psram);
-        snprintf(s_failure, sizeof(s_failure), "内存不足（内部 %uK，最大块 %uK）",
+        snprintf(s_failure, sizeof(s_failure), "Thiếu bộ nhớ (RAM trong %uK, khối lớn nhất %uK)",
                  (unsigned)(free_internal / 1024), (unsigned)(largest_internal / 1024));
         return ESP_ERR_NO_MEM;
     }
@@ -1747,7 +1747,7 @@ void ble_pt_sync(bool wanted) {
     }
     // 先防抖。主循环每轮都会问一次，而"要不要蓝牙"这个值来自 WiFi 状态；那个状态在
     // 启动/停止的过渡里会抖，照单全收就会把蓝牙栈反复拆了又建——既表现为连接不稳定，
-    // 也会在链路还活着的时候把"已连接"标志清掉（通知照旧到达，于是翻页器还能翻页）。
+    // 也会在链路还活着的时候把"Đã kết nối"标志清掉（通知照旧到达，于是翻页器还能翻页）。
     // Debounce first. The main loop asks every iteration and the answer depends on WiFi state,
     // which flickers while the transfer service starts or stops. Acting on every flicker tore the
     // stack down and rebuilt it repeatedly: that reads as an unstable link, and it cleared the
@@ -1804,7 +1804,7 @@ void ble_pt_sync(bool wanted) {
     // can be released.
     if (tries >= BLE_PT_MAX_BOOT_TRIES && have_why) {
         snprintf(s_start_failure, sizeof(s_start_failure),
-                 "启动失败 %u 次：%s（关掉再开启可重试）", (unsigned)tries, why);
+                 "Khởi động lỗi %u lần: %s (tắt rồi bật lại để thử)", (unsigned)tries, why);
         return;
     }
 
@@ -1832,7 +1832,7 @@ void ble_pt_sync(bool wanted) {
             snprintf(s_start_failure, sizeof(s_start_failure), "%s", s_failure);
             s_failure[0] = 0;
         } else {
-            snprintf(s_start_failure, sizeof(s_start_failure), "启动失败：%s", esp_err_to_name(err));
+            snprintf(s_start_failure, sizeof(s_start_failure), "Khởi động thất bại: %s", esp_err_to_name(err));
         }
         why_store(s_start_failure);
         ESP_LOGW(TAG, "start failed (%s), backing off %u ms", esp_err_to_name(err),

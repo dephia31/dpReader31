@@ -83,7 +83,7 @@ static esp_http_client_handle_t open_source(const char *source){
             .disable_auto_redirect=true,.event_handler=header_event,.user_data=&redirect};
         client=esp_http_client_init(&config);if(!client)break;
         esp_http_client_set_header(client,"Accept-Encoding","identity");
-        esp_http_client_set_header(client,"User-Agent","kiikoread-S31-fonts/1");
+        esp_http_client_set_header(client,"User-Agent","dpReader/1.0");
         if(esp_http_client_open(client,0)!=ESP_OK||cancelled(NULL)||esp_http_client_fetch_headers(client)<0)goto failed;
         int status=esp_http_client_get_status_code(client);
         if(status==200){esp_http_client_set_user_data(client,NULL);break;}

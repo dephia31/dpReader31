@@ -51,35 +51,35 @@ static void debug_format_vcom(char* out, size_t size, int mv) {
     if (mv >= 0) {
         snprintf(out, size, "-%d.%02d V", mv / 1000, (mv % 1000) / 10);
     } else {
-        snprintf(out, size, "读取失败");
+        snprintf(out, size, "Đọc lỗi");
     }
 }
 
 static void debug_labels(char labels[DEBUG_ROWS][72]) {
     char chip[24];
     debug_format_vcom(chip, sizeof(chip), metalio_tps_vcom_mv());
-    snprintf(labels[DEBUG_ROW_VCOM], 72, "VCOM 校准  %s", chip);
+    snprintf(labels[DEBUG_ROW_VCOM], 72, "Hiệu chuẩn VCOM  %s", chip);
 
     const unsigned anti_fade = anti_fade_minutes();
     if (anti_fade == 0) {
-        snprintf(labels[DEBUG_ROW_ANTI_FADE], 72, "防褪色重刷  关闭");
+        snprintf(labels[DEBUG_ROW_ANTI_FADE], 72, "Chống mờ màn hình  Tắt");
     } else {
-        snprintf(labels[DEBUG_ROW_ANTI_FADE], 72, "防褪色重刷  %u 分钟", anti_fade);
+        snprintf(labels[DEBUG_ROW_ANTI_FADE], 72, "Chống mờ màn hình  %u phút", anti_fade);
     }
 
-    snprintf(labels[DEBUG_ROW_REFRESH], 72, "立即整屏重刷");
-    snprintf(labels[DEBUG_ROW_CONTINUE], 72, "继续开机 Continue");
+    snprintf(labels[DEBUG_ROW_REFRESH], 72, "Làm mới toàn màn hình ngay");
+    snprintf(labels[DEBUG_ROW_CONTINUE], 72, "Tiếp tục khởi động Continue");
 }
 
 static void debug_draw(uint8_t* fb) {
     ui_clear_page(fb);
     char chip[24];
     debug_format_vcom(chip, sizeof(chip), metalio_tps_vcom_mv());
-    char subtitle[96];
+    char subtitle[128];
     snprintf(
-        subtitle, sizeof(subtitle), "最近回读 VCOM %s；点按下方执行，Continue 退出", chip
+        subtitle, sizeof(subtitle), "VCOM đọc lại gần nhất %s; chạm bên dưới để chạy, Continue để thoát", chip
     );
-    ui_draw_header(fb, "调试 Debug", subtitle);
+    ui_draw_header(fb, "Gỡ lỗi Debug", subtitle);
     char labels[DEBUG_ROWS][72];
     debug_labels(labels);
     for (int i = 0; i < DEBUG_ROWS; i++) {

@@ -120,7 +120,7 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
 #if KIIKO_BOARD_METALIO47
     ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT},UI_GRAY_WHITE,fb);
 #endif
-    ui_pinpad_t pad={0};ui_pinpad_begin(&pad,fb,"输入密码");
+    ui_pinpad_t pad={0};ui_pinpad_begin(&pad,fb,"Nhập mã PIN");
 #if KIIKO_BOARD_METALIO47
     restore_art(fb,original);
 #endif
@@ -158,7 +158,7 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
             if(app_light_sleep_wait_timed(NULL,10u*60u*1000u)==APP_WAKE_TIMEOUT){
                 ui_pinpad_end(&pad);free(original);app_enter_host_sleep(APP_SLEEP_DEEP);
                 // 防御性处理：电源交接意外返回也继续验证。/ Defensive: a returning power handoff still requires verification.
-                original=NULL;ui_pinpad_begin(&pad,fb,"输入密码");
+                original=NULL;ui_pinpad_begin(&pad,fb,"Nhập mã PIN");
                 continue;
 #endif
             }
@@ -171,13 +171,13 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
             ble_pt_event_t e;while(ble_pt_pop_key(&e)){}ble_pt_raw_t raw;while(ble_pt_pop_raw(&raw)){}
             return;
         }
-        ui_pinpad_reset(&pad,"输入密码",lock_pin_available()?"":"凭据读取失败，请重启后重试");
+        ui_pinpad_reset(&pad,"Nhập mã PIN",lock_pin_available()?"":"Không thể đọc mã PIN, vui lòng khởi động lại");
         if(!lock_pin_available())pad.blocked=true;
-        else if(esp_timer_get_time()/1000<retry_at){pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"请等待 10 秒后重试");}
+        else if(esp_timer_get_time()/1000<retry_at){pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"Vui lòng đợi 10 giây rồi thử lại");}
 #else
         app_lock_wait_key_idle(800);
-        ui_pinpad_reset(&pad,"输入密码","");
-        if(esp_timer_get_time()/1000<retry_at){pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"请等待 10 秒后重试");}
+        ui_pinpad_reset(&pad,"Nhập mã PIN","");
+        if(esp_timer_get_time()/1000<retry_at){pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"Vui lòng đợi 10 giây rồi thử lại");}
 #endif
         // 直接推送完整密码画面一次，不再补刷第二段背景。/ Present the complete PIN screen once, without a second backdrop stage.
 #if KIIKO_BOARD_METALIO47
@@ -198,7 +198,7 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
             int64_t now=esp_timer_get_time()/1000;
             if(now-active_at>=30000){cancel=true;break;}
             if(now-last_poll>=40){last_poll=now;(void)read_pico_pmu_poll();if(read_pico_pmu_take_key_action()!=READ_PICO_PMU_KEY_NONE){cancel=true;break;}}
-            if(pad.blocked&&lock_pin_available()&&now>=retry_at){ui_pinpad_reset(&pad,NULL,"请重新输入");ui_pinpad_paint(fb,&pad,ui_pinpad_entry_area());present(hl,ui_pinpad_entry_area());}
+            if(pad.blocked&&lock_pin_available()&&now>=retry_at){ui_pinpad_reset(&pad,NULL,"Vui lòng nhập lại");ui_pinpad_paint(fb,&pad,ui_pinpad_entry_area());present(hl,ui_pinpad_entry_area());}
             cst836u_touch_t sample={0};esp_err_t error=cst836u_read(touch,&sample);
             bool down=error==ESP_OK&&sample.touched;
             if(draining){if(!down&&error==ESP_OK)draining=false;was_down=down;vTaskDelay(pdMS_TO_TICKS(5));continue;}
@@ -212,8 +212,8 @@ void lock_screen_authenticate(EpdiyHighlevelState *hl,cst836u_handle_t touch,sc7
                 if(r==UI_PIN_COMPLETE){
                     bool verified=lock_pin_verify(pad.digits);
                     if(verified){ui_pinpad_end(&pad);free(original);read_pico_pmu_drain_events();ble_pt_event_t e;while(ble_pt_pop_key(&e)){}ble_pt_raw_t raw;while(ble_pt_pop_raw(&raw)){}return;}
-                    ui_pinpad_reset(&pad,NULL,"密码不正确，请重试");
-                    if(++failures>=3){failures=0;retry_at=now+10000;pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"请等待 10 秒后重试");}
+                    ui_pinpad_reset(&pad,NULL,"Mã PIN không đúng, vui lòng thử lại");
+                    if(++failures>=3){failures=0;retry_at=now+10000;pad.blocked=true;snprintf(pad.notice,sizeof(pad.notice),"Vui lòng đợi 10 giây rồi thử lại");}
                     ui_pinpad_paint(fb,&pad,ui_pinpad_entry_area());present(hl,ui_pinpad_entry_area());
                 }
             }

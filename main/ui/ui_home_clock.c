@@ -329,7 +329,7 @@ static void house_hands(clock_canvas_t *c,const struct tm *date){
     house_disc(c,177,913,11,177,198);house_disc(c,177,913,8,38,65);
 }
 const char *ui_home_clock_name(ui_home_clock_style_t style){
-    static const char *const names[]={"IKEA PS 1995","Asterisk Clock","Moon Clock","Kehai Clock","Dali Clock","Cat Clock","小屋时钟"};
+    static const char *const names[]={"IKEA PS 1995","Asterisk Clock","Moon Clock","Kehai Clock","Dali Clock","Cat Clock","Đồng hồ nhà gỗ"};
     return names[(unsigned)style<UI_HOME_CLOCK_COUNT?style:0];
 }
 void ui_home_clock_trail_draw_region(uint8_t *fb,EpdRect b,const struct tm *date,bool binary,ui_home_clock_style_t style,EpdRect clip,unsigned phase,unsigned trail_start,unsigned trail_steps){

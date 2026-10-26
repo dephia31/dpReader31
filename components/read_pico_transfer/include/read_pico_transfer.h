@@ -16,7 +16,7 @@
 #include "esp_err.h"
 #include "read_pico_transfer_network.h"
 
-#define READ_PICO_TRANSFER_PASSWORD "kiikoread"
+#define READ_PICO_TRANSFER_PASSWORD "dpreader"
 #define READ_PICO_TRANSFER_URL "http://192.168.4.1"
 
 typedef enum {
@@ -50,6 +50,8 @@ typedef struct {
     bool (*signature_get_cb)(char *out, size_t cap); ///< 复制当前签名，不依赖页面 / Copy current signature without page dependencies
     esp_err_t (*signature_set_cb)(const char *text); ///< 持久保存签名，空串清除 / Persist a signature; empty clears it
     bool (*wallpaper_set_cb)(const char *path); ///< 图片上传完成后设为锁屏壁纸 / Select an uploaded image as lock wallpaper
+    bool (*sync_cfg_get_cb)(char *out_json, size_t cap); ///< Đọc cấu hình KOSync & OPDS dạng JSON
+    esp_err_t (*sync_cfg_set_cb)(const char *in_json); ///< Lưu cấu hình KOSync & OPDS từ JSON
 } read_pico_transfer_cfg_t;
 
 typedef struct {

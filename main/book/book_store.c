@@ -87,10 +87,12 @@ esp_err_t book_store_roots(book_store_root_t out[BOOK_STORE_ROOT_MAX], int* n) {
     s_roots_degraded = false;
     memset(out, 0, sizeof(*out) * BOOK_STORE_ROOT_MAX);
     if (sd_ready()) {
-        // Also show books already copied to a singular `book` directory.
+        // Also show books already copied to legacy `book` or CloudZao stock `metalio/e-ink/books` directories.
         struct stat legacy;
         if (!strcmp(app_settings_books_dir(), "/sdcard/books") && stat("/sdcard/book", &legacy) == 0 && S_ISDIR(legacy.st_mode))
             out[(*n)++] = (book_store_root_t){.path = "/sdcard/book", .is_flash = false};
+        if (stat("/sdcard/metalio/e-ink/books", &legacy) == 0 && S_ISDIR(legacy.st_mode))
+            out[(*n)++] = (book_store_root_t){.path = "/sdcard/metalio/e-ink/books", .is_flash = false};
         if (ensure_dir(app_settings_books_dir()) == ESP_OK)
             snprintf(out[(*n)++].path, sizeof(out[0].path), "%s", app_settings_books_dir());
         else s_roots_degraded = true;
@@ -101,7 +103,7 @@ esp_err_t book_store_roots(book_store_root_t out[BOOK_STORE_ROOT_MAX], int* n) {
     }
     esp_err_t err = flash_root(&out[*n]);
     if (err == ESP_OK) ++*n;
-    else s_roots_degraded = true;
+    else if (err != ESP_ERR_NOT_FOUND || *n == 0) s_roots_degraded = true;
     return *n > 0 ? ESP_OK : err;
 }
 

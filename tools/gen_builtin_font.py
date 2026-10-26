@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Scan UI strings and subset OFL Noto Sans SC Medium into main/assets/builtin.ttf."""
+"""Generate main/assets/builtin.ttf (Noto Sans Medium + Vietnamese + UI Symbols) for dpReader."""
 
 from __future__ import annotations
 
 import argparse
+import copy
 import re
 import sys
 from pathlib import Path
@@ -15,24 +16,24 @@ SCAN_DIRS = [
     ROOT / "main/ui",
     ROOT / "main/app",
     ROOT / "main/apps",
+    ROOT / "main/book",
     ROOT / "main/factory",
-    ROOT / "main/assets",
+    ROOT / "boards/metalio47/src",
     ROOT / "main/app_main.c",
     ROOT / "main/display.c",
     ROOT / "main/sleep.c",
     ROOT / "main/settings.c",
     ROOT / "main/ota_update.c",
     ROOT / "main/ota_online.c",
-    ROOT / "components/sy7636a",
-    ROOT / "components/sc7a20h",
     ROOT / "components/read_pico",
     ROOT / "components/read_pico_pmu",
+    ROOT / "components/read_pico_transfer",
+    ROOT / "components/ble_page_turner",
 ]
-TEXT_SUFFIXES = {".md", ".txt"}
-# 阅读正文补齐后 VF 子集会超过旧的 400KB；系统字库使用固定 Medium 字重。
 MAX_BYTES = 700 * 1024
 BUILTIN_WEIGHT = 500
 STRING_RE = re.compile(r'"(?:\\.|[^"\\])*"')
+COMMENT_RE = re.compile(r"//.*?$|/\*.*?\*/", re.DOTALL | re.MULTILINE)
 
 
 def ascii_printable() -> str:
@@ -57,13 +58,16 @@ def unescape(literal: str) -> str:
         body.replace("\\\\", "\0")
         .replace("\\n", "\n")
         .replace("\\t", "\t")
-        .replace("\\\"", '"')
+        .replace('\\"', '"')
         .replace("\0", "\\")
     )
 
 
 def scan_sources() -> str:
     texts: list[str] = []
+    reading_md = ROOT / "main/assets/reading.md"
+    if reading_md.is_file():
+        texts.append(reading_md.read_text(encoding="utf-8", errors="ignore"))
     files: list[Path] = []
     for item in SCAN_DIRS:
         if item.is_file():
@@ -71,13 +75,8 @@ def scan_sources() -> str:
         elif item.is_dir():
             files.extend(item.rglob("*.c"))
             files.extend(item.rglob("*.h"))
-            files.extend(item.rglob("*.md"))
-            files.extend(item.rglob("*.txt"))
     for path in files:
-        data = path.read_text(encoding="utf-8", errors="ignore")
-        if path.suffix in TEXT_SUFFIXES:
-            texts.append(data)
-            continue
+        data = COMMENT_RE.sub("", path.read_text(encoding="utf-8", errors="ignore"))
         for match in STRING_RE.finditer(data):
             texts.append(unescape(match.group(0)))
     return "".join(texts)
@@ -95,95 +94,112 @@ def unique_text(*parts: str) -> str:
     return "".join(sorted(out, key=lambda c: ord(c)))
 
 
-def subset_variable(src: Path, text: str, dest: Path) -> int:
-    from fontTools.subset import Subsetter, Options
+def copy_glyphs_from(dst_font, src_path: Path, cps: list[int]) -> None:
+    if not src_path.is_file():
+        return
     from fontTools.ttLib import TTFont
 
-    font = TTFont(src)
-    options = Options()
-    options.layout_features = ["*"]
-    options.notdef_outline = True
-    options.recommended_glyphs = True
-    options.name_IDs = ["*"]
-    options.name_legacy = True
-    options.glyph_names = False
-    options.ignore_missing_glyphs = True
-    subsetter = Subsetter(options=options)
-    subsetter.populate(text=text)
-    subsetter.subset(font)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    font.save(dest)
-    font.close()
-    return dest.stat().st_size
-
-
-def subset_medium(src: Path, text: str, dest: Path) -> int:
-    from fontTools.subset import Subsetter, Options
-    from fontTools.ttLib import TTFont
-    from fontTools.varLib.instancer import instantiateVariableFont
-
-    vf = TTFont(src)
-    if "fvar" in vf:
-        inst = instantiateVariableFont(vf, {"wght": BUILTIN_WEIGHT}, inplace=False)
-        vf.close()
-        vf = inst
-    if vf["OS/2"].usWeightClass != BUILTIN_WEIGHT:
-        raise ValueError(f"source cannot provide wght={BUILTIN_WEIGHT}")
-    for name_id, value in (
-        (1, "Noto Sans SC"),
-        (2, "Medium"),
-        (4, "Noto Sans SC Medium"),
-        (6, "NotoSansSC-Medium"),
-    ):
-        vf["name"].setName(value, name_id, 3, 1, 0x409)
-    options = Options()
-    options.layout_features = ["*"]
-    options.notdef_outline = True
-    options.recommended_glyphs = True
-    options.ignore_missing_glyphs = True
-    subsetter = Subsetter(options=options)
-    subsetter.populate(text=text)
-    subsetter.subset(vf)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    vf.save(dest)
-    vf.close()
-    return dest.stat().st_size
+    src = TTFont(src_path)
+    src_cmap = src.getBestCmap()
+    dst_cmap = dst_font.getBestCmap()
+    glyph_order = list(dst_font.getGlyphOrder())
+    for cp in cps:
+        if cp in dst_cmap or cp not in src_cmap:
+            continue
+        src_gname = src_cmap[cp]
+        g = copy.deepcopy(src["glyf"][src_gname])
+        new_gname = f"uni{cp:04X}"
+        while new_gname in glyph_order:
+            new_gname += "_"
+        glyph_order.append(new_gname)
+        dst_font["glyf"][new_gname] = g
+        dst_font["hmtx"][new_gname] = src["hmtx"][src_gname]
+        for table in dst_font["cmap"].tables:
+            if table.isUnicode():
+                table.cmap[cp] = new_gname
+    dst_font.setGlyphOrder(glyph_order)
+    src.close()
 
 
 def default_src() -> Path:
     for path in (
+        Path("/usr/share/fonts/truetype/noto/NotoSans-Medium.ttf"),
         ROOT / "sdcard/fonts/Hei.ttf",
         ROOT / "flash/fonts/Hei.ttf",
     ):
         if path.is_file():
             return path
-    return ROOT / "sdcard/fonts/Hei.ttf"
+    return Path("/usr/share/fonts/truetype/noto/NotoSans-Medium.ttf")
+
+
+def build_vietnamese_builtin(src: Path, text: str, dest: Path) -> int:
+    from fontTools.subset import Subsetter, Options
+    from fontTools.ttLib import TTFont
+
+    existing_cjk_backup = Path("/tmp/orig_cjk_backup.ttf")
+    if dest.is_file() and not existing_cjk_backup.is_file():
+        existing_cjk_backup.write_bytes(dest.read_bytes())
+
+    f_base = TTFont(src)
+    base_cmap = set(f_base.getBestCmap().keys())
+    keep_cps = set(
+        cp
+        for cp in base_cmap
+        if (
+            0x0020 <= cp <= 0x024F
+            or 0x02B0 <= cp <= 0x036F
+            or 0x1E00 <= cp <= 0x1EFF
+            or 0x2000 <= cp <= 0x2BFF
+        )
+    )
+    for ch in text:
+        if ord(ch) in base_cmap:
+            keep_cps.add(ord(ch))
+
+    opts = Options()
+    opts.layout_features = ["*"]
+    opts.notdef_outline = True
+    opts.recommended_glyphs = True
+    opts.ignore_missing_glyphs = True
+    sub = Subsetter(options=opts)
+    sub.populate(unicodes=sorted(keep_cps))
+    sub.subset(f_base)
+
+    # Inject UI math/arrow/dingbat symbols and internal CJK chapter/width tokens (all UPM=1000)
+    needed_cps = [ord(ch) for ch in text] + [
+        ord(ch) for ch in "←↑→↓⇧−√∞∩≈≠≤≥⌫■□▲▼○●★☆✓✔✕✖一第章：、零二三四五六七八九十百千万两节卷回集部篇"
+    ]
+    copy_glyphs_from(f_base, Path("/usr/share/fonts/truetype/noto/NotoSansMath-Regular.ttf"), needed_cps)
+    copy_glyphs_from(f_base, Path("/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf"), needed_cps)
+    if existing_cjk_backup.is_file():
+        copy_glyphs_from(f_base, existing_cjk_backup, needed_cps)
+
+    for name_id, value in (
+        (1, "Noto Sans"),
+        (2, "Medium"),
+        (4, "Noto Sans Medium"),
+        (6, "NotoSans-Medium"),
+    ):
+        f_base["name"].setName(value, name_id, 3, 1, 0x409)
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    f_base.save(dest)
+    f_base.close()
+    return dest.stat().st_size
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--src", type=Path, default=default_src())
     parser.add_argument("--out", type=Path, default=OUT)
-    parser.add_argument("--extend-text", help="Keep the existing output cmap and add only these UI outline glyphs")
     args = parser.parse_args()
     if not args.src.is_file():
         print(f"missing source font: {args.src}", file=sys.stderr)
         return 1
 
-    if args.extend_text is not None:
-        # 局部修补只补指定轮廓，避免扫描历史文本扩张整个字库。
-        # A targeted repair adds only requested outlines, without growing the subset from historical UI strings.
-        from fontTools.ttLib import TTFont
-        with TTFont(args.out) as existing:
-            text = unique_text("".join(chr(cp) for cp in existing.getBestCmap()), args.extend_text)
-    else:
-        text = unique_text(ascii_printable(), load_preset(CHARSET), scan_sources())
-    cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
-    print(f"charset {len(text)} chars ({cjk} CJK)")
-
-    size = subset_medium(args.src, text, args.out)
-    mode = f"Medium (wght={BUILTIN_WEIGHT})"
-    print(f"wrote {args.out} ({size} bytes, {mode})")
+    text = unique_text(ascii_printable(), load_preset(CHARSET), scan_sources())
+    size = build_vietnamese_builtin(args.src, text, args.out)
+    print(f"wrote {args.out} ({size} bytes, Medium wght={BUILTIN_WEIGHT})")
     if size > MAX_BYTES:
         print("subset still too large", file=sys.stderr)
         return 1

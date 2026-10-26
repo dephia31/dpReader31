@@ -50,7 +50,7 @@ static uint32_t stamp(const char *text) {
     return value;
 }
 static const char *const groups[] = {"", "abc", "def", "ghi", "jkl", "mno", "pqrs", "tuv", "wxyz"};
-static const char *const symbols[] = {"，","。","？","！","：","；","“","”","（","）","、","…","—","·","-","_","/","@","#","&","+","=","%","\\","*","$","<",">","[","]"};
+static const char *const symbols[] = {",",".","?","!",":",";","“","”","(",")","…","—","·","-","_","/","@","#","&","+","=","%","\\","*","$","<",">","[","]","~"};
 static const char *const ascii_symbols[] = {"!","@","#","$","%","^","&","*","(",")","-","_","+","=","/","\\",":",";","\"","'",".",",","?","<",">","[","]","{","}","|","`","~"};
 static EpdRect rect(int x, int y, int w, int h, int top) { return (EpdRect){x, y + top, w, h}; }
 static bool load_candidates(size_t start) {
@@ -65,7 +65,7 @@ static void refresh(void) {
     s_best_roman[0] = 0; s_best_consume = 0;
     if (!s_candidates || !s_edit || !s_chinese) return;
     ++s_candidates_revision;
-    if (!load_candidates(0)) snprintf(s_notice, sizeof(s_notice), "内存不足，请缩短拼音后重试");
+    if (!load_candidates(0)) snprintf(s_notice, sizeof(s_notice), "Bộ nhớ đầy, vui lòng rút ngắn từ");
     else if (s_candidates->count) {
         snprintf(s_best_roman, sizeof(s_best_roman), "%s", s_candidates->items[0].roman);
         s_best_consume = s_candidates->items[0].consume;
@@ -83,13 +83,13 @@ void ui_keyboard_begin(ui_text_edit_t *edit, bool ascii_only) {
     ui_keyboard_end(); s_edit = edit; s_ascii = ascii_only;
     s_chinese = !ascii_only; s_nine = !ascii_only; s_upper = false; s_panel = 0;
     if (!ascii_only) s_candidates = heap_caps_malloc(sizeof(*s_candidates), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!ascii_only && !s_candidates) { s_chinese = s_nine = false; snprintf(s_notice, sizeof(s_notice), "内存不足，暂用英文键盘"); }
+    if (!ascii_only && !s_candidates) { s_chinese = s_nine = false; snprintf(s_notice, sizeof(s_notice), "Bộ nhớ đầy, dùng bàn phím Latin"); }
     refresh();
 }
 bool ui_keyboard_pending(void) { return s_raw[0] != 0; }
 static bool insert(const char *text) {
     if (s_edit && ui_text_edit_insert(s_edit, text)) { s_notice[0] = 0; return true; }
-    snprintf(s_notice, sizeof(s_notice), "文字已达到长度上限"); return false;
+    snprintf(s_notice, sizeof(s_notice), "Đã đạt giới hạn độ dài văn bản"); return false;
 }
 static bool commit(size_t index) {
     if (!s_candidates || index >= s_candidates->count) return false;
@@ -207,7 +207,7 @@ static void paint_words(uint8_t *fb, int top) {
         char text[UI_IME_RAW_MAX * 7 + 1]; composition_text(text);
         ui_text_input_composition(fb, text, rect(28, 57, 552, 35, top), 25);
     }
-    else if (!s_probe && !s_keys_only) ui_text_fixed_vc(fb, 28, top + 75, 22, s_chinese ? "连续输入拼音，选择词语" : "轻点输入，可切换大小写", EPD_DRAW_ALIGN_LEFT, false);
+    else if (!s_probe && !s_keys_only) ui_text_fixed_vc(fb, 28, top + 75, 22, s_chinese ? "Nhập Telex và chọn từ gợi ý" : "Chạm để nhập, có thể đổi chữ hoa/thường", EPD_DRAW_ALIGN_LEFT, false);
     EpdRect boxes[5]; size_t count = visible(s_page, boxes, top);
     for (size_t i = 0; i < count; ++i) {
         char text[UI_IME_TEXT_MAX]; snprintf(text, sizeof(text), "%s", s_candidates->items[s_page + i].text);
@@ -222,16 +222,16 @@ static void paint_words(uint8_t *fb, int top) {
 static void paint_syllables(uint8_t *fb, int top) {
         const char *choices[4]; bool more; size_t n = syllables(choices, &more);
         for (int i = 0; i < 4; ++i) key_paint(fb, rect(24, 180 + i * 58, 82, 50, top),
-            i < (int)n ? choices[i] : i == 3 && (more || s_syllable_offset) ? "更多" : "", 22, i < (int)n && !strcmp(s_preferred, choices[i]), true);
+            i < (int)n ? choices[i] : i == 3 && (more || s_syllable_offset) ? "Thêm" : "", 22, i < (int)n && !strcmp(s_preferred, choices[i]), true);
 }
 void ui_keyboard_draw(uint8_t *fb, int top) {
     if (!s_probe && !s_keys_only) {
     ui_fill_round_rect(fb, rect(16, -12, 652, 534, top), 26, 0xe8);
     ui_draw_round_rect(fb, rect(16, -12, 652, 534, top), 26, 0x60);
     }
-    key_paint(fb, rect(24, 0, 144, 44, top), "九宫格", 24, s_nine, s_ascii || !s_candidates);
-    key_paint(fb, rect(176, 0, 144, 44, top), "全键盘", 24, !s_nine, false);
-    if (!s_probe && !s_keys_only) ui_text_fixed_vc(fb, 651, top + 22, 24, s_ascii ? "英文密码" : s_chinese ? "中文拼音" : s_upper ? "英文大写" : "英文小写", EPD_DRAW_ALIGN_RIGHT, false);
+    key_paint(fb, rect(24, 0, 144, 44, top), "T9 9 phím", 24, s_nine, s_ascii || !s_candidates);
+    key_paint(fb, rect(176, 0, 144, 44, top), "QWERTY", 24, !s_nine, false);
+    if (!s_probe && !s_keys_only) ui_text_fixed_vc(fb, 651, top + 22, 24, s_ascii ? "Mật khẩu" : s_chinese ? "Tiếng Việt" : s_upper ? "CHỮ HOA" : "chữ thường", EPD_DRAW_ALIGN_RIGHT, false);
     paint_words(fb, top);
     if (s_panel || !s_nine) {
         static const char *const rows[] = {"qwertyuiop", "asdfghjkl", "zxcvbnm"};
@@ -247,7 +247,7 @@ void ui_keyboard_draw(uint8_t *fb, int top) {
             }
         }
         if (s_panel) {
-            key_paint(fb, rect(536, 336, 56, 68, top), "重输", 21, false, true);
+            key_paint(fb, rect(536, 336, 56, 68, top), "Xóa", 21, false, true);
             key_paint(fb, rect(600, 336, 56, 68, top), "⌫", 28, false, true);
         } else {
 #if KIIKO_BOARD_METALIO47
@@ -263,17 +263,17 @@ void ui_keyboard_draw(uint8_t *fb, int top) {
             char upper[6]; snprintf(upper, sizeof(upper), "%s", groups[i]);
             for (char *c = upper; *c; ++c) *c -= 32;
             EpdRect r = rect(116 + (i % 3) * 150, 180 + (i / 3) * 78, 140, 68, top);
-            key_paint(fb, r, i == 0 ? "选词" : upper, 30, false, false);
+            key_paint(fb, r, i == 0 ? "Chọn" : upper, 30, false, false);
         }
         key_paint(fb, rect(568, 180, 92, 68, top), "⌫", 32, false, true);
-        key_paint(fb, rect(568, 258, 92, 68, top), "重输", 25, false, true);
-        key_paint(fb, rect(568, 336, 92, 68, top), "清空", 25, false, true);
+        key_paint(fb, rect(568, 258, 92, 68, top), "Nhập lại", 23, false, true);
+        key_paint(fb, rect(568, 336, 92, 68, top), "Xóa hết", 23, false, true);
     }
     key_paint(fb, rect(24, 430, 86, 72, top), s_panel ? "ABC" : "123", 25, false, true);
-    key_paint(fb, rect(118, 430, 80, 72, top), s_panel == 2 ? "更多" : "符号", 24, false, true);
-    key_paint(fb, rect(206, 430, 220, 72, top), s_raw[0] ? "选择" : "空格", 26, false, false);
-    key_paint(fb, rect(434, 430, 92, 72, top), s_nine ? "中文" : s_chinese ? "中 / En" : "En / 中", 21, false, true);
-    key_paint(fb, rect(534, 430, 126, 72, top), "确定", 28, true, false);
+    key_paint(fb, rect(118, 430, 80, 72, top), s_panel == 2 ? "Thêm" : "Ký tự", 24, false, true);
+    key_paint(fb, rect(206, 430, 220, 72, top), s_raw[0] ? "Chọn từ" : "Dấu cách", 26, false, false);
+    key_paint(fb, rect(434, 430, 92, 72, top), s_nine ? "VI" : s_chinese ? "VI / EN" : "EN / VI", 21, false, true);
+    key_paint(fb, rect(534, 430, 126, 72, top), "Xong", 28, true, false);
 }
 static void backspace(void) {
     size_t n = strlen(s_raw);
@@ -284,7 +284,7 @@ static void backspace(void) {
 static void letter_key(char letter) {
     if (!s_chinese) { char text[2] = {s_upper ? letter - 32 : letter, 0}; insert(text); return; }
     size_t n = strlen(s_raw);
-    if (n == UI_IME_RAW_MAX) { snprintf(s_notice, sizeof(s_notice), "拼音过长，请先选词"); return; }
+    if (n == UI_IME_RAW_MAX) { snprintf(s_notice, sizeof(s_notice), "Từ quá dài, vui lòng chọn từ trước"); return; }
     s_notice[0] = 0; s_raw[n] = letter; s_raw[n + 1] = 0; refresh();
 }
 static ui_keyboard_result_t tap(int x, int y, int top) {
@@ -297,7 +297,7 @@ static ui_keyboard_result_t tap(int x, int y, int top) {
             if (nine && ui_ime_digits(s_raw, converted, sizeof(converted))) snprintf(s_raw, sizeof(s_raw), "%s", converted);
             else if (!nine && s_best_consume == strlen(s_raw) && s_best_roman[0])
                 snprintf(s_raw, sizeof(s_raw), "%s", s_best_roman);
-            else { snprintf(s_notice, sizeof(s_notice), "请先选词或重输，再切换键盘"); return UI_KEYBOARD_CHANGED; }
+            else { snprintf(s_notice, sizeof(s_notice), "Vui lòng chọn từ trước khi đổi bàn phím"); return UI_KEYBOARD_CHANGED; }
         }
         s_nine = nine; s_panel = 0;
         if (nine) { s_chinese = true; s_upper = false; }
@@ -313,16 +313,16 @@ static ui_keyboard_result_t tap(int x, int y, int top) {
     if (y >= top + 430 && y < top + 502) {
         if (x >= 534) {
             if (!s_raw[0]) return UI_KEYBOARD_DONE;
-            snprintf(s_notice, sizeof(s_notice), "请先选择词语，再保存");
+            snprintf(s_notice, sizeof(s_notice), "Vui lòng chọn từ trước khi lưu");
         } else if (x >= 434) {
             if (s_nine) return UI_KEYBOARD_NONE;
-            if (s_raw[0]) snprintf(s_notice, sizeof(s_notice), "请先选词，再切换语言");
+            if (s_raw[0]) snprintf(s_notice, sizeof(s_notice), "Vui lòng chọn từ trước khi đổi ngôn ngữ");
             else if (!s_ascii && s_candidates) { s_chinese = !s_chinese; refresh(); }
-            else snprintf(s_notice, sizeof(s_notice), "密码使用英文、数字与符号");
+            else snprintf(s_notice, sizeof(s_notice), "Mật khẩu chỉ dùng chữ Latin, số và ký hiệu");
         } else if (x >= 206) {
-            if (s_raw[0]) { if (!commit(s_page)) snprintf(s_notice, sizeof(s_notice), "未识别拼音，请继续输入或重输"); }
+            if (s_raw[0]) { if (!commit(s_page)) snprintf(s_notice, sizeof(s_notice), "Chưa nhận diện từ, vui lòng nhập tiếp"); }
             else insert(" ");
-        } else if (s_raw[0]) snprintf(s_notice, sizeof(s_notice), "请先选词，再输入数字符号");
+        } else if (s_raw[0]) snprintf(s_notice, sizeof(s_notice), "Vui lòng chọn từ trước khi nhập số/ký tự");
         else if (x < 110) s_panel = s_panel ? 0 : 1;
         else s_panel = s_panel == 2 ? 3 : 2;
         return UI_KEYBOARD_CHANGED;
@@ -363,12 +363,12 @@ static ui_keyboard_result_t tap(int x, int y, int top) {
         }
         for (int i = 0; i < 9; ++i) if (ui_rect_hit(rect(116 + (i % 3) * 150, 180 + (i / 3) * 78, 140, 68, top), x, y)) {
             if (!i) {
-                if (!commit(s_page)) snprintf(s_notice, sizeof(s_notice), "请先输入拼音并选择词语");
+                if (!commit(s_page)) snprintf(s_notice, sizeof(s_notice), "Vui lòng nhập và chọn từ gợi ý");
                 return UI_KEYBOARD_CHANGED;
             }
             size_t len = strlen(s_raw);
             if (len < UI_IME_RAW_MAX) { s_notice[0] = 0; s_raw[len] = (char)('1' + i); s_raw[len + 1] = 0; refresh(); }
-            else snprintf(s_notice, sizeof(s_notice), "拼音过长，请先选词");
+            else snprintf(s_notice, sizeof(s_notice), "Từ quá dài, vui lòng chọn từ trước");
             return UI_KEYBOARD_CHANGED;
         }
     }
@@ -496,7 +496,7 @@ ui_keyboard_update_t ui_keyboard_update(uint8_t *fb, int top, EpdRect field, int
         }
         if (s_dirty & DIRTY_SPACE) {
             EpdRect area = rect(206, 430, 220, 72, top);
-            key_paint(fb, area, s_raw[0] ? "选择" : "空格", 26, false, false); include(&update, area);
+            key_paint(fb, area, s_raw[0] ? "Chọn từ" : "Dấu cách", 26, false, false); include(&update, area);
         }
     }
     if (!update.layout && (s_dirty & DIRTY_FEEDBACK)) {

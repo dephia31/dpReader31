@@ -1,6 +1,23 @@
-# Built-in font charset. Lines starting with # are comments.
-# 1) ASCII 0x20-0x7E is injected by tools/gen_builtin_font.py
-# 2) Font-switch English (extracted in advance; do not depend on SD)
+# Built-in font charset for dpReader (Metalio E-ink 4 Plus / metalio47).
+# Lines starting with # are comments.
+# 1) ASCII 0x20-0x7E and Latin/Vietnamese Unicode blocks are injected by tools/gen_builtin_font.py
+# 2) Core Vietnamese characters (explicitly listed for clarity and verification)
+ÀÁẢÃẠàáảãạ
+ĂẰẮẲẴẶăằắẳẵặ
+ÂẦẤẨẪẬâầấẩẫậ
+Đđ
+ÈÉẺẼẸèéẻẽẹ
+ÊỀẾỂỄỆêềếểễệ
+ÌÍỈĨỊìíỉĩị
+ÒÓỎÕỌòóỏõọ
+ÔỒỐỔỖỘôồốổỗộ
+ƠỜỚỞỠỢơờớởỡợ
+ÙÚỦŨỤùúủũụ
+ƯỪỨỬỮỰưừứửữự
+ỲÝỶỸỴỳýỷỹỵ
+# 3) Technical & UI terms
+dpReader
+Metalio
 Built-in
 Built in
 builtin
@@ -14,13 +31,11 @@ GC16
 DU
 GL16
 FOLLOW
-SY7636A
-FCA9555
+TPS65185
+TCA9535
 CST836U
 SC7A20H
 CW32
-Read Pico
-小纸 Pico
 Overview
 Power
 Firmware
@@ -30,30 +45,10 @@ Host
 Build
 Hardware
 Offline
-不在线
-电源按键
-原始事件
-按下
-抬起
-短按
-长按
-No data
-Unknown
-Idle
-Charging
-Full
-Fault
-Serial
-Self-test
-Prev
-Next
-PASS
-FAIL
-ESP MAC
-序列号
-整机自检
-探测
-探活
+KOSync
+KOReader
+OPDS
+Calibre
 VCOM
 PGOOD
 INT
@@ -64,28 +59,5 @@ I2C
 PMU
 IOE
 NVS
-# Latin-1 / symbols used by chip status strings (not in ASCII, not in CJK scan)
-±
-℃
-# 3) Extra UI / home-page samples (CJK also scanned from sources)
-滚滚长江东逝水
-写入
-改回
-即将写入
-—.——
-0.50—2.50
-内建
-内建或存储卡 TTF
-使用中
-界面字体
-存储卡 TTF
-传感器型号
-曲谱
-柔和
-明亮
-增强
-持
-衰
-原
-右
-全
+# 4) Typography & UI symbols
+–—‘’“”„‹›«»…·•°±×÷−≤≥≠≈∞√€£¥₫©®™§¶℃←↑→↓✓✔✕✖★☆●○■□▲▼

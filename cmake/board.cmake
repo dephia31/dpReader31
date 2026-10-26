@@ -1,27 +1,23 @@
 # SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
-# 中文：只在配置期选择板型，未知设备或目标冲突立即失败。/ English: Select a board at configure time; reject unknown boards and conflicting targets.
-# 中文：需求扫描在每个组件自己的作用域中运行，板型变量必须逐次初始化。/ English: Requirement discovery gives each component its own scope; initialize board variables on every include.
+# Cấu hình cố định duy nhất cho phần cứng Metalio E-ink 4 Plus (metalio47 / ESP32-S31) - dpReader.
 get_filename_component(KIIKO_SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 if(NOT DEFINED KIIKO_BOARD)
     if(DEFINED ENV{KIIKO_BOARD} AND NOT "$ENV{KIIKO_BOARD}" STREQUAL "")
         set(KIIKO_BOARD "$ENV{KIIKO_BOARD}")
     else()
-        set(KIIKO_BOARD "pico")
+        set(KIIKO_BOARD "metalio47")
     endif()
 endif()
-if(KIIKO_BOARD STREQUAL "metalio_s31")
+if(KIIKO_BOARD STREQUAL "metalio_s31" OR KIIKO_BOARD STREQUAL "metalio4.7" OR KIIKO_BOARD STREQUAL "dpReader_metalio47")
     set(KIIKO_BOARD "metalio47")
 endif()
-if(NOT KIIKO_BOARD STREQUAL "pico" AND NOT KIIKO_BOARD STREQUAL "metalio47")
-    message(FATAL_ERROR "Unknown KIIKO_BOARD=${KIIKO_BOARD}; choose pico or metalio47")
+if(NOT KIIKO_BOARD STREQUAL "metalio47")
+    message(FATAL_ERROR "dpReader is isolated exclusively for metalio47 (received KIIKO_BOARD=${KIIKO_BOARD})")
 endif()
 set(KIIKO_BOARD_ROOT "${KIIKO_SOURCE_ROOT}/boards/${KIIKO_BOARD}")
 include("${KIIKO_BOARD_ROOT}/board.cmake")
-if(KIIKO_BOARD STREQUAL "metalio47")
-    set(KIIKO_BOARD_METALIO47 1)
-else()
-    set(KIIKO_BOARD_METALIO47 0)
-endif()
+set(KIIKO_BOARD_METALIO47 1)
+
 # 组件需求扫描也会独立加载本文件，不在这里修改工具链。/ Requirement discovery loads this file separately; never change its toolchain here.
 function(kiiko_board_sources output component_dir)
     set(selected_sources)

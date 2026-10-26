@@ -49,6 +49,7 @@ tools/buzzer_score_wav
 # ESP-IDF specific build outputs
 *.bin
 !main/assets/*.bin
+!releases/*.bin
 !/flash/bootloader.bin
 !/flash/partitions.bin
 !/flash/firmware.bin

@@ -17,7 +17,7 @@
 
 #define BOOK_STORE_FLASH_FILE_MAX (1024U * 1024U)
 #define BOOK_STORE_PATH_MAX 288
-#define BOOK_STORE_ROOT_MAX 3
+#define BOOK_STORE_ROOT_MAX 4
 
 typedef struct {
     /// 书目录绝对路径。/ Absolute book directory path.

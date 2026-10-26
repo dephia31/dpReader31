@@ -155,7 +155,7 @@ static void paint(uint8_t *fb,const ui_pinpad_t *pad,EpdRect area){
             if(pressed&&pad->key_snapshot){
                 for(int r=67;r>=63;--r)epd_draw_circle(cx,cy,r,0,fb);
             }
-        }else text(fb,box.x+box.width/2,box.y+32,27,hit==10?"取消":"删除",0,pad,hit);
+        }else text(fb,box.x+box.width/2,box.y+32,27,hit==10?"Hủy":"Xóa",0,pad,hit);
     }
 }
 void ui_pinpad_paint(uint8_t *fb,const ui_pinpad_t *pad,EpdRect area){paint(fb,pad,area);}

@@ -545,6 +545,10 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
     uint32_t last_cp = 0;
     int64_t width = 0;
     int64_t last_width = 0;
+    size_t word_break_line_end = visible_off;
+    size_t word_break_next_off = visible_off;
+    int64_t word_break_width = 0;
+    size_t skip_spaces_after = 0;
     int glyph_count = 0;
     s_line[0] = 0;
     *paragraph_end = false;
@@ -566,6 +570,23 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
         if (candidate < 0) return false;
         if (candidate > available) {
             if (end == visible_off) return false;
+            /* Nếu tràn dòng ở giữa một từ Tiếng Việt / Latin, lùi về khoảng trắng hoặc dấu gạch nối gần nhất */
+            if (cp == ' ' || cp == '\t') {
+                skip_spaces_after = end + n;
+                while (skip_spaces_after < limit &&
+                       (s_text[skip_spaces_after] == ' ' || s_text[skip_spaces_after] == '\t')) {
+                    ++skip_spaces_after;
+                }
+                break;
+            }
+            if (word_break_next_off > visible_off && cp < 0x2E80 && last_cp < 0x2E80 &&
+                last_cp != ' ' && last_cp != '\t' && last_cp != '-') {
+                end = word_break_line_end;
+                s_line[end - visible_off] = 0;
+                width = word_break_width;
+                skip_spaces_after = word_break_next_off;
+                break;
+            }
             // 优先让行尾正文对齐，再允许右标点小幅悬挂到留白；超出安全宽度才回退前一字。
             // Align the text edge first, hang a closing mark slightly into the margin, then roll back only if needed.
             if (prohibited_line_start(cp)) {
@@ -612,6 +633,19 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
             }
             break;
         }
+        if (cp == ' ' || cp == '\t') {
+            if (end > visible_off && last_cp != ' ' && last_cp != '\t') {
+                word_break_line_end = end;
+                word_break_width = width;
+            }
+            if (word_break_line_end > visible_off) {
+                word_break_next_off = end + n;
+            }
+        } else if (cp == '-' || cp == '/') {
+            word_break_line_end = end + n;
+            word_break_width = candidate;
+            word_break_next_off = end + n;
+        }
         last_width = width;
         width = candidate;
         ++glyph_count;
@@ -622,10 +656,11 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
     }
     line_runs_build(block, visible_off, end);
     *line_width = (int)width;
-    *next = end;
-    if (end < s_len && (s_text[end] == '\r' || s_text[end] == '\n')) {
-        *next = end + 1;
-        if (s_text[end] == '\r' && *next < s_len && s_text[*next] == '\n') (*next)++;
+    *next = skip_spaces_after > end ? skip_spaces_after : end;
+    if (*next < s_len && (s_text[*next] == '\r' || s_text[*next] == '\n')) {
+        size_t nl = *next;
+        *next = nl + 1;
+        if (s_text[nl] == '\r' && *next < s_len && s_text[*next] == '\n') (*next)++;
         *paragraph_end = !block || !block->line_break_after;
     }
     return *next > off;

@@ -3,8 +3,8 @@
 cmake_minimum_required(VERSION 3.22)
 
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/board.cmake")
-set(KIIKO_BOARD "${KIIKO_BOARD}" CACHE STRING "Firmware device: pico or metalio47")
-set_property(CACHE KIIKO_BOARD PROPERTY STRINGS pico metalio47)
+set(KIIKO_BOARD "${KIIKO_BOARD}" CACHE STRING "Firmware device: metalio47 (dpReader_metalio47)")
+set_property(CACHE KIIKO_BOARD PROPERTY STRINGS metalio47 dpReader_metalio47)
 if(DEFINED IDF_TARGET AND NOT IDF_TARGET STREQUAL KIIKO_IDF_TARGET)
     message(FATAL_ERROR "${KIIKO_BOARD} requires ${KIIKO_IDF_TARGET}; use a separate build/config directory")
 endif()

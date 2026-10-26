@@ -59,7 +59,7 @@ static uint32_t local_day(void) {
         if (pmu && pmu->time_synced && pmu->unix_sec >= 1704067200) now = pmu->unix_sec;
     }
     if (now < 1704067200) return 0;
-    return (uint32_t)((now + 8 * 3600) / 86400);
+    return (uint32_t)((now + 7 * 3600) / 86400);
 }
 static void stats_load(ticket_stats_t *out) {
     memset(out, 0, sizeof(*out));
@@ -351,7 +351,7 @@ bool book_ticket_draw(uint8_t *fb, bool reader_background) {
     bool progress_valid = file_valid && book_progress_load(path, st.st_size, &progress);
     char title[256] = {0}, author[128] = {0};
     if (!book_title_get(path, title, sizeof(title)) && !book_title_from_path(path, title, sizeof(title)))
-        snprintf(title, sizeof(title), "未命名");
+        snprintf(title, sizeof(title), "Chưa đặt tên");
     const char *ext = strrchr(path, '.');
     if (ext && !strcasecmp(ext, ".epub")) {
         char meta_title[256] = {0};
@@ -364,7 +364,7 @@ bool book_ticket_draw(uint8_t *fb, bool reader_background) {
     cover_background_draw(fb, gray, cover_width, cover_height);
     ticket_shadow_draw(fb);
     ticket_paper_draw(fb);
-    ui_text(fb, 82, 98, 28, "kiikoread  /  阅读票根", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text(fb, 82, 98, 28, "dpReader  /  Thẻ đọc sách", EPD_DRAW_ALIGN_LEFT, false);
     ui_hairline(fb, 156, 82, 520, UI_GRAY_BLACK);
     int lines=ticket_heading(fb,202,112,50,title);
     if (author[0]) ticket_heading(fb,lines>1?326:274,44,28,author);
@@ -372,23 +372,23 @@ bool book_ticket_draw(uint8_t *fb, bool reader_background) {
     free(gray);
     ui_hairline(fb, 768, 82, 520, UI_GRAY_BLACK);
     char line[96];
-    if (progress_valid) snprintf(line, sizeof(line), "已读 %u%%  ·  第 %u 章", progress.pct,
+    if (progress_valid) snprintf(line, sizeof(line), "Đã đọc %u%%  ·  Chương %u", progress.pct,
                                  (unsigned)progress.chapter + 1);
-    else snprintf(line, sizeof(line), "已读 —  ·  章节 —");
+    else snprintf(line, sizeof(line), "Đã đọc —  ·  Chương —");
     ticket_stat(fb, 802, 54, 34, line);
     EpdRect track = {82, 868, 520, 10};
     ui_fill_rect_fast(track, UI_GRAY_LIGHT, fb);
     track.width = progress_valid ? track.width * progress.pct / 100 : 0;
     if (track.width) ui_fill_rect_fast(track, UI_GRAY_BLACK, fb);
-    if (day && stats.day == day) snprintf(line, sizeof(line), "今日阅读 %llu 分钟  ·  翻页 %u 次",
+    if (day && stats.day == day) snprintf(line, sizeof(line), "Hôm nay %llu phút  ·  Lật %u trang",
         (unsigned long long)(stats.today_seconds / 60), (unsigned)stats.today_turns);
-    else snprintf(line, sizeof(line), "今日阅读 —  ·  日期未同步");
+    else snprintf(line, sizeof(line), "Hôm nay —  ·  Chưa đồng bộ ngày");
     ticket_stat(fb, 914, 48, 28, line);
-    snprintf(line, sizeof(line), "累计阅读 %llu 小时 %llu 分钟  ·  翻页 %u 次",
+    snprintf(line, sizeof(line), "Tổng cộng %llu giờ %llu phút  ·  Lật %u trang",
              (unsigned long long)(stats.total_seconds / 3600),
              (unsigned long long)((stats.total_seconds / 60) % 60), (unsigned)stats.total_turns);
     ticket_stat(fb, 969, 74, 28, line);
     ui_hairline(fb, 1050, 82, 520, UI_GRAY_BLACK);
-    ui_text(fb, 82, 1080, 26, "在每一页里，留下时间的凭证", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text(fb, 82, 1080, 26, "Lưu giữ dấu ấn thời gian qua từng trang sách", EPD_DRAW_ALIGN_LEFT, false);
     return true;
 }

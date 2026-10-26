@@ -647,15 +647,15 @@ static bool captions_draw(uint8_t *fb, unsigned count) {
     const int title_px = ttf_em_height_px(48), unit_px = ttf_em_height_px(27);
     snprintf(name, sizeof(name), "%s", app_settings_device_name());
     do {
-        snprintf(title, sizeof(title), "%s 的书架", name);
+        snprintf(title, sizeof(title), "Kệ sách %s", name);
         if (ttf_text_width_px(title_px, title) <= 600) break;
         truncate_name(name);
     } while (name[0]);
     snprintf(number, sizeof(number), "%u", count);
     int px = ttf_em_height_px(91);
-    while (px > title_px && ttf_text_width_px(px, number) + ttf_text_width_px(unit_px, "本") + 44 > 600) --px;
+    while (px > title_px && ttf_text_width_px(px, number) + ttf_text_width_px(unit_px, "cuốn") + 44 > 600) --px;
     return sticker_draw(fb, title, title_px, NULL, 0, 42, 70, false) &&
-           sticker_draw(fb, number, px, "本", unit_px, 642, 1170, true);
+           sticker_draw(fb, number, px, "cuốn", unit_px, 642, 1170, true);
 }
 static bool collage_draw(uint8_t *fb, bool defer_cache) {
     s_pending_frame = NULL;

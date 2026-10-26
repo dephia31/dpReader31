@@ -20,7 +20,7 @@ static EpdRect return_rect(void){return (EpdRect){36,1086,612,82};}
 static EpdRect cancel_button(bool yes){return (EpdRect){yes?351:72,681,261,84};}
 EpdRect ui_online_fonts_entry_rect(int top){return (EpdRect){488,top+12,164,74};}
 void ui_online_fonts_draw_entry(uint8_t *fb,int top){
-    ui_text_box(fb,ui_online_fonts_entry_rect(top),25,"在线字体",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_box(fb,ui_online_fonts_entry_rect(top),25,"Tải phông",EPD_DRAW_ALIGN_CENTER,false);
 }
 void ui_online_fonts_open(ui_online_fonts_t *ui,bool reading){
     memset(ui,0,sizeof(*ui));ui->reading=reading;
@@ -39,16 +39,16 @@ static unsigned percent(const online_font_status_t *s){return s->total?(unsigned
 void ui_online_fonts_draw(const ui_online_fonts_t *ui,uint8_t *fb){
     ui_text_set_system_scale(true);ui_clear_page(fb);ui_nav_status(fb);
     ui_nav_back(fb,36,79);
-    ui_text_box(fb,(EpdRect){188,79,308,70},34,"在线字体",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_box(fb,(EpdRect){188,79,308,70},34,"Phông trực tuyến",EPD_DRAW_ALIGN_CENTER,false);
     ui_hairline(fb,176,36,612,0x70);
-    ui_text_box(fb,(EpdRect){36,192,612,40},21,ui->reading?"用于阅读字体":"用于系统字体",EPD_DRAW_ALIGN_LEFT,false);
+    ui_text_box(fb,(EpdRect){36,192,612,40},21,ui->reading?"Dùng cho phông đọc sách":"Dùng cho phông hệ thống",EPD_DRAW_ALIGN_LEFT,false);
     for(unsigned i=0;i<ONLINE_FONT_COUNT;++i){
         const online_font_item_t *item=online_font_item(i);EpdRect r=row_rect(i),button=download_rect(i);
         ui_text_box(fb,(EpdRect){r.x,r.y+26,382,68},26,font_label(item),EPD_DRAW_ALIGN_LEFT,false);
         char size[24];snprintf(size,sizeof(size),"%.1fMB",(double)item->size/1000000.0);
         ui_text_box(fb,(EpdRect){426,r.y+26,102,68},20,size,EPD_DRAW_ALIGN_RIGHT,false);
         bool active=ui->status.busy&&ui->status.item==i;
-        const char *label=ui->installed[i]?"已下载":active?"取消":"下载";
+        const char *label=ui->installed[i]?"Đã tải":active?"Hủy":"Tải về";
         bool enabled=active||(!ui->installed[i]&&!ui->status.busy);
         ui_fill_round_rect(fb,button,16,enabled?UI_GRAY_BLACK:UI_GRAY_WHITE);
         if(!enabled)ui_draw_control_frame(fb,button,16,UI_GRAY_BLACK);
@@ -64,13 +64,13 @@ void ui_online_fonts_draw(const ui_online_fonts_t *ui,uint8_t *fb){
         ui_fill_rect_fast((EpdRect){142,status.y+112,(int)(506*p/100),8},UI_GRAY_BLACK,fb);
     }
     ui_draw_control_frame(fb,return_rect(),18,UI_GRAY_BLACK);
-    ui_text_box(fb,return_rect(),27,"返回字体列表",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_box(fb,return_rect(),27,"Quay lại danh sách phông",EPD_DRAW_ALIGN_CENTER,false);
     if(ui->confirm_cancel){
         EpdRect dialog={48,438,588,354};ui_fill_round_rect(fb,dialog,24,UI_GRAY_WHITE);ui_draw_control_frame(fb,dialog,24,UI_GRAY_BLACK);
-        ui_text_box(fb,(EpdRect){72,466,540,78},32,"取消下载？",EPD_DRAW_ALIGN_CENTER,false);
-        ui_text_box(fb,(EpdRect){76,554,532,100},24,"当前字体保留",EPD_DRAW_ALIGN_CENTER,false);
+        ui_text_box(fb,(EpdRect){72,466,540,78},32,"Hủy tải xuống?",EPD_DRAW_ALIGN_CENTER,false);
+        ui_text_box(fb,(EpdRect){76,554,532,100},24,"Giữ nguyên phông hiện tại",EPD_DRAW_ALIGN_CENTER,false);
         for(int yes=0;yes<2;++yes){EpdRect b=cancel_button(yes);ui_fill_round_rect(fb,b,16,yes?UI_GRAY_BLACK:UI_GRAY_WHITE);
-            ui_draw_control_frame(fb,b,16,UI_GRAY_BLACK);ui_text_box(fb,b,25,yes?"取消下载":"继续下载",EPD_DRAW_ALIGN_CENTER,yes);}
+            ui_draw_control_frame(fb,b,16,UI_GRAY_BLACK);ui_text_box(fb,b,25,yes?"Hủy tải":"Tiếp tục tải",EPD_DRAW_ALIGN_CENTER,yes);}
     }
     ui_text_set_system_scale(false);
 }

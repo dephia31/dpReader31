@@ -135,14 +135,14 @@ void book_toc_render(uint8_t *fb, const char *book_title, size_t chapters,
     ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, UI_LOCK_HEIGHT}, 0xe0, fb);
     ui_nav_status(fb);
     ui_nav_back(fb, TOC_LEFT, 79);
-    ui_text_box(fb,(EpdRect){120,79,444,72},34,"目录",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_box(fb,(EpdRect){120,79,444,72},34,"Mục lục",EPD_DRAW_ALIGN_CENTER,false);
 
     char title[160];
     one_line(title, sizeof(title), book_title ? book_title : "");
-    if (!title[0]) strcpy(title, "当前书籍");
+    if (!title[0]) strcpy(title, "Sách đang đọc");
     toc_title(fb, (EpdRect){TOC_LEFT,160,420,48}, 23, title, 0xe0);
     char total[48];
-    snprintf(total, sizeof(total), "%u 节", (unsigned)chapters);
+    snprintf(total, sizeof(total), "%u mục", (unsigned)chapters);
     ui_text_box(fb,(EpdRect){482,160,166,48},23,total,EPD_DRAW_ALIGN_RIGHT,false);
     ui_fill_rect_fast((EpdRect){TOC_LEFT, 213, TOC_RIGHT - TOC_LEFT, 2}, 0x68, fb);
 
@@ -150,7 +150,7 @@ void book_toc_render(uint8_t *fb, const char *book_title, size_t chapters,
         char info[160];one_line(info,sizeof(info),message);fit_line(info,ui_text_effective_px(23),540);
         ui_text_box(fb,(EpdRect){72,408,540,72},23,info,EPD_DRAW_ALIGN_CENTER,false);
     } else if (!chapters) {
-        ui_text_box(fb,(EpdRect){72,408,540,72},25,"这本书没有可用目录",EPD_DRAW_ALIGN_CENTER,false);
+        ui_text_box(fb,(EpdRect){72,408,540,72},25,"Sách này không có mục lục",EPD_DRAW_ALIGN_CENTER,false);
     } else {
         for (int row = 0; row < BOOK_TOC_ROWS; ++row) {
             size_t index = (size_t)page * BOOK_TOC_ROWS + row;
@@ -165,30 +165,30 @@ void book_toc_render(uint8_t *fb, const char *book_title, size_t chapters,
             ui_text_box(fb,(EpdRect){r.x+14,r.y+11,58,72},21,number,EPD_DRAW_ALIGN_LEFT,false);
             char raw[160] = "", label[160];
             if (book_navigation_title(index, raw, sizeof(raw)) != ESP_OK || !raw[0])
-                snprintf(raw, sizeof(raw), "第 %u 节", (unsigned)index + 1);
+                snprintf(raw, sizeof(raw), "Mục %u", (unsigned)index + 1);
             char spine_default[32];
-            snprintf(spine_default, sizeof(spine_default), "第 %u 节", (unsigned)source_index + 1);
+            snprintf(spine_default, sizeof(spine_default), "Mục %u", (unsigned)source_index + 1);
             if (strcmp(raw, spine_default) == 0)
-                snprintf(raw, sizeof(raw), "第 %u 节", (unsigned)index + 1);
+                snprintf(raw, sizeof(raw), "Mục %u", (unsigned)index + 1);
             one_line(label, sizeof(label), raw);
-            if (!label[0]) snprintf(label, sizeof(label), "第 %u 节", (unsigned)index + 1);
+            if (!label[0]) snprintf(label, sizeof(label), "Mục %u", (unsigned)index + 1);
             toc_title(fb, (EpdRect){r.x+79,r.y+9,selected?420:495,76}, 30, label,
                        selected ? 0xc0 : UI_GRAY_WHITE);
             if (selected)
-                ui_text_box(fb,(EpdRect){r.x+r.width-93,r.y+11,71,72},24,"当前",EPD_DRAW_ALIGN_RIGHT,false);
+                ui_text_box(fb,(EpdRect){r.x+r.width-93,r.y+11,71,72},24,"Hiện tại",EPD_DRAW_ALIGN_RIGHT,false);
         }
     }
     const int pages = book_toc_pages(chapters);
-    toc_pill(fb, (EpdRect){36, 1018, 100, 68}, "« 10页", 24, false);
-    toc_pill(fb, (EpdRect){146, 1018, 112, 68}, "‹ 上页", 26, false);
+    toc_pill(fb, (EpdRect){36, 1018, 100, 68}, "« 10 tr", 24, false);
+    toc_pill(fb, (EpdRect){146, 1018, 112, 68}, "‹ Trước", 26, false);
     char position[32]; snprintf(position, sizeof(position), "%02d / %02d", page + 1, pages);
     toc_pill(fb, (EpdRect){268, 1018, 148, 68}, position, 25, true);
-    toc_pill(fb, (EpdRect){426, 1018, 112, 68}, "下页 ›", 26, false);
-    toc_pill(fb, (EpdRect){548, 1018, 100, 68}, "10页 »", 24, false);
+    toc_pill(fb, (EpdRect){426, 1018, 112, 68}, "Sau ›", 26, false);
+    toc_pill(fb, (EpdRect){548, 1018, 100, 68}, "10 tr »", 24, false);
     EpdRect jump = {36, 1100, 612, 74};
     ui_fill_round_rect(fb, jump, 21, UI_GRAY_WHITE);
     toc_border(fb, jump, 21, false);
-    ui_text_box(fb,(EpdRect){58,1109,388,56},28,"按百分比跳转",EPD_DRAW_ALIGN_LEFT,false);
+    ui_text_box(fb,(EpdRect){58,1109,388,56},28,"Chuyển theo phần trăm (%)",EPD_DRAW_ALIGN_LEFT,false);
     char percent[24];
     snprintf(percent, sizeof(percent), "%d%%  ›", (page + 1) * 100 / pages);
     ui_text_box(fb,(EpdRect){468,1109,158,56},28,percent,EPD_DRAW_ALIGN_RIGHT,false);
@@ -200,8 +200,8 @@ void book_toc_render_jump(uint8_t *fb, size_t chapters, int percent) {
     EpdRect card = {44, 356, 596, 572};
     ui_fill_round_rect(fb, card, 30, UI_GRAY_WHITE);
     toc_border(fb, card, 30, true);
-    ui_text_box(fb,(EpdRect){(342)-250,393,500,44},32,"跳到目录位置",EPD_DRAW_ALIGN_CENTER,false);
-    ui_text_box(fb,(EpdRect){(342)-250,450,500,44},24,"选择百分比，先预览目标位置",
+    ui_text_box(fb,(EpdRect){(342)-250,393,500,44},32,"Chuyển tới mục lục",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_box(fb,(EpdRect){(342)-250,450,500,44},24,"Chọn phần trăm để xem trước vị trí",
                   EPD_DRAW_ALIGN_CENTER, false);
     char value[24]; snprintf(value, sizeof(value), "%d%%", percent);
     ui_text_fixed(fb, 342, 515, 55, value,EPD_DRAW_ALIGN_CENTER,false);
@@ -217,7 +217,7 @@ void book_toc_render_jump(uint8_t *fb, size_t chapters, int percent) {
     EpdRect target_card = {75, 740, 534, 84};
     ui_fill_round_rect(fb, target_card, 19, 0xe8);
     toc_border(fb, target_card, 19, false);
-    ui_text_box(fb,(EpdRect){99,747,486,30},23,"目标位置",EPD_DRAW_ALIGN_LEFT,false);
+    ui_text_box(fb,(EpdRect){99,747,486,30},23,"Vị trí đích",EPD_DRAW_ALIGN_LEFT,false);
     int pages = book_toc_pages(chapters);
     int target = book_toc_page_from_percent(percent, pages);
     size_t first = (size_t)target * BOOK_TOC_ROWS + 1;
@@ -225,12 +225,12 @@ void book_toc_render_jump(uint8_t *fb, size_t chapters, int percent) {
     if (last > chapters) last = chapters;
     char summary[160];
     if (chapters)
-        snprintf(summary, sizeof(summary), "约第 %d / %d 页 · 第 %u～%u 节",
+        snprintf(summary, sizeof(summary), "Khoảng tr. %d / %d · Mục %u–%u",
                  target + 1, pages, (unsigned)first, (unsigned)last);
-    else snprintf(summary, sizeof(summary), "这本书没有可用目录");
+    else snprintf(summary, sizeof(summary), "Sách này không có mục lục");
     fit_line(summary, 25, 486);
     ui_text_box(fb,(EpdRect){99,783,486,34},25,summary,EPD_DRAW_ALIGN_LEFT,false);
-    toc_pill(fb, (EpdRect){75, 850, 255, 57}, "取消", 26, false);
+    toc_pill(fb, (EpdRect){75, 850, 255, 57}, "Hủy", 26, false);
     ui_fill_round_rect(fb, (EpdRect){354, 850, 255, 57}, 20, 0x40);
-    ui_text_box(fb,(EpdRect){362,858,239,41},26,"跳转",EPD_DRAW_ALIGN_CENTER,true);
+    ui_text_box(fb,(EpdRect){362,858,239,41},26,"Chuyển",EPD_DRAW_ALIGN_CENTER,true);
 }

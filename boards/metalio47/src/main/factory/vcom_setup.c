@@ -73,7 +73,7 @@ typedef struct {
 
 static const char* const k_keys[12] = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9",
-    "删除 Del", "0", "确定 OK",
+    "Xóa Del", "0", "Xác nhận OK",
 };
 static const int k_pad_ids[12] = {
     1, 2, 3, 4, 5, 6, 7, 8, 9, VCOM_HIT_DEL, 0, VCOM_HIT_OK,
@@ -158,7 +158,7 @@ static void draw_number(uint8_t* fb, const vcom_geom_t* g, const char* digits) {
         vcom_fmt_volt(shown, sizeof(shown), vcom_typed_mv(digits));
     }
     ui_clear_rect_fast(fb, g->num);
-    ui_draw_hero(fb, g->hero_y, "公共电压 Panel", shown);
+    ui_draw_hero(fb, g->hero_y, "Điện áp VCOM Panel", shown);
 }
 
 static void present_fast(EpdiyHighlevelState* hl, EpdRect area) {
@@ -196,16 +196,16 @@ static void draw_setup(uint8_t* fb, const vcom_geom_t* g, const vcom_state_t* s)
         // Show the saved value next to the chip read-back; a mismatch means the
         // saved value never reached the TPS65185.
         snprintf(
-            hint, sizeof(hint), "保存 -%d.%02d V / 回读 -%d.%02d V",
+            hint, sizeof(hint), "Đã lưu -%d.%02d V / Đọc lại -%d.%02d V",
             current / 1000, (current % 1000) / 10, chip / 1000, (chip % 1000) / 10
         );
     } else {
         snprintf(
-            hint, sizeof(hint), "保存 -%d.%02d V / 尚无回读",
+            hint, sizeof(hint), "Đã lưu -%d.%02d V / Chưa đọc lại",
             current / 1000, (current % 1000) / 10
         );
     }
-    ui_draw_header(fb, "设定 VCOM Set", hint);
+    ui_draw_header(fb, "Thiết lập VCOM Set", hint);
     draw_number(fb, g, s->digits);
     for (int i = 0; i < 12; i++) {
         ui_draw_button(fb, vcom_key_rect(g, i), k_keys[i], i == VCOM_KEY_OK && s->ok_on);
@@ -219,15 +219,15 @@ static void draw_confirm(uint8_t* fb, const vcom_geom_t* g, int mv) {
     snprintf(milli, sizeof(milli), "%d mV", mv);
 
     ui_clear_page(fb);
-    ui_draw_header(fb, "确认 VCOM Confirm", "请核对大号数值，再写入。");
+    ui_draw_header(fb, "Xác nhận VCOM Confirm", "Vui lòng kiểm tra kỹ trị số trước khi ghi.");
     const int cx = epd_rotated_display_width() / 2;
     const int y0 = UI_CONTENT_TOP + 80;
     ui_text(fb, cx, y0, VCOM_CONFIRM_PX, volt, EPD_DRAW_ALIGN_CENTER, false);
     ui_text(
         fb, cx, y0 + VCOM_CONFIRM_PX + 24, UI_PX_TITLE, milli, EPD_DRAW_ALIGN_CENTER, false
     );
-    ui_draw_button(fb, g->write, "写入 Write", false);
-    ui_draw_button(fb, g->back, "改回 Back", false);
+    ui_draw_button(fb, g->write, "Ghi Write", false);
+    ui_draw_button(fb, g->back, "Quay lại Back", false);
 }
 
 static void show_setup(

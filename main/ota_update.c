@@ -22,8 +22,44 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_system.h"
+#include "sdkconfig.h"
+
+/*
+ * Giữ project_name = "Kiikoread_Metalio_S31" trong header esp_app_desc_t của file .bin
+ * để máy đang chạy Firmware gốc của nhà sản xuất (Metalio-S31) có thể cập nhật thẳng
+ * lên dpReader qua thẻ nhớ SD (/sdcard/Metalio-S31-update.bin) mà không cần cáp USB.
+ */
+const __attribute__((section(".rodata_desc"))) esp_app_desc_t esp_app_desc = {
+    .magic_word = ESP_APP_DESC_MAGIC_WORD,
+    .version = "1.0.0-vn",
+    .project_name = "Kiikoread_Metalio_S31",
+    .idf_ver = IDF_VER,
+    .secure_version = 0,
+    .time = __TIME__,
+    .date = __DATE__,
+    .min_efuse_blk_rev_full = CONFIG_ESP_EFUSE_BLOCK_REV_MIN_FULL,
+    .max_efuse_blk_rev_full = CONFIG_ESP_EFUSE_BLOCK_REV_MAX_FULL,
+    .mmu_page_size = 31 - __builtin_clz(CONFIG_MMU_PAGE_SIZE),
+    .spi_flash_mode = CONFIG_ESPTOOLPY_FLASHMODE_VAL,
+};
 
 static const char *TAG = "kiikoread_ota";
+
+static const char *resolve_ota_path(const char *path) {
+    if (!path || strcmp(path, PICO_OTA_UPDATE_PATH) != 0) return path;
+    static const char *const candidates[] = {
+        "/sdcard/dpReader-update.bin",
+        "/sdcard/dpReader_metalio47_firmware.bin",
+        "/sdcard/Metalio-E-Ink4-Plus.bin",
+        "/sdcard/Metalio-S31-update.bin",
+        "/sdcard/update.bin",
+    };
+    struct stat st = {0};
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i) {
+        if (stat(candidates[i], &st) == 0 && st.st_size > 0) return candidates[i];
+    }
+    return path;
+}
 
 static void set_message(char *out, size_t size, const char *text) {
     if (!out || !size) return;
@@ -51,34 +87,35 @@ static esp_err_t read_candidate(FILE *file, esp_image_header_t *header, esp_app_
 
 esp_err_t pico_ota_inspect(const char *path, pico_ota_info_t *info) {
     if (!path || !info) return ESP_ERR_INVALID_ARG;
+    path = resolve_ota_path(path);
     memset(info, 0, sizeof(*info));
     const esp_app_desc_t *running_desc = esp_app_get_description();
     if (!copy_field(info->current_version, sizeof(info->current_version), running_desc->version,
-                    sizeof(running_desc->version))) snprintf(info->current_version, sizeof(info->current_version), "未知");
+                    sizeof(running_desc->version))) snprintf(info->current_version, sizeof(info->current_version), "Không rõ");
 
     struct stat file_stat = {0};
     if (stat(path, &file_stat) != 0) {
-        set_message(info->message, sizeof(info->message), "TF 卡根目录未找到固件升级包");
+        set_message(info->message, sizeof(info->message), "Không tìm thấy gói cập nhật trên thẻ nhớ");
         return ESP_ERR_NOT_FOUND;
     }
     if (file_stat.st_size <= 0) {
-        set_message(info->message, sizeof(info->message), "升级包为空");
+        set_message(info->message, sizeof(info->message), "Gói cập nhật trống");
         return ESP_ERR_INVALID_SIZE;
     }
 
     const esp_partition_t *target = esp_ota_get_next_update_partition(NULL);
     if (!target) {
-        set_message(info->message, sizeof(info->message), "当前固件没有可用的 OTA 分区");
+        set_message(info->message, sizeof(info->message), "Không có phân vùng OTA khả dụng");
         return ESP_ERR_NOT_SUPPORTED;
     }
     if ((size_t)file_stat.st_size > target->size) {
-        set_message(info->message, sizeof(info->message), "升级包超过固件分区容量");
+        set_message(info->message, sizeof(info->message), "Gói cập nhật vượt quá dung lượng phân vùng");
         return ESP_ERR_INVALID_SIZE;
     }
 
     FILE *file = fopen(path, "rb");
     if (!file) {
-        set_message(info->message, sizeof(info->message), "升级包无法读取");
+        set_message(info->message, sizeof(info->message), "Không thể đọc gói cập nhật");
         return ESP_FAIL;
     }
     esp_image_header_t header = {0};
@@ -87,43 +124,48 @@ esp_err_t pico_ota_inspect(const char *path, pico_ota_info_t *info) {
     fclose(file);
     if (err != ESP_OK) {
 #if KIIKO_BOARD_METALIO47
-        set_message(info->message, sizeof(info->message), "升级包不是有效的 Metalio S31 固件");
+        set_message(info->message, sizeof(info->message), "Gói cập nhật không phải firmware dpReader hợp lệ");
 #else
-        set_message(info->message, sizeof(info->message), "升级包不是有效的 kiikoread 固件");
+        set_message(info->message, sizeof(info->message), "Gói cập nhật không phải firmware dpReader hợp lệ");
 #endif
         return err;
     }
 
     char current_project[33] = {0};
     char candidate_project[33] = {0};
-    if (!copy_field(current_project, sizeof(current_project), running_desc->project_name,
-                    sizeof(running_desc->project_name)) ||
-        !copy_field(candidate_project, sizeof(candidate_project), candidate.project_name,
-                    sizeof(candidate.project_name)) || strcmp(current_project, candidate_project) != 0) {
+    const bool valid_project =
+        copy_field(current_project, sizeof(current_project), running_desc->project_name, sizeof(running_desc->project_name)) &&
+        copy_field(candidate_project, sizeof(candidate_project), candidate.project_name, sizeof(candidate.project_name)) &&
+        (strcmp(current_project, candidate_project) == 0 ||
+         strcmp(candidate_project, "dpReader") == 0 ||
+         strcmp(candidate_project, "Kiikoread_Metalio_S31") == 0 ||
+         strcmp(candidate_project, "Metalio-E-Ink4-Plus") == 0);
+    if (!valid_project) {
 #if KIIKO_BOARD_METALIO47
-        set_message(info->message, sizeof(info->message), "升级包不属于当前 Metalio S31 固件");
+        set_message(info->message, sizeof(info->message), "Gói cập nhật không thuộc dòng máy Metalio 4.7");
 #else
-        set_message(info->message, sizeof(info->message), "升级包不属于当前 kiikoread 固件");
+        set_message(info->message, sizeof(info->message), "Gói cập nhật không thuộc firmware dpReader hiện tại");
 #endif
         return ESP_ERR_INVALID_RESPONSE;
     }
     if (!copy_field(info->candidate_version, sizeof(info->candidate_version), candidate.version,
                     sizeof(candidate.version))) {
-        set_message(info->message, sizeof(info->message), "升级包版本信息无效");
+        set_message(info->message, sizeof(info->message), "Thông tin phiên bản gói cập nhật không hợp lệ");
         return ESP_ERR_INVALID_RESPONSE;
     }
     if (strcmp(info->current_version, info->candidate_version) == 0) {
-        set_message(info->message, sizeof(info->message), "升级包与当前版本相同");
+        set_message(info->message, sizeof(info->message), "Gói cập nhật trùng với phiên bản hiện tại");
         return ESP_ERR_INVALID_STATE;
     }
 
     info->image_size = (size_t)file_stat.st_size;
     info->ready = true;
-    set_message(info->message, sizeof(info->message), "升级包已通过初步检查");
+    set_message(info->message, sizeof(info->message), "Gói cập nhật hợp lệ, sẵn sàng cài đặt");
     return ESP_OK;
 }
 
 esp_err_t pico_ota_install(const char *path, char *message, size_t message_size) {
+    path = resolve_ota_path(path);
     pico_ota_info_t info = {0};
     esp_err_t err = pico_ota_inspect(path, &info);
     if (err != ESP_OK) {
@@ -133,7 +175,7 @@ esp_err_t pico_ota_install(const char *path, char *message, size_t message_size)
 
     FILE *file = fopen(path, "rb");
     if (!file) {
-        set_message(message, message_size, "升级包无法读取");
+        set_message(message, message_size, "Không thể đọc gói cập nhật");
         return ESP_FAIL;
     }
     const esp_partition_t *target = esp_ota_get_next_update_partition(NULL);
@@ -141,7 +183,7 @@ esp_err_t pico_ota_install(const char *path, char *message, size_t message_size)
     err = target ? esp_ota_begin(target, info.image_size, &handle) : ESP_ERR_NOT_FOUND;
     if (err != ESP_OK) {
         fclose(file);
-        set_message(message, message_size, "无法准备空闲固件分区");
+        set_message(message, message_size, "Không thể chuẩn bị phân vùng firmware");
         return err;
     }
 
@@ -152,7 +194,7 @@ esp_err_t pico_ota_install(const char *path, char *message, size_t message_size)
     if (!buffer) {
         esp_ota_abort(handle);
         fclose(file);
-        set_message(message, message_size, "内存不足，无法开始升级");
+        set_message(message, message_size, "Không đủ bộ nhớ để bắt đầu cập nhật");
         return ESP_ERR_NO_MEM;
     }
     size_t total = 0;
@@ -173,21 +215,21 @@ esp_err_t pico_ota_install(const char *path, char *message, size_t message_size)
     if (err == ESP_OK && total != info.image_size) err = ESP_ERR_INVALID_SIZE;
     if (err != ESP_OK) {
         esp_ota_abort(handle);
-        set_message(message, message_size, "写入中断，当前版本保持不变");
+        set_message(message, message_size, "Ghi bị gián đoạn, giữ nguyên phiên bản hiện tại");
         return err;
     }
 
     err = esp_ota_end(handle);
     if (err != ESP_OK) {
-        set_message(message, message_size, "固件完整性校验失败");
+        set_message(message, message_size, "Kiểm tra toàn vẹn firmware thất bại");
         return err;
     }
     err = esp_ota_set_boot_partition(target);
     if (err != ESP_OK) {
-        set_message(message, message_size, "无法切换到新固件");
+        set_message(message, message_size, "Không thể chuyển sang firmware mới");
         return err;
     }
-    set_message(message, message_size, "安装完成，即将重新启动");
+    set_message(message, message_size, "Cài đặt hoàn tất, đang khởi động lại");
     ESP_LOGI(TAG, "OTA image %s (%u bytes) written to %s", info.candidate_version,
              (unsigned)info.image_size, target->label);
     return ESP_OK;

@@ -83,8 +83,8 @@ static void image_lock_menu_draw(uint8_t *fb) {
         ui_fill_round_rect(fb, card, 28, UI_GRAY_WHITE);
     ui_draw_round_rect(fb, card, 28, UI_GRAY_LIGHT);
     ui_draw_icon(fb, 124, 402, 34, UI_ICON_LOCK, 0);
-    ui_text_vc(fb, 162, 402, 30, "设为锁屏", EPD_DRAW_ALIGN_LEFT, false);
-    const char *labels[] = {"设为壁纸锁屏", "设为透明书封"};
+    ui_text_vc(fb, 162, 402, 30, "Đặt màn hình khóa", EPD_DRAW_ALIGN_LEFT, false);
+    const char *labels[] = {"Đặt làm hình nền khóa", "Đặt làm khung trong suốt"};
     const ui_icon_t icons[] = {UI_ICON_HOUSE, UI_ICON_BOOKMARK};
     for (unsigned i = 0; i < actions; ++i) {
         unsigned option=image_lock_style(i)==3?1:0;
@@ -94,7 +94,7 @@ static void image_lock_menu_draw(uint8_t *fb) {
         ui_text_vc(fb, r.x + 72, r.y + 40, 27, labels[option], EPD_DRAW_ALIGN_LEFT, false);
         ui_draw_icon(fb, r.x + r.width - 30, r.y + 40, 24, UI_ICON_CHEVRON_RIGHT, 0);
     }
-    ui_draw_button(fb, image_lock_option(actions), "取消", false);
+    ui_draw_button(fb, image_lock_option(actions), "Hủy", false);
     if (s_message[0]) ui_text_vc(fb, 342, card.y+card.height-26, 18, s_message, EPD_DRAW_ALIGN_CENTER, false);
 }
 #endif
@@ -158,7 +158,7 @@ static void scan_dir(const char *root) {
 static void scan_images(void) {
     s_count = 0;
     if (!items_alloc()) {
-        strcpy(s_message, "图片列表内存不足，请返回后重试");
+        strcpy(s_message, "Không đủ bộ nhớ tải danh sách ảnh, hãy quay lại rồi thử");
         return;
     }
     // 先分配再访问列表；首次从文件管理进入时此前会解引用空指针。
@@ -167,7 +167,7 @@ static void scan_images(void) {
         const char *name = strrchr(s_requested_path, '/');
         bool png;
         if (!name || !image_name(name + 1, &png)) {
-            strcpy(s_message, "图片格式不支持");
+            strcpy(s_message, "Định dạng ảnh không hỗ trợ");
             return;
         }
         s_count = 1;
@@ -187,7 +187,7 @@ static void scan_images(void) {
     s_count = 1;
 #endif
     memset(s_items, 0, sizeof(s_items[0]));
-    strcpy(s_items[0].name, "内置灰阶测试图");
+    strcpy(s_items[0].name, "Ảnh kiểm tra thang xám có sẵn");
     s_items[0].png = true;
     read_pico_sd_info_t sd = {0};
     read_pico_sd_get_info(&sd);
@@ -200,7 +200,7 @@ static void scan_images(void) {
     }
 #if KIIKO_BOARD_METALIO47
     if(!s_count&&s_lock_mode!=IMAGE_LOCK_ANY)
-        snprintf(s_message,sizeof(s_message),"%s",sd.mounted?"未找到图片，请放入 pictures 文件夹":"请先挂载内存卡");
+        snprintf(s_message,sizeof(s_message),"%s",sd.mounted?"Không tìm thấy ảnh, hãy chép vào thư mục pictures":"Vui lòng gắn thẻ nhớ trước");
 #endif
     if (s_page * IMAGE_ROWS >= s_count) s_page = 0;
 }
@@ -217,12 +217,12 @@ static bool load_image(int index) {
     if (from_file) {
         struct stat st;
         if (stat(item->path, &st) || st.st_size <= 0 || (uint64_t)st.st_size > IMAGE_BYTES_MAX) {
-            strcpy(s_message, "图片超过 50 MB 或无法读取"); return false;
+            strcpy(s_message, "Ảnh vượt quá 50 MB hoặc không thể đọc"); return false;
         }
     }
     bool dimensions_ok = from_file ? book_image_file_dimensions(item->path, item->png, &width, &height)
                                   : book_image_dimensions(data, size, item->png, &width, &height);
-    if (!dimensions_ok || !width || !height) { strcpy(s_message, "图片格式不支持"); return false; }
+    if (!dimensions_ok || !width || !height) { strcpy(s_message, "Định dạng ảnh không hỗ trợ"); return false; }
     unsigned fit_w = UI_LOCK_WIDTH, fit_h = (uint64_t)height * fit_w / width;
 #if KIIKO_BOARD_METALIO47
     const unsigned image_height = UI_LOCK_HEIGHT - 56;
@@ -235,7 +235,7 @@ static bool load_image(int index) {
     s_gray = heap_caps_malloc((size_t)fit_w * fit_h, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     bool ok = s_gray && (from_file ? book_image_file_grayscale(item->path, item->png, fit_w, fit_h, s_gray)
                                   : book_image_grayscale(data, size, item->png, fit_w, fit_h, s_gray));
-    if (!ok) { free(s_gray); s_gray = NULL; strcpy(s_message, "解码失败或内存不足"); return false; }
+    if (!ok) { free(s_gray); s_gray = NULL; strcpy(s_message, "Giải mã ảnh lỗi hoặc thiếu bộ nhớ"); return false; }
     s_width = fit_w; s_height = fit_h; s_selected = index; s_viewing = true;
     s_message[0] = 0;
     return true;
@@ -257,7 +257,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #if KIIKO_BOARD_METALIO47
         if (!s_lock_menu)
             ui_text_vc(fb,342,UI_LOCK_HEIGHT-28,20,s_lock_mode==IMAGE_LOCK_BOOKMARK?
-                "左右滑动切换图片 · 点按设置透明书封":"左右滑动切换图片 · 点按设置壁纸",EPD_DRAW_ALIGN_CENTER,false);
+                "Vuốt trái/phải đổi ảnh · Chạm để đặt khung khóa":"Vuốt trái/phải đổi ảnh · Chạm để đặt hình nền",EPD_DRAW_ALIGN_CENTER,false);
         if(s_lock_menu)image_lock_menu_draw(fb);
         else if(s_message[0]){
             ui_fill_round_rect(fb,(EpdRect){60,1100,564,66},16,UI_GRAY_WHITE);
@@ -269,16 +269,16 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     ui_nav_status(fb);
     ui_nav_back(fb, 36, 79);
 #if KIIKO_BOARD_METALIO47
-    ui_text_vc(fb,342,107,34,s_lock_mode==IMAGE_LOCK_WALLPAPER?"壁纸锁屏":
-        s_lock_mode==IMAGE_LOCK_BOOKMARK?"透明书封":"图片",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_vc(fb,342,107,34,s_lock_mode==IMAGE_LOCK_WALLPAPER?"Hình nền khóa":
+        s_lock_mode==IMAGE_LOCK_BOOKMARK?"Khung PNG trong suốt":"Hình ảnh",EPD_DRAW_ALIGN_CENTER,false);
 #else
-    ui_text_vc(fb, 342, 107, 34, "图片", EPD_DRAW_ALIGN_CENTER, false);
+    ui_text_vc(fb, 342, 107, 34, "Hình ảnh", EPD_DRAW_ALIGN_CENTER, false);
 #endif
     char caption[64];
 #if KIIKO_BOARD_METALIO47
-    snprintf(caption,sizeof(caption),s_lock_mode==IMAGE_LOCK_BOOKMARK?"%d 张 · 透明 PNG":"%d 张 · JPG / PNG",s_count);
+    snprintf(caption,sizeof(caption),s_lock_mode==IMAGE_LOCK_BOOKMARK?"%d ảnh · PNG trong suốt":"%d ảnh · JPG / PNG",s_count);
 #else
-    snprintf(caption, sizeof(caption), "%d 张 · JPG / PNG", s_count);
+    snprintf(caption, sizeof(caption), "%d ảnh · JPG / PNG", s_count);
 #endif
     ui_text(fb, 36, 165, 21, caption, EPD_DRAW_ALIGN_LEFT, false);
     ui_hairline(fb, 202, 36, 612, UI_GRAY_LIGHT);
@@ -394,20 +394,20 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) 
                 if(!ui_rect_hit(image_lock_option(i),event->x0,event->y0))continue;
                 if(i==actions){s_lock_menu=false;s_message[0]=0;return IMAGE_ACTION_REDRAW;}
                 if(!s_items||s_selected<0||s_selected>=s_count||!s_gray||!s_items[s_selected].path[0]){
-                    snprintf(s_message,sizeof(s_message),"当前图片无法设定");return IMAGE_ACTION_REDRAW;
+                    snprintf(s_message,sizeof(s_message),"Không thể đặt ảnh hiện tại");return IMAGE_ACTION_REDRAW;
                 }
                 const unsigned style=image_lock_style(i);
                 if(style==3&&!s_items[s_selected].png){
-                    snprintf(s_message,sizeof(s_message),"透明书封请选择 PNG 图片");return IMAGE_ACTION_REDRAW;
+                    snprintf(s_message,sizeof(s_message),"Khung trong suốt cần chọn ảnh định dạng PNG");return IMAGE_ACTION_REDRAW;
                 }
                 const char *path=s_items[s_selected].path;
                 if(style==1)app_settings_set_wallpaper_path(path);else app_settings_set_bookmark_path(path);
                 const char *saved=style==1?app_settings_wallpaper_path():app_settings_bookmark_path();
-                if(strcmp(saved,path)){snprintf(s_message,sizeof(s_message),"设定未完成，请重试");return IMAGE_ACTION_REDRAW;}
+                if(strcmp(saved,path)){snprintf(s_message,sizeof(s_message),"Thiết lập chưa hoàn tất, vui lòng thử lại");return IMAGE_ACTION_REDRAW;}
                 app_settings_set_lock_style(style);
-                if(app_settings_lock_style()!=style){snprintf(s_message,sizeof(s_message),"设定未完成，请重试");return IMAGE_ACTION_REDRAW;}
+                if(app_settings_lock_style()!=style){snprintf(s_message,sizeof(s_message),"Thiết lập chưa hoàn tất, vui lòng thử lại");return IMAGE_ACTION_REDRAW;}
                 s_lock_menu=false;
-                snprintf(s_message,sizeof(s_message),"%s",style==1?"已设为壁纸锁屏":"已设为透明书封");
+                snprintf(s_message,sizeof(s_message),"%s",style==1?"Đã đặt làm hình nền khóa":"Đã đặt làm khung PNG trong suốt");
                 return IMAGE_ACTION_REDRAW;
             }
             s_lock_menu=false;s_message[0]=0;return IMAGE_ACTION_REDRAW;
@@ -465,7 +465,7 @@ const app_desc_t app_image = {
 #else
     .binary_ui = true,
 #endif
-    .title = "图片对比 Images", .detail = "灰阶测试图 / TF 卡 JPG PNG", .enter_full = false,
+    .title = "Hình ảnh Images", .detail = "Ảnh kiểm tra thang xám / JPG PNG trên thẻ nhớ", .enter_full = false,
     .owns_keys = true, .menu_handle_enabled = menu_handle_enabled, .edge_back_enabled = image_edge_back,
     .on_enter = on_enter, .on_exit = image_on_exit, .on_media_lost = on_media_lost,
     .render = render, .present = present, .on_key = on_key,

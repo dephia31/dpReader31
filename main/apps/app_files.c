@@ -50,6 +50,9 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "esp_attr.h"
+#include "esp_system.h"
+#include "ota_update.h"
+#include "epdiy.h"
 
 #define FILE_MAX 96
 #define FILE_ROWS 9
@@ -102,7 +105,7 @@ static int files_nav_hit(uint16_t x,uint16_t y) {
     return ui_nav_hit(x,y);
 }
 
-static const char *const names[] = {"书籍", "图片", "字体", "TF 卡目录"};
+static const char *const names[] = {"Sách", "Hình ảnh", "Phông chữ", "Thư mục thẻ nhớ"};
 static const char *folder_root(int folder) {
     if (folder == 0) return app_settings_books_dir();
     if (folder == 1) return "/sdcard/pictures";
@@ -132,7 +135,7 @@ static int file_pager_pages(void) {
     return s_count?1+(s_count-1)/rows:1;
 }
 static void draw_file_pager(uint8_t *fb) {
-    char label[48];snprintf(label,sizeof(label),"第 %d 页 · 共 %d 页",s_page+1,file_pager_pages());
+    char label[48];snprintf(label,sizeof(label),"Trang %d / %d",s_page+1,file_pager_pages());
     ui_pager_draw_at(fb,label,s_page,file_pager_pages(),false,s_pager_pressed,file_pager_top());
 }
 static app_redraw_t file_pager_paint(app_ctx_t *ctx) {
@@ -222,8 +225,8 @@ static esp_err_t copy_selected_item(char out_name[128]) {
     memcpy(stem, s_selected.name, stem_len); stem[stem_len] = 0;
     const char *ext = dot && dot != s_selected.name ? dot : "";
     for (int number = 1; number < 100; ++number) {
-        int used = number == 1 ? snprintf(candidate, sizeof(candidate), "%s 副本%s", stem, ext) :
-            snprintf(candidate, sizeof(candidate), "%s 副本 %d%s", stem, number, ext);
+        int used = number == 1 ? snprintf(candidate, sizeof(candidate), "%s bản sao%s", stem, ext) :
+            snprintf(candidate, sizeof(candidate), "%s bản sao %d%s", stem, number, ext);
         if (used < 0 || used >= (int)sizeof(candidate)) return ESP_ERR_INVALID_SIZE;
         if (!sibling_path(candidate, destination)) return ESP_ERR_INVALID_ARG;
         struct stat exists;
@@ -356,29 +359,29 @@ static void leave_move(bool changed) {
 static app_redraw_t move_selected(void) {
     read_pico_sd_get_info(&s_sd);
     if (!s_sd.mounted) {
-        snprintf(s_message, sizeof(s_message), "TF 卡不可用"); return APP_REDRAW_PAGE;
+        snprintf(s_message, sizeof(s_message), "Thẻ nhớ không khả dụng"); return APP_REDRAW_PAGE;
     }
     char destination[288];
     if (snprintf(destination, sizeof(destination), "%s/%s", s_dir, s_selected.name) >= sizeof(destination)) {
-        snprintf(s_message, sizeof(s_message), "目标路径过长"); return APP_REDRAW_PAGE;
+        snprintf(s_message, sizeof(s_message), "Đường dẫn đích quá dài"); return APP_REDRAW_PAGE;
     }
     if (!strcmp(destination, s_selected.path)) {
-        snprintf(s_message, sizeof(s_message), "已在此文件夹"); return APP_REDRAW_PAGE;
+        snprintf(s_message, sizeof(s_message), "Đã ở trong thư mục này"); return APP_REDRAW_PAGE;
     }
     if (!moved_settings_fit(s_selected.path, destination)) {
-        snprintf(s_message, sizeof(s_message), "设置路径过长，无法移动"); return APP_REDRAW_PAGE;
+        snprintf(s_message, sizeof(s_message), "Đường dẫn quá dài, không thể di chuyển"); return APP_REDRAW_PAGE;
     }
     esp_err_t err = file_tree_move(s_selected.path, destination);
     if (err != ESP_OK) {
-        snprintf(s_message, sizeof(s_message), err == ESP_ERR_INVALID_STATE ? "目标已有同名项目" :
-                 err == ESP_ERR_INVALID_ARG ? "不能移入自身文件夹" : "移动失败，请检查 TF 卡");
+        snprintf(s_message, sizeof(s_message), err == ESP_ERR_INVALID_STATE ? "Thư mục đích đã có mục cùng tên" :
+                 err == ESP_ERR_INVALID_ARG ? "Không thể di chuyển vào chính thư mục đó" : "Di chuyển thất bại, hãy kiểm tra thẻ nhớ");
         return APP_REDRAW_PAGE;
     }
     sync_moved_settings(s_selected.path, destination);
     notify_moved_tree(s_selected.path, destination, 0);
     book_store_notify_changed();
     leave_move(true);
-    snprintf(s_message, sizeof(s_message), "移动完成");
+    snprintf(s_message, sizeof(s_message), "Đã di chuyển xong");
     return APP_REDRAW_PAGE;
 }
 
@@ -406,10 +409,10 @@ static void scan_folder(int folder) {
     s_count = s_page = 0;
     s_message[0] = 0;
     read_pico_sd_get_info(&s_sd);
-    if (!s_sd.mounted) { snprintf(s_message, sizeof(s_message), "TF 卡尚未挂载"); return; }
+    if (!s_sd.mounted) { snprintf(s_message, sizeof(s_message), "Chưa gắn thẻ nhớ"); return; }
     const char *root = folder_root(folder);
     DIR *dir = opendir(root);
-    if (!dir) { snprintf(s_message, sizeof(s_message), "目录不存在：%.60s", root); return; }
+    if (!dir) { snprintf(s_message, sizeof(s_message), "Thư mục không tồn tại: %.60s", root); return; }
     struct dirent *entry;
     while (s_count < FILE_MAX && (entry = readdir(dir))) {
         if (entry->d_name[0] == '.' || !strncmp(entry->d_name, "._", 2)) continue;
@@ -465,7 +468,7 @@ static void file_icon(uint8_t *fb, int x, int y, bool folder) {
 }
 
 static void file_detail(char *dst, size_t cap, const file_item_t *item) {
-    if (item->is_dir) snprintf(dst, cap, "文件夹");
+    if (item->is_dir) snprintf(dst, cap, "Thư mục");
     else if (item->size >= 1024 * 1024) snprintf(dst, cap, "%.1f MB", item->size / 1048576.0);
     else if (item->size >= 1024) snprintf(dst, cap, "%.1f KB", item->size / 1024.0);
     else snprintf(dst, cap, "%lld B", (long long)item->size);
@@ -495,7 +498,7 @@ static void fit_name(char *name, int px, int width) {
 
 static void editor_start(void) {
     if (strlen(s_selected.name) >= sizeof(s_editor)) {
-        snprintf(s_message, sizeof(s_message), "名称过长，无法在设备上编辑");
+        snprintf(s_message, sizeof(s_message), "Tên quá dài, không thể sửa trên thiết bị");
         return;
     }
     copy_utf8(s_editor, sizeof(s_editor), s_selected.name);
@@ -536,12 +539,12 @@ static void render_actions(uint8_t *fb) {
     if (s_message[0]) ui_text(fb, 50, 608+offset, 20, s_message, EPD_DRAW_ALIGN_LEFT, false);
     if (s_delete_confirm) {
         ui_text_vc(fb, 342, 712+offset, s_selected.is_dir ? 23 : 28,
-                   s_selected.is_dir ? "将删除文件夹内所有内容，无法恢复" : "删除后无法恢复，是否继续？",
+                   s_selected.is_dir ? "Sẽ xóa toàn bộ nội dung trong thư mục, không thể hoàn tác" : "Không thể khôi phục sau khi xóa, tiếp tục?",
                    EPD_DRAW_ALIGN_CENTER, false);
-        ui_draw_button(fb, (EpdRect){50, 788+offset, 278, 76}, "取消", false);
-        ui_draw_button(fb, (EpdRect){356, 788+offset, 278, 76}, "确认删除", true);
+        ui_draw_button(fb, (EpdRect){50, 788+offset, 278, 76}, "Hủy", false);
+        ui_draw_button(fb, (EpdRect){356, 788+offset, 278, 76}, "Xác nhận xóa", true);
     } else {
-        static const char *labels[] = {"重命名", "复制", "移动", "删除"};
+        static const char *labels[] = {"Đổi tên", "Sao chép", "Di chuyển", "Xóa"};
         for (int i = 0; i < 4; ++i) {
             EpdRect button = {40 + (i % 2) * 312, 648 + (i / 2) * 122, 292, 100};
             ui_fill_round_rect(fb, button, 20, 0xe8);
@@ -549,18 +552,18 @@ static void render_actions(uint8_t *fb) {
             ui_text_vc(fb, button.x + button.width / 2, button.y + 50, 25,
                        labels[i], EPD_DRAW_ALIGN_CENTER, false);
         }
-        ui_text_vc(fb, 342, 900+offset, 20, "长按文件或文件夹打开操作", EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_vc(fb, 342, 900+offset, 20, "Nhấn giữ tệp hoặc thư mục để mở tùy chọn", EPD_DRAW_ALIGN_CENTER, false);
         ui_fill_round_rect(fb, (EpdRect){40, 930+offset, 604, 76}, 26, 0xe0);
-        ui_text_vc(fb, 342, 968+offset, 23, "取消", EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_vc(fb, 342, 968+offset, 23, "Hủy", EPD_DRAW_ALIGN_CENTER, false);
     }
 }
 
 static void render_rename(uint8_t *fb) {
     ui_nav_back(fb, 36, 79);
-    ui_text_vc(fb, 342, 107, 34, "重命名", EPD_DRAW_ALIGN_CENTER, false);
-    ui_text_vc(fb, 646, 107, 25, "完成", EPD_DRAW_ALIGN_RIGHT, false);
+    ui_text_vc(fb, 342, 107, 34, "Đổi tên", EPD_DRAW_ALIGN_CENTER, false);
+    ui_text_vc(fb, 646, 107, 25, "Xong", EPD_DRAW_ALIGN_RIGHT, false);
     file_rule(fb, 36, 157, 612);
-    ui_text(fb, 36, 202, 22, "文件名", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text(fb, 36, 202, 22, "Tên tệp", EPD_DRAW_ALIGN_LEFT, false);
     EpdRect field = {36, 242, 612, 82};
     ui_text_input_draw(fb, &s_editor_input, field, 29, false, s_editor_ext);
     if (s_editor_notice[0]) ui_text_fixed_vc(fb, 36, 510, 22, s_editor_notice, EPD_DRAW_ALIGN_LEFT, false);
@@ -580,11 +583,11 @@ static void storage_amount(char *text,size_t size,uint64_t bytes) {
 static void storage_usage(const read_pico_sd_info_t *info,char *total,size_t total_size,char *usage,size_t usage_size) {
     storage_amount(total,total_size,info->space_valid?info->filesystem_bytes:info->capacity_bytes);
     if (!storage_space_valid(info)) { snprintf(usage,usage_size,info->space_error==ESP_ERR_NOT_FINISHED?
-        "正在统计空间，文件可正常使用":"空间统计暂不可用，请重新进入此页"); return; }
+        "Đang tính dung lượng, vẫn dùng tệp bình thường":"Thống kê dung lượng tạm thời chưa sẵn sàng"); return; }
     char used[24],available[24];
     storage_amount(used,sizeof(used),info->filesystem_bytes-info->free_bytes);
     storage_amount(available,sizeof(available),info->free_bytes);
-    snprintf(usage,usage_size,"已用 %s · 可用 %s",used,available);
+    snprintf(usage,usage_size,"Đã dùng %s · Trống %s",used,available);
 }
 static void render(app_ctx_t *ctx,uint8_t *fb);
 static void render_content(app_ctx_t *ctx, uint8_t *fb) {
@@ -606,17 +609,17 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     }
     if (s_folder >= 0) {
         ui_nav_back(fb, 36, 79);
-        ui_text_vc(fb, 342, 107, 34, s_view == FILE_VIEW_MOVE ? "选择目标文件夹" : names[s_folder], EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_vc(fb, 342, 107, 34, s_view == FILE_VIEW_MOVE ? "Chọn thư mục đích" : names[s_folder], EPD_DRAW_ALIGN_CENTER, false);
         char path[144];
-        snprintf(path, sizeof(path), "TF卡%s", folder_root(s_folder) + 7);
+        snprintf(path, sizeof(path), "Thẻ nhớ%s", folder_root(s_folder) + 7);
         ui_text(fb, 36, 172, 20, path, EPD_DRAW_ALIGN_LEFT, false);
         int folders = 0, files = 0;
         for (int i = 0; i < s_count; ++i) s_files[i].is_dir ? ++folders : ++files;
-        char summary[48]; snprintf(summary, sizeof(summary), "%d个文件夹 · %d个文件", folders, files);
+        char summary[48]; snprintf(summary, sizeof(summary), "%d thư mục · %d tệp", folders, files);
         ui_text(fb, 648, 172, 20, summary, EPD_DRAW_ALIGN_RIGHT, false);
         file_rule(fb, 36, 202, 612);
         if (s_message[0] && s_folder != 3) ui_text(fb, 36, 238, 27, s_message, EPD_DRAW_ALIGN_LEFT, false);
-        else if (!s_count) ui_text(fb, 36, 238, 27, "此目录还没有文件", EPD_DRAW_ALIGN_LEFT, false);
+        else if (!s_count) ui_text(fb, 36, 238, 27, "Thư mục này chưa có tệp nào", EPD_DRAW_ALIGN_LEFT, false);
         for (int row = 0; row < visible_rows(); ++row) {
             int index = s_page * visible_rows() + row;
             if (index >= s_count) break;
@@ -631,8 +634,8 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text(fb, 101, y + 11, 23, name, EPD_DRAW_ALIGN_LEFT, false);
             char detail[32]; file_detail(detail, sizeof(detail), &s_files[index]);
             ui_text(fb, 101, y + 49, 19, detail, EPD_DRAW_ALIGN_LEFT, false);
-            const char *tag = !strcmp(s_files[index].path, app_settings_books_dir()) ? "书籍目录" :
-                              !strcmp(s_files[index].path, app_settings_fonts_dir()) ? "字体目录" : NULL;
+            const char *tag = !strcmp(s_files[index].path, app_settings_books_dir()) ? "Thư mục sách" :
+                              !strcmp(s_files[index].path, app_settings_fonts_dir()) ? "Thư mục phông" : NULL;
             if (tag) ui_text(fb, 588, y + 35, 18, tag, EPD_DRAW_ALIGN_RIGHT, false);
             ui_text(fb, 640, y + 30, 22, "›", EPD_DRAW_ALIGN_RIGHT, false);
             file_rule(fb, 101, y + 82, 547);
@@ -640,28 +643,28 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         if (s_folder == 3 || s_view == FILE_VIEW_MOVE) {
             ui_draw_control_frame(fb, file_action_rect(0), 8, UI_GRAY_BLACK);
             ui_draw_control_frame(fb, file_action_rect(1), 8, UI_GRAY_BLACK);
-            ui_text(fb, 182, file_action_rect(0).y+22, 24, s_view == FILE_VIEW_MOVE ? "取消移动" : "设为书籍目录", EPD_DRAW_ALIGN_CENTER, false);
-            ui_text(fb, 501, file_action_rect(1).y+22, 24, s_view == FILE_VIEW_MOVE ? "移动到此处" : "设为字体目录", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text(fb, 182, file_action_rect(0).y+22, 24, s_view == FILE_VIEW_MOVE ? "Hủy chuyển" : "Đặt làm thư mục sách", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text(fb, 501, file_action_rect(1).y+22, 24, s_view == FILE_VIEW_MOVE ? "Chuyển tới đây" : "Đặt làm thư mục phông", EPD_DRAW_ALIGN_CENTER, false);
             if (s_message[0]) ui_text(fb, 36, file_message_top(), 22, s_message, EPD_DRAW_ALIGN_LEFT, false);
         }
     } else {
-        ui_text(fb, 36, 91, 52, "文件", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 36, 91, 52, "Tệp", EPD_DRAW_ALIGN_LEFT, false);
         EpdRect storage = storage_card_rect();
         ui_fill_round_rect(fb, storage, 24, UI_GRAY_WHITE);
         file_card_border(fb, storage, 24);
-        ui_text(fb, 58, 188, 27, "存储卡", EPD_DRAW_ALIGN_LEFT, false);
-        char total[32], usage[80];
+        ui_text(fb, 58, 188, 27, "Thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
+        char total[32], usage[96];
         if (s_sd.mounted) {
             storage_usage(&s_sd,total,sizeof(total),usage,sizeof(usage));
         } else if (sd_needs_format()) {
             // 卡在但读不了：说清是文件系统的问题，并给出可点的出路。
             // Present but unreadable: say the filesystem is the problem and offer the way out.
-            snprintf(total, sizeof(total), "需要格式化");
+            snprintf(total, sizeof(total), "Cần định dạng lại");
             snprintf(usage, sizeof(usage), "%s", s_sd_notice[0] ? s_sd_notice
-                     : (s_sd_format_confirm ? "将清空卡内全部数据，再点确认" : "格式化可能可以解决此问题"));
+                     : (s_sd_format_confirm ? "Sẽ xóa sạch dữ liệu trên thẻ nhớ, chạm lần nữa để xác nhận" : "Định dạng lại thẻ nhớ có thể khắc phục sự cố này"));
         } else {
-            snprintf(total, sizeof(total), "未挂载");
-            snprintf(usage, sizeof(usage), "请检查 TF 卡");
+            snprintf(total, sizeof(total), "Chưa gắn thẻ");
+            snprintf(usage, sizeof(usage), "Vui lòng kiểm tra thẻ nhớ");
         }
         ui_text(fb, 624, 191, 21, total, EPD_DRAW_ALIGN_RIGHT, false);
         ui_text(fb, 58, 231, 19, usage, EPD_DRAW_ALIGN_LEFT, false);
@@ -671,9 +674,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             capacity.width = (int)((s_sd.filesystem_bytes - s_sd.free_bytes) * 566 / s_sd.filesystem_bytes);
             if (capacity.width > 0) ui_fill_round_rect(fb, capacity, 3, 0x68);
         }
-        ui_text(fb, 42, 308, 21, "传输文件", EPD_DRAW_ALIGN_LEFT, false);
-        static const char *const methods[] = {"WiFi传输", "热点传输", "USB传输"};
-        static const char *const details[] = {"同一网络", "连接设备热点", "连接电脑"};
+        ui_text(fb, 42, 308, 21, "Truyền tệp", EPD_DRAW_ALIGN_LEFT, false);
+        static const char *const methods[] = {"Truyền WiFi", "Điểm phát sóng", "Cáp USB"};
+        static const char *const details[] = {"Cùng mạng WiFi", "Kết nối WiFi do máy phát", "Kết nối máy tính"};
         for (int i = 0; i < 3; ++i) {
             EpdRect card = home_transfer_rect(i);
             ui_fill_round_rect(fb, card, 20, UI_GRAY_WHITE);
@@ -683,11 +686,11 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text_vc(fb, card.x + card.width / 2, card.y + 75, 19, details[i],
                        EPD_DRAW_ALIGN_CENTER, false);
         }
-        char summary[48]; snprintf(summary, sizeof(summary), "根目录 · %d 项", s_count);
+        char summary[48]; snprintf(summary, sizeof(summary), "Thư mục gốc · %d mục", s_count);
         ui_text(fb, 36, 482, 21, summary, EPD_DRAW_ALIGN_LEFT, false);
         ui_fill_round_rect(fb, (EpdRect){537, 458, 111, 50}, 23, UI_GRAY_WHITE);
         ui_draw_control_frame(fb, (EpdRect){537, 458, 111, 50}, 23, 0x70);
-        ui_text_vc(fb, 592, 483, 19, "名称 ↑", EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_vc(fb, 592, 483, 19, "Tên ↑", EPD_DRAW_ALIGN_CENTER, false);
         int first = s_page * root_rows();
         int rows = s_count - first;
         if (rows > root_rows()) rows = root_rows();
@@ -695,7 +698,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         EpdRect list = {36, 520, 612, root_rows() * 91};
         ui_fill_round_rect(fb, list, 24, UI_GRAY_WHITE);
         file_card_border(fb, list, 24);
-        if (!s_count) ui_text_vc(fb, 342, 565, 22, s_message[0] ? s_message : "根目录为空", EPD_DRAW_ALIGN_CENTER, false);
+        if (!s_count) ui_text_vc(fb, 342, 565, 22, s_message[0] ? s_message : "Thư mục gốc trống", EPD_DRAW_ALIGN_CENTER, false);
         for (int row = 0; row < root_rows(); ++row) {
             int index = first + row;
             if (index >= s_count) break;
@@ -806,9 +809,36 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     return APP_REDRAW_PAGE;
 }
 
+static char s_ota_confirm_path[288];
+
 static void open_selected(app_ctx_t *ctx) {
     const char *ext = strrchr(s_selected.name, '.');
-    if (!ext) { snprintf(s_message, sizeof(s_message), "没有可用的打开方式"); return; }
+    if (!ext) { s_ota_confirm_path[0] = 0; snprintf(s_message, sizeof(s_message), "Không hỗ trợ mở định dạng tệp này"); return; }
+    if (!strcasecmp(ext, ".bin")) {
+        pico_ota_info_t ota_info = {0};
+        esp_err_t err = pico_ota_inspect(s_selected.path, &ota_info);
+        if (err != ESP_OK || !ota_info.ready) {
+            s_ota_confirm_path[0] = 0;
+            snprintf(s_message, sizeof(s_message), "%s", ota_info.message[0] ? ota_info.message : "Tệp .bin không phải gói cập nhật hợp lệ");
+            return;
+        }
+        if (strcmp(s_ota_confirm_path, s_selected.path) != 0) {
+            copy_utf8(s_ota_confirm_path, sizeof(s_ota_confirm_path), s_selected.path);
+            snprintf(s_message, sizeof(s_message), "Gói cập nhật %.24s: chạm lần nữa để cài đặt", ota_info.candidate_version);
+            return;
+        }
+        s_ota_confirm_path[0] = 0;
+        if (!(book_cover_jobs_quiesce(2000) && ui_avatar_quiesce(2000))) {
+            snprintf(s_message, sizeof(s_message), "Đang xử lý ảnh bìa, vui lòng thử lại sau giây lát");
+            return;
+        }
+        epd_poweroff();
+        if (pico_ota_install(s_selected.path, s_message, sizeof(s_message)) == ESP_OK) {
+            esp_restart();
+        }
+        return;
+    }
+    s_ota_confirm_path[0] = 0;
     if (!strcasecmp(ext, ".epub") || !strcasecmp(ext, ".txt")) {
         extern const app_desc_t app_book;
 #if KIIKO_BOARD_METALIO47
@@ -826,9 +856,9 @@ static void open_selected(app_ctx_t *ctx) {
         if (ttf_font_open(s_selected.path) == ESP_OK) {
             app_settings_set_system_font_path(s_selected.path);
             app_font_activate_system();
-            snprintf(s_message, sizeof(s_message), "已设为系统字体");
-        } else snprintf(s_message, sizeof(s_message), "字体无法加载");
-    } else snprintf(s_message, sizeof(s_message), "没有可用的打开方式");
+            snprintf(s_message, sizeof(s_message), "Đã đặt làm phông chữ hệ thống");
+        } else snprintf(s_message, sizeof(s_message), "Không thể tải phông chữ");
+    } else snprintf(s_message, sizeof(s_message), "Không hỗ trợ mở định dạng tệp này");
 }
 
 static void delete_selected(void) {
@@ -839,19 +869,19 @@ static void delete_selected(void) {
         repair_deleted_directories();
         book_store_notify_changed();
         rescan_current();
-        snprintf(s_message, sizeof(s_message), "删除未完成，请检查 TF 卡");
+        snprintf(s_message, sizeof(s_message), "Chưa xóa xong, vui lòng kiểm tra thẻ nhớ");
         return;
     }
     repair_deleted_directories();
     book_store_notify_changed();
     s_view = FILE_VIEW_LIST; s_delete_confirm = false;
     rescan_current();
-    snprintf(s_message, sizeof(s_message), s_selected.is_dir ? "文件夹已删除" : "文件已删除");
+    snprintf(s_message, sizeof(s_message), s_selected.is_dir ? "Đã xóa thư mục" : "Đã xóa tệp");
 }
 
 static app_redraw_t save_rename(void) {
     if (ui_keyboard_pending()) {
-        snprintf(s_editor_notice, sizeof(s_editor_notice), "请先选择候选字");
+        snprintf(s_editor_notice, sizeof(s_editor_notice), "Vui lòng chọn từ gợi ý trước");
         return APP_REDRAW_PAGE;
     }
     char *start = s_editor;
@@ -860,28 +890,28 @@ static app_redraw_t save_rename(void) {
     size_t len = strlen(s_editor);
     while (len && (s_editor[len - 1] == ' ' || s_editor[len - 1] == '.')) s_editor[--len] = 0;
     if (!len || strchr(s_editor, '/') || strchr(s_editor, '\\') || strchr(s_editor, ':')) {
-        snprintf(s_editor_notice, sizeof(s_editor_notice), "请输入有效文件名");
+        snprintf(s_editor_notice, sizeof(s_editor_notice), "Vui lòng nhập tên tệp hợp lệ");
         return APP_REDRAW_PAGE;
     }
     char name[128], destination[288];
     if (snprintf(name, sizeof(name), "%s%s", s_editor, s_editor_ext) >= sizeof(name) ||
         !sibling_path(name, destination)) {
-        snprintf(s_editor_notice, sizeof(s_editor_notice), "文件名过长");
+        snprintf(s_editor_notice, sizeof(s_editor_notice), "Tên tệp quá dài");
         return APP_REDRAW_PAGE;
     }
     if (!strcmp(destination, s_selected.path)) { s_view = FILE_VIEW_ACTIONS; return APP_REDRAW_PAGE; }
     struct stat existing;
     if (stat(destination, &existing) == 0) {
-        snprintf(s_editor_notice, sizeof(s_editor_notice), "同名文件已经存在");
+        snprintf(s_editor_notice, sizeof(s_editor_notice), "Tệp cùng tên đã tồn tại");
         return APP_REDRAW_PAGE;
     }
     char old_path[288]; copy_utf8(old_path, sizeof(old_path), s_selected.path);
     if (!moved_settings_fit(old_path, destination)) {
-        snprintf(s_editor_notice, sizeof(s_editor_notice), "设置路径过长");
+        snprintf(s_editor_notice, sizeof(s_editor_notice), "Đường dẫn cài đặt quá dài");
         return APP_REDRAW_PAGE;
     }
     if (file_tree_move(old_path, destination) != ESP_OK) {
-        snprintf(s_editor_notice, sizeof(s_editor_notice), "重命名失败，请检查 TF 卡");
+        snprintf(s_editor_notice, sizeof(s_editor_notice), "Đổi tên thất bại, hãy kiểm tra thẻ nhớ");
         return APP_REDRAW_PAGE;
     }
     sync_moved_settings(old_path, destination);
@@ -891,7 +921,7 @@ static app_redraw_t save_rename(void) {
     copy_utf8(s_selected.name, sizeof(s_selected.name), name);
     s_view = FILE_VIEW_ACTIONS;
     ui_keyboard_end();
-    snprintf(s_message, sizeof(s_message), "重命名完成");
+    snprintf(s_message, sizeof(s_message), "Đã đổi tên");
     return APP_REDRAW_PAGE;
 }
 
@@ -915,8 +945,8 @@ static app_redraw_t action_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev)
         else if (action == 1) {
             char copied[128] = {0};
             esp_err_t err = copy_selected_item(copied);
-            if (err == ESP_OK) snprintf(s_message, sizeof(s_message), "已复制：%.74s", copied);
-            else snprintf(s_message, sizeof(s_message), err == ESP_ERR_NO_MEM ? "内存不足，复制失败" : "复制失败，请检查空间");
+            if (err == ESP_OK) snprintf(s_message, sizeof(s_message), "Đã chép: %.74s", copied);
+            else snprintf(s_message, sizeof(s_message), err == ESP_ERR_NO_MEM ? "Không đủ bộ nhớ, sao chép thất bại" : "Sao chép thất bại, vui lòng kiểm tra dung lượng");
         } else if (action == 2) start_move();
         else { s_delete_confirm = true; s_message[0] = 0; }
         return ctx->request_app ? APP_REDRAW_NONE : APP_REDRAW_PAGE;
@@ -1025,15 +1055,15 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if (!long_press && s_folder == 3 && (ui_rect_hit(file_action_rect(0),ev->x0,ev->y0) || ui_rect_hit(file_action_rect(1),ev->x0,ev->y0))) {
             struct stat selected;
             if (!strcmp(s_dir,"/sdcard") || stat(s_dir,&selected) || !S_ISDIR(selected.st_mode))
-                snprintf(s_message,sizeof(s_message),"请先进入 TF 卡内的文件夹");
+                snprintf(s_message,sizeof(s_message),"Vui lòng vào một thư mục trên thẻ nhớ trước");
             else if (ev->x0 < 342) {
                 if(app_settings_set_books_dir(s_dir)){
-                    book_store_notify_changed();snprintf(s_message,sizeof(s_message),"已设为书籍目录");
-                }else snprintf(s_message,sizeof(s_message),"保存失败或路径过长，请重试");
+                    book_store_notify_changed();snprintf(s_message,sizeof(s_message),"Đã đặt làm thư mục sách");
+                }else snprintf(s_message,sizeof(s_message),"Lưu thất bại hoặc đường dẫn quá dài, hãy thử lại");
             }else{
                 if(app_settings_set_fonts_dir(s_dir)){
-                    ttf_font_scan();snprintf(s_message,sizeof(s_message),"已设为字体目录");
-                }else snprintf(s_message,sizeof(s_message),"保存失败或路径过长，请重试");
+                    ttf_font_scan();snprintf(s_message,sizeof(s_message),"Đã đặt làm thư mục phông chữ");
+                }else snprintf(s_message,sizeof(s_message),"Lưu thất bại hoặc đường dẫn quá dài, hãy thử lại");
             }
             s_counts[0]=count_root(0);s_counts[2]=count_root(2);
             return APP_REDRAW_PAGE;
@@ -1048,7 +1078,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             }
             if (s_folder == 3 && s_files[index].is_dir) {
                 if (strlen(s_files[index].path) >= sizeof(s_dir)) {
-                    snprintf(s_message, sizeof(s_message), "目录路径过长"); return APP_REDRAW_PAGE;
+                    snprintf(s_message, sizeof(s_message), "Đường dẫn thư mục quá dài"); return APP_REDRAW_PAGE;
                 }
                 snprintf(s_dir, sizeof(s_dir), "%s", s_files[index].path);
                 scan_folder(3);
@@ -1069,14 +1099,14 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             s_sd_notice[0] = 0;
         } else {
             s_sd_format_confirm = false;
-            snprintf(s_sd_notice, sizeof(s_sd_notice), "正在格式化…");
+            snprintf(s_sd_notice, sizeof(s_sd_notice), "Đang định dạng…");
             esp_err_t err = (book_cover_jobs_quiesce(2000) && ui_avatar_quiesce(2000)) ? read_pico_sd_format() : ESP_ERR_NOT_FINISHED;
             read_pico_sd_get_info(&s_sd);
             if (err == ESP_OK) {
                 s_sd_notice[0] = 0;
                 s_scan_pending = true;
             } else {
-                snprintf(s_sd_notice, sizeof(s_sd_notice), "格式化失败：%s", esp_err_to_name(err));
+                snprintf(s_sd_notice, sizeof(s_sd_notice), "Định dạng thất bại: %s", esp_err_to_name(err));
             }
         }
         return APP_REDRAW_PAGE;
@@ -1156,7 +1186,7 @@ const app_desc_t app_files = {
 #else
     .binary_ui = false,
 #endif
-    .title = "文件管理 Files", .detail = "TF 卡文件与传输", .enter_full = false,
+    .title = "Quản lý tệp Files", .detail = "Quản lý tệp thẻ nhớ & truyền dữ liệu", .enter_full = false,
     .owns_keys = true, .menu_handle_enabled = no_menu_handle,
     .main_page_visible = main_page_visible, .edge_back_enabled = files_edge_back,
     .back_swipe_area=files_back_swipe_area,

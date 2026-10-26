@@ -97,6 +97,13 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #define NVS_KEY_FONTS_DIR "fonts_dir"
 #define NVS_KEY_BOOK_FONTS "bk_fonts"
 #define NVS_KEY_BOOK_VERTICAL "bk_vert"
+#define NVS_KEY_KOSYNC_URL "ks_url"
+#define NVS_KEY_KOSYNC_USER "ks_user"
+#define NVS_KEY_KOSYNC_KEY "ks_key"
+#define NVS_KEY_KOSYNC_AUTO "ks_auto"
+#define NVS_KEY_OPDS_URL "opds_url"
+#define NVS_KEY_OPDS_USER "opds_user"
+#define NVS_KEY_OPDS_PASS "opds_pass"
 #define FONT_PATH_MAX 160
 #define MEDIA_DIR_MAX 96
 
@@ -116,10 +123,17 @@ static app_home_component_t s_home_component = APP_HOME_FOLDER;
 static uint8_t s_home_goal_minutes = 30;
 static app_main_refresh_mode_t s_main_refresh;
 #if KIIKO_BOARD_METALIO47
-static char s_device_name[64] = "Metalio S31";
+static char s_device_name[64] = "dpReader";
 #else
-static char s_device_name[64] = "kiikoread";
+static char s_device_name[64] = "dpReader";
 #endif
+static char s_kosync_url[128] = DPREADER_DEFAULT_KOSYNC_URL;
+static char s_kosync_user[64];
+static char s_kosync_key[36];
+static bool s_kosync_auto;
+static char s_opds_url[160] = DPREADER_DEFAULT_OPDS_URL;
+static char s_opds_user[64];
+static char s_opds_pass[64];
 static char s_avatar[288];
 static char s_status_signature[96];
 static char s_font[FONT_PATH_MAX];
@@ -254,17 +268,28 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_AUTO_LOCK, &raw) == ESP_OK && (raw == 1 || raw == 5 || raw == 10)) s_auto_lock_minutes = raw;
     size_t value_len = sizeof(s_device_name);
     if (nvs_get_str(h, NVS_KEY_DEVICE_NAME, s_device_name, &value_len) != ESP_OK || !s_device_name[0])
-#if KIIKO_BOARD_METALIO47
-        strlcpy(s_device_name, "Metalio S31", sizeof(s_device_name));
-#else
-        strlcpy(s_device_name, "kiikoread", sizeof(s_device_name));
-#endif
+        strlcpy(s_device_name, "dpReader", sizeof(s_device_name));
     // 仅迁移旧默认名字，保留用户填写的姓名。/ Migrate only the old default, preserving custom names.
-#if KIIKO_BOARD_METALIO47
-    if (!strcmp(s_device_name, "Pico") || !strcmp(s_device_name, "kiikoread")) strlcpy(s_device_name, "Metalio S31", sizeof(s_device_name));
-#else
-    if (!strcmp(s_device_name, "Pico")) strlcpy(s_device_name, "kiikoread", sizeof(s_device_name));
-#endif
+    if (!strcmp(s_device_name, "Pico") || !strcmp(s_device_name, "kiikoread") || !strcmp(s_device_name, "Metalio S31"))
+        strlcpy(s_device_name, "dpReader", sizeof(s_device_name));
+    value_len = sizeof(s_kosync_url);
+    if (nvs_get_str(h, NVS_KEY_KOSYNC_URL, s_kosync_url, &value_len) != ESP_OK || !s_kosync_url[0] ||
+        !strcmp(s_kosync_url, "https://sync.nemmanquy.com") || !strcmp(s_kosync_url, "sync.nemmanquy.com"))
+        strlcpy(s_kosync_url, DPREADER_DEFAULT_KOSYNC_URL, sizeof(s_kosync_url));
+    value_len = sizeof(s_kosync_user);
+    if (nvs_get_str(h, NVS_KEY_KOSYNC_USER, s_kosync_user, &value_len) != ESP_OK) s_kosync_user[0] = 0;
+    value_len = sizeof(s_kosync_key);
+    if (nvs_get_str(h, NVS_KEY_KOSYNC_KEY, s_kosync_key, &value_len) != ESP_OK) s_kosync_key[0] = 0;
+    raw = 0;
+    if (nvs_get_u8(h, NVS_KEY_KOSYNC_AUTO, &raw) == ESP_OK) s_kosync_auto = raw == 1;
+    value_len = sizeof(s_opds_url);
+    if (nvs_get_str(h, NVS_KEY_OPDS_URL, s_opds_url, &value_len) != ESP_OK || !s_opds_url[0] ||
+        !strcmp(s_opds_url, "https://sach.nemmanquy.com/opds") || !strcmp(s_opds_url, "sach.nemmanquy.com/opds"))
+        strlcpy(s_opds_url, DPREADER_DEFAULT_OPDS_URL, sizeof(s_opds_url));
+    value_len = sizeof(s_opds_user);
+    if (nvs_get_str(h, NVS_KEY_OPDS_USER, s_opds_user, &value_len) != ESP_OK) s_opds_user[0] = 0;
+    value_len = sizeof(s_opds_pass);
+    if (nvs_get_str(h, NVS_KEY_OPDS_PASS, s_opds_pass, &value_len) != ESP_OK) s_opds_pass[0] = 0;
     value_len = sizeof(s_avatar);
     if (nvs_get_str(h, NVS_KEY_AVATAR, s_avatar, &value_len) != ESP_OK ||
         (s_avatar[0] && strncmp(s_avatar, "/sdcard/", 8))) s_avatar[0] = 0;
@@ -929,17 +954,91 @@ const char* app_settings_fonts_dir(void) { return s_fonts_dir; }
 bool app_settings_set_books_dir(const char* path) { return set_media_dir(s_books_dir,NVS_KEY_BOOKS_DIR,path); }
 bool app_settings_set_fonts_dir(const char* path) { return set_media_dir(s_fonts_dir,NVS_KEY_FONTS_DIR,path); }
 
+const char *app_settings_kosync_url(void) { return s_kosync_url; }
+bool app_settings_set_kosync_url(const char *url) {
+    char normalized[sizeof(s_kosync_url)];
+    if (!url || !url[0]) {
+        strlcpy(normalized, DPREADER_DEFAULT_KOSYNC_URL, sizeof(normalized));
+    } else if (strncmp(url, "http://", 7) && strncmp(url, "https://", 8)) {
+        if (strnlen(url, sizeof(normalized)) + 8 >= sizeof(normalized)) return false;
+        strlcpy(normalized, "https://", sizeof(normalized));
+        strlcat(normalized, url, sizeof(normalized));
+    } else {
+        if (strnlen(url, sizeof(normalized)) >= sizeof(normalized)) return false;
+        strlcpy(normalized, url, sizeof(normalized));
+    }
+    if (!nvs_put_str(NVS_KEY_KOSYNC_URL, normalized)) return false;
+    strlcpy(s_kosync_url, normalized, sizeof(s_kosync_url));
+    return true;
+}
+const char *app_settings_kosync_user(void) { return s_kosync_user; }
+bool app_settings_set_kosync_user(const char *user) {
+    if (!user) user = "";
+    if (strnlen(user, sizeof(s_kosync_user)) >= sizeof(s_kosync_user)) return false;
+    if (!nvs_put_str(NVS_KEY_KOSYNC_USER, user)) return false;
+    strlcpy(s_kosync_user, user, sizeof(s_kosync_user));
+    return true;
+}
+const char *app_settings_kosync_key(void) { return s_kosync_key; }
+bool app_settings_set_kosync_key(const char *key) {
+    if (!key) key = "";
+    if (strnlen(key, sizeof(s_kosync_key)) >= sizeof(s_kosync_key)) return false;
+    if (!nvs_put_str(NVS_KEY_KOSYNC_KEY, key)) return false;
+    strlcpy(s_kosync_key, key, sizeof(s_kosync_key));
+    return true;
+}
+bool app_settings_kosync_auto(void) { return s_kosync_auto; }
+void app_settings_set_kosync_auto(bool on) {
+    if (s_kosync_auto == on) return;
+    s_kosync_auto = on;
+    nvs_put_u8(NVS_KEY_KOSYNC_AUTO, on ? 1 : 0);
+}
+
+const char *app_settings_opds_url(void) { return s_opds_url; }
+bool app_settings_set_opds_url(const char *url) {
+    char normalized[sizeof(s_opds_url)];
+    if (!url || !url[0]) {
+        strlcpy(normalized, DPREADER_DEFAULT_OPDS_URL, sizeof(normalized));
+    } else if (strncmp(url, "http://", 7) && strncmp(url, "https://", 8)) {
+        if (strnlen(url, sizeof(normalized)) + 8 >= sizeof(normalized)) return false;
+        strlcpy(normalized, "https://", sizeof(normalized));
+        strlcat(normalized, url, sizeof(normalized));
+    } else {
+        if (strnlen(url, sizeof(normalized)) >= sizeof(normalized)) return false;
+        strlcpy(normalized, url, sizeof(normalized));
+    }
+    if (!nvs_put_str(NVS_KEY_OPDS_URL, normalized)) return false;
+    strlcpy(s_opds_url, normalized, sizeof(s_opds_url));
+    return true;
+}
+const char *app_settings_opds_user(void) { return s_opds_user; }
+bool app_settings_set_opds_user(const char *user) {
+    if (!user) user = "";
+    if (strnlen(user, sizeof(s_opds_user)) >= sizeof(s_opds_user)) return false;
+    if (!nvs_put_str(NVS_KEY_OPDS_USER, user)) return false;
+    strlcpy(s_opds_user, user, sizeof(s_opds_user));
+    return true;
+}
+const char *app_settings_opds_pass(void) { return s_opds_pass; }
+bool app_settings_set_opds_pass(const char *pass) {
+    if (!pass) pass = "";
+    if (strnlen(pass, sizeof(s_opds_pass)) >= sizeof(s_opds_pass)) return false;
+    if (!nvs_put_str(NVS_KEY_OPDS_PASS, pass)) return false;
+    strlcpy(s_opds_pass, pass, sizeof(s_opds_pass));
+    return true;
+}
+
 #ifndef APP_SETTINGS_BACKUP_ROOT
 #define APP_SETTINGS_BACKUP_ROOT "/sdcard"
 #endif
 #if KIIKO_BOARD_METALIO47
-#define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/Metalio-S31-settings.backup"
-#define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/Metalio-S31-settings.backup.tmp"
-#define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/Metalio-S31-settings.backup.previous"
+#define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/dpReader-settings.backup"
+#define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/dpReader-settings.backup.tmp"
+#define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/dpReader-settings.backup.previous"
 #else
-#define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/Pico-settings.backup"
-#define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/Pico-settings.backup.tmp"
-#define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/Pico-settings.backup.previous"
+#define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/dpReader-settings.backup"
+#define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/dpReader-settings.backup.tmp"
+#define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/dpReader-settings.backup.previous"
 #endif
 
 // All fields are bytes, so the v1 disk layout is independent of structure padding.

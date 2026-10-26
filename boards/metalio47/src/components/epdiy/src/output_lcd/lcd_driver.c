@@ -381,7 +381,7 @@ static void init_ckv_rmt() {
     // GPIO40 是 LCD_PCLK 专用脚，也是板级 CKV。诊断时让出 CKV，改走 IOMUX 出像素时钟。
     const soc_lcd_rgb_iomux_desc_t* iomux = &soc_lcd_rgb_iomux_descs[0];
     esp_err_t mux = gpio_iomux_output(iomux->pclk_pin.gpio_num, iomux->pclk_pin.func);
-    ESP_LOGI(TAG, "PROBE PCLK IOMUX GPIO%d (CKV off) %s — 蓝线看 20MHz",
+    ESP_LOGI(TAG, "PROBE PCLK IOMUX GPIO%d (CKV off) %s — 20MHz",
              iomux->pclk_pin.gpio_num, esp_err_to_name(mux));
 #else
     gpio_hal_func_sel(&hal, lcd.config.bus.ckv, PIN_FUNC_GPIO);

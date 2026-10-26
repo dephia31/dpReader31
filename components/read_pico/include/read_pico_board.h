@@ -33,13 +33,13 @@ extern "C" {
 #define READ_PICO_TP_INT_GPIO CONFIG_READ_PICO_TP_INT_GPIO
 
 #if KIIKO_BOARD_METALIO47
-#define READ_PICO_PRODUCT_NAME "kiikoread Metalio S31"
-#define READ_PICO_DEVICE_NAME "Metalio S31"
+#define READ_PICO_PRODUCT_NAME "dpReader"
+#define READ_PICO_DEVICE_NAME "dpReader"
 /// RC90兼容轴映射常数，尚未对本S31实测校准；拿起检测使用相邻原始样本差。
 /// Compatibility axis constants are not calibrated for this S31; pickup uses raw sample deltas.
 #else
-#define READ_PICO_PRODUCT_NAME "kiikoread"
-#define READ_PICO_DEVICE_NAME "kiikoread"
+#define READ_PICO_PRODUCT_NAME "dpReader"
+#define READ_PICO_DEVICE_NAME "dpReader"
 /// 芯片平放实测 -5,-119,-1005；转到设备坐标后屏幕朝上约为 +Z。
 /// / Chip at rest on the bench: -5,-119,-1005. Device frame is about +Z face-up.
 #endif

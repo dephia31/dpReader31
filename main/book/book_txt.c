@@ -124,9 +124,18 @@ static esp_err_t reset(reader_t *r, book_txt_t *b, uint32_t offset) {
     return fseek(b->file, (long)offset, SEEK_SET) ? ESP_FAIL : ESP_OK;
 }
 static bool heading(const char *s) {
-    if (!strncmp(s, "Chapter", 7)) {
-        s += 7; while (*s == ' ' || *s == '\t') ++s;
-        return isdigit((unsigned char)*s) != 0;
+    while (*s == ' ' || *s == '\t') ++s;
+    static const char *const vn_prefixes[] = {
+        "Chapter", "CHAPTER", "Chương", "CHƯƠNG", "Chuong", "CHUONG",
+        "Hồi", "HỒI", "Phần", "PHẦN", "Quyển", "QUYỂN", "Tập", "TẬP"
+    };
+    for (size_t i = 0; i < sizeof(vn_prefixes) / sizeof(vn_prefixes[0]); ++i) {
+        size_t plen = strlen(vn_prefixes[i]);
+        if (!strncmp(s, vn_prefixes[i], plen)) {
+            const char *p = s + plen;
+            while (*p == ' ' || *p == '\t') ++p;
+            return isdigit((unsigned char)*p) != 0 || *p == 'I' || *p == 'V' || *p == 'X';
+        }
     }
     if (strncmp(s, "第", 3)) return false;
     s += 3; bool number = false;
@@ -142,7 +151,7 @@ static bool add(book_txt_t *b, uint32_t offset, const char *title) {
     if (b->count == BOOK_CHAPTER_MAX) return false;
     book_entry_t *e = &b->entries[b->count++]; e->offset = offset;
     if (title) memcpy(e->title, title, strlen(title) + 1);
-    else snprintf(e->title, sizeof(e->title), "Part %u", (unsigned)b->count);
+    else snprintf(e->title, sizeof(e->title), "Phần %u", (unsigned)b->count);
     return true;
 }
 static esp_err_t index_book(reader_t *r, book_txt_t *b) {
