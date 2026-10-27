@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "1.0.2-vn",
+  "version": "1.0.3-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "d8fd16cacb23e45bfcc715aa22728ae9d97afcfe640bb6441ed0057880e711ed",
+  "sha256": "d5154425698fa4e59e38db89a85d77db65c8308e0db0bbb7285bf819fe78611d",
   "size": 3923744,
-  "notes": "dpReader v1.0.2-vn: Hỗ trợ cấu hình trực tiếp thông số KoSync và OPDS (Máy chủ, Tài khoản, Mật khẩu) bằng bàn phím ảo ngay trên màn hình thiết bị; đồng bộ KoSync 2 chiều với nút bấm Quick Settings và Reader Toolbar."
+  "notes": "dpReader v1.0.3-vn: Cấu hình trực tiếp thông số KoSync và OPDS (Máy chủ, Tài khoản, Mật khẩu) bằng bàn phím ảo ngay trên màn hình thiết bị; đồng bộ KoSync 2 chiều với nút bấm Quick Settings và Reader Toolbar; hỗ trợ toàn diện font OTF/TTF thẻ nhớ và dấu tiếng Việt."
 }

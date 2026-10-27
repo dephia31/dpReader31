@@ -1,5 +1,18 @@
 # 版本变更 / Changelog
 
+## dpReader 1.0.3-vn · 2026-10-27
+
+Bản cập nhật v1.0.3-vn nâng cấp tính năng cấu hình tài khoản và đồng bộ kết nối trực tiếp trên màn hình thiết bị:
+
+- **Cấu hình trực tiếp KoSync & OPDS trên màn hình thiết bị:**
+  - Cho phép chạm trực tiếp vào các hàng Máy chủ, Tài khoản (Username) và Mật khẩu (Password) trong menu `Cài đặt -> Kết nối -> Đồng bộ KoSync / Kho sách OPDS` để chỉnh sửa qua bàn phím ảo tích hợp.
+  - Tự động kích hoạt bàn phím Latin chuẩn (`ascii_only`) giúp nhập URL và thông tin đăng nhập chính xác; tự động mã hóa băm mật khẩu MD5 (`x-auth-key`) tuân thủ nghiêm ngặt giao thức KOReader Sync.
+- **Đồng bộ KoSync 2 chiều thông minh:**
+  - Tích hợp nút bấm đồng bộ nhanh 1 chạm trên thanh Quick Settings (vuốt từ đỉnh màn hình xuống) và trên thanh công cụ Reader Toolbar.
+  - Tự động so khớp timestamp và tiến độ đọc giữa thiết bị và máy chủ KoSync, cảnh báo khi đồng bộ hoặc mất kết nối.
+- **Tối ưu phông chữ và toàn hệ thống:**
+  - Giữ trọn bộ tối ưu phông OTF/TTF trên thẻ SD, chống nhấp nháy, nạp CFF PSRAM và bộ dấu tiếng Việt 2 tầng từ v1.0.2-vn.
+
 ## dpReader 1.0.2-vn · 2026-10-27
 
 Bản cập nhật v1.0.2-vn tập trung khắc phục lỗi phông chữ trên thẻ nhớ SD và hoàn thiện hỗ trợ dấu tiếng Việt trên toàn hệ thống:

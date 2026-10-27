@@ -171,6 +171,17 @@ def build_one(board, args):
     # 虚拟环境解释器常为符号链接；保留入口路径，不能解析成系统Python。
     # Venv executables are often symlinks; retain that entry path instead of resolving to system Python.
     python = args.python.absolute()
+    version_marker = work / '.kiiko-built-version'
+    reconfigure_needed = not (build / 'build.ninja').exists() or not version_marker.exists() or version_marker.read_text().strip() != info['version']
+    if reconfigure_needed:
+        for obj in build.glob('**/esp_app_desc.c.obj'):
+            try:
+                obj.unlink()
+            except OSError:
+                pass
+        for f in (build / (info['project'] + '.elf'), build / (info['project'] + '.bin')):
+            if f.exists():
+                f.unlink()
     command = [str(python), str(sdk / 'tools/idf.py'), '-B', str(build),
                '-DIDF_TARGET=' + info['idf_target'], '-DKIIKO_BOARD=' + board,
                '-DSDKCONFIG=' + str(work / 'sdkconfig'),
@@ -184,7 +195,7 @@ def build_one(board, args):
                '-DMETALIO_UI_GRAY22_EXPERIMENT=OFF',
                '-DMETALIO_NETWORK_PROBE=' + ('ON' if board == 'metalio47' and args.s31_network_probe else 'OFF'),
                '-DMETALIO_LOCAL_TRANSFER_START=' + ('ON' if board == 'metalio47' and getattr(args, 's31_transfer_startup_test', False) else 'OFF'),
-               *(['reconfigure'] if not (build / 'build.ninja').exists() else []), 'build']
+               *(['reconfigure'] if reconfigure_needed else []), 'build']
     if args.dry_run:
         print(json.dumps({'board': board, 'sdk': str(sdk), 'command': command}, ensure_ascii=False))
         return None
@@ -239,6 +250,7 @@ def build_one(board, args):
         print((work / 'build.log').read_text(errors='replace')[-8000:])
         raise RuntimeError(f'{board} build failed; see {work / "build.log"}')
     result = export(build, args.output.resolve() / 'packages' / board, board)
+    (work / '.kiiko-built-version').write_text(info['version'] + '\n')
     print(json.dumps(result, ensure_ascii=False))
     return result
 
