@@ -23,11 +23,11 @@ typedef int esp_err_t;typedef int nvs_handle_t;
 #define ESP_LOGI(tag,fmt,...) ((void)printf(fmt, __VA_ARGS__))
 #define pdMS_TO_TICKS(x) (x)
 #define VCOM_MIN_MV 900
-#define VCOM_MAX_MV 4000
-#define VCOM_DEFAULT_MV 3000
+#define VCOM_MAX_MV 2200
+#define VCOM_DEFAULT_MV 1700
 #define VCOM_NVS_NAMESPACE "metalio_hw"
 #define VCOM_NVS_KEY "vcom_mv"
-static uint16_t saved=3000,staged;
+static uint16_t saved=1700,staged;
 static bool ro_fail,rw_fail,get_fail,set_fail,commit_fail,corrupt;
 static unsigned opens,closes,action,commits;
 static int applied;
@@ -42,7 +42,7 @@ static void display_request_full_refresh(void){assert(action++==2);}
 static unsigned key_reads;static int key_error=-1;static uint16_t key_inputs[2];
 static esp_err_t metalio_io_read(uint16_t*v){unsigned at=key_reads++;assert(at<2);if((int)at==key_error)return ESP_FAIL;*v=key_inputs[at];return ESP_OK;}
 static void vTaskDelay(int ms){assert(ms==30);}
-static int vcom=3000;
+static int vcom=1700;
 '''
 vcom_setup_src = r/'main/factory/vcom_setup.c'
 if not vcom_setup_src.exists():
@@ -58,19 +58,19 @@ for name in ['vcom_setup_load_mv','persist','vcom_typed_mv','vcom_digits_valid',
 u+=function('volume_key_held',app_main_src)+'\n'
 u+=function('set_vcom',pico_board_src)+'\n'
 u+=r'''
-static void reset(void){saved=3000;staged=0;ro_fail=rw_fail=get_fail=set_fail=commit_fail=corrupt=false;opens=closes=action=commits=0;applied=0;}
+static void reset(void){saved=1700;staged=0;ro_fail=rw_fail=get_fail=set_fail=commit_fail=corrupt=false;opens=closes=action=commits=0;applied=0;}
 int main(void){
- int valid[]={900,1200,2000,3000,4000};for(unsigned i=0;i<5;i++){reset();saved=valid[i];assert(vcom_setup_load_mv()==valid[i]&&opens==closes);}
- int invalid[]={0,899,901,4010,5000,65535};for(unsigned i=0;i<6;i++){reset();saved=invalid[i];assert(vcom_setup_load_mv()==3000&&opens==closes);assert(!persist(invalid[i])&&!action&&!commits);}
- reset();ro_fail=true;assert(vcom_setup_load_mv()==3000&&!opens);reset();get_fail=true;assert(vcom_setup_load_mv()==3000&&opens==closes);
- for(unsigned i=0;i<5;i++){reset();assert(persist(valid[i])&&saved==valid[i]&&applied==valid[i]&&action==3&&commits==1&&opens==closes);assert(vcom_setup_load_mv()==valid[i]);}
- for(unsigned fault=0;fault<6;fault++){reset();rw_fail=fault==0;set_fail=fault==1;commit_fail=fault==2;ro_fail=fault==3;get_fail=fault==4;corrupt=fault==5;assert(!persist(3000));assert(!action&&opens==closes);if(fault<3)assert(saved==3000);}
- const char*good[]={"90","090","120","200","300","400"};int want[]={900,900,1200,2000,3000,4000};for(unsigned i=0;i<6;i++){int n=-1;assert(vcom_digits_valid(good[i],&n)&&n==want[i]);}
- const char*bad[]={NULL,"","089","401","000","-90","9.0","9a0"};for(unsigned i=0;i<8;i++)assert(!vcom_digits_valid(bad[i],NULL));
+ int valid[]={900,1200,1600,1700,2000,2200};for(unsigned i=0;i<6;i++){reset();saved=valid[i];assert(vcom_setup_load_mv()==valid[i]&&opens==closes);}
+ int invalid[]={0,899,901,2210,3000,4000,65535};for(unsigned i=0;i<7;i++){reset();saved=invalid[i];assert(vcom_setup_load_mv()==1700&&opens==closes);assert(!persist(invalid[i])&&!action&&!commits);}
+ reset();ro_fail=true;assert(vcom_setup_load_mv()==1700&&!opens);reset();get_fail=true;assert(vcom_setup_load_mv()==1700&&opens==closes);
+ for(unsigned i=0;i<6;i++){reset();assert(persist(valid[i])&&saved==valid[i]&&applied==valid[i]&&action==3&&commits==1&&opens==closes);assert(vcom_setup_load_mv()==valid[i]);}
+ for(unsigned fault=0;fault<6;fault++){reset();rw_fail=fault==0;set_fail=fault==1;commit_fail=fault==2;ro_fail=fault==3;get_fail=fault==4;corrupt=fault==5;assert(!persist(1700));assert(!action&&opens==closes);if(fault<3)assert(saved==1700);}
+ const char*good[]={"90","090","120","170","200","220"};int want[]={900,900,1200,1700,2000,2200};for(unsigned i=0;i<6;i++){int n=-1;assert(vcom_digits_valid(good[i],&n)&&n==want[i]);}
+ const char*bad[]={NULL,"","089","221","000","-90","9.0","9a0"};for(unsigned i=0;i<8;i++)assert(!vcom_digits_valid(bad[i],NULL));
  char d[4]="";assert(!vcom_pop_digit(d));assert(vcom_push_digit(d,1)&&vcom_push_digit(d,2)&&vcom_push_digit(d,0)&&!vcom_push_digit(d,1));assert(!strcmp(d,"120"));assert(vcom_pop_digit(d)&&!strcmp(d,"12"));
  for(unsigned a=0;a<4;a++)for(unsigned b=0;b<4;b++){key_reads=0;key_error=-1;key_inputs[0]=0xfcff|(a<<8);key_inputs[1]=0xfcff|(b<<8);assert(volume_key_held()==(a!=3&&b!=3));}
  for(int error=0;error<2;error++){key_reads=0;key_error=error;assert(!volume_key_held());}
- set_vcom(600);assert(vcom==3000);set_vcom(900);assert(vcom==900);set_vcom(2000);assert(vcom==2000);set_vcom(3000);assert(vcom==3000);set_vcom(4000);assert(vcom==4000);set_vcom(4001);assert(vcom==4000);set_vcom(899);assert(vcom==4000);
+ set_vcom(600);assert(vcom==1700);set_vcom(900);assert(vcom==900);set_vcom(1700);assert(vcom==1700);set_vcom(2200);assert(vcom==2200);set_vcom(2201);assert(vcom==2200);set_vcom(899);assert(vcom==2200);
  puts("PASS: actual VCOM defaults/range/digits/NVS failures and exact readback, rail-cycle order, volume boot admission and board clamp");}
 '''
 # Compile independently to exercise the actual runtime register path, not a model.

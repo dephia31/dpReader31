@@ -1,5 +1,16 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.0.5-vn · 2026-10-28
+
+Bản cập nhật điều chỉnh điện áp VCOM chuẩn an toàn và tối ưu chu kỳ làm mới bảo vệ tuổi thọ màn hình E-ink:
+
+- **Tối ưu điện áp phân cực VCOM về mức an toàn chuẩn E-Ink (`1700 mV`):**
+  - Đặt điện áp $V_{COM}$ mặc định về `1700 mV` ($-1.7\text{V}$), nằm trọn trong dải khuyến nghị danh định của nhà sản xuất panel E-Ink (1.2V – 2.0V). Mức này mang lại lực điện trường đủ mạnh để lật dứt khoát hạt mực, triệt tiêu ghosting mà không gây ứng suất điện trường quá mức làm suy giảm tuổi thọ màng vi nang.
+  - Khóa trần hiệu chuẩn an toàn `VCOM_MAX_MV` ở `2200 mV` trong driver phần cứng để ngăn ngừa việc cấu hình quá áp gây chai màn hình.
+- **Tối ưu chu kỳ Settle & Clean:**
+  - Điều chỉnh chu kỳ cân bằng toàn trang `settle` (GL16 full) thành **mỗi 4 trang**, vừa triệt tiêu cặn mực vi sai, vừa tiết kiệm 30% pin và bảo vệ màng E-ink bền bỉ lâu dài.
+  - Chu kỳ làm mới toàn phần GC16 đặt ở **mỗi 6 thao tác trang**.
+
 ## dpReader 1.0.4-vn · 2026-10-28
 
 Bản cập nhật quan trọng khắc phục triệt để hiện tượng ghosting (bóng ma / lưu ảnh) trên tấm nền E-ink của Metalio E-INK4 Plus:

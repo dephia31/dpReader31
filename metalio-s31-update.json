@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "1.0.4-vn",
+  "version": "1.0.5-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "e01829ed09bc0bf37647fdcc3bf25a769cbb81e4ffd4229c73212b56759d8825",
-  "size": 3923680,
-  "notes": "dpReader v1.0.4-vn: Khắc phục triệt để hiện tượng ghosting (bóng ma / lưu ảnh); khôi phục điện áp VCOM tối ưu 3000mV; tối ưu chu kỳ cân bằng settle GL16 và làm mới toàn phần GC16; bổ sung tùy chọn làm mới mỗi 1 và 3 trang khi đọc sách."
+  "sha256": "2ef863c4ab5750b2817109b726f5804b33955c6591571111156782c30d8954d5",
+  "size": 3923664,
+  "notes": "dpReader v1.0.5-vn: Điều chỉnh điện áp VCOM chuẩn an toàn tối ưu 1700mV (-1.7V) theo khuyến nghị nhà sản xuất E-Ink; tối ưu chu kỳ settle 4 trang và GC16 6 trang bảo vệ tối đa tuổi thọ màn hình và triệt tiêu ghosting."
 }

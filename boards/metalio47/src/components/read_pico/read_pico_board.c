@@ -10,9 +10,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
-// VCOM mặc định 3000mV cho màn hình ED047TC1 trên Metalio V1.5 (S31).
+// VCOM mặc định 1700mV an toàn tối ưu cho màn hình ED047TC1 trên Metalio V1.5 (S31).
 // Chỉ ghi thanh ghi TPS65185 runtime, không ghi OTP vĩnh viễn.
-static int vcom=3000;
+static int vcom=1700;
 static read_pico_i2c_census_t census;
 void read_pico_epd_restore_lcd(void) {
     const int pins[]={18,19,35,37};
@@ -64,7 +64,7 @@ static void board_deinit(void) { board_off(epd_ctrl_state()); epd_lcd_deinit(); 
 // Runtime VCOM window 0.9..2.0 V, matching the calibration page's 900..2000 mV
 // window. The TPS65185 goes to -5.11 V, but anything outside the vendor-verified
 // window leaves long-term DC imbalance, so larger values are rejected here too.
-static void set_vcom(int mv) { if (mv>=900 && mv<=4000) vcom=mv; }
+static void set_vcom(int mv) { if (mv>=900 && mv<=2200) vcom=mv; }
 static float temperature(void) { return 25; }
 static void no_kickback(epd_ctrl_state_t *s) { (void)s; }
 const EpdBoardDefinition epd_board_read_pico={.init=board_init,.deinit=board_deinit,
