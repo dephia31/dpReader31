@@ -40,7 +40,7 @@
 /// firmware and is the only value verified on shipping hardware. Calibration
 /// window 900..2000 mV.
 #define KIIKO_BOARD_VCOM_IN_NVS 1
-#define KIIKO_BOARD_VCOM_DEFAULT_MV 1200
+#define KIIKO_BOARD_VCOM_DEFAULT_MV 3000
 
 /* ---- 硬件能力 / Hardware capabilities ---- */
 /// Front light (brightness + warmth) driven over I2C; haptics through a GPIO-driven motor.

@@ -676,9 +676,8 @@ static enum EpdDrawError update_display_fast_page_unlocked(EpdiyHighlevelState* 
     use_scan_for(waveform, MODE_GL16);
     epd_poweron();
     epd_hl_waveform(hl, waveform);
-    // 普通子页面与四主页使用同一柔和灰阶，不另加黑白预刷或延迟补刷；其他模式保留原周期。
-    // Ordinary subpages share the roots' soft grayscale in one pass, without BW prepasses or delayed output; other modes retain their cadence.
-    const bool settle = !ordinary && APP_UI_FAST_GL16_SETTLE_EVERY > 0 &&
+    // Settle toàn màn hình định kỳ (GL16 full) giúp triệt tiêu cặn mực vi sai mà không gây chớp đen
+    const bool settle = APP_UI_FAST_GL16_SETTLE_EVERY > 0 &&
                         s_page_refreshes % APP_UI_FAST_GL16_SETTLE_EVERY == 0;
     enum EpdDrawError result = settle ? epd_hl_update_screen_full(hl, MODE_GL16, 25)
                                       : epd_hl_update_screen(hl, MODE_GL16, 25);

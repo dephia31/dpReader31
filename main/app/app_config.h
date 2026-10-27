@@ -46,18 +46,16 @@
 // Count only whole system-page transitions; local controls, dialogs and cover updates do not advance
 // the cleanup cadence. Reading keeps its own configurable full-screen cleanup interval.
 #if KIIKO_BOARD_METALIO47
-#define APP_UI_GC16_EVERY 10
-#define APP_UI_GC16_MIN_INTERVAL_US 5000000LL
+#define APP_UI_GC16_EVERY 5
+#define APP_UI_GC16_MIN_INTERVAL_US 3000000LL
 #else
 #define APP_UI_GC16_EVERY 40
 #endif
-// 非普通子页面的旧灰阶出口每三次做全像素整理；普通模式已改用单次柔和差分，仅保留下面的完整清残影周期。
-// Legacy nonordinary subpage output settles every third page; ordinary uses single soft differences with only the full-cleanup interval below.
-#define APP_UI_FAST_GL16_SETTLE_EVERY 3
-// 全像素灰阶仍不能无限消除累积残影，达到阈值时同步做完整 GC16。
-// Full-pixel gray updates cannot remove unlimited ghosting, so periodically run a synchronous GC16.
+// Cân bằng toàn màn hình định kỳ để triệt tiêu bóng mờ vi sai
+#define APP_UI_FAST_GL16_SETTLE_EVERY 2
+// Toàn bộ điểm ảnh làm mới GC16 định kỳ
 #if KIIKO_BOARD_METALIO47
-#define APP_UI_FAST_GC16_EVERY 10
+#define APP_UI_FAST_GC16_EVERY 5
 #else
 #define APP_UI_FAST_GC16_EVERY 12
 #endif

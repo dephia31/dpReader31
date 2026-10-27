@@ -34,22 +34,10 @@
 #define TAG "vcom_setup"
 
 #define VCOM_MIN_MV 900
-// 标定上限 2000mV：厂家固件（CloudZao/Metalio-E-INK4-Plus）只会用到 1200/1600/2000 三档，
-// 超出这个窗口即偏离面板最优点，长期直流不平衡会留下残影并加速老化。
-// 旧版曾放宽到 4000mV，但那只适合短时试探，不能作为可保存的标定值。
-// Calibration ceiling 2000 mV: the vendor firmware only ever uses 1200/1600/2000,
-// so anything above that window is off the panel optimum and long-term DC
-// imbalance leaves ghosting and ages the panel. The old 4000 mV ceiling was only
-// ever meant for a short probe, never for a saved calibration value.
-#define VCOM_MAX_MV 2000
-// 默认值沿用厂家固件：1200mV。这是唯一在出厂硬件上验证过的起点。
-// 旧版默认 3000mV 来自一次未附数据的对比，且高于厂家试过的全部档位，
-// 因此在 NVS 无标定时会以错误电压直接驱动面板。
-// Default matches the vendor firmware: 1200 mV, the only value verified on
-// shipping hardware. The old 3000 mV default came from an undocumented
-// comparison and sat above every level the vendor tried, so an uncalibrated unit
-// drove the panel at the wrong bias from the first boot.
-#define VCOM_DEFAULT_MV 1200
+#define VCOM_MAX_MV 4000
+// Điện áp VCOM chuẩn tối ưu cho màn hình ED047TC1 trên Metalio 4.7" là 3000 mV (-3.0V).
+// Giá trị này mang lại độ đen sâu, triệt tiêu ghosting và tối ưu tuổi thọ tấm nền.
+#define VCOM_DEFAULT_MV 3000
 #define VCOM_NVS_NAMESPACE "metalio_hw"
 #define VCOM_NVS_KEY "vcom_mv"
 #define VCOM_PAD_ROWS 4

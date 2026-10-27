@@ -6331,11 +6331,7 @@ static app_redraw_t reading_settings_action(app_ctx_t *ctx, uint16_t x, uint16_t
     if (y < reading_settings_top() || ui_rect_hit((EpdRect){36, 1141, 612, 58}, x, y)) {
         s_reader_panel = READER_PANEL_NONE;
     } else if (ui_rect_hit(reading_setting_rect(0), x, y)) {
-#if KIIKO_BOARD_METALIO47
-        static const uint8_t options[] = {0, 5, 10, 15, 20, 30};
-#else
-        static const uint8_t options[] = {5, 10, 15, 30, 0};
-#endif
+        static const uint8_t options[] = {1, 3, 5, 10, 15, 20, 0};
         const unsigned count=sizeof(options)/sizeof(options[0]);
         unsigned next = 0;
         for (unsigned i = 0; i < count; ++i)

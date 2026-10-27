@@ -18,10 +18,7 @@
 #include "kiiko_board_config.h"
 #define READER_TURN_EFFECT_MAX KIIKO_BOARD_READER_TURN_EFFECT_MAX
 static bool reader_full_pages_valid(uint8_t pages) {
-#if KIIKO_BOARD_METALIO47
-    if (pages == 20) return true;
-#endif
-    return pages == 0 || pages == 3 || pages == 5 || pages == 8 || pages == 10 || pages == 15 || pages == 30;
+    return pages == 0 || pages == 1 || pages == 3 || pages == 5 || pages == 8 || pages == 10 || pages == 15 || pages == 20 || pages == 30;
 }
 #include "book/book_font_size.h"
 
