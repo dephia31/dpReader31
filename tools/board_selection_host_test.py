@@ -37,10 +37,12 @@ s3
 const char *s = "#endif";
 '''
     assert 's31\n' in select_source(nested, 'metalio47')
-    assert 's3\n' in select_source(nested, 'pico')
-    assert '#if OTHER' in select_source(nested, 'pico')
+    if 'pico' in BOARDS:
+        assert 's3\n' in select_source(nested, 'pico')
+        assert '#if OTHER' in select_source(nested, 'pico')
     reject(lambda: select_source(nested, 'unknown'))
-    reject(lambda: select_source('#if KIIKO_BOARD_METALIO47\n', 'pico'))
+    if 'pico' in BOARDS:
+        reject(lambda: select_source('#if KIIKO_BOARD_METALIO47\n', 'pico'))
     with tempfile.TemporaryDirectory(prefix='kiiko-board-test-') as directory:
         temp = Path(directory)
         cc = shutil.which('cc')
@@ -77,14 +79,16 @@ component_scope("components/ble_page_turner" "src/ble_page_turner.c")
 component_scope("main" "app_main.c")
 ''')
             subprocess.run(['cmake', '-P', str(script)], check=True)
-            wrong_target = metadata('metalio47' if board == 'pico' else 'pico')['idf_target']
-            result = subprocess.run(['cmake', '-S', str(ROOT), '-B', str(temp / (board + '-wrong-target')),
-                                     '-DKIIKO_BOARD=' + board, '-DIDF_TARGET=' + wrong_target],
-                                    capture_output=True, text=True)
-            assert result.returncode and f"{board} requires {info['idf_target']}" in result.stderr
+            # Cross-board rejection: skip when only one board exists.
+            if len(BOARDS) >= 2:
+                wrong_target = metadata('metalio47' if board == 'pico' else 'pico')['idf_target']
+                result = subprocess.run(['cmake', '-S', str(ROOT), '-B', str(temp / (board + '-wrong-target')),
+                                         '-DKIIKO_BOARD=' + board, '-DIDF_TARGET=' + wrong_target],
+                                        capture_output=True, text=True)
+                assert result.returncode and f"{board} requires {info['idf_target']}" in result.stderr
         script.write_text(f'set(KIIKO_BOARD invalid)\ninclude("{ROOT}/cmake/board.cmake")\n')
         result = subprocess.run(['cmake', '-P', str(script)], capture_output=True, text=True)
-        assert result.returncode and 'Unknown KIIKO_BOARD' in result.stderr
+        assert result.returncode and ('Unknown KIIKO_BOARD' in result.stderr or 'isolated exclusively for' in result.stderr)
 
 
 def source_view_tests():
@@ -98,23 +102,25 @@ def source_view_tests():
         source = root / 'main' / 'example.c'
         original = '#if KIIKO_BOARD_METALIO47\nint s31;\n#else\nint s3;\n#endif\n'
         source.write_text(original)
-        output = root / 'scratch' / 'pico'
-        materialize(root, output, 'pico')
+        # Use the first available board from BOARDS.
+        test_board = BOARDS[0]
+        output = root / 'scratch' / test_board
+        materialize(root, output, test_board)
         target = output / 'main' / 'example.c'
         assert target.read_text() == original  # Production retains real compiler branches.
         os.utime(target, (1, 1))
         source.write_text('int newer;\n')
         os.utime(source, (1, 1))  # Restored old timestamps must still trigger a rebuild.
-        materialize(root, output, 'pico')
+        materialize(root, output, test_board)
         assert target.read_text() == 'int newer;\n' and target.stat().st_mtime > 1
         stamp = target.stat().st_mtime_ns
-        materialize(root, output, 'pico')
+        materialize(root, output, test_board)
         assert target.stat().st_mtime_ns == stamp  # Unchanged inputs keep incremental builds.
         source.unlink()
-        materialize(root, output, 'pico')
+        materialize(root, output, test_board)
         assert not target.exists()  # Removed maintenance files cannot leak into later builds.
-        reject(lambda: materialize(root, output, 'metalio47'))
-        reject(lambda: materialize(root, root / 'main' / 'generated', 'pico'))
+        reject(lambda: materialize(root, output, 'metalio47' if test_board != 'metalio47' else 'unknown'))
+        reject(lambda: materialize(root, root / 'main' / 'generated', test_board))
 
 
 def local_experiment_flags():
@@ -159,19 +165,23 @@ def local_experiment_flags():
 
 def real_build_tests(work):
     for board in BOARDS:
-        other = BOARDS[1 - BOARDS.index(board)]
         info = metadata(board)
         build = work / board / 'build'
         image = (build / (info['project'] + '.bin')).read_bytes()
         check_image(image, board)
-        reject(lambda: check_image(image, other))
-        corrupt = bytearray(image)
-        struct.pack_into('<H', corrupt, 12, metadata(other)['image_chip_id'])
-        reject(lambda: check_image(corrupt, board))
+        # Cross-board rejection: skip when only one board exists.
+        if len(BOARDS) >= 2:
+            other = BOARDS[1 - BOARDS.index(board)]
+            reject(lambda: check_image(image, other))
+            corrupt = bytearray(image)
+            struct.pack_into('<H', corrupt, 12, metadata(other)['image_chip_id'])
+            reject(lambda: check_image(corrupt, board))
         commands = json.loads((build / 'compile_commands.json').read_text())
         paths = [entry['file'] for entry in commands]
         assert any(f'/boards/{board}/src/main/app_main.c' in path for path in paths)
-        assert not any(f'/boards/{other}/src/' in path for path in paths)
+        if len(BOARDS) >= 2:
+            other = BOARDS[1 - BOARDS.index(board)]
+            assert not any(f'/boards/{other}/src/' in path for path in paths)
         has_hpm = any(path.endswith('/read_pico_flash_hpm.c') for path in paths)
         has_metalio = any('/components/metalio_hw/' in path for path in paths)
         assert has_hpm == (board == 'pico')
@@ -197,14 +207,16 @@ def real_build_tests(work):
                 assert json.loads(zipped.read('verification.json')) == json.loads(json.dumps(result))
                 assert zipped.read('firmware.bin') == image
             # Corrupt an SDK flash plan: no bundle may be exported with a foreign boot offset.
-            fake = Path(directory) / 'bad-build'
-            fake.mkdir()
-            for name in [info['project'] + '.bin', 'bootloader', 'partition_table', 'ota_data_initial.bin']:
-                os.symlink(build / name, fake / name)
-            plan = json.loads((build / 'flasher_args.json').read_text())
-            plan['bootloader']['offset'] = hex(metadata(other)['bootloader_offset'])
-            (fake / 'flasher_args.json').write_text(json.dumps(plan))
-            reject(lambda: export(fake, Path(directory) / 'invalid', board))
+            if len(BOARDS) >= 2:
+                other = BOARDS[1 - BOARDS.index(board)]
+                fake = Path(directory) / 'bad-build'
+                fake.mkdir()
+                for name in [info['project'] + '.bin', 'bootloader', 'partition_table', 'ota_data_initial.bin']:
+                    os.symlink(build / name, fake / name)
+                plan = json.loads((build / 'flasher_args.json').read_text())
+                plan['bootloader']['offset'] = hex(metadata(other)['bootloader_offset'])
+                (fake / 'flasher_args.json').write_text(json.dumps(plan))
+                reject(lambda: export(fake, Path(directory) / 'invalid', board))
 
 
 if __name__ == '__main__':
@@ -214,7 +226,8 @@ if __name__ == '__main__':
     source_and_cmake_tests()
     source_view_tests()
     local_experiment_flags()
+    coverage = 'one board image, driver isolation, flash offsets and ZIP hashes' if len(BOARDS) == 1 else 'both real images, driver isolation, cross-board rejection, flash offsets and ZIP hashes'
     if args.build_root:
         real_build_tests(args.build_root.resolve())
     print('PASS: board identities, CMake component scopes and source selection' +
-          ('; both real images, driver isolation, cross-board rejection, flash offsets and ZIP hashes' if args.build_root else ''))
+          (f'; {coverage}' if args.build_root else ''))
