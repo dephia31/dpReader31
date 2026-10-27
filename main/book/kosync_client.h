@@ -45,6 +45,10 @@ esp_err_t kosync_pull_book_progress(const char *file_path, kosync_progress_t *ou
                                     uint16_t *out_chapter, uint32_t *out_byte_off,
                                     bool *has_exact_offset, char *message, size_t message_cap);
 
+/// Đồng bộ 2 chiều tiến độ sách (so sánh và tự động kéo nếu remote mới hơn, hoặc đẩy lên nếu local mới hơn).
+esp_err_t kosync_sync_book(const char *file_path, uint16_t *cur_chapter, uint32_t *cur_byte_off,
+                           uint8_t *cur_pct, bool *pulled_newer, char *message, size_t message_cap);
+
 #ifdef __cplusplus
 }
 #endif

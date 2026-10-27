@@ -146,6 +146,16 @@ esp_err_t kosync_compute_doc_md5(const char *file_path, char out_hex[33]) {
     FILE *f = fopen(file_path, "rb");
     if (!f) return ESP_ERR_NOT_FOUND;
 
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return ESP_FAIL;
+    }
+    long file_size = ftell(f);
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return ESP_FAIL;
+    }
+
     uint8_t *buf = heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!buf) buf = malloc(1024);
     if (!buf) {
@@ -160,6 +170,7 @@ esp_err_t kosync_compute_doc_md5(const char *file_path, char out_hex[33]) {
      */
     for (int i = -1; i <= 10; ++i) {
         long offset = (i < 0) ? 0L : (1024L << (2 * i));
+        if (offset >= file_size) break;
         if (fseek(f, offset, SEEK_SET) != 0) break;
         size_t n = fread(buf, 1, 1024, f);
         if (n > 0) md5_update(&ctx, buf, n);
@@ -375,6 +386,11 @@ esp_err_t kosync_push_book_progress(const char *file_path, const book_progress_t
     cJSON_AddNumberToObject(root, "percentage", pct);
     cJSON_AddStringToObject(root, "device", app_settings_device_name());
     cJSON_AddStringToObject(root, "device_id", device_id);
+
+    time_t now = time(NULL);
+    if (now < 1700000000) now = (time_t)(1730040000 + (esp_timer_get_time() / 1000000ULL));
+    cJSON_AddNumberToObject(root, "timestamp", (double)now);
+
     char *body = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     if (!body) return ESP_ERR_NO_MEM;
@@ -474,15 +490,23 @@ esp_err_t kosync_pull_book_progress(const char *file_path, kosync_progress_t *ou
 
     cJSON_Delete(json);
 
-    /* Phân tích XPointer của KOReader / dpReader: /body/DocFragment[N]/body/p[1].OFFSET */
+    /* Phân tích XPointer của KOReader / dpReader: /body/DocFragment[N]... */
     unsigned frag = 0;
     unsigned long off = 0;
-    if (sscanf(out_remote->progress, "/body/DocFragment[%u]/body/p[1].%lu", &frag, &off) == 2 && frag >= 1) {
+    const char *df = strstr(out_remote->progress, "DocFragment[");
+    if (df && sscanf(df, "DocFragment[%u]", &frag) == 1 && frag >= 1) {
+        if (out_chapter) *out_chapter = (uint16_t)(frag - 1);
+        const char *dot = strrchr(out_remote->progress, '.');
+        if (!dot) dot = strrchr(out_remote->progress, ':');
+        if (dot && *(dot + 1) >= '0' && *(dot + 1) <= '9') {
+            off = strtoul(dot + 1, NULL, 10);
+            if (out_byte_off) *out_byte_off = (uint32_t)off;
+            if (has_exact_offset) *has_exact_offset = true;
+        }
+    } else if (sscanf(out_remote->progress, "/body/DocFragment[%u]/body/p[1].%lu", &frag, &off) == 2 && frag >= 1) {
         if (out_chapter) *out_chapter = (uint16_t)(frag - 1);
         if (out_byte_off) *out_byte_off = (uint32_t)off;
         if (has_exact_offset) *has_exact_offset = true;
-    } else if (sscanf(out_remote->progress, "/body/DocFragment[%u]", &frag) == 1 && frag >= 1) {
-        if (out_chapter) *out_chapter = (uint16_t)(frag - 1);
     }
 
     if (message && message_cap) {
@@ -491,4 +515,52 @@ esp_err_t kosync_pull_book_progress(const char *file_path, kosync_progress_t *ou
                  out_remote->device[0] ? out_remote->device : "KOSync");
     }
     return ESP_OK;
+}
+
+esp_err_t kosync_sync_book(const char *file_path, uint16_t *cur_chapter, uint32_t *cur_byte_off,
+                           uint8_t *cur_pct, bool *pulled_newer, char *message, size_t message_cap) {
+    if (!file_path || !file_path[0] || !cur_chapter || !cur_byte_off || !cur_pct || !pulled_newer) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    *pulled_newer = false;
+
+    if (!app_settings_kosync_user()[0]) {
+        if (message && message_cap) snprintf(message, message_cap, "Chưa đăng nhập KoSync");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // 1. Kéo tiến độ từ máy chủ về kiểm tra
+    kosync_progress_t remote = {0};
+    uint16_t rem_chap = 0;
+    uint32_t rem_off = 0;
+    bool has_exact = false;
+    char pull_msg[96] = {0};
+    esp_err_t pull_err = kosync_pull_book_progress(file_path, &remote, &rem_chap, &rem_off, &has_exact, pull_msg, sizeof(pull_msg));
+
+    if (pull_err == ESP_OK && (remote.percentage > 0.001 || has_exact || rem_chap > 0)) {
+        uint8_t rem_pct = (uint8_t)(remote.percentage * 100.0 + 0.5);
+        if (rem_pct > 100) rem_pct = 100;
+
+        // Nếu máy chủ có tiến độ mới hơn (hoặc tiến độ khác và remote lớn hơn local)
+        if (rem_pct > *cur_pct || (rem_pct != *cur_pct && rem_pct > 0 && remote.timestamp > 0)) {
+            *cur_chapter = rem_chap;
+            *cur_byte_off = rem_off;
+            *cur_pct = rem_pct;
+            *pulled_newer = true;
+            if (message && message_cap) {
+                snprintf(message, message_cap, "Đã đồng bộ từ KoSync: %u%% (%s)",
+                         (unsigned)rem_pct, remote.device[0] ? remote.device : "Thiết bị khác");
+            }
+            return ESP_OK;
+        }
+    }
+
+    // 2. Nếu máy chủ chưa có hoặc tiến độ máy cục bộ mới hơn, đẩy tiến độ lên máy chủ
+    book_progress_t local_prog = {
+        .chapter = *cur_chapter,
+        .byte_off = *cur_byte_off,
+        .pct = *cur_pct,
+    };
+    esp_err_t push_err = kosync_push_book_progress(file_path, &local_prog, (double)*cur_pct / 100.0, message, message_cap);
+    return push_err;
 }

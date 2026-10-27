@@ -212,7 +212,7 @@ static ui_online_fonts_t s_online_fonts;
 #define BOOK_MARGIN_MIN 0
 #define BOOK_MARGIN_MAX 48
 #define BOOK_MARGIN_CHOICES 9
-#define BOOK_TOOL_COUNT 5
+#define BOOK_TOOL_COUNT 6
 #define BOOK_FONT_PAGE 9
 #define BOOKMARK_MAX 24
 #define BOOKMARK_ROWS 6
@@ -2188,11 +2188,12 @@ static void draw_reader_tool_icon(uint8_t* fb, int cx, int cy, int kind, bool se
     // 阅读工具栏图标全部来自 Lucide；已保存的书签用带勾的一档区分未保存。
     // Reader toolbar icons all come from Lucide; a saved bookmark uses the check variant.
     static const ui_icon_t tools[] = {
-        UI_ICON_LIST,          // 0 目录
-        UI_ICON_BOOKMARK,      // 1 书签
-        UI_ICON_CHART_COLUMN,  // 2 阅读统计
-        UI_ICON_BOOK_OPEN,     // 3 阅读设置 / Reading settings
-        UI_ICON_TYPE,          // 4 字体设置
+        UI_ICON_LIST,          // 0 Mục lục
+        UI_ICON_BOOKMARK,      // 1 Đánh dấu
+        UI_ICON_ROTATE_CW,     // 2 Đồng bộ KoSync
+        UI_ICON_CHART_COLUMN,  // 3 Thống kê đọc sách
+        UI_ICON_BOOK_OPEN,     // 4 Cài đặt đọc sách / Reading settings
+        UI_ICON_TYPE,          // 5 Phông chữ
     };
     if (kind < 0 || kind >= (int)(sizeof(tools) / sizeof(tools[0]))) return;
     const ui_icon_t icon = (kind == 1 && selected) ? UI_ICON_BOOKMARK_CHECK : tools[kind];
@@ -3243,13 +3244,13 @@ static void draw_reader_panel(uint8_t* fb) {
     if (s_reader_panel == READER_PANEL_TOOLS) {
         ui_fill_rect_fast((EpdRect){0, 1096, UI_LOCK_WIDTH, 120}, UI_GRAY_WHITE, fb);
         ui_hairline(fb, 1096, 0, UI_LOCK_WIDTH, 0x98);
-        const char* labels[] = {"Mục lục", "Đánh dấu", "Thống kê đọc sách", "Cài đặt đọc sách", "Cài đặt phông chữ"};
+        const char* labels[] = {"Mục lục", "Đánh dấu", "Đồng bộ", "Thống kê", "Cài đặt đọc", "Phông chữ"};
         for (int i = 0; i < BOOK_TOOL_COUNT; ++i) {
             EpdRect rect = tool_rect(i);
             int cx = rect.x + rect.width / 2;
             bool bookmarked = i == 1 && bookmark_is_current();
             draw_reader_tool_icon(fb, cx, 1138, i, bookmarked);
-            ui_text_box(fb,(EpdRect){rect.x+6,1159,rect.width-12,40},20,bookmarked?"Đã lưu dấu":labels[i],EPD_DRAW_ALIGN_CENTER,false);
+            ui_text_box(fb,(EpdRect){rect.x+4,1159,rect.width-8,40},20,bookmarked?"Đã lưu dấu":labels[i],EPD_DRAW_ALIGN_CENTER,false);
         }
     } else if (s_reader_panel == READER_PANEL_FONT_SETTINGS) draw_font_settings(fb);
     else if (s_reader_panel == READER_PANEL_WEIGHT_SETTINGS) draw_weight_settings(fb);
@@ -6496,8 +6497,12 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
             } else if (i == 1) {
                 (void)bookmark_toggle();
             } else if (i == 2) {
-                reader_chapter_jump_begin();
+                app_book_request_kosync(ctx);
+                s_reader_panel = READER_PANEL_NONE;
+                invalidate_prep();
             } else if (i == 3) {
+                reader_chapter_jump_begin();
+            } else if (i == 4) {
                 s_reader_panel = READER_PANEL_REFRESH_SETTINGS;
             } else {
                 s_line_spacing = app_settings_book_line_spacing();
@@ -8231,21 +8236,71 @@ static app_redraw_t reader_jump_chapter(app_ctx_t *ctx, int dir) {
 }
 
 void app_book_request_kosync(app_ctx_t *ctx) {
-    (void)ctx;
-    if (app_settings_kosync_user()[0] && s_text && s_path[0]) {
-        book_progress_t kp = {
-            .file_size = s_file_size,
-            .chapter = (uint16_t)s_chapter,
-            .byte_off = (uint32_t)reader_page_offset(s_page),
-            .px = (uint8_t)s_px,
-            .pct = (uint8_t)percent(s_page),
-        };
-        esp_err_t err = kosync_push_book_progress(s_path, &kp, (double)kp.pct / 100.0, NULL, 0);
-        copy_text(s_reader_notice, sizeof(s_reader_notice), err == ESP_OK ? "Đã đồng bộ KOSync" : "Đồng bộ KOSync thất bại");
-        s_reader_notice_until = esp_timer_get_time() / 1000 + 1800;
-    } else {
+    if (!app_settings_kosync_user()[0]) {
         copy_text(s_reader_notice, sizeof(s_reader_notice), "Chưa đăng nhập tài khoản KOSync");
-        s_reader_notice_until = esp_timer_get_time() / 1000 + 1800;
+        s_reader_notice_until = esp_timer_get_time() / 1000 + 2500;
+        return;
+    }
+
+    if (s_text && s_path[0]) {
+        uint16_t chap = (uint16_t)s_chapter;
+        uint32_t off = (uint32_t)reader_page_offset(s_page);
+        uint8_t pct = (uint8_t)percent(s_page);
+        bool pulled_newer = false;
+        char msg[96] = {0};
+
+        copy_text(s_reader_notice, sizeof(s_reader_notice), "Đang đồng bộ KOSync...");
+        s_reader_notice_until = esp_timer_get_time() / 1000 + 3000;
+
+        esp_err_t err = kosync_sync_book(s_path, &chap, &off, &pct, &pulled_newer, msg, sizeof(msg));
+        if (err == ESP_OK) {
+            if (pulled_newer) {
+                if (chap < book_chapter_count()) {
+                    load_chapter(ctx, chap, off, false);
+                } else if (book_chapter_count() > 0) {
+                    size_t c = (size_t)((double)pct / 100.0 * book_chapter_count());
+                    if (c >= book_chapter_count()) c = book_chapter_count() - 1;
+                    load_chapter(ctx, c, 0, false);
+                }
+                copy_text(s_reader_notice, sizeof(s_reader_notice), msg[0] ? msg : "Đã cập nhật tiến độ KOSync");
+            } else {
+                copy_text(s_reader_notice, sizeof(s_reader_notice), msg[0] ? msg : "Đã lưu tiến độ lên KOSync");
+            }
+        } else {
+            copy_text(s_reader_notice, sizeof(s_reader_notice), msg[0] ? msg : "Đồng bộ KOSync thất bại");
+        }
+        s_reader_notice_until = esp_timer_get_time() / 1000 + 2500;
+        invalidate_prep();
+        return;
+    }
+
+    // Nếu ở ngoài kệ sách: đồng bộ sách gần đây nhất
+    const char *target = NULL;
+    uint32_t max_recent = 0;
+    for (int i = 0; i < s_count; ++i) {
+        if (s_shelf[i].has_progress && s_shelf[i].recent >= max_recent) {
+            max_recent = s_shelf[i].recent;
+            target = s_shelf[i].path;
+        }
+    }
+    if (target && target[0]) {
+        book_progress_t bp = {0};
+        book_progress_load(target, 0, &bp);
+        bool pulled_newer = false;
+        char msg[96] = {0};
+        esp_err_t err = kosync_sync_book(target, &bp.chapter, &bp.byte_off, &bp.pct, &pulled_newer, msg, sizeof(msg));
+        if (err == ESP_OK && pulled_newer) {
+            book_progress_save(target, &bp);
+            for (int i = 0; i < s_count; ++i) {
+                if (!strcmp(s_shelf[i].path, target)) {
+                    s_shelf[i].pct = bp.pct;
+                    s_shelf[i].chapter = bp.chapter;
+                    break;
+                }
+            }
+        }
+        copy_text(s_reader_notice, sizeof(s_reader_notice), msg[0] ? msg : (err == ESP_OK ? "Đã đồng bộ KOSync" : "Đồng bộ KOSync thất bại"));
+        s_reader_notice_until = esp_timer_get_time() / 1000 + 2500;
     }
 }
 

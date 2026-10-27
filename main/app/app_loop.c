@@ -181,11 +181,11 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
     if(full&&s_quick.open){
         // 复用合成帧，只还原按压键；不重排底页或重算玻璃。/ Reuse the composed frame, restoring pressed keys without re-rendering or reblurring.
 #if KIIKO_BOARD_METALIO47
-        static const unsigned bits[]={1u,2u,0u,8u};
+        static const unsigned bits[]={1u,2u,0u,0u,8u};
 #else
         static const unsigned bits[]={1u,2u,0u,0u};
 #endif
-        for(int i=0;i<4;++i){
+        for(int i=0;i<UI_QUICK_BUTTON_COUNT;++i){
             bool active=(status&bits[i])!=0,was_active=(s_quick_status&bits[i])!=0;
             if(i==s_quick_pressed||active!=was_active){
                 EpdRect dirty;(void)ui_quick_menu_draw_button(ctx->fb,i,active,false,&dirty);
@@ -283,8 +283,8 @@ static void quick_buttons_present(app_ctx_t *ctx,const app_desc_t *current) {
 #if KIIKO_BOARD_METALIO47
     unsigned status=quick_status(),changed=(status^s_quick_status)&11u;
     int pressed=ui_quick_menu_pressed(&s_quick);EpdRect dirty={0};
-    static const unsigned bits[]={1u,2u,0u,8u};
-    for(unsigned i=0;i<4;++i)if((changed&bits[i])||((pressed==(int)i)!=(s_quick_pressed==(int)i))) {
+    static const unsigned bits[]={1u,2u,0u,0u,8u};
+    for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i)if((changed&bits[i])||((pressed==(int)i)!=(s_quick_pressed==(int)i))) {
         EpdRect r;if(ui_quick_menu_draw_button(ctx->fb,i,(status&bits[i])!=0,pressed==(int)i,&r))dirty=quick_join(dirty,r);
 #else
     unsigned status=quick_status();
@@ -309,7 +309,7 @@ static void quick_buttons_present(app_ctx_t *ctx,const app_desc_t *current) {
         if(level==s_quick_slider_level[i])value=s_quick_slider_drawn[i];
         // 拖动时保留原始像素位置，PWM值未跨档也让填充边缘跟手；松手不额外定稿。
         // Track raw drag pixels even within one PWM step; releasing adds no settle scan.
-        if(s_quick.hit==(int)(4+i) && (s_quick.tracking || s_quick_slider_dirty&(1u<<i)))
+        if(s_quick.hit==(int)(UI_QUICK_BUTTON_COUNT+i) && (s_quick.tracking || s_quick_slider_dirty&(1u<<i)))
             value=(unsigned)s_quick.slider_position;
         s_quick_slider_level[i]=level;
         if(value==s_quick_slider_drawn[i])continue;
@@ -1222,6 +1222,11 @@ void app_loop_run(const app_loop_config_t* config) {
                     else {ble_pt_cancel_recent();ble_pt_sync(false);}
                 } else if (action == UI_QUICK_FULL) quick_dismiss(&ctx, current, true);
 #if KIIKO_BOARD_METALIO47
+                else if (action == UI_QUICK_KOSYNC) {
+                    quick_dismiss(&ctx, current, false);
+                    extern void app_book_request_kosync(app_ctx_t *ctx);
+                    app_book_request_kosync(&ctx);
+                }
                 else if(action==UI_QUICK_FRONTLIGHT) {
                     metalio_frontlight_toggle();
                 } else if(action==UI_QUICK_BRIGHTNESS || action==UI_QUICK_WARMTH) {

@@ -16,7 +16,7 @@
 enum { KEY_SIDE=2*UI_QUICK_RADIUS, KEY_BYTES=KEY_SIDE*KEY_SIDE/2, TOP_BYTES=UI_LOCK_WIDTH*UI_QUICK_HEIGHT/2 };
 static uint8_t *s_underlay,*s_key_pixels,*s_frame;
 static int s_rotation;
-static const ui_icon_t icons[]={UI_ICON_WIFI,UI_ICON_BLUETOOTH,UI_ICON_REFRESH_CW,UI_ICON_LIGHTBULB};
+static const ui_icon_t icons[]={UI_ICON_WIFI,UI_ICON_BLUETOOTH,UI_ICON_ROTATE_CW,UI_ICON_REFRESH_CW,UI_ICON_LIGHTBULB};
 static EpdRect key_rect(unsigned i) { return (EpdRect){UI_QUICK_CENTER_X(i)-UI_QUICK_RADIUS,UI_QUICK_CENTER_Y(i)-UI_QUICK_RADIUS,KEY_SIDE,KEY_SIDE}; }
 EpdRect ui_quick_button_rect(unsigned i) { return key_rect(i); }
 void ui_quick_menu_end(void) { heap_caps_free(s_underlay);heap_caps_free(s_key_pixels);s_underlay=s_key_pixels=s_frame=NULL; }
@@ -73,13 +73,13 @@ static void solid_key(uint8_t *fb,unsigned i) {
     epd_draw_circle(UI_QUICK_CENTER_X(i),UI_QUICK_CENTER_Y(i),UI_QUICK_RADIUS-1,0x60,fb);
 }
 bool ui_quick_menu_draw_button(uint8_t *fb,unsigned i,bool enabled,bool pressed,EpdRect *dirty) {
-    if(!fb||!dirty||i>=4)return false;
+    if(!fb||!dirty||i>=UI_QUICK_BUTTON_COUNT)return false;
     EpdRect r=key_rect(i);int cx=UI_QUICK_CENTER_X(i),cy=UI_QUICK_CENTER_Y(i),rad=UI_QUICK_RADIUS;
     if(s_key_pixels&&s_frame==fb&&s_rotation==epd_get_rotation())restore_tile(fb,r,s_key_pixels+i*KEY_BYTES);else solid_key(fb,i);
     // 与Pico相同：启用只改变状态点，保留原玻璃底图和黑色图标。
     // Like Pico, activation changes only the badge, retaining refracted glass and the black icon.
-    ui_draw_icon(fb,cx,cy,44,icons[i],UI_GRAY_BLACK);
-    if(enabled){epd_fill_circle(cx+24,cy-24,5,UI_GRAY_WHITE,fb);epd_draw_circle(cx+24,cy-24,5,0x50,fb);}
+    ui_draw_icon(fb,cx,cy,40,icons[i],UI_GRAY_BLACK);
+    if(enabled){epd_fill_circle(cx+22,cy-22,5,UI_GRAY_WHITE,fb);epd_draw_circle(cx+22,cy-22,5,0x50,fb);}
     if(pressed){epd_draw_circle(cx,cy,rad-7,UI_GRAY_BLACK,fb);epd_draw_circle(cx,cy,rad-8,UI_GRAY_BLACK,fb);}
 #else
 bool ui_quick_menu_draw_button(uint8_t *fb,int button,bool active,bool pressed,EpdRect *dirty) {
@@ -208,7 +208,7 @@ void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool soften_text) {
     EpdRect panel={18,88,UI_LOCK_WIDTH-36,280};
     ui_fill_round_rect(fb,panel,32,UI_GRAY_WHITE);
     ui_draw_control_frame(fb,panel,32,0x50);
-    for(unsigned i=0;i<4;++i){solid_key(fb,i);}
+    for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i){solid_key(fb,i);}
     // Allocate key snapshots after every glass workspace has been released.
 #else
     if(!fb||epd_rotated_display_width()<UI_LOCK_WIDTH||epd_rotated_display_height()<UI_QUICK_HEIGHT)return;
@@ -225,10 +225,10 @@ void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool soften_text) {
     // 玻璃工作区已释放，再保存四圆键，峰值不叠加；不包含可变化的状态点和按压环。
     // Release glass workspaces before saving four keys, excluding mutable badges and press rings from the baseline.
 #endif
-    s_key_pixels=heap_caps_malloc(4*KEY_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    s_key_pixels=heap_caps_malloc(UI_QUICK_BUTTON_COUNT*KEY_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
 #if KIIKO_BOARD_METALIO47
-    if(s_key_pixels)for(unsigned i=0;i<4;++i)save_tile(fb,key_rect(i),s_key_pixels+i*KEY_BYTES);
-    for(unsigned i=0;i<4;++i){EpdRect dirty;ui_quick_menu_draw_button(fb,i,(i==0&&wifi)||(i==1&&bluetooth)||(i==3&&frontlight),false,&dirty);}
+    if(s_key_pixels)for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i)save_tile(fb,key_rect(i),s_key_pixels+i*KEY_BYTES);
+    for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i){EpdRect dirty;ui_quick_menu_draw_button(fb,i,(i==0&&wifi)||(i==1&&bluetooth)||(i==4&&frontlight),false,&dirty);}
     ui_quick_menu_draw_slider(fb,false,ui_quick_brightness_position(brightness));ui_quick_menu_draw_slider(fb,true,warmth);
     ui_fill_round_rect(fb,(EpdRect){UI_LOCK_WIDTH/2-26,UI_QUICK_HEIGHT-24,52,6},3,0x70);
 #else

@@ -13,10 +13,21 @@
 #define UI_QUICK_SWIPE_PX 72
 #if KIIKO_BOARD_METALIO47
 #define UI_QUICK_HEIGHT 384
-#define UI_QUICK_CENTER_X(i) (100 + ((i) % 2) * 144)
-#define UI_QUICK_CENTER_Y(i) (152 + ((i) / 2) * 132)
-#define UI_QUICK_RADIUS 48
-#define UI_QUICK_HIT_RADIUS 58
+#define UI_QUICK_BUTTON_COUNT 5
+static inline int ui_quick_center_x(unsigned i) {
+    if (i == 0) return 76;
+    if (i == 1) return 186;
+    if (i == 2) return 296;
+    if (i == 3) return 131;
+    return 241;
+}
+static inline int ui_quick_center_y(unsigned i) {
+    return (i < 3) ? 152 : 284;
+}
+#define UI_QUICK_CENTER_X(i) ui_quick_center_x(i)
+#define UI_QUICK_CENTER_Y(i) ui_quick_center_y(i)
+#define UI_QUICK_RADIUS 42
+#define UI_QUICK_HIT_RADIUS 50
 #define UI_QUICK_FILL_DARK 0x44
 #define UI_QUICK_SLIDER_X(warmth) ((warmth) ? 514 : 368)
 #define UI_QUICK_SLIDER_WIDTH 116
@@ -25,6 +36,7 @@
 #define UI_QUICK_SLIDER_RANGE (UI_QUICK_SLIDER_Y1-UI_QUICK_SLIDER_Y0)
 #include "ui_quick_brightness.h"
 #else
+#define UI_QUICK_BUTTON_COUNT 4
 #define UI_QUICK_HEIGHT 264
 #define UI_QUICK_CIRCLE_Y 156
 #define UI_QUICK_RADIUS 54
@@ -34,7 +46,7 @@
 typedef enum {
     UI_QUICK_NONE, UI_QUICK_OPEN, UI_QUICK_CLOSE,
 #if KIIKO_BOARD_METALIO47
-    UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_FULL, UI_QUICK_FRONTLIGHT,
+    UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_KOSYNC, UI_QUICK_FULL, UI_QUICK_FRONTLIGHT,
     UI_QUICK_BRIGHTNESS, UI_QUICK_WARMTH, UI_QUICK_LIGHT_COMMIT,
 #else
     UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_FULL, UI_QUICK_LOCK,
