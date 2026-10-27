@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "1.0.2-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "4918bd46cda013222e013b1fff4e4eed822df0f65c1b4597202ee2e8b12bbb1c",
+  "size": 3918960,
+  "notes": "dpReader v1.0.2-vn: Hỗ trợ toàn diện phông chữ OTF/TTF trên SD card, nạp CFF vào PSRAM, mở rộng 128 bảng SFNT, quét thư mục con; chuẩn hóa dấu tiếng Việt NFD->NFC thời gian thực và nâng trần metric tránh cắt dấu chữ hoa."
+}

@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "1.0.2-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "fbf97d53bbc67eb5d39e28313a92abaea9330dd16e2f557bc26fc4904e110c08",
+  "size": 3921536,
+  "notes": "dpReader v1.0.2-vn: Sửa lỗi đồng bộ KoSync hai chiều (tự động so sánh tiến độ, bổ sung timestamp chuẩn KOReader), thêm nút đồng bộ KoSync trên Quick Settings (bảng điều khiển vuốt từ trên xuống) và thanh công cụ Menu đọc sách."
+}

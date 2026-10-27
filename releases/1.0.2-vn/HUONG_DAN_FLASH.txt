@@ -1,0 +1,31 @@
+# Hướng dẫn nạp firmware dpReader 1.0.2-vn cho Metalio E-ink 4 Plus
+
+## Phương pháp 1: Nạp qua Web Flasher trực tiếp trên trình duyệt (Khuyên dùng)
+- Truy cập trang Web Flasher: https://dephia31.github.io/dpReader31/
+- Cắm máy vào cổng USB máy tính.
+- Chọn "Cập nhật ứng dụng (Khuyên dùng · v1.0.2-vn)" và bấm "Nạp Firmware".
+- Chọn cổng serial và chờ thanh tiến trình chạy hoàn tất 100%.
+
+## Phương pháp 2: Nạp tự động qua Script (USB)
+- Sử dụng script tự động: `./flash_firmware.sh` (tự động chọn chip `esp32s31`, baudrate 460800 và nạp offset 0x10000 an toàn giữ NVS).
+
+## Phương pháp 3: Nạp thủ công bằng esptool.py
+```bash
+# Nạp cập nhật ứng dụng tại 0x10000 (Giữ nguyên cài đặt, mật khẩu, VCOM):
+esptool.py --chip esp32s31 -b 460800 write_flash 0x10000 releases/dpReader_metalio47_firmware.bin
+
+# Nạp toàn bộ flash từ 0x0 (Dùng khi cứu máy bị treo bootloader):
+esptool.py --chip esp32s31 -b 460800 write_flash 0x0 releases/dpReader_metalio47_full.bin
+```
+
+## Phương pháp 4: Cập nhật qua thẻ nhớ TF / microSD
+1. Sao chép file `releases/dpReader_metalio47_firmware.bin` vào thẻ nhớ TF.
+2. Đổi tên file phù hợp:
+   - Từ ROM gốc nhà sản xuất (CloudZao): đổi tên thành `Metalio-E-Ink4-Plus.bin` (khởi động lại máy sẽ tự báo nâng cấp).
+   - Từ Kiikoread: đổi tên thành `Metalio-S31-update.bin` (vào Cài đặt -> Cập nhật hệ thống -> Nâng cấp thẻ TF).
+   - Nếu máy đã chạy dpReader: giữ nguyên tên, mở "Tệp" (Quản lý tệp) -> chạm 2 lần vào file .bin để cập nhật.
+
+## Phương pháp 5: Cập nhật OTA trực tuyến qua Wi-Fi
+- Bật Wi-Fi trên máy đọc sách.
+- Vào **Cài đặt -> Hệ thống -> Cập nhật hệ thống -> Kiểm tra cập nhật qua mạng**.
+- Máy sẽ tự động nhận diện bản `v1.0.2-vn`, tải về và cài đặt tự động.
