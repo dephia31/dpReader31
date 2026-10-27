@@ -183,6 +183,9 @@ void app_settings_set_reader_key_preset(unsigned preset);
 /// 旧长按设置API保留用于历史备份兼容。/ Retained legacy hold APIs for historical backup compatibility.
 bool app_settings_reader_hold_refresh(void);
 void app_settings_set_reader_hold_refresh(bool on);
+/// 0: trái/phải, 1: trên/dưới, 2: vuốt/bấm chuyển, chỉ vuốt lùi
+uint8_t app_settings_reader_turn_mode(void);
+void app_settings_set_reader_turn_mode(uint8_t mode);
 /// 上1/3与下2/3轻点分区；默认左右各半。/ Upper 1/3 and lower 2/3 tap regions; default horizontal halves.
 bool app_settings_reader_vertical_turn(void);
 void app_settings_set_reader_vertical_turn(bool on);

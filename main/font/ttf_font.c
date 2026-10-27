@@ -120,6 +120,10 @@ static void ttf_free(void* ptr, void* userdata) {
 static const char* TAG = "ttf_font";
 
 static const char* const k_font_dirs[] = {
+    "/sdcard/fonts",
+    "/sdcard/font",
+    "/flash/fonts",
+    "/sdcard/books/fonts",
     "/sdcard/assets/fonts",
     NULL,
 };

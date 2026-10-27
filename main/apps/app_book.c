@@ -2757,7 +2757,9 @@ static void draw_reading_settings(uint8_t* fb) {
     draw_reading_card(fb, 0, "Làm mới toàn trang", interval, true);
     draw_reading_card(fb, 1, "Hiệu ứng lật trang", app_settings_reader_turn_effect()==2?"Đen trắng nhanh":
         app_settings_reader_turn_effect()?"Sóng nước":"Thường",true);
-    draw_reading_card(fb, 2, "Chế độ lật trang", app_settings_reader_vertical_turn() ? "Lật trang trên/dưới" : "Lật trang trái/phải", false);
+    const char *turn_label = app_settings_reader_turn_mode() == 1 ? "Lật trang trên/dưới" :
+                             app_settings_reader_turn_mode() == 2 ? "Chuyển: Vuốt/Bấm · Lùi: Chỉ vuốt" : "Lật trang trái/phải";
+    draw_reading_card(fb, 2, "Chế độ lật trang", turn_label, false);
     draw_reading_toggle(fb, 0, "Lật trang bằng nút nguồn", NULL, app_settings_reader_power_turn());
     draw_reading_card(fb, 4, "Điều khiển phím", "Tùy chỉnh 3 phím", false);
     draw_reading_toggle(fb, 1, "Toàn màn hình", NULL, app_settings_reader_immersive());
@@ -2770,36 +2772,47 @@ static void draw_reading_settings(uint8_t* fb) {
 static void draw_turn_settings(uint8_t *fb) {
     draw_sheet(fb, 270, "Chế độ lật trang");
     draw_sheet_back(fb, 270);
-    bool vertical = app_settings_reader_vertical_turn();
-    for (int i = 0; i < 2; ++i) {
-        int y = 370 + i * 322;
-        bool selected = vertical == (i != 0);
-        EpdRect card = {36, y, 612, 292};
-        ui_fill_round_rect(fb, card, 22, selected ? 0xe0 : 0xf0);
-        ui_draw_control_frame(fb, card, 22, 0x50);
-        ui_draw_control_frame(fb, (EpdRect){37, y + 1, 610, 290}, 21, 0x50);
-        EpdRect diagram = {64, y + 37, 182, 220};
+    uint8_t turn_mode = app_settings_reader_turn_mode();
+    for (int i = 0; i < 3; ++i) {
+        int y = 356 + i * 230;
+        bool selected = turn_mode == i;
+        EpdRect card = {36, y, 612, 214};
+        ui_fill_round_rect(fb, card, 20, selected ? 0xe0 : 0xf0);
+        ui_draw_control_frame(fb, card, 20, 0x50);
+        ui_draw_control_frame(fb, (EpdRect){37, y + 1, 610, 212}, 19, 0x50);
+        EpdRect diagram = {56, y + 20, 140, 174};
         ui_fill_round_rect(fb, diagram, 12, UI_GRAY_WHITE);
         ui_draw_control_frame(fb, diagram, 12, 0x58);
-        if (i) {
-            ui_hairline(fb, diagram.y + 73, 65, 180, 0x58);
-            reader_panel_text_vc(fb, 155, diagram.y + 36, 21, "Trang trước", EPD_DRAW_ALIGN_CENTER, false);
-            reader_panel_text_vc(fb, 155, diagram.y + 147, 21, "Trang sau", EPD_DRAW_ALIGN_CENTER, false);
+        if (i == 1) {
+            ui_hairline(fb, diagram.y + 58, 57, 138, 0x58);
+            reader_panel_text_vc(fb, diagram.x + 70, diagram.y + 29, 19, "Trang trước", EPD_DRAW_ALIGN_CENTER, false);
+            reader_panel_text_vc(fb, diagram.x + 70, diagram.y + 116, 19, "Trang sau", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_box(fb, (EpdRect){216, y + 20, 375, 38}, 27, "Lật trang trên/dưới", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){216, y + 68, 375, 34}, 21, "1/3 trên: Trang trước", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){216, y + 104, 375, 34}, 21, "2/3 dưới: Trang sau", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){216, y + 144, 375, 34}, 19, "Vuốt lên/xuống để lật trang", EPD_DRAW_ALIGN_LEFT, false);
+        } else if (i == 2) {
+            ui_text_box(fb, (EpdRect){diagram.x + 6, diagram.y + 24, 128, 32}, 19, "Chuyển trang", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_box(fb, (EpdRect){diagram.x + 6, diagram.y + 58, 128, 32}, 17, "Bấm / Vuốt", EPD_DRAW_ALIGN_CENTER, false);
+            ui_hairline(fb, diagram.y + 96, 57, 138, 0x58);
+            ui_text_box(fb, (EpdRect){diagram.x + 6, diagram.y + 114, 128, 32}, 17, "Lùi: Chỉ vuốt", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_box(fb, (EpdRect){216, y + 20, 375, 38}, 27, "Chuyển: Vuốt/Bấm · Lùi: Chỉ vuốt", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){216, y + 68, 375, 34}, 21, "Bấm bất kỳ hoặc vuốt: Trang sau", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){216, y + 104, 375, 34}, 21, "Vuốt sang phải/xuống: Trang trước", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){216, y + 144, 375, 34}, 19, "Không bị lùi trang khi vô tình chạm", EPD_DRAW_ALIGN_LEFT, false);
         } else {
-            ui_fill_rect_fast((EpdRect){155, diagram.y + 1, 1, 218}, 0x58, fb);
-            ui_text_box(fb,(EpdRect){110-39,diagram.y+94-15,78,30},21,"Trang",EPD_DRAW_ALIGN_CENTER,false);
-            ui_text_box(fb,(EpdRect){110-39,diagram.y+126-15,78,30},21,"trước",EPD_DRAW_ALIGN_CENTER,false);
-            ui_text_box(fb,(EpdRect){201-39,diagram.y+94-15,78,30},21,"Trang",EPD_DRAW_ALIGN_CENTER,false);
-            ui_text_box(fb,(EpdRect){201-39,diagram.y+126-15,78,30},21,"sau",EPD_DRAW_ALIGN_CENTER,false);
+            ui_fill_rect_fast((EpdRect){diagram.x + 70, diagram.y + 1, 1, 172}, 0x58, fb);
+            ui_text_box(fb, (EpdRect){diagram.x + 4, diagram.y + 70, 62, 30}, 19, "Trước", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_box(fb, (EpdRect){diagram.x + 74, diagram.y + 70, 62, 30}, 19, "Sau", EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_box(fb, (EpdRect){216, y + 20, 375, 38}, 27, "Lật trang trái/phải", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){216, y + 68, 375, 34}, 21, "1/2 trái: Trang trước", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){216, y + 104, 375, 34}, 21, "1/2 phải: Trang sau", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){216, y + 144, 375, 34}, 19, "Vuốt trái/phải đều lật được", EPD_DRAW_ALIGN_LEFT, false);
         }
-        ui_text_box(fb,(EpdRect){274,y+43,350,44},32,i ? "Lật trang trên/dưới" : "Lật trang trái/phải",EPD_DRAW_ALIGN_LEFT,false);
-        ui_text_box(fb,(EpdRect){274,y+112,350,44},23,i ? "1/3 trên: Trang trước" : "1/2 trái: Trang trước",EPD_DRAW_ALIGN_LEFT,false);
-        ui_text_box(fb,(EpdRect){274,y+158,350,44},23,i ? "2/3 dưới: Trang sau" : "1/2 phải: Trang sau",EPD_DRAW_ALIGN_LEFT,false);
-        ui_text_box(fb,(EpdRect){274,y+213,350,44},21,"Vuốt trái hoặc phải đều lật trang được",EPD_DRAW_ALIGN_LEFT,false);
-        epd_draw_circle(610, y + 61, 12, 0x38, fb);
-        if (selected) epd_fill_circle(610, y + 61, 7, UI_GRAY_BLACK, fb);
+        epd_draw_circle(610, y + 40, 12, 0x38, fb);
+        if (selected) epd_fill_circle(610, y + 40, 7, UI_GRAY_BLACK, fb);
     }
-    reader_panel_text_vc(fb, 342, 1051, 21, "Nhấn đúp giữa màn hình để bật/tắt toàn màn hình", EPD_DRAW_ALIGN_CENTER, false);
+    reader_panel_text_vc(fb, 342, 1076, 21, "Nhấn đúp giữa màn hình để bật/tắt toàn màn hình", EPD_DRAW_ALIGN_CENTER, false);
     ui_fill_round_rect(fb, (EpdRect){36, 1141, 612, 58}, 20, UI_GRAY_BLACK);
     reader_panel_text_vc(fb, 342, 1170, 26, "Xong", EPD_DRAW_ALIGN_CENTER, true);
 }
@@ -6592,9 +6605,9 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
         else if (ui_rect_hit((EpdRect){36, 299, 56, 56}, x, y)) s_reader_panel = READER_PANEL_REFRESH_SETTINGS;
         else if (ui_rect_hit((EpdRect){36, 1141, 612, 58}, x, y)) s_reader_panel = READER_PANEL_REFRESH_SETTINGS;
         else {
-            for (int i = 0; i < 2; ++i) {
-                if (!ui_rect_hit((EpdRect){36, 370 + i * 322, 612, 292}, x, y)) continue;
-                app_settings_set_reader_vertical_turn(i != 0);
+            for (int i = 0; i < 3; ++i) {
+                if (!ui_rect_hit((EpdRect){36, 356 + i * 230, 612, 214}, x, y)) continue;
+                app_settings_set_reader_turn_mode((uint8_t)i);
                 invalidate_prep();
                 return APP_REDRAW_PAGE;
             }
@@ -7321,12 +7334,13 @@ static app_redraw_t action_at(app_ctx_t* ctx, uint16_t x, uint16_t y) {
         // 点在插图上时同样延后单击：只有这样才能把双击插图和单击翻页分开。
         // A tap on an illustration defers the single tap too; that is the only way a double tap
         // on the image can be told apart from a page turn.
+        uint8_t turn_mode = app_settings_reader_turn_mode();
         int target = (reader_zoom_mode() || reader_page_image_hit(x, y))
             ? book_reader_tap_feed_any(&s_reader_tap, tap_area, x, y,
-                                       app_settings_reader_vertical_turn(),
+                                       turn_mode == 1,
                                        app_settings_book_vertical(), ctx->now_ms)
             : book_reader_tap_feed(&s_reader_tap, tap_area, x, y,
-                                   app_settings_reader_vertical_turn(),
+                                   turn_mode == 1,
                                    app_settings_book_vertical(), ctx->now_ms);
         if (target == BOOK_READER_TAP_FULLSCREEN) {
             // 整页插图：双击以点到的那一点为中心放大到 2 倍，再双击回到原始大小；
@@ -7346,7 +7360,10 @@ static app_redraw_t action_at(app_ctx_t* ctx, uint16_t x, uint16_t y) {
             }
             return toggle_reader_fullscreen(ctx);
         }
-        if (target) return turn_page(ctx, target);
+        if (target) {
+            if (turn_mode == 2 && (target == 1 || target == -1)) target = 1;
+            return turn_page(ctx, target);
+        }
         return APP_REDRAW_NONE;
     }
     if (s_view == SHELF) {
@@ -7705,11 +7722,17 @@ static bool reader_tools_swipe(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     pause_reader_prep();
     return true;
 }
-static int reader_swipe_direction(ui_gesture_type_t type, bool vertical) {
+static int reader_swipe_direction(ui_gesture_type_t type, uint8_t turn_mode) {
     int direction = 0;
-    if (type == UI_GESTURE_SWIPE_L || (vertical && type == UI_GESTURE_SWIPE_U)) direction = 1;
-    else if (type == UI_GESTURE_SWIPE_R || (vertical && type == UI_GESTURE_SWIPE_D)) direction = -1;
-    if (direction && !vertical && app_settings_book_vertical()) direction = -direction;
+    if (turn_mode == 2) {
+        if (type == UI_GESTURE_SWIPE_L || type == UI_GESTURE_SWIPE_U) direction = 1;
+        else if (type == UI_GESTURE_SWIPE_R || type == UI_GESTURE_SWIPE_D) direction = -1;
+    } else {
+        bool vertical = turn_mode == 1;
+        if (type == UI_GESTURE_SWIPE_L || (vertical && type == UI_GESTURE_SWIPE_U)) direction = 1;
+        else if (type == UI_GESTURE_SWIPE_R || (vertical && type == UI_GESTURE_SWIPE_D)) direction = -1;
+    }
+    if (direction && turn_mode != 1 && app_settings_book_vertical()) direction = -direction;
     return direction;
 }
 
@@ -8156,7 +8179,7 @@ static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) 
     if (!s_clear_confirm && !s_scan_pending) {
         if (s_view == READING && (!s_toolbar || (s_reader_panel == READER_PANEL_TOOLS && ev->y0 < 1096)) &&
             ui_rect_hit(body_rect(), ev->x0, ev->y0)) {
-            int direction = reader_swipe_direction(ev->type, app_settings_reader_vertical_turn());
+            int direction = reader_swipe_direction(ev->type, app_settings_reader_turn_mode());
             if (direction) { ctx->user_activity = true; return turn_page(ctx, direction); }
         } else if (s_view == SHELF && (ev->type == UI_GESTURE_SWIPE_L || ev->type == UI_GESTURE_SWIPE_R)) {
             app_redraw_t result = shelf_turn_page(ctx, ev->type == UI_GESTURE_SWIPE_L ? 1 : -1);
@@ -8418,7 +8441,10 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
     if (s_view != READING || (s_toolbar && s_reader_panel != READER_PANEL_TOOLS) || s_clear_confirm || ctx->consumed) s_reader_tap.pending = false;
     else {
         int tap = book_reader_tap_tick(&s_reader_tap, ctx->now_ms, ctx->touch && ctx->touch->touched);
-        if (tap) return turn_page(ctx, tap);
+        if (tap) {
+            if (app_settings_reader_turn_mode() == 2 && (tap == 1 || tap == -1)) tap = 1;
+            return turn_page(ctx, tap);
+        }
     }
     track_ticket_stats(ctx);
     if (s_view == SEARCH || s_view == EDIT) {

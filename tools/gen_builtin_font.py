@@ -123,13 +123,14 @@ def copy_glyphs_from(dst_font, src_path: Path, cps: list[int]) -> None:
 
 def default_src() -> Path:
     for path in (
+        ROOT / "main/assets/Bitter-Medium.ttf",
         Path("/usr/share/fonts/truetype/noto/NotoSans-Medium.ttf"),
         ROOT / "sdcard/fonts/Hei.ttf",
         ROOT / "flash/fonts/Hei.ttf",
     ):
         if path.is_file():
             return path
-    return Path("/usr/share/fonts/truetype/noto/NotoSans-Medium.ttf")
+    return ROOT / "main/assets/Bitter-Medium.ttf"
 
 
 def build_vietnamese_builtin(src: Path, text: str, dest: Path) -> int:
@@ -175,10 +176,10 @@ def build_vietnamese_builtin(src: Path, text: str, dest: Path) -> int:
         copy_glyphs_from(f_base, existing_cjk_backup, needed_cps)
 
     for name_id, value in (
-        (1, "Noto Sans"),
+        (1, "Bitter"),
         (2, "Medium"),
-        (4, "Noto Sans Medium"),
-        (6, "NotoSans-Medium"),
+        (4, "Bitter Medium"),
+        (6, "Bitter-Medium"),
     ):
         f_base["name"].setName(value, name_id, 3, 1, 0x409)
 

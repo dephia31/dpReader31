@@ -161,7 +161,7 @@ static bool s_reader_hold_refresh;
 static const char *s_reader_key_names[] = {"rd_key_l", "rd_key_m", "rd_key_r"};
 static uint8_t s_reader_hold_action = APP_READER_KEY_HOME;
 static uint8_t s_reader_keys[3] = {APP_READER_KEY_PREV, APP_READER_KEY_TOOLS, APP_READER_KEY_NEXT};
-static bool s_reader_vertical_turn;
+static uint8_t s_reader_turn_mode = 0;
 static bool s_ble_turner;
 #if KIIKO_BOARD_METALIO47
 static app_ai_action_t s_ai_short=APP_AI_REFRESH;
@@ -371,7 +371,7 @@ void app_settings_init(void) {
         s_reader_keys[0] == APP_READER_KEY_PREV && s_reader_keys[1] == APP_READER_KEY_TOOLS &&
         s_reader_keys[2] == APP_READER_KEY_NEXT;
     uint8_t vertical_turn = 0;
-    if (nvs_get_u8(h, NVS_KEY_VERTICAL_TURN, &vertical_turn) == ESP_OK) s_reader_vertical_turn = vertical_turn == 1;
+    if (nvs_get_u8(h, NVS_KEY_VERTICAL_TURN, &vertical_turn) == ESP_OK) s_reader_turn_mode = vertical_turn <= 2 ? vertical_turn : 0;
     uint8_t hide_images = 0, recent_sort = 0, ble_turner = 0, book_fonts = 1, book_vertical = 0;
     if (nvs_get_u8(h, NVS_KEY_HIDE_IMAGES, &hide_images) == ESP_OK) s_reader_hide_images = hide_images == 1;
     if (nvs_get_u8(h, NVS_KEY_BLE_TURNER, &ble_turner) == ESP_OK) s_ble_turner = ble_turner == 1;
@@ -851,11 +851,15 @@ void app_settings_set_reader_key_preset(unsigned preset) {
 }
 
 bool app_settings_reader_hold_refresh(void) { return s_reader_hold_refresh; }
-bool app_settings_reader_vertical_turn(void) { return s_reader_vertical_turn; }
+uint8_t app_settings_reader_turn_mode(void) { return s_reader_turn_mode; }
+void app_settings_set_reader_turn_mode(uint8_t mode) {
+    if (s_reader_turn_mode == mode) return;
+    s_reader_turn_mode = mode;
+    nvs_put_u8(NVS_KEY_VERTICAL_TURN, mode);
+}
+bool app_settings_reader_vertical_turn(void) { return s_reader_turn_mode == 1; }
 void app_settings_set_reader_vertical_turn(bool on) {
-    if (s_reader_vertical_turn == on) return;
-    s_reader_vertical_turn = on;
-    nvs_put_u8(NVS_KEY_VERTICAL_TURN, on ? 1 : 0);
+    app_settings_set_reader_turn_mode(on ? 1 : 0);
 }
 void app_settings_set_reader_hold_refresh(bool on) {
     if (s_reader_hold_refresh == on) return;
@@ -1259,7 +1263,7 @@ esp_err_t app_settings_backup_save(void) {
                                 (s_shelf_recent_sort ? 4 : 0) |
                                 (s_ble_turner ? 8 : 0) |
                                 (s_reader_hold_refresh ? 16 : 0) |
-                                (s_reader_vertical_turn ? 32 : 0) |
+                                ((s_reader_turn_mode == 1) ? 32 : 0) |
                                 (app_settings_main_fast_refresh() ? 128 : 0);
     uint32_t profile_hash = backup_profile_checksum(&backup, extension[0], extension[1], extension[2], &profile);
     for (int i = 0; i < 4; ++i) profile.checksum[i] = (uint8_t)(profile_hash >> (i * 8));
@@ -1570,7 +1574,7 @@ esp_err_t app_settings_backup_restore(void) {
     s_auto_lock_minutes = idle_minutes;
     s_ble_turner = (profile.home_full_refresh & 8) != 0;
     s_reader_hold_refresh = (profile.home_full_refresh & 16) != 0;
-    s_reader_vertical_turn = (profile.home_full_refresh & 32) != 0;
+    s_reader_turn_mode = (profile.home_full_refresh & 32) != 0 ? 1 : 0;
     s_home_full_refresh = (profile.home_full_refresh & 1) != 0;
     s_main_refresh = main_refresh;
     s_reader_hide_images = (profile.home_full_refresh & 2) != 0;

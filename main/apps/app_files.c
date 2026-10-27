@@ -855,9 +855,11 @@ static void open_selected(app_ctx_t *ctx) {
     } else if (!strcasecmp(ext, ".ttf") || !strcasecmp(ext, ".otf")) {
         if (ttf_font_open(s_selected.path) == ESP_OK) {
             app_settings_set_system_font_path(s_selected.path);
+            app_settings_set_font_path(s_selected.path);
             app_font_activate_system();
-            snprintf(s_message, sizeof(s_message), "Đã đặt làm phông chữ hệ thống");
-        } else snprintf(s_message, sizeof(s_message), "Không thể tải phông chữ");
+            ttf_font_scan();
+            snprintf(s_message, sizeof(s_message), "Đã áp dụng làm phông chữ hệ thống & đọc sách");
+        } else snprintf(s_message, sizeof(s_message), "Không thể tải phông chữ này");
     } else snprintf(s_message, sizeof(s_message), "Không hỗ trợ mở định dạng tệp này");
 }
 
