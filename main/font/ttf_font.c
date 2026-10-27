@@ -16,6 +16,9 @@
 
 #include "ttf_font.h"
 #include "../kiiko_board_config.h"
+#if defined(TEST_METALIO) && !defined(KIIKO_BOARD_METALIO47)
+#define KIIKO_BOARD_METALIO47 TEST_METALIO
+#endif
 #include "ttf_stroke_filter.h"
 #include "vn_diacritics.h"
 
@@ -719,56 +722,6 @@ static bool catalog_alloc(void) {
 }
 static int s_catalog_n;
 
-static void catalog_add_file(const char* dir_path, const char* name) {
-    if (s_catalog_n >= TTF_FONT_MAX || !is_ttf_name(name)) return;
-    char path[512];
-    if (snprintf(path, sizeof(path), "%s/%s", dir_path, name) >= (int)sizeof(path)) return;
-    struct stat st;
-    if (stat(path, &st) || !S_ISREG(st.st_mode)) return;
-    if (!strncmp(name, "._", 2)) {
-        unsigned char magic[4] = {0};
-        FILE *sidecar = fopen(path, "rb");
-        if (sidecar) {
-            size_t got = fread(magic, 1, 4, sidecar);
-            fclose(sidecar);
-            if (got == 4 && !memcmp(magic, "\0\5\26\7", 4)) return;
-        }
-    }
-#if KIIKO_BOARD_METALIO47
-    if (strlen(path) >= TTF_FONT_PATH_MAX) {
-        size_t prefix = strlen(dir_path) + 1;
-        char alias[TTF_FONT_PATH_MAX], target[TTF_FONT_PATH_MAX];
-        if (prefix + 25 < TTF_FONT_PATH_MAX &&
-            font_filename_make(name, alias, TTF_FONT_PATH_MAX - prefix - 5, true)) {
-            bool moved = false;
-            for (unsigned attempt = 0; attempt < 128; ++attempt) {
-                size_t stem = strlen(alias) - 4;
-                int length = attempt ? snprintf(target, sizeof(target), "%s/%.*s-%03x%s", dir_path, (int)stem, alias, attempt, alias + stem)
-                                     : snprintf(target, sizeof(target), "%s/%s", dir_path, alias);
-                if (length >= (int)sizeof(target)) break;
-                struct stat existing;
-                if (!stat(target, &existing)) continue;
-                if (errno != ENOENT) break;
-                moved = !rename(path, target);
-                break;
-            }
-            if (moved) snprintf(path, sizeof(path), "%s", target);
-        }
-    }
-    if (catalog_has_name(s_catalog, s_catalog_n, path)) return;
-    font_stem(path, s_catalog[s_catalog_n].name, sizeof(s_catalog[0].name));
-    snprintf(s_catalog[s_catalog_n].path, sizeof(s_catalog[0].path), "%s", path);
-    ++s_catalog_n;
-#else
-    char stem_name[TTF_FONT_NAME_MAX];
-    font_stem(name, stem_name, sizeof(stem_name));
-    if (stem_name[0] == '\0' || catalog_has_name(s_catalog, s_catalog_n, stem_name)) return;
-    snprintf(s_catalog[s_catalog_n].path, sizeof(s_catalog[s_catalog_n].path), "%s", path);
-    strlcpy(s_catalog[s_catalog_n].name, stem_name, sizeof(s_catalog[0].name));
-    s_catalog_n++;
-#endif
-}
-
 int ttf_font_scan(void) {
     if (!catalog_alloc()) return 0;
     s_catalog_n = 0;
@@ -778,23 +731,84 @@ int ttf_font_scan(void) {
         if (dir == NULL) continue;
         struct dirent* ent;
         while ((ent = readdir(dir)) != NULL && s_catalog_n < TTF_FONT_MAX) {
-            if (is_junk_name(ent->d_name) || ent->d_name[0] == '.') continue;
-            char sub_path[512];
-            if (snprintf(sub_path, sizeof(sub_path), "%s/%s", font_dir, ent->d_name) >= (int)sizeof(sub_path)) continue;
-            struct stat st;
-            if (!stat(sub_path, &st) && S_ISDIR(st.st_mode)) {
-                DIR* sub = opendir(sub_path);
-                if (sub) {
-                    struct dirent* sub_ent;
-                    while ((sub_ent = readdir(sub)) != NULL && s_catalog_n < TTF_FONT_MAX) {
-                        if (is_junk_name(sub_ent->d_name) || sub_ent->d_name[0] == '.') continue;
-                        catalog_add_file(sub_path, sub_ent->d_name);
+#if KIIKO_BOARD_METALIO47
+            char path[512];
+            if (snprintf(path, sizeof(path), "%s/%s", font_dir, ent->d_name) >= (int)sizeof(path)) continue;
+            if (!is_ttf_name(ent->d_name)) {
+                struct stat dir_st;
+                if (ent->d_name[0] != '.' && !stat(path, &dir_st) && S_ISDIR(dir_st.st_mode)) {
+                    DIR* sub = opendir(path);
+                    if (sub) {
+                        struct dirent* sub_ent;
+                        while ((sub_ent = readdir(sub)) != NULL && s_catalog_n < TTF_FONT_MAX) {
+                            if (!is_ttf_name(sub_ent->d_name)) continue;
+                            char sub_p[512];
+                            if (snprintf(sub_p, sizeof(sub_p), "%s/%s", path, sub_ent->d_name) >= (int)sizeof(sub_p)) continue;
+                            struct stat sub_st;
+                            if (stat(sub_p, &sub_st) || !S_ISREG(sub_st.st_mode)) continue;
+                            if (catalog_has_name(s_catalog, s_catalog_n, sub_p)) continue;
+                            font_stem(sub_p, s_catalog[s_catalog_n].name, sizeof(s_catalog[0].name));
+                            strlcpy(s_catalog[s_catalog_n].path, sub_p, sizeof(s_catalog[0].path));
+                            ++s_catalog_n;
+                        }
+                        closedir(sub);
                     }
-                    closedir(sub);
                 }
                 continue;
             }
-            catalog_add_file(font_dir, ent->d_name);
+            struct stat st;
+            if (stat(path, &st) || !S_ISREG(st.st_mode)) continue;
+            if (!strncmp(ent->d_name, "._", 2)) {
+                unsigned char magic[4] = {0};
+                FILE *sidecar = fopen(path, "rb");
+                if (sidecar) {
+                    size_t got = fread(magic, 1, 4, sidecar);
+                    fclose(sidecar);
+                    if (got == 4 && !memcmp(magic, "\0\5\26\7", 4)) continue;
+                }
+            }
+            // 仅原本无法保存的超长路径规范化文件名；不改字节、不覆盖任何现有文件。
+            // Normalize only paths that cannot be persisted; preserve font bytes and never overwrite existing files.
+            if (strlen(path) >= TTF_FONT_PATH_MAX) {
+                size_t prefix = strlen(font_dir) + 1;
+                char alias[TTF_FONT_PATH_MAX], target[TTF_FONT_PATH_MAX];
+                if (prefix + 25 >= TTF_FONT_PATH_MAX ||
+                   !font_filename_make(ent->d_name, alias, TTF_FONT_PATH_MAX - prefix - 5, true)) continue;
+                bool moved = false;
+                for (unsigned attempt = 0; attempt < 128; ++attempt) {
+                    size_t stem = strlen(alias) - 4;
+                    int length = attempt ? snprintf(target, sizeof(target), "%s/%.*s-%03x%s", font_dir, (int)stem, alias, attempt, alias + stem) :
+                        snprintf(target, sizeof(target), "%s/%s", font_dir, alias);
+                    if (length >= (int)sizeof(target)) break;
+                    struct stat existing;
+                    if (!stat(target, &existing)) continue;
+                    if (errno != ENOENT) break;
+                    moved = !rename(path, target);
+                    break;
+                }
+                if (!moved) continue;
+                snprintf(path, sizeof(path), "%s", target);
+                rewinddir(dir);
+            }
+            if (catalog_has_name(s_catalog, s_catalog_n, path)) continue;
+            font_stem(path, s_catalog[s_catalog_n].name, sizeof(s_catalog[0].name));
+            strlcpy(s_catalog[s_catalog_n].path, path, sizeof(s_catalog[0].path));
+            ++s_catalog_n;
+#else
+            if (ent->d_name[0] == '.') continue; // Ignore macOS ._ font sidecars.
+            if (!is_ttf_name(ent->d_name)) continue;
+            char name[TTF_FONT_NAME_MAX];
+            font_stem(ent->d_name, name, sizeof(name));
+            if (name[0] == '\0' || catalog_has_name(s_catalog, s_catalog_n, name)) {
+                continue;
+            }
+            snprintf(
+                s_catalog[s_catalog_n].path, sizeof(s_catalog[s_catalog_n].path),
+                "%s/%s", font_dir, ent->d_name
+            );
+            strlcpy(s_catalog[s_catalog_n].name, name, sizeof(s_catalog[0].name));
+            s_catalog_n++;
+#endif
         }
         closedir(dir);
     }

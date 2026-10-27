@@ -10,6 +10,10 @@
 
 #pragma once
 
+#if defined(TEST_METALIO) && !defined(KIIKO_BOARD_METALIO47)
+#define KIIKO_BOARD_METALIO47 TEST_METALIO
+#endif
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
