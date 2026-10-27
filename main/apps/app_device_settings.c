@@ -427,9 +427,19 @@ static int settings_main_row_height(void) {
 // with 8 px to spare.
 #define SETTINGS_SCROLL_MAX \
     (SETTINGS_MAINTENANCE_Y + SETTINGS_MAINTENANCE_ROWS * SETTINGS_ROW_H - UI_NAV_REFRESH_END + 12)
-static char s_editor[96], s_editor_notice[80];
+static char s_editor[144], s_editor_notice[80];
 static ui_text_edit_t s_editor_input;
-static bool s_editor_signature;
+typedef enum {
+    EDITOR_DEVICE_NAME,
+    EDITOR_SIGNATURE,
+    EDITOR_KOSYNC_URL,
+    EDITOR_KOSYNC_USER,
+    EDITOR_KOSYNC_PASS,
+    EDITOR_OPDS_URL,
+    EDITOR_OPDS_USER,
+    EDITOR_OPDS_PASS,
+} settings_editor_mode_t;
+static settings_editor_mode_t s_editor_mode;
 static const char *system_font_label(const char *path) {
     if (!path || !path[0]) return "Phông mặc định";
     const char *name = strrchr(path, '/');
@@ -565,13 +575,51 @@ static void wallpaper_scan(void) {
 }
 
 
-static void profile_editor_open(bool signature) {
-    s_editor_signature = signature;
-    snprintf(s_editor, sizeof(s_editor), "%s", signature ? app_settings_status_signature() : app_settings_device_name());
-    ui_text_edit_init(&s_editor_input, s_editor, sizeof(s_editor));
+static void settings_editor_open(settings_editor_mode_t mode) {
+    s_editor_mode = mode;
     s_editor_notice[0] = 0;
-    ui_keyboard_begin(&s_editor_input, false);
+    const char *val = "";
+    bool ascii_only = false;
+    switch (mode) {
+        case EDITOR_DEVICE_NAME:
+            val = app_settings_device_name();
+            break;
+        case EDITOR_SIGNATURE:
+            val = app_settings_status_signature();
+            break;
+        case EDITOR_KOSYNC_URL:
+            val = app_settings_kosync_url();
+            ascii_only = true;
+            break;
+        case EDITOR_KOSYNC_USER:
+            val = app_settings_kosync_user();
+            ascii_only = true;
+            break;
+        case EDITOR_KOSYNC_PASS:
+            val = "";
+            ascii_only = true;
+            break;
+        case EDITOR_OPDS_URL:
+            val = app_settings_opds_url();
+            ascii_only = true;
+            break;
+        case EDITOR_OPDS_USER:
+            val = app_settings_opds_user();
+            ascii_only = true;
+            break;
+        case EDITOR_OPDS_PASS:
+            val = app_settings_opds_pass();
+            ascii_only = true;
+            break;
+    }
+    snprintf(s_editor, sizeof(s_editor), "%s", val ? val : "");
+    ui_text_edit_init(&s_editor_input, s_editor, sizeof(s_editor));
+    ui_keyboard_begin(&s_editor_input, ascii_only);
     s_page = SETTINGS_TEXT_EDIT;
+}
+
+static void profile_editor_open(bool signature) {
+    settings_editor_open(signature ? EDITOR_SIGNATURE : EDITOR_DEVICE_NAME);
 }
 
 
@@ -1147,9 +1195,45 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         return;
     }
     if (s_page == SETTINGS_TEXT_EDIT) {
-        back_header(fb, s_editor_signature ? "Chữ ký thanh trạng thái" : "Tên thiết bị");
+        const char *title = "Chỉnh sửa";
+        const char *desc = "";
+        switch (s_editor_mode) {
+            case EDITOR_DEVICE_NAME:
+                title = "Tên thiết bị";
+                desc = "Hiển thị trên thẻ hồ sơ trong phần Cài đặt";
+                break;
+            case EDITOR_SIGNATURE:
+                title = "Chữ ký thanh trạng thái";
+                desc = "Hiển thị ở giữa thanh trạng thái, để trống sẽ ẩn";
+                break;
+            case EDITOR_KOSYNC_URL:
+                title = "Máy chủ KOSync";
+                desc = "Địa chỉ máy chủ (ví dụ: https://sync.vreader.cloud)";
+                break;
+            case EDITOR_KOSYNC_USER:
+                title = "Tài khoản KOSync";
+                desc = "Tên đăng nhập tài khoản đồng bộ KOReader";
+                break;
+            case EDITOR_KOSYNC_PASS:
+                title = "Mật khẩu KOSync";
+                desc = "Mật khẩu sẽ được tự động băm MD5 chuẩn KOReader";
+                break;
+            case EDITOR_OPDS_URL:
+                title = "Địa chỉ kho sách OPDS";
+                desc = "URL danh mục sách Calibre-Web hoặc chuẩn OPDS";
+                break;
+            case EDITOR_OPDS_USER:
+                title = "Tài khoản OPDS";
+                desc = "Tên đăng nhập thư viện OPDS (để trống nếu không cần)";
+                break;
+            case EDITOR_OPDS_PASS:
+                title = "Mật khẩu OPDS";
+                desc = "Mật khẩu truy cập thư viện OPDS";
+                break;
+        }
+        back_header(fb, title);
         ui_text(fb, 642, 95, 24, "Xong", EPD_DRAW_ALIGN_RIGHT, false);
-        ui_text(fb, 36, 201, 21, s_editor_signature ? "Hiển thị ở giữa thanh trạng thái, để trống sẽ ẩn" : "Hiển thị trên thẻ hồ sơ trong phần Cài đặt", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 36, 201, 21, desc, EPD_DRAW_ALIGN_LEFT, false);
         ui_text_input_draw(fb, &s_editor_input, (EpdRect){36, 243, 612, 82}, 28, false, NULL);
         if (s_editor_notice[0]) ui_text_fixed_vc(fb, 36, 510, 22, s_editor_notice, EPD_DRAW_ALIGN_LEFT, false);
         ui_keyboard_draw(fb, UI_SYSTEM_KEYBOARD_TOP);
@@ -1442,18 +1526,27 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     }
     if (s_page == SETTINGS_KOSYNC) {
         back_header(fb, "Đồng bộ KOSync");
-        section(fb, 245, "Đồng bộ tiến độ đọc sách chuẩn KOReader (Android, Kobo, Kindle)");
+        section(fb, 245, "Chạm vào từng mục để chỉnh sửa thông số:");
 
-        settings_card(fb, (EpdRect){36, 285, 612, 160}, 20, UI_GRAY_WHITE, 0x70);
-        char server_line[128];
-        snprintf(server_line, sizeof(server_line), "Máy chủ: %s", app_settings_kosync_url());
-        ui_text(fb, 58, 308, 20, server_line, EPD_DRAW_ALIGN_LEFT, false);
-        char user_line[96];
-        snprintf(user_line, sizeof(user_line), "Tài khoản: %s", app_settings_kosync_user()[0] ? app_settings_kosync_user() : "(Chưa đăng nhập)");
-        ui_text(fb, 58, 350, 22, user_line, EPD_DRAW_ALIGN_LEFT, false);
-        char key_line[64];
-        snprintf(key_line, sizeof(key_line), "Mật khẩu: %s", app_settings_kosync_key()[0] ? "•••••••• (Đã băm MD5)" : "(Chưa nhập)");
-        ui_text(fb, 58, 392, 19, key_line, EPD_DRAW_ALIGN_LEFT, false);
+        settings_card(fb, (EpdRect){36, 275, 612, 174}, 20, UI_GRAY_WHITE, 0x70);
+        // Hàng 1: Máy chủ
+        ui_text_vc(fb, 58, 304, 22, "Máy chủ", EPD_DRAW_ALIGN_LEFT, false);
+        char srv_short[48];
+        snprintf(srv_short, sizeof(srv_short), "%s", app_settings_kosync_url());
+        ui_text_box(fb, (EpdRect){150, 286, 450, 36}, 19, srv_short, EPD_DRAW_ALIGN_RIGHT, false);
+        ui_draw_icon(fb, 622, 304, 22, UI_ICON_CHEVRON_RIGHT, UI_GRAY_BLACK);
+        ui_hairline(fb, 333, 48, 588, UI_GRAY_LIGHT);
+
+        // Hàng 2: Tài khoản
+        ui_text_vc(fb, 58, 362, 22, "Tài khoản", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_vc(fb, 608, 362, 21, app_settings_kosync_user()[0] ? app_settings_kosync_user() : "Chạm để nhập", EPD_DRAW_ALIGN_RIGHT, false);
+        ui_draw_icon(fb, 622, 362, 22, UI_ICON_CHEVRON_RIGHT, UI_GRAY_BLACK);
+        ui_hairline(fb, 391, 48, 588, UI_GRAY_LIGHT);
+
+        // Hàng 3: Mật khẩu
+        ui_text_vc(fb, 58, 420, 22, "Mật khẩu", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_vc(fb, 608, 420, 21, app_settings_kosync_key()[0] ? "•••••••• (Đã lưu)" : "Chạm để nhập", EPD_DRAW_ALIGN_RIGHT, false);
+        ui_draw_icon(fb, 622, 420, 22, UI_ICON_CHEVRON_RIGHT, UI_GRAY_BLACK);
 
         bool auto_on = app_settings_kosync_auto();
         settings_card(fb, (EpdRect){36, 465, 612, 92}, 20, auto_on ? 0xd0 : UI_GRAY_WHITE, 0x70);
@@ -1471,24 +1564,33 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         } else {
             ui_text(fb, 48, 852, 18, "Tương thích 100% với KOReader qua thuật toán băm partialMD5.", EPD_DRAW_ALIGN_LEFT, false);
         }
-        ui_text(fb, 48, 892, 18, "Khi đọc sách: bấm nút 'Đồng bộ KOSync' trong menu để đồng bộ tức thì.", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 892, 18, "Khi đọc sách: bấm nút 'Đồng bộ' trên thanh công cụ để đồng bộ tức thì.", EPD_DRAW_ALIGN_LEFT, false);
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_OPDS) {
         back_header(fb, "Kho sách OPDS");
-        section(fb, 245, "Duyệt và tải sách trực tiếp từ Calibre-Web qua chuẩn OPDS 1.2");
+        section(fb, 245, "Chạm vào từng mục để chỉnh sửa thông số:");
 
-        settings_card(fb, (EpdRect){36, 285, 612, 160}, 20, UI_GRAY_WHITE, 0x70);
-        char url_line[140];
-        snprintf(url_line, sizeof(url_line), "Kho sách: %s", app_settings_opds_url());
-        ui_text(fb, 58, 308, 20, url_line, EPD_DRAW_ALIGN_LEFT, false);
-        char user_line[96];
-        snprintf(user_line, sizeof(user_line), "Tài khoản: %s", app_settings_opds_user()[0] ? app_settings_opds_user() : "(Không yêu cầu / Khách)");
-        ui_text(fb, 58, 350, 22, user_line, EPD_DRAW_ALIGN_LEFT, false);
-        char pass_line[64];
-        snprintf(pass_line, sizeof(pass_line), "Mật khẩu: %s", app_settings_opds_pass()[0] ? "••••••••" : "(Không có)");
-        ui_text(fb, 58, 392, 19, pass_line, EPD_DRAW_ALIGN_LEFT, false);
+        settings_card(fb, (EpdRect){36, 275, 612, 174}, 20, UI_GRAY_WHITE, 0x70);
+        // Hàng 1: Kho sách
+        ui_text_vc(fb, 58, 304, 22, "Kho sách", EPD_DRAW_ALIGN_LEFT, false);
+        char opds_short[48];
+        snprintf(opds_short, sizeof(opds_short), "%s", app_settings_opds_url());
+        ui_text_box(fb, (EpdRect){150, 286, 450, 36}, 19, opds_short, EPD_DRAW_ALIGN_RIGHT, false);
+        ui_draw_icon(fb, 622, 304, 22, UI_ICON_CHEVRON_RIGHT, UI_GRAY_BLACK);
+        ui_hairline(fb, 333, 48, 588, UI_GRAY_LIGHT);
+
+        // Hàng 2: Tài khoản
+        ui_text_vc(fb, 58, 362, 22, "Tài khoản", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_vc(fb, 608, 362, 21, app_settings_opds_user()[0] ? app_settings_opds_user() : "Không có (Khách)", EPD_DRAW_ALIGN_RIGHT, false);
+        ui_draw_icon(fb, 622, 362, 22, UI_ICON_CHEVRON_RIGHT, UI_GRAY_BLACK);
+        ui_hairline(fb, 391, 48, 588, UI_GRAY_LIGHT);
+
+        // Hàng 3: Mật khẩu
+        ui_text_vc(fb, 58, 420, 22, "Mật khẩu", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_vc(fb, 608, 420, 21, app_settings_opds_pass()[0] ? "••••••••" : "Không có", EPD_DRAW_ALIGN_RIGHT, false);
+        ui_draw_icon(fb, 622, 420, 22, UI_ICON_CHEVRON_RIGHT, UI_GRAY_BLACK);
 
         ui_draw_button(fb, (EpdRect){36, 465, 612, 72}, "Mở kho sách OPDS ngay  ›", false);
         ui_draw_button(fb, (EpdRect){36, 553, 612, 72}, "Cấu hình kho sách qua Web (WiFi Transfer)  ›", false);
@@ -2188,7 +2290,16 @@ static app_redraw_t profile_editor_gesture(app_ctx_t *ctx, const ui_gesture_even
     if (ev->type != UI_GESTURE_TAP) return feedback ? profile_editor_paint(ctx, false) : APP_REDRAW_NONE;
     int x = ev->x0, y = ev->y0;
     if (y < 160) {
-        if (x < 160) { ui_keyboard_end(); s_page = s_editor_signature ? SETTINGS_MAIN : SETTINGS_PROFILE; return APP_REDRAW_PAGE; }
+        if (x < 160) {
+            ui_keyboard_end();
+            if (s_editor_mode == EDITOR_SIGNATURE) s_page = SETTINGS_MAIN;
+            else if (s_editor_mode == EDITOR_DEVICE_NAME) s_page = SETTINGS_PROFILE;
+            else if (s_editor_mode == EDITOR_KOSYNC_URL || s_editor_mode == EDITOR_KOSYNC_USER || s_editor_mode == EDITOR_KOSYNC_PASS)
+                s_page = SETTINGS_KOSYNC;
+            else
+                s_page = SETTINGS_OPDS;
+            return APP_REDRAW_PAGE;
+        }
         if (x > 510) goto save_text;
     }
     if (ui_text_input_tap(&s_editor_input, (EpdRect){36, 243, 612, 82}, 28,
@@ -2201,16 +2312,57 @@ save_text:
         snprintf(s_editor_notice, sizeof(s_editor_notice), "Vui lòng chọn từ gợi ý trước");
         return APP_REDRAW_PAGE;
     }
-    if (s_editor_signature) app_settings_set_status_signature(s_editor);
-    else if (s_editor[0]) app_settings_set_device_name(s_editor);
-    else { snprintf(s_editor_notice, sizeof(s_editor_notice), "Tên thiết bị không được để trống"); return APP_REDRAW_PAGE; }
-    const char *saved = s_editor_signature ? app_settings_status_signature() : app_settings_device_name();
-    if (strcmp(saved, s_editor)) {
-        snprintf(s_editor_notice, sizeof(s_editor_notice), "Lưu thất bại, hãy kiểm tra bộ nhớ cài đặt");
-        return APP_REDRAW_PAGE;
-    }
     ui_keyboard_end();
-    s_page = s_editor_signature ? SETTINGS_MAIN : SETTINGS_PROFILE;
+    switch (s_editor_mode) {
+        case EDITOR_DEVICE_NAME:
+            if (!s_editor[0]) {
+                snprintf(s_editor_notice, sizeof(s_editor_notice), "Tên thiết bị không được để trống");
+                return APP_REDRAW_PAGE;
+            }
+            app_settings_set_device_name(s_editor);
+            s_page = SETTINGS_PROFILE;
+            break;
+        case EDITOR_SIGNATURE:
+            app_settings_set_status_signature(s_editor);
+            s_page = SETTINGS_MAIN;
+            break;
+        case EDITOR_KOSYNC_URL:
+            if (!s_editor[0]) app_settings_set_kosync_url(DPREADER_DEFAULT_KOSYNC_URL);
+            else app_settings_set_kosync_url(s_editor);
+            snprintf(s_kosync_notice, sizeof(s_kosync_notice), "Đã cập nhật máy chủ KOSync");
+            s_page = SETTINGS_KOSYNC;
+            break;
+        case EDITOR_KOSYNC_USER:
+            app_settings_set_kosync_user(s_editor);
+            snprintf(s_kosync_notice, sizeof(s_kosync_notice), "Đã lưu tài khoản KOSync");
+            s_page = SETTINGS_KOSYNC;
+            break;
+        case EDITOR_KOSYNC_PASS:
+            if (s_editor[0]) {
+                char md5_hex[33] = {0};
+                kosync_md5_string(s_editor, md5_hex);
+                app_settings_set_kosync_key(md5_hex);
+                snprintf(s_kosync_notice, sizeof(s_kosync_notice), "Đã cập nhật mật khẩu KOSync");
+            }
+            s_page = SETTINGS_KOSYNC;
+            break;
+        case EDITOR_OPDS_URL:
+            if (!s_editor[0]) app_settings_set_opds_url(DPREADER_DEFAULT_OPDS_URL);
+            else app_settings_set_opds_url(s_editor);
+            snprintf(s_opds_notice, sizeof(s_opds_notice), "Đã cập nhật kho sách OPDS");
+            s_page = SETTINGS_OPDS;
+            break;
+        case EDITOR_OPDS_USER:
+            app_settings_set_opds_user(s_editor);
+            snprintf(s_opds_notice, sizeof(s_opds_notice), "Đã lưu tài khoản OPDS");
+            s_page = SETTINGS_OPDS;
+            break;
+        case EDITOR_OPDS_PASS:
+            app_settings_set_opds_pass(s_editor);
+            snprintf(s_opds_notice, sizeof(s_opds_notice), "Đã lưu mật khẩu OPDS");
+            s_page = SETTINGS_OPDS;
+            break;
+    }
     return APP_REDRAW_PAGE;
 }
 
@@ -2711,6 +2863,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         return APP_REDRAW_NONE;
     }
     if (s_page == SETTINGS_KOSYNC) {
+        if (ev->x0 >= 36 && ev->x0 <= 648) {
+            if (y >= 275 && y < 333) { settings_editor_open(EDITOR_KOSYNC_URL); return APP_REDRAW_PAGE; }
+            if (y >= 333 && y < 391) { settings_editor_open(EDITOR_KOSYNC_USER); return APP_REDRAW_PAGE; }
+            if (y >= 391 && y < 455) { settings_editor_open(EDITOR_KOSYNC_PASS); return APP_REDRAW_PAGE; }
+        }
         if (y >= 465 && y < 557) {
             app_settings_set_kosync_auto(!app_settings_kosync_auto());
             snprintf(s_kosync_notice, sizeof(s_kosync_notice), "Đã %s tự động đồng bộ KOSync",
@@ -2719,7 +2876,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         }
         if (y >= 577 && y < 649) {
             if (!app_settings_kosync_user()[0]) {
-                snprintf(s_kosync_notice, sizeof(s_kosync_notice), "Chưa có tài khoản (hãy cấu hình qua Web Portal)");
+                snprintf(s_kosync_notice, sizeof(s_kosync_notice), "Chưa có tài khoản (Chạm mục Tài khoản ở trên để nhập)");
             } else {
                 char msg[80] = {0};
                 esp_err_t err = kosync_verify_account(false, msg, sizeof(msg));
@@ -2743,6 +2900,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         return APP_REDRAW_NONE;
     }
     if (s_page == SETTINGS_OPDS) {
+        if (ev->x0 >= 36 && ev->x0 <= 648) {
+            if (y >= 275 && y < 333) { settings_editor_open(EDITOR_OPDS_URL); return APP_REDRAW_PAGE; }
+            if (y >= 333 && y < 391) { settings_editor_open(EDITOR_OPDS_USER); return APP_REDRAW_PAGE; }
+            if (y >= 391 && y < 455) { settings_editor_open(EDITOR_OPDS_PASS); return APP_REDRAW_PAGE; }
+        }
         if (y >= 465 && y < 537) {
             extern const app_desc_t app_book;
             app_book_request_opds();
@@ -3051,7 +3213,16 @@ static app_redraw_t on_key(app_ctx_t *ctx, int key) {
     }
     if (s_page == SETTINGS_WALLPAPER) { s_page = SETTINGS_LOCK_STYLE; return APP_REDRAW_PAGE; }
     if (s_page == SETTINGS_AVATAR) { s_page = SETTINGS_PROFILE; return APP_REDRAW_PAGE; }
-    if (s_page == SETTINGS_TEXT_EDIT) { ui_keyboard_end(); s_page = s_editor_signature ? SETTINGS_MAIN : SETTINGS_PROFILE; return APP_REDRAW_PAGE; }
+    if (s_page == SETTINGS_TEXT_EDIT) {
+        ui_keyboard_end();
+        if (s_editor_mode == EDITOR_SIGNATURE) s_page = SETTINGS_MAIN;
+        else if (s_editor_mode == EDITOR_DEVICE_NAME) s_page = SETTINGS_PROFILE;
+        else if (s_editor_mode == EDITOR_KOSYNC_URL || s_editor_mode == EDITOR_KOSYNC_USER || s_editor_mode == EDITOR_KOSYNC_PASS)
+            s_page = SETTINGS_KOSYNC;
+        else
+            s_page = SETTINGS_OPDS;
+        return APP_REDRAW_PAGE;
+    }
     if (s_page == SETTINGS_PROFILE) { s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
     if (s_page == SETTINGS_TIME_EDIT) { s_page = SETTINGS_TIME; return APP_REDRAW_PAGE; }
     if (s_page != SETTINGS_MAIN) { s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
