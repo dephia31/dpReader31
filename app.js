@@ -222,10 +222,10 @@ flashBtn.addEventListener("click", async () => {
 
     terminal.writeLine(`[+] Kích thước tệp: ${binaryData.byteLength.toLocaleString()} bytes`);
     terminal.writeLine(`[*] Vị trí ghi (Offset): 0x${offset.toString(16).toUpperCase()}`);
-    terminal.writeLine("[*] Đang chuyển đổi định dạng và bắt đầu nạp...");
+    terminal.writeLine("[*] Đang chuẩn bị dữ liệu và bắt đầu nạp...");
 
-    const binaryString = arrayBufferToBinaryString(binaryData);
-    const fileArray = [{ data: binaryString, address: offset }];
+    const fileData = binaryData instanceof Uint8Array ? binaryData : new Uint8Array(binaryData);
+    const fileArray = [{ data: fileData, address: offset }];
 
     const startTime = Date.now();
 
