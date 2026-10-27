@@ -124,7 +124,7 @@ def run_git_commands(version: str, push: bool) -> None:
     print(f"[*] Đang thực hiện commit Git và gắn thẻ tag {tag}...")
 
     # Stage các file cần thiết
-    subprocess.run(["git", "add", "releases/", "metalio-s31-update.json", ".github/workflows/"], check=True)
+    subprocess.run(["git", "add", "-A"], check=True)
 
     # Commit nếu có thay đổi
     status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True).stdout
@@ -157,7 +157,7 @@ def run_git_commands(version: str, push: bool) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Quy trình đóng gói và phát hành firmware dpReader lên GitHub")
-    parser.add_argument("--version", type=str, default="1.0.1-vn", help="Số phiên bản (vd: 1.0.1-vn)")
+    parser.add_argument("--version", type=str, default="1.0.2-vn", help="Số phiên bản (vd: 1.0.2-vn)")
     parser.add_argument("--notes", type=str, default="", help="Ghi chú cập nhật cho phiên bản này")
     parser.add_argument("--push", action="store_true", help="Tự động đẩy commit và tag lên GitHub")
     parser.add_argument("--build", action="store_true", help="Biên dịch firmware trước khi phát hành")

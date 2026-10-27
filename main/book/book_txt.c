@@ -10,6 +10,7 @@
 #include "book_index_cache.h"
 #include "gbk.h"
 #include "esp_heap_caps.h"
+#include "../font/vn_diacritics.h"
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -265,9 +266,22 @@ esp_err_t book_txt_open(book_txt_t *b, const char *path) {
 #if KIIKO_BOARD_METALIO47
         else if((b->utf16=utf16_probe(r->bytes,n))!=0){}
 #endif
-        else for (size_t i = 0; i < n && i < READ_BLOCK;) {
-            uint32_t cp; size_t k = utf8_one(r->bytes + i, n - i, &cp);
-            if (k == 1 && r->bytes[i] >= 0x80) { b->gbk = true; break; } i += k;
+        else {
+            size_t valid_utf8_count = 0;
+            size_t invalid_bytes = 0;
+            for (size_t i = 0; i < n && i < READ_BLOCK;) {
+                uint32_t cp; size_t k = utf8_one(r->bytes + i, n - i, &cp);
+                if (k == 1 && r->bytes[i] >= 0x80) {
+                    invalid_bytes++;
+                    i++;
+                } else {
+                    if (cp >= 0x80) valid_utf8_count++;
+                    i += k;
+                }
+            }
+            if (invalid_bytes > 4 && invalid_bytes > valid_utf8_count) {
+                b->gbk = true;
+            }
         }
     }
     if (!err) err = index_book(r, b);
@@ -291,5 +305,6 @@ esp_err_t book_txt_load(book_txt_t *b, size_t i, char **utf8, size_t *len) {
     if (ferror(b->file) || r->offset != end) err = ESP_FAIL;
     free(r);
     if (err) { free(out); return err; }
+    used = vn_normalize_utf8_inplace(out, used);
     out[used] = 0; *utf8 = out; *len = used; return ESP_OK;
 }

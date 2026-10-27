@@ -1,5 +1,18 @@
 # 版本变更 / Changelog
 
+## dpReader 1.0.2-vn · 2026-10-27
+
+Bản cập nhật v1.0.2-vn tập trung khắc phục lỗi phông chữ trên thẻ nhớ SD và hoàn thiện hỗ trợ dấu tiếng Việt trên toàn hệ thống:
+
+- **Hỗ trợ toàn diện phông chữ OpenType / CFF (`.otf`) và TrueType (`.ttf`) trên thẻ nhớ SD:**
+  - Khắc phục triệt để lỗi khi người dùng tải phông lên từ Web File Transfer / thẻ SD rồi chọn phông đọc sách bị nhấp nháy màn hình và văng về phông mặc định. Cơ chế nạp phông CFF tự động nạp toàn bộ file font vào PSRAM của ESP32-S31 khi font được mở từ tệp trên thẻ SD.
+  - Loại bỏ giới hạn 32 bảng SFNT Table Directory, cấp phát động đọc đầy đủ toàn bộ bảng thư mục của phông chữ (các phông chữ hiện đại tiếng Việt như Bookerly, Inter, Noto Sans thường có 35-50 bảng).
+  - Quét phông thông minh đa tầng: hỗ trợ quét đệ quy các thư mục con cấp 1 (ví dụ `/sdcard/fonts/Bookerly/Bookerly-Regular.ttf`) và bổ sung các biến thể tên thư mục `Fonts`, `Font`, `FONTS`, `Books/fonts`.
+- **Hoàn thiện bộ dấu Tiếng Việt trên phông mặc định và toàn hệ thống:**
+  - Cập nhật trần kích thước ký tự dọc (`ascent` 1120, `descent` -300) trong `builtin.ttf`, khắc phục triệt để hiện tượng cắt cụt dấu 2 tầng ở các chữ hoa tiếng Việt như `Ẳ, Ẩ, Ằ, Ắ, Ầ, Ấ, Ẫ, Ể, Ế...` (có đỉnh yMax lên tới 1064).
+  - Tích hợp bộ ghép dấu tổ hợp tiếng Việt (Unicode NFD -> NFC) theo thời gian thực trực tiếp trong bộ giải mã `decode_utf8`, hiển thị chuẩn xác các văn bản dùng Unicode tổ hợp mà không bị văng dấu hay hiển thị ô vuông.
+  - Chuẩn hóa chuỗi tiếng Việt tại nguồn khi tải chương sách TXT và sửa bộ nhận diện mã hóa tránh đoán nhầm văn bản tiếng Việt UTF-8 thành GBK (tiếng Trung).
+
 ## dpReader 1.0.1-vn · 2026-10-27
 
 Rà soát an toàn trước khi nạp: đối chiếu cây nguồn với repo gốc nhà sản xuất [CloudZao/Metalio-E-INK4-Plus](https://github.com/CloudZao/Metalio-E-INK4-Plus) (bản 2.0.66) và với Kconfig ESP-IDF v6.1. Các mục dưới đây đều là sửa lỗi phát hiện trong lần rà soát đó.

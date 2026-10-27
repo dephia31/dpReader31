@@ -17,6 +17,7 @@
 #include "ttf_font.h"
 #include "../kiiko_board_config.h"
 #include "ttf_stroke_filter.h"
+#include "vn_diacritics.h"
 
 #include <dirent.h>
 #if KIIKO_BOARD_METALIO47
@@ -121,9 +122,14 @@ static const char* TAG = "ttf_font";
 
 static const char* const k_font_dirs[] = {
     "/sdcard/fonts",
+    "/sdcard/Fonts",
     "/sdcard/font",
+    "/sdcard/Font",
+    "/sdcard/FONTS",
     "/flash/fonts",
     "/sdcard/books/fonts",
+    "/sdcard/Books/fonts",
+    "/sdcard/Books/Fonts",
     "/sdcard/assets/fonts",
     NULL,
 };
@@ -713,6 +719,56 @@ static bool catalog_alloc(void) {
 }
 static int s_catalog_n;
 
+static void catalog_add_file(const char* dir_path, const char* name) {
+    if (s_catalog_n >= TTF_FONT_MAX || !is_ttf_name(name)) return;
+    char path[512];
+    if (snprintf(path, sizeof(path), "%s/%s", dir_path, name) >= (int)sizeof(path)) return;
+    struct stat st;
+    if (stat(path, &st) || !S_ISREG(st.st_mode)) return;
+    if (!strncmp(name, "._", 2)) {
+        unsigned char magic[4] = {0};
+        FILE *sidecar = fopen(path, "rb");
+        if (sidecar) {
+            size_t got = fread(magic, 1, 4, sidecar);
+            fclose(sidecar);
+            if (got == 4 && !memcmp(magic, "\0\5\26\7", 4)) return;
+        }
+    }
+#if KIIKO_BOARD_METALIO47
+    if (strlen(path) >= TTF_FONT_PATH_MAX) {
+        size_t prefix = strlen(dir_path) + 1;
+        char alias[TTF_FONT_PATH_MAX], target[TTF_FONT_PATH_MAX];
+        if (prefix + 25 < TTF_FONT_PATH_MAX &&
+            font_filename_make(name, alias, TTF_FONT_PATH_MAX - prefix - 5, true)) {
+            bool moved = false;
+            for (unsigned attempt = 0; attempt < 128; ++attempt) {
+                size_t stem = strlen(alias) - 4;
+                int length = attempt ? snprintf(target, sizeof(target), "%s/%.*s-%03x%s", dir_path, (int)stem, alias, attempt, alias + stem)
+                                     : snprintf(target, sizeof(target), "%s/%s", dir_path, alias);
+                if (length >= (int)sizeof(target)) break;
+                struct stat existing;
+                if (!stat(target, &existing)) continue;
+                if (errno != ENOENT) break;
+                moved = !rename(path, target);
+                break;
+            }
+            if (moved) snprintf(path, sizeof(path), "%s", target);
+        }
+    }
+    if (catalog_has_name(s_catalog, s_catalog_n, path)) return;
+    font_stem(path, s_catalog[s_catalog_n].name, sizeof(s_catalog[0].name));
+    snprintf(s_catalog[s_catalog_n].path, sizeof(s_catalog[0].path), "%s", path);
+    ++s_catalog_n;
+#else
+    char stem_name[TTF_FONT_NAME_MAX];
+    font_stem(name, stem_name, sizeof(stem_name));
+    if (stem_name[0] == '\0' || catalog_has_name(s_catalog, s_catalog_n, stem_name)) return;
+    snprintf(s_catalog[s_catalog_n].path, sizeof(s_catalog[s_catalog_n].path), "%s", path);
+    strlcpy(s_catalog[s_catalog_n].name, stem_name, sizeof(s_catalog[0].name));
+    s_catalog_n++;
+#endif
+}
+
 int ttf_font_scan(void) {
     if (!catalog_alloc()) return 0;
     s_catalog_n = 0;
@@ -722,58 +778,23 @@ int ttf_font_scan(void) {
         if (dir == NULL) continue;
         struct dirent* ent;
         while ((ent = readdir(dir)) != NULL && s_catalog_n < TTF_FONT_MAX) {
-#if KIIKO_BOARD_METALIO47
-            if(!is_ttf_name(ent->d_name))continue;
-            char path[512];
-            if(snprintf(path,sizeof(path),"%s/%s",font_dir,ent->d_name)>=(int)sizeof(path))continue;
+            if (is_junk_name(ent->d_name) || ent->d_name[0] == '.') continue;
+            char sub_path[512];
+            if (snprintf(sub_path, sizeof(sub_path), "%s/%s", font_dir, ent->d_name) >= (int)sizeof(sub_path)) continue;
             struct stat st;
-            if(stat(path,&st)||!S_ISREG(st.st_mode))continue;
-            if(!strncmp(ent->d_name,"._",2)) {
-                unsigned char magic[4]={0};FILE *sidecar=fopen(path,"rb");
-                if(sidecar){size_t got=fread(magic,1,4,sidecar);fclose(sidecar);
-                    if(got==4&&!memcmp(magic,"\0\5\26\7",4))continue;}
-            }
-            // 仅原本无法保存的超长路径规范化文件名；不改字节、不覆盖任何现有文件。
-            // Normalize only paths that cannot be persisted; preserve font bytes and never overwrite existing files.
-            if(strlen(path)>=TTF_FONT_PATH_MAX) {
-                size_t prefix=strlen(font_dir)+1;
-                char alias[TTF_FONT_PATH_MAX],target[TTF_FONT_PATH_MAX];
-                if(prefix+25>=TTF_FONT_PATH_MAX ||
-                   !font_filename_make(ent->d_name,alias,TTF_FONT_PATH_MAX-prefix-5,true))continue;
-                bool moved=false;
-                for(unsigned attempt=0;attempt<128;++attempt) {
-                    size_t stem=strlen(alias)-4;
-                    int length=attempt?snprintf(target,sizeof(target),"%s/%.*s-%03x%s",font_dir,(int)stem,alias,attempt,alias+stem):
-                        snprintf(target,sizeof(target),"%s/%s",font_dir,alias);
-                    if(length>=(int)sizeof(target))break;
-                    struct stat existing;
-                    if(!stat(target,&existing))continue;
-                    if(errno!=ENOENT)break;
-                    moved=!rename(path,target);break;
+            if (!stat(sub_path, &st) && S_ISDIR(st.st_mode)) {
+                DIR* sub = opendir(sub_path);
+                if (sub) {
+                    struct dirent* sub_ent;
+                    while ((sub_ent = readdir(sub)) != NULL && s_catalog_n < TTF_FONT_MAX) {
+                        if (is_junk_name(sub_ent->d_name) || sub_ent->d_name[0] == '.') continue;
+                        catalog_add_file(sub_path, sub_ent->d_name);
+                    }
+                    closedir(sub);
                 }
-                if(!moved)continue;
-                snprintf(path,sizeof(path),"%s",target);
-                rewinddir(dir);
-            }
-            if(catalog_has_name(s_catalog,s_catalog_n,path))continue;
-            font_stem(path,s_catalog[s_catalog_n].name,sizeof(s_catalog[0].name));
-            snprintf(s_catalog[s_catalog_n].path,sizeof(s_catalog[0].path),"%s",path);
-            ++s_catalog_n;
-#else
-            if (ent->d_name[0] == '.') continue; // Ignore macOS ._ font sidecars.
-            if (!is_ttf_name(ent->d_name)) continue;
-            char name[TTF_FONT_NAME_MAX];
-            font_stem(ent->d_name, name, sizeof(name));
-            if (name[0] == '\0' || catalog_has_name(s_catalog, s_catalog_n, name)) {
                 continue;
             }
-            snprintf(
-                s_catalog[s_catalog_n].path, sizeof(s_catalog[s_catalog_n].path),
-                "%s/%s", font_dir, ent->d_name
-            );
-            strlcpy(s_catalog[s_catalog_n].name, name, sizeof(s_catalog[0].name));
-            s_catalog_n++;
-#endif
+            catalog_add_file(font_dir, ent->d_name);
         }
         closedir(dir);
     }
@@ -1690,17 +1711,49 @@ static bool copy_table(
 }
 
 static uint8_t* build_working_font(const uint8_t* header, size_t header_len) {
-    // OTTO 是 CFF/OpenType：没有 glyf/loca，拼"工作字体"无从谈起。stb 自己会读 CFF 表，
-    // 所以整份原始字体就是字体数据；字节已在 PSRAM，借用不复制。文件型字体（SD 上的
-    // 系统字体）不支持这条路径，得先把整份读进内存才有意义。
-    // OTTO means CFF/OpenType: there is no glyf/loca, so there is nothing to assemble. stb
-    // reads the CFF table itself, so the original bytes are the font data; they are already in
-    // PSRAM and are borrowed rather than copied. A file-backed face (a system font on the card)
-    // is not supported here, since it would have to be read in full first.
+    bool is_cff = false;
     if (header_len >= 4 && memcmp(header, "OTTO", 4) == 0) {
+        is_cff = true;
+    } else {
+        uint32_t dummy_off = 0, dummy_len = 0;
+        if (!find_sfnt_table(header, header_len, "glyf", &dummy_off, &dummy_len)) {
+            if (find_sfnt_table(header, header_len, "CFF ", &dummy_off, &dummy_len) ||
+                find_sfnt_table(header, header_len, "CFF2", &dummy_off, &dummy_len)) {
+                is_cff = true;
+            }
+        }
+    }
+
+    if (is_cff) {
         if (font_mem == NULL) {
-            ESP_LOGW(TAG, "CFF face is file-backed; only in-memory CFF is supported");
-            return NULL;
+            if (font_fd < 0) {
+                ESP_LOGW(TAG, "CFF face is file-backed but font_fd < 0");
+                return NULL;
+            }
+            off_t sz = lseek(font_fd, 0, SEEK_END);
+            lseek(font_fd, 0, SEEK_SET);
+            if (sz <= 0 || sz > 16 * 1024 * 1024) {
+                ESP_LOGW(TAG, "CFF face size invalid: %ld", (long)sz);
+                return NULL;
+            }
+            uint8_t* mem = heap_caps_malloc((size_t)sz, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (!mem) {
+                ESP_LOGE(TAG, "Failed to allocate %ld bytes for CFF face in PSRAM", (long)sz);
+                return NULL;
+            }
+            ssize_t rd = read(font_fd, mem, (size_t)sz);
+            if (rd != sz) {
+                ESP_LOGE(TAG, "Failed to read CFF face: read %ld of %ld", (long)rd, (long)sz);
+                heap_caps_free(mem);
+                return NULL;
+            }
+            font_mem = mem;
+            font_mem_len = (uint32_t)sz;
+            font_mem_owned = true;
+            close(font_fd);
+            font_fd = -1;
+            header = font_mem;
+            header_len = font_mem_len;
         }
         uint32_t maxp_off = 0, maxp_len = 0;
         if (!find_sfnt_table(header, header_len, "maxp", &maxp_off, &maxp_len) ||
@@ -1797,30 +1850,42 @@ static uint8_t* build_working_font(const uint8_t* header, size_t header_len) {
 static uint32_t decode_utf8(const char** cursor) {
     const uint8_t* p = (const uint8_t*)*cursor;
     if (p[0] == 0) return 0;
+    uint32_t cp = 0xFFFD;
     if (p[0] < 0x80) {
         *cursor += 1;
-        return p[0];
-    }
-    if ((p[0] & 0xE0) == 0xC0 && (p[1] & 0xC0) == 0x80) {
+        cp = p[0];
+    } else if ((p[0] & 0xE0) == 0xC0 && (p[1] & 0xC0) == 0x80) {
         *cursor += 2;
-        return ((uint32_t)(p[0] & 0x1F) << 6) | (p[1] & 0x3F);
-    }
-    if ((p[0] & 0xF0) == 0xE0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80) {
+        cp = ((uint32_t)(p[0] & 0x1F) << 6) | (p[1] & 0x3F);
+    } else if ((p[0] & 0xF0) == 0xE0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80) {
         *cursor += 3;
-        return ((uint32_t)(p[0] & 0x0F) << 12)
+        cp = ((uint32_t)(p[0] & 0x0F) << 12)
             | ((uint32_t)(p[1] & 0x3F) << 6)
             | (p[2] & 0x3F);
-    }
-    if ((p[0] & 0xF8) == 0xF0 && (p[1] & 0xC0) == 0x80
+    } else if ((p[0] & 0xF8) == 0xF0 && (p[1] & 0xC0) == 0x80
         && (p[2] & 0xC0) == 0x80 && (p[3] & 0xC0) == 0x80) {
         *cursor += 4;
-        return ((uint32_t)(p[0] & 0x07) << 18)
+        cp = ((uint32_t)(p[0] & 0x07) << 18)
             | ((uint32_t)(p[1] & 0x3F) << 12)
             | ((uint32_t)(p[2] & 0x3F) << 6)
             | (p[3] & 0x3F);
+    } else {
+        *cursor += 1;
+        return 0xFFFD;
     }
-    *cursor += 1;
-    return 0xFFFD;
+
+    while (true) {
+        const uint8_t* next_p = (const uint8_t*)*cursor;
+        if (next_p[0] != 0xCC && next_p[0] != 0xCD) break;
+        if ((next_p[1] & 0xC0) != 0x80) break;
+        uint32_t mark = ((uint32_t)(next_p[0] & 0x1F) << 6) | (next_p[1] & 0x3F);
+        uint32_t composed = vn_compose_mark(cp, mark);
+        if (composed == 0) break;
+        cp = composed;
+        *cursor += 2;
+    }
+
+    return cp;
 }
 
 static int clamp_size(int size) {
@@ -2365,14 +2430,31 @@ static esp_err_t load_opened_font(void) {
     io_reset();
     io_unmap();
 
-    uint8_t header[12 + 32 * 16];
-    if (!file_read_at(0, header, sizeof(header))) {
+    uint8_t sfnt_hdr[12];
+    if (!file_read_at(0, sfnt_hdr, sizeof(sfnt_hdr))) {
+        abandon_font_source();
+        return ESP_FAIL;
+    }
+    uint16_t num_tables = be16(sfnt_hdr + 4);
+    if (num_tables == 0 || num_tables > 256) {
+        abandon_font_source();
+        return ESP_FAIL;
+    }
+    size_t header_len = 12 + (size_t)num_tables * 16;
+    uint8_t* header = heap_caps_malloc(header_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!header) {
+        abandon_font_source();
+        return ESP_ERR_NO_MEM;
+    }
+    if (!file_read_at(0, header, header_len)) {
+        heap_caps_free(header);
         abandon_font_source();
         return ESP_FAIL;
     }
 
-    font_data = build_working_font(header, sizeof(header));
+    font_data = build_working_font(header, header_len);
     if (font_data == NULL) {
+        heap_caps_free(header);
         abandon_font_source();
         ESP_LOGE(TAG, "build working font failed");
         return ESP_ERR_NO_MEM;
@@ -2390,7 +2472,9 @@ static esp_err_t load_opened_font(void) {
         );
     }
 
-    load_variation(header, sizeof(header));
+    load_variation(header, header_len);
+    heap_caps_free(header);
+
 #if KIIKO_BOARD_METALIO47
     if (gvar_ready && file_gvar_len > 0 && !s_cur->f_preview) {
 #else
@@ -2405,8 +2489,8 @@ static esp_err_t load_opened_font(void) {
     if (!stbtt_InitFont(&font_info, font_data, 0)) {
         io_unmap();
         heap_caps_free(file_loca);
-        heap_caps_free(font_data);
         file_loca = NULL;
+        if (!font_data_borrowed) heap_caps_free(font_data);
         font_data = NULL;
         abandon_font_source();
         ESP_LOGE(TAG, "stbtt_InitFont failed");

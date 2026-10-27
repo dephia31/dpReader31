@@ -153,6 +153,24 @@ def build_vietnamese_builtin(src: Path, text: str, dest: Path) -> int:
             or 0x2000 <= cp <= 0x2BFF
         )
     )
+    vietnamese_all = (
+        "aàảãáạăằẳẵắặâầẩẫấậ"
+        "bcdđeèẻẽéẹêềểễếệ"
+        "ghikìỉĩíị"
+        "lmnoòỏõóọôồổỗốộơờởỡớợ"
+        "pqrstuùủũúụưừửữứự"
+        "vxyỳỷỹýỵ"
+        "AÀẢÃÁẠĂẰẲẴẮẶÂẦẨẪẤẬ"
+        "BCDĐEÈẺẼÉẸÊỀỂỄẾỆ"
+        "GHIKÌỈĨÍỊ"
+        "LMNOÒỎÕÓỌÔỒỔỖỐỘƠỜỞỠỚỢ"
+        "PQRSTUÙỦŨÚỤƯỪỬỮỨỰ"
+        "VXYỲỶỸÝỴ"
+        "←↑→↓⇧−√∞∩≈≠≤≥⌫■□▲▼○●★☆✓✔✕✖"
+    )
+    for ch in vietnamese_all:
+        if ord(ch) in base_cmap:
+            keep_cps.add(ord(ch))
     for ch in text:
         if ord(ch) in base_cmap:
             keep_cps.add(ord(ch))
@@ -165,6 +183,16 @@ def build_vietnamese_builtin(src: Path, text: str, dest: Path) -> int:
     sub = Subsetter(options=opts)
     sub.populate(unicodes=sorted(keep_cps))
     sub.subset(f_base)
+
+    # Adjust vertical metrics to prevent clipping Vietnamese double-diacritic glyphs (yMax ~1064)
+    if "hhea" in f_base:
+        f_base["hhea"].ascent = 1120
+        f_base["hhea"].descent = -300
+    if "OS/2" in f_base:
+        f_base["OS/2"].sTypoAscender = 1120
+        f_base["OS/2"].sTypoDescender = -300
+        f_base["OS/2"].usWinAscent = 1120
+        f_base["OS/2"].usWinDescent = 300
 
     # Inject UI math/arrow/dingbat symbols and internal CJK chapter/width tokens (all UPM=1000)
     needed_cps = [ord(ch) for ch in text] + [
