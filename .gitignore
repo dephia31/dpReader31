@@ -127,3 +127,7 @@ Desktop.ini
 /build-*/
 /sdkconfig.pico
 /sdkconfig.metalio47
+
+# Local build and flash scripts
+build_firmware.sh
+flash_firmware.sh
