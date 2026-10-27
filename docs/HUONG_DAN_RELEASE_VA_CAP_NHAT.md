@@ -120,7 +120,11 @@ Dành cho máy mới xuất xưởng, máy cần phân vùng lại, hoặc máy 
 1. Tải tệp firmware toàn diện **`dpReader_metalio47_full.bin`** (đã bao gồm Bootloader, Partition Table, Otadata, App).
 2. Chạy lệnh nạp từ offset `0x0`:
    ```bash
-   esptool.py --chip esp32s3 -p /dev/tty.usbmodem* -b 921600 write_flash 0x0 dpReader_metalio47_full.bin
+   python3 -m esptool --chip esp32s31 -p /dev/cu.usbmodem* -b 460800 write_flash 0x0 dpReader_metalio47_full.bin
+   ```
+   *(Hoặc nếu chỉ nâng cấp phần mềm giữ nguyên dữ liệu, nạp vào offset `0x10000`)*:
+   ```bash
+   python3 -m esptool --chip esp32s31 -p /dev/cu.usbmodem* -b 460800 write_flash 0x10000 dpReader_metalio47_firmware.bin
    ```
 
 ---
