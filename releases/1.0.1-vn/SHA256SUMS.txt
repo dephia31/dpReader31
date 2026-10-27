@@ -1,0 +1,2 @@
+4349fe9fa300f8b32001ddd2ea1b463158b6c080866933e17dc57d40ecf844b4  dpReader-metalio47-1.0.1-vn-full.bin
+3aa0961e5b1cdfd1d943fa54b685f2bb0a1301476ed2215c2c13635ea1188b50  dpReader-metalio47-1.0.1-vn.bin
