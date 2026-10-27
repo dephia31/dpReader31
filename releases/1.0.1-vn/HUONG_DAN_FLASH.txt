@@ -19,8 +19,11 @@ Sử dụng file: dpReader-metalio47-1.0.1-vn-full.bin
 Sử dụng file: dpReader-metalio47-1.0.1-vn.bin
 
 1. Sao chép file dpReader-metalio47-1.0.1-vn.bin vào thư mục gốc của thẻ TF
-2. Đổi tên file thành: Pico-update.bin
-3. Lắp thẻ TF vào thiết bị và khởi động lại
+2. Đổi tên file phù hợp với hệ điều hành hiện tại trên máy:
+   - Từ ROM gốc nhà sản xuất (CloudZao): đổi tên thành Metalio-E-Ink4-Plus.bin (khởi động lại máy sẽ tự báo nâng cấp).
+   - Từ Kiikoread: đổi tên thành Metalio-S31-update.bin (vào Cài đặt -> Cập nhật hệ thống -> Nâng cấp thẻ TF).
+   - Nếu máy đã chạy dpReader: giữ nguyên tên, mở "Tệp" (Quản lý tệp) -> chạm 2 lần vào file .bin để cập nhật.
+3. Lắp thẻ TF vào thiết bị và thực hiện nâng cấp.
 
 QUAN TRỌNG:
 - Đảm bảo VCOM của thiết bị đã được hiệu chỉnh đúng (mặc định 1200 mV)

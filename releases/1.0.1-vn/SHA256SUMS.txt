@@ -1,2 +1,2 @@
-4349fe9fa300f8b32001ddd2ea1b463158b6c080866933e17dc57d40ecf844b4  dpReader-metalio47-1.0.1-vn-full.bin
-3aa0961e5b1cdfd1d943fa54b685f2bb0a1301476ed2215c2c13635ea1188b50  dpReader-metalio47-1.0.1-vn.bin
+50f53707acee3ff80320fe2394d0bfeb4c51ccee87ad9248595e892ab8f5344c  dpReader-metalio47-1.0.1-vn-full.bin
+dcbb658596b3f43c3481a334ac073089e0ffce4b310dd47e8f59c16a45770e36  dpReader-metalio47-1.0.1-vn.bin

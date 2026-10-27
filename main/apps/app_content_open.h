@@ -19,6 +19,7 @@ bool app_book_resume_context(char *path, size_t capacity, bool *fullscreen);
 bool app_image_request_open(const char *path);
 void app_files_request_folder(int folder);
 void app_book_request_manage(void);
+void app_book_request_opds(void);
 bool app_book_reader_body_visible(void);
 #if KIIKO_BOARD_METALIO47
 #include "app/app.h"

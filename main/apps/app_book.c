@@ -272,6 +272,7 @@ static bool s_requested_open_home;
 static bool s_requested_fullscreen = true;
 static bool s_reader_return_home;
 static bool s_requested_manage;
+static bool s_requested_opds;
 static shelf_entry_t* s_shelf;
 static struct {
     int index;
@@ -589,6 +590,7 @@ bool app_book_resume_context(char *path, size_t capacity, bool *fullscreen) {
     return true;
 }
 void app_book_request_manage(void) { s_requested_manage = true; }
+void app_book_request_opds(void) { s_requested_opds = true; }
 static void draw_control(uint8_t* fb, EpdRect rect, const char* label, int id) {
     if (id == 112 && s_query[0]) {
         ui_fill_round_rect(fb, rect, UI_BTN_RADIUS, UI_GRAY_BLACK);
@@ -7435,9 +7437,13 @@ static void on_enter(app_ctx_t* ctx) {
     s_bookmark_edit = s_bookmark_delete_confirm = s_bookmark_delete_error = false;
     s_bookmark_selected = 0;
     clear_selection();
-    s_view = s_requested_manage ? BULK : SHELF;
-    s_reader_return_home = false;
-    s_requested_manage = false;
+    if (s_requested_opds) {
+        s_requested_opds = false;
+        opds_open_catalog();
+    } else {
+        s_view = s_requested_manage ? BULK : SHELF;
+        s_requested_manage = false;
+    }
     s_presented_view = -1;
     ctx->leaf = s_view==SHELF && s_categories ? s_categories[s_category_selected].pages[app_settings_shelf_style()==5] : 0;
     s_px = app_settings_book_px();

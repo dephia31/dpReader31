@@ -91,6 +91,8 @@ static ui_online_fonts_t s_online_fonts;
 #include "display_main_waveform.h"
 #include "e0470_epaper_waveform.h"
 #include "pmu_selftest.h"
+#include "kosync_client.h"
+#include "opds_client.h"
 #if KIIKO_BOARD_METALIO47
 #include "metalio_hw.h"
 #else
@@ -100,7 +102,10 @@ static ui_online_fonts_t s_online_fonts;
 static void fit_value(char *value, int width);
 static void settings_card(uint8_t *fb, EpdRect rect, int radius, uint8_t fill, uint8_t edge);
 static char s_notice[96];
+static char s_kosync_notice[96];
+static char s_opds_notice[96];
 typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
+               SETTINGS_KOSYNC, SETTINGS_OPDS,
                SETTINGS_TIME_EDIT, SETTINGS_SHELF_STYLE, SETTINGS_SYSTEM_FONT,
 #if KIIKO_BOARD_METALIO47
                SETTINGS_ONLINE_FONTS,
@@ -392,7 +397,7 @@ static int settings_main_row_height(void) {
     return 82;
 }
 #define SETTINGS_ROW_H settings_main_row_height()
-#define SETTINGS_WIRELESS_ROWS 3
+#define SETTINGS_WIRELESS_ROWS 5
 #if KIIKO_BOARD_METALIO47
 #define SETTINGS_DISPLAY_ROWS 8
 #else
@@ -1374,6 +1379,70 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_navigation(fb);
         return;
     }
+    if (s_page == SETTINGS_KOSYNC) {
+        back_header(fb, "Đồng bộ KOSync");
+        section(fb, 245, "Đồng bộ tiến độ đọc sách chuẩn KOReader (Android, Kobo, Kindle)");
+
+        settings_card(fb, (EpdRect){36, 285, 612, 160}, 20, UI_GRAY_WHITE, 0x70);
+        char server_line[128];
+        snprintf(server_line, sizeof(server_line), "Máy chủ: %s", app_settings_kosync_url());
+        ui_text(fb, 58, 308, 20, server_line, EPD_DRAW_ALIGN_LEFT, false);
+        char user_line[96];
+        snprintf(user_line, sizeof(user_line), "Tài khoản: %s", app_settings_kosync_user()[0] ? app_settings_kosync_user() : "(Chưa đăng nhập)");
+        ui_text(fb, 58, 350, 22, user_line, EPD_DRAW_ALIGN_LEFT, false);
+        char key_line[64];
+        snprintf(key_line, sizeof(key_line), "Mật khẩu: %s", app_settings_kosync_key()[0] ? "•••••••• (Đã băm MD5)" : "(Chưa nhập)");
+        ui_text(fb, 58, 392, 19, key_line, EPD_DRAW_ALIGN_LEFT, false);
+
+        bool auto_on = app_settings_kosync_auto();
+        settings_card(fb, (EpdRect){36, 465, 612, 92}, 20, auto_on ? 0xd0 : UI_GRAY_WHITE, 0x70);
+        ui_text(fb, 58, 488, 23, "Tự động đồng bộ tiến độ đọc", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 58, 524, 18, "Tự gửi/nhận khi mở hoặc đóng sách (Chạm để Bật/Tắt)", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 608, 502, 22, auto_on ? "BẬT" : "TẮT", EPD_DRAW_ALIGN_RIGHT, false);
+        if (auto_on) epd_fill_circle(620, 511, 7, UI_GRAY_BLACK, fb);
+
+        ui_draw_button(fb, (EpdRect){36, 577, 612, 72}, "Kiểm tra kết nối máy chủ KOSync", false);
+        ui_draw_button(fb, (EpdRect){36, 665, 612, 72}, "Cấu hình tài khoản qua Web (WiFi Transfer)  ›", false);
+        ui_draw_button(fb, (EpdRect){36, 753, 612, 72}, "Đặt lại máy chủ mặc định (sync.vreader.cloud)", false);
+
+        if (s_kosync_notice[0]) {
+            ui_text(fb, 48, 852, 21, s_kosync_notice, EPD_DRAW_ALIGN_LEFT, false);
+        } else {
+            ui_text(fb, 48, 852, 18, "Tương thích 100% với KOReader qua thuật toán băm partialMD5.", EPD_DRAW_ALIGN_LEFT, false);
+        }
+        ui_text(fb, 48, 892, 18, "Khi đọc sách: bấm nút 'Đồng bộ KOSync' trong menu để đồng bộ tức thì.", EPD_DRAW_ALIGN_LEFT, false);
+        settings_navigation(fb);
+        return;
+    }
+    if (s_page == SETTINGS_OPDS) {
+        back_header(fb, "Kho sách OPDS");
+        section(fb, 245, "Duyệt và tải sách trực tiếp từ Calibre-Web qua chuẩn OPDS 1.2");
+
+        settings_card(fb, (EpdRect){36, 285, 612, 160}, 20, UI_GRAY_WHITE, 0x70);
+        char url_line[140];
+        snprintf(url_line, sizeof(url_line), "Kho sách: %s", app_settings_opds_url());
+        ui_text(fb, 58, 308, 20, url_line, EPD_DRAW_ALIGN_LEFT, false);
+        char user_line[96];
+        snprintf(user_line, sizeof(user_line), "Tài khoản: %s", app_settings_opds_user()[0] ? app_settings_opds_user() : "(Không yêu cầu / Khách)");
+        ui_text(fb, 58, 350, 22, user_line, EPD_DRAW_ALIGN_LEFT, false);
+        char pass_line[64];
+        snprintf(pass_line, sizeof(pass_line), "Mật khẩu: %s", app_settings_opds_pass()[0] ? "••••••••" : "(Không có)");
+        ui_text(fb, 58, 392, 19, pass_line, EPD_DRAW_ALIGN_LEFT, false);
+
+        ui_draw_button(fb, (EpdRect){36, 465, 612, 72}, "Mở kho sách OPDS ngay  ›", false);
+        ui_draw_button(fb, (EpdRect){36, 553, 612, 72}, "Cấu hình kho sách qua Web (WiFi Transfer)  ›", false);
+        ui_draw_button(fb, (EpdRect){36, 641, 612, 72}, "Đặt lại kho sách mặc định (sach.vreader.cloud)", false);
+
+        if (s_opds_notice[0]) {
+            ui_text(fb, 48, 742, 21, s_opds_notice, EPD_DRAW_ALIGN_LEFT, false);
+        } else {
+            ui_text(fb, 48, 742, 18, "Kho sách mặc định: https://sach.vreader.cloud:8443/opds", EPD_DRAW_ALIGN_LEFT, false);
+        }
+        ui_text(fb, 48, 782, 18, "Bạn có thể kết nối kho sách Calibre-Web riêng bằng cách đổi URL qua Web.", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 822, 18, "Trong Tủ sách: chọn '+ Nhập sách' -> 'Thư viện OPDS' để duyệt sách.", EPD_DRAW_ALIGN_LEFT, false);
+        settings_navigation(fb);
+        return;
+    }
     if (s_page == SETTINGS_AUTO_LOCK) {
         back_header(fb, "Tự động khóa màn hình");
         section(fb, 228, "Tự động khóa khi không thao tác");
@@ -1665,10 +1734,16 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         ui_draw_icon(fb,625,profile_y+profile_h/2,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
     }
     char wifi[56];snprintf(wifi,sizeof(wifi),"%s",s_main_wifi_saved?s_main_wifi:"Chưa cấu hình");
-    const char *connection_labels[]={"WiFi","Điều khiển lật trang BLE","Ngày & Giờ"};
-    const char *connection_values[]={wifi,app_settings_ble_turner()?"Đã bật":"Đã tắt","Cài đặt"};
-    const int connection_icons[]={0,1,6};
-    setting_group(fb,SETTINGS_WIRELESS_Y-49,"Kết nối & Thời gian",SETTINGS_WIRELESS_Y,
+    char kosync_val[48];
+    if (!app_settings_kosync_user()[0]) {
+        snprintf(kosync_val, sizeof(kosync_val), "Chưa cấu hình");
+    } else {
+        snprintf(kosync_val, sizeof(kosync_val), "%s", app_settings_kosync_auto() ? "Tự động" : "Bật");
+    }
+    const char *connection_labels[]={"WiFi","Điều khiển lật trang BLE","Đồng bộ KOSync","Kho sách OPDS","Ngày & Giờ"};
+    const char *connection_values[]={wifi,app_settings_ble_turner()?"Đã bật":"Đã tắt",kosync_val,"Kho trực tuyến","Cài đặt"};
+    const int connection_icons[]={0,1,11,4,6};
+    setting_group(fb,SETTINGS_WIRELESS_Y-49,"Kết nối",SETTINGS_WIRELESS_Y,
                   connection_icons,connection_labels,connection_values,SETTINGS_WIRELESS_ROWS);
     char font_name[96],contrast[24],idle[24],signature[96];
     snprintf(font_name,sizeof(font_name),"%s · %u%%",system_font_label(app_settings_system_font_path()),app_settings_system_font_size());
@@ -2548,6 +2623,58 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if (y >= 518 && y < 588) { time_open(); return APP_REDRAW_PAGE; }
         return APP_REDRAW_NONE;
     }
+    if (s_page == SETTINGS_KOSYNC) {
+        if (y >= 465 && y < 557) {
+            app_settings_set_kosync_auto(!app_settings_kosync_auto());
+            snprintf(s_kosync_notice, sizeof(s_kosync_notice), "Đã %s tự động đồng bộ KOSync",
+                     app_settings_kosync_auto() ? "bật" : "tắt");
+            return APP_REDRAW_PAGE;
+        }
+        if (y >= 577 && y < 649) {
+            if (!app_settings_kosync_user()[0]) {
+                snprintf(s_kosync_notice, sizeof(s_kosync_notice), "Chưa có tài khoản (hãy cấu hình qua Web Portal)");
+            } else {
+                char msg[80] = {0};
+                esp_err_t err = kosync_verify_account(false, msg, sizeof(msg));
+                snprintf(s_kosync_notice, sizeof(s_kosync_notice), "%s",
+                         err == ESP_OK ? (msg[0] ? msg : "Tài khoản hợp lệ! Kết nối KOSync thành công.") :
+                                         (msg[0] ? msg : "Kết nối KOSync thất bại, hãy kiểm tra mạng/tài khoản"));
+            }
+            return APP_REDRAW_PAGE;
+        }
+        if (y >= 665 && y < 737) {
+            extern const app_desc_t app_transfer;
+            app_transfer_request_wifi_setup();
+            ctx->request_app = &app_transfer;
+            return APP_REDRAW_NONE;
+        }
+        if (y >= 753 && y < 825) {
+            app_settings_set_kosync_url(DPREADER_DEFAULT_KOSYNC_URL);
+            snprintf(s_kosync_notice, sizeof(s_kosync_notice), "Đã đặt lại máy chủ: %s", DPREADER_DEFAULT_KOSYNC_URL);
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
+    if (s_page == SETTINGS_OPDS) {
+        if (y >= 465 && y < 537) {
+            extern const app_desc_t app_book;
+            app_book_request_opds();
+            ctx->request_app = &app_book;
+            return APP_REDRAW_NONE;
+        }
+        if (y >= 553 && y < 625) {
+            extern const app_desc_t app_transfer;
+            app_transfer_request_wifi_setup();
+            ctx->request_app = &app_transfer;
+            return APP_REDRAW_NONE;
+        }
+        if (y >= 641 && y < 713) {
+            app_settings_set_opds_url(DPREADER_DEFAULT_OPDS_URL);
+            snprintf(s_opds_notice, sizeof(s_opds_notice), "Đã đặt lại kho sách: %s", DPREADER_DEFAULT_OPDS_URL);
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
 #if KIIKO_BOARD_METALIO47
     if (s_page == SETTINGS_POWER_SLEEP) {
         for (int i = 0; i < 2; ++i) {
@@ -2736,6 +2863,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if(row==1) {
             s_page=SETTINGS_BLUETOOTH;s_ble_scroll=s_ble_learning=0;s_ble_notice[0]=s_ble_feedback[0]=0;
             ble_pt_raw_t unused;while(ble_pt_pop_raw(&unused)){}return APP_REDRAW_PAGE;
+        }
+        if(row==2) {
+            s_page=SETTINGS_KOSYNC;s_kosync_notice[0]=0;return APP_REDRAW_PAGE;
+        }
+        if(row==3) {
+            s_page=SETTINGS_OPDS;s_opds_notice[0]=0;return APP_REDRAW_PAGE;
         }
         s_page=SETTINGS_TIME;return APP_REDRAW_PAGE;
     }
