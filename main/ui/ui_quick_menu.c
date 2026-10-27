@@ -206,25 +206,20 @@ void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool soften_text) {
     if(s_underlay)save_tile(fb,(EpdRect){0,0,UI_LOCK_WIDTH,UI_QUICK_HEIGHT},s_underlay);
     (void)soften_text;
     EpdRect panel={18,88,UI_LOCK_WIDTH-36,280};
-    if(!s_underlay||!ui_glass_panel_frost(fb,panel,48,45,160,true)) { ui_fill_round_rect(fb,panel,48,0xe0);ui_draw_control_frame(fb,panel,48,0x60); }
-    for(unsigned i=0;i<4;++i){if(s_underlay)restore_circle(fb,i);if(!s_underlay||!ui_glass_panel_frost(fb,key_rect(i),UI_QUICK_RADIUS,58,160,true))solid_key(fb,i);}
+    ui_fill_round_rect(fb,panel,32,UI_GRAY_WHITE);
+    ui_draw_control_frame(fb,panel,32,0x50);
+    for(unsigned i=0;i<4;++i){solid_key(fb,i);}
     // Allocate key snapshots after every glass workspace has been released.
 #else
     if(!fb||epd_rotated_display_width()<UI_LOCK_WIDTH||epd_rotated_display_height()<UI_QUICK_HEIGHT)return;
     EpdRect panel=glass_rect();
     uint8_t *underlay=s_underlay=save_underlay(fb);
     s_key_frame=fb;s_key_rotation=epd_get_rotation();
-    if(!underlay||!ui_glass_panel_frost(fb,panel,56,25,160,soften_text)){
-        ui_fill_round_rect(fb,panel,56,0xe0);
-        ui_draw_control_frame(fb,panel,56,0x60);
-    }
+    ui_fill_round_rect(fb,panel,32,UI_GRAY_WHITE);
+    ui_draw_control_frame(fb,panel,32,0x50);
     for(int i=0;i<4;++i){
         int cx=center_x(i);
-        if(underlay)restore_circle(fb,underlay,cx);
-        EpdRect key=key_rect(i);
-        if(!underlay||!ui_glass_panel_frost(fb,key,UI_QUICK_RADIUS,25,160,soften_text)){
-            draw_solid_key(fb,i);
-        }
+        draw_solid_key(fb,i);
         ui_draw_icon(fb,cx,UI_QUICK_CIRCLE_Y,44,s_icons[i],UI_GRAY_BLACK);
     }
     // 玻璃工作区已释放，再保存四圆键，峰值不叠加；不包含可变化的状态点和按压环。

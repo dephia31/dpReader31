@@ -79,8 +79,7 @@ static EpdRect image_lock_option(unsigned index) {
 static void image_lock_menu_draw(uint8_t *fb) {
     const unsigned actions=image_lock_action_count();
     const EpdRect card = {70, 346, 544, actions==2?468:372};
-    if (!ui_glass_panel_frost(fb, card, 28, 96, 3, true))
-        ui_fill_round_rect(fb, card, 28, UI_GRAY_WHITE);
+    ui_fill_round_rect(fb, card, 28, UI_GRAY_WHITE);
     ui_draw_round_rect(fb, card, 28, UI_GRAY_LIGHT);
     ui_draw_icon(fb, 124, 402, 34, UI_ICON_LOCK, 0);
     ui_text_vc(fb, 162, 402, 30, "Đặt màn hình khóa", EPD_DRAW_ALIGN_LEFT, false);

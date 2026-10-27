@@ -147,10 +147,8 @@ static void paint(uint8_t *fb,const ui_pinpad_t *pad,EpdRect area){
             // Number keys are liquid glass over the un-whitened frame: blur, refraction and rim stay
             // inside the key, with a 25% white layer; refraction strength matches the power page's
             // 160% so the rim deforms more.
-            if(!ui_glass_panel(fb,(EpdRect){cx-RADIUS,cy-RADIUS,2*RADIUS,2*RADIUS},RADIUS,25,160)){
-                epd_fill_circle(cx,cy,RADIUS,255,fb);
-                for(int r=RADIUS;r>=RADIUS-2;--r)epd_draw_circle(cx,cy,r,0x60,fb);
-            }
+            epd_fill_circle(cx,cy,RADIUS,255,fb);
+            for(int r=RADIUS;r>=RADIUS-2;--r)epd_draw_circle(cx,cy,r,0x60,fb);
             char numeral[2]={(char)('0'+hit),0};text(fb,cx,cy,74,numeral,0,pad,hit);
             if(pressed&&pad->key_snapshot){
                 for(int r=67;r>=63;--r)epd_draw_circle(cx,cy,r,0,fb);

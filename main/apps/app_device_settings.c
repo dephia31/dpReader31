@@ -121,9 +121,11 @@ typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
 #endif
                SETTINGS_BLUETOOTH, SETTINGS_BLE_SCAN,
 #if KIIKO_BOARD_METALIO47
-               SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT, SETTINGS_FRONTLIGHT } settings_page_t;
+               SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT, SETTINGS_FRONTLIGHT,
+               SETTINGS_CONTROLS } settings_page_t;
 #else
-               SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT } settings_page_t;
+               SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT,
+               SETTINGS_CONTROLS } settings_page_t;
 #endif
 static settings_page_t s_page;
 #if KIIKO_BOARD_METALIO47
@@ -404,6 +406,7 @@ static int settings_main_row_height(void) {
 #define SETTINGS_DISPLAY_ROWS 7
 #endif
 #define SETTINGS_PERSONAL_ROWS 4
+#define SETTINGS_CONTROLS_ROWS 1
 #if KIIKO_BOARD_METALIO47
 #define SETTINGS_MAINTENANCE_ROWS 6
 #else
@@ -412,7 +415,8 @@ static int settings_main_row_height(void) {
 #define SETTINGS_WIRELESS_Y (180 + settings_profile_height() + 77)
 #define SETTINGS_DISPLAY_Y (SETTINGS_WIRELESS_Y + SETTINGS_WIRELESS_ROWS * SETTINGS_ROW_H + 78)
 #define SETTINGS_PERSONAL_Y (SETTINGS_DISPLAY_Y + SETTINGS_DISPLAY_ROWS * SETTINGS_ROW_H + 78)
-#define SETTINGS_MAINTENANCE_Y (SETTINGS_PERSONAL_Y + SETTINGS_PERSONAL_ROWS * SETTINGS_ROW_H + 78)
+#define SETTINGS_CONTROLS_Y (SETTINGS_PERSONAL_Y + SETTINGS_PERSONAL_ROWS * SETTINGS_ROW_H + 78)
+#define SETTINGS_MAINTENANCE_Y (SETTINGS_CONTROLS_Y + SETTINGS_CONTROLS_ROWS * SETTINGS_ROW_H + 78)
 // 设置行图标：32 像素盒，在行高 68 里垂直居中；墨色统一，避免一行一个灰度。
 // Setting row icons: a 32 px box centred in the 68 px row with one shared ink level.
 #define SETTINGS_UNLOCK_ICON 18
@@ -673,6 +677,47 @@ static void row(uint8_t *fb, int y, const char *label, const char *value) {
 }
 static void section(uint8_t *fb, int y, const char *title) {
     ui_text(fb, 40, y, 22, title, EPD_DRAW_ALIGN_LEFT, false);
+}
+
+static const char *ai_action_label(app_ai_action_t action) {
+    switch (action) {
+        case APP_AI_REFRESH: return "Khử bóng mờ";
+        case APP_AI_BOOKMARK: return "Đánh dấu trang";
+        case APP_AI_FRONTLIGHT: return "Tắt / Mở đèn nền";
+        case APP_AI_HOME: return "Về Trang chủ";
+        case APP_AI_KOSYNC: return "Đồng bộ KOSync";
+        case APP_AI_PREV_PAGE: return "Trang trước";
+        case APP_AI_NEXT_PAGE: return "Trang sau";
+        case APP_AI_PREV_CHAPTER: return "Chương trước";
+        case APP_AI_NEXT_CHAPTER: return "Chương sau";
+        case APP_AI_NONE:
+        default: return "Không dùng";
+    }
+}
+
+static const char *reader_key_action_label(app_reader_key_action_t action) {
+    switch (action) {
+        case APP_READER_KEY_PREV: return "Trang trước";
+        case APP_READER_KEY_NEXT: return "Trang sau";
+        case APP_READER_KEY_TOOLS: return "Menu đọc sách";
+        case APP_READER_KEY_FULLSCREEN: return "Toàn màn hình";
+        case APP_READER_KEY_HOME: return "Về Trang chủ";
+        case APP_READER_KEY_REFRESH: return "Khử bóng mờ";
+        case APP_READER_KEY_PREV_CHAPTER: return "Chương trước";
+        case APP_READER_KEY_NEXT_CHAPTER: return "Chương sau";
+        case APP_READER_KEY_LIGHT: return "Tắt / Mở đèn nền";
+        case APP_READER_KEY_KOSYNC: return "Đồng bộ KOSync";
+        case APP_READER_KEY_NONE:
+        default: return "Không dùng";
+    }
+}
+
+static app_ai_action_t next_ai_action(app_ai_action_t curr) {
+    return (app_ai_action_t)(((int)curr + 1) % APP_AI_ACTION_COUNT);
+}
+
+static app_reader_key_action_t next_reader_key_action(app_reader_key_action_t curr) {
+    return (app_reader_key_action_t)(((int)curr + 1) % APP_READER_KEY_COUNT);
 }
 
 /* ---- 蓝牙翻页器子页的版式 / Layout of the Bluetooth sub-page ---- */
@@ -980,6 +1025,22 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         snprintf(value,sizeof(value),"%u%%",metalio_warmth()); row(fb,530,"Tỷ lệ ánh sáng ấm",value);
         row(fb,620,"Ánh sáng lạnh","Ánh sáng ấm"); row(fb,750,"Đèn nền",metalio_frontlight_enabled()?"Bật":"Tắt");
         row(fb,850,"Rung phản hồi chạm",metalio_haptic_enabled()?"Bật":"Tắt");
+        settings_navigation(fb); return;
+    }
+    if(s_page==SETTINGS_CONTROLS) {
+        epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb); back_header(fb,"Điều khiển");
+        section(fb,200,"Phím cứng & Nút bấm");
+        row(fb,230,"Nút AI (Bên hông)",ai_action_label(app_settings_ai_short()));
+        row(fb,310,"Nút Âm lượng (+) bên hông",reader_key_action_label(app_settings_volume_key_action(1)));
+        row(fb,390,"Nút Âm lượng (-) bên hông",reader_key_action_label(app_settings_volume_key_action(0)));
+        row(fb,470,"Nút Nguồn (Nhấn ngắn)",app_settings_reader_power_turn()?"Lật trang khi đọc":"Khóa màn hình");
+        row(fb,550,"Phím tròn (Giữa mặt trước)",reader_key_action_label(app_settings_reader_key_action(1)));
+        row(fb,630,"Phím xám (Trái mặt trước)",reader_key_action_label(app_settings_reader_key_action(0)));
+        row(fb,710,"Phím xám (Phải mặt trước)",reader_key_action_label(app_settings_reader_key_action(2)));
+        section(fb,805,"Cử chỉ khi đọc sách");
+        row(fb,835,"Vuốt lên",app_settings_reader_swipe_up_tools()?"Bật menu đọc sách":"Tắt");
+        row(fb,915,"Vuốt từ cạnh đáy lên",app_settings_reader_swipe_bottom_home()?"Về Trang chủ":"Tắt");
+        ui_text_fixed(fb,54,1020,20,"* Nhấn vào từng mục để thay đổi tác vụ gán cho nút hoặc cử chỉ.",EPD_DRAW_ALIGN_LEFT,false);
         settings_navigation(fb); return;
     }
 #else
@@ -1774,6 +1835,11 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const int personal_icons[]={4,5,16,10};
     setting_group(fb,SETTINGS_PERSONAL_Y-49,"Cá nhân hóa",SETTINGS_PERSONAL_Y,
                   personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
+    const char *controls_labels[]={"Phím cứng & Cử chỉ"};
+    const char *controls_values[]={"Cài đặt"};
+    const int controls_icons[]={1};
+    setting_group(fb,SETTINGS_CONTROLS_Y-49,"Điều khiển",SETTINGS_CONTROLS_Y,
+                  controls_icons,controls_labels,controls_values,SETTINGS_CONTROLS_ROWS);
 #if KIIKO_BOARD_METALIO47
     const char *maintenance_labels[]={"Cập nhật hệ thống","Khôi phục thẻ nhớ","Sao lưu & Khôi phục","Khử bóng mờ màn hình","Nạp ROM (BOOT)","Khôi phục cài đặt gốc"};
     const char *maintenance_values[]={"OTA / Thẻ nhớ","Thẻ nhớ & Phông chữ","Cấu hình","Làm sạch vệt mờ","Nạp ROM qua máy tính","Đặt lại hệ thống"};
@@ -2284,19 +2350,6 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     if (s_page == SETTINGS_UPGRADE) {
         if (ev->type != UI_GESTURE_TAP || s_local_pending || s_upgrade_restart) return APP_REDRAW_NONE;
         int y = ev->y0;
-#if KIIKO_BOARD_METALIO47
-    if(s_page==SETTINGS_FRONTLIGHT) {
-        if(y<190) { s_page=SETTINGS_MAIN; return APP_REDRAW_PAGE; }
-        unsigned brightness=metalio_brightness(), warmth=metalio_warmth();
-        if(y>=390 && y<458) brightness=ev->x0<342?(brightness>=10?brightness-10:0):(brightness<=90?brightness+10:100);
-        else if(y>=620 && y<688) warmth=ev->x0<342?(warmth>=10?warmth-10:0):(warmth<=90?warmth+10:100);
-        else if(y>=750 && y<818) { metalio_frontlight_toggle(); return APP_REDRAW_PAGE; }
-        else if(y>=850 && y<918) { metalio_haptic_set_enabled(!metalio_haptic_enabled()); return APP_REDRAW_PAGE; }
-        else return APP_REDRAW_NONE;
-        metalio_frontlight_save(brightness,warmth); return APP_REDRAW_PAGE;
-    }
-#else
-#endif
         if (y < 190 && ev->x0 < 170) {
             s_upgrade_job = UPGRADE_JOB_NONE;
             s_upgrade_offer_pending = false;
@@ -2430,6 +2483,40 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else if(y>=850 && y<918) { metalio_haptic_set_enabled(!metalio_haptic_enabled()); return APP_REDRAW_PAGE; }
         else return APP_REDRAW_NONE;
         metalio_frontlight_save(brightness,warmth); return APP_REDRAW_PAGE;
+    }
+    if(s_page==SETTINGS_CONTROLS) {
+        if(y<190 && ev->x0<170) { s_page=SETTINGS_MAIN; return APP_REDRAW_PAGE; }
+        int tab=settings_nav_hit(ev->x0,y);
+        if(tab>=0) { ui_nav_request(ctx,tab); return APP_REDRAW_NONE; }
+        if(y>=230 && y<310) {
+            app_settings_set_ai_short(next_ai_action(app_settings_ai_short()));
+            return APP_REDRAW_PAGE;
+        } else if(y>=310 && y<390) {
+            app_settings_set_volume_key_action(1,next_reader_key_action(app_settings_volume_key_action(1)));
+            return APP_REDRAW_PAGE;
+        } else if(y>=390 && y<470) {
+            app_settings_set_volume_key_action(0,next_reader_key_action(app_settings_volume_key_action(0)));
+            return APP_REDRAW_PAGE;
+        } else if(y>=470 && y<550) {
+            app_settings_set_reader_power_turn(!app_settings_reader_power_turn());
+            return APP_REDRAW_PAGE;
+        } else if(y>=550 && y<630) {
+            app_settings_set_reader_key_action(1,next_reader_key_action(app_settings_reader_key_action(1)));
+            return APP_REDRAW_PAGE;
+        } else if(y>=630 && y<710) {
+            app_settings_set_reader_key_action(0,next_reader_key_action(app_settings_reader_key_action(0)));
+            return APP_REDRAW_PAGE;
+        } else if(y>=710 && y<790) {
+            app_settings_set_reader_key_action(2,next_reader_key_action(app_settings_reader_key_action(2)));
+            return APP_REDRAW_PAGE;
+        } else if(y>=835 && y<915) {
+            app_settings_set_reader_swipe_up_tools(!app_settings_reader_swipe_up_tools());
+            return APP_REDRAW_PAGE;
+        } else if(y>=915 && y<995) {
+            app_settings_set_reader_swipe_bottom_home(!app_settings_reader_swipe_bottom_home());
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
     }
 #else
 #endif
@@ -2894,6 +2981,10 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else if(row==1)s_page=SETTINGS_LOCK_STYLE;
         else if(row==2){s_page=SETTINGS_LOCK_PIN;s_notice[0]=0;}
         else profile_editor_open(true);
+        return APP_REDRAW_PAGE;
+    }
+    if(y>=SETTINGS_CONTROLS_Y && y<SETTINGS_CONTROLS_Y+SETTINGS_CONTROLS_ROWS*SETTINGS_ROW_H) {
+        s_page=SETTINGS_CONTROLS;
         return APP_REDRAW_PAGE;
     }
     if(y>=SETTINGS_MAINTENANCE_Y && y<SETTINGS_MAINTENANCE_Y+SETTINGS_MAINTENANCE_ROWS*SETTINGS_ROW_H) {

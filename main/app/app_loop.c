@@ -700,7 +700,21 @@ static app_redraw_t ai_short_action(app_ctx_t *ctx,const app_desc_t *current){
     (void)metalio_haptic_click();
     if(action==APP_AI_REFRESH)return APP_REDRAW_FULL;
     if(action==APP_AI_FRONTLIGHT){metalio_frontlight_toggle();return APP_REDRAW_NONE;}
-    if(action==APP_AI_HOME)ui_nav_request(ctx,0);
+    if(action==APP_AI_HOME){ui_nav_request(ctx,0);return APP_REDRAW_NONE;}
+    if(action==APP_AI_KOSYNC){
+        if(current==&app_book){app_book_request_kosync(ctx);return APP_REDRAW_PAGE;}
+        return APP_REDRAW_NONE;
+    }
+    if(action==APP_AI_PREV_PAGE || action==APP_AI_NEXT_PAGE){
+        if(current==&app_book && app_book_reader_body_visible()){
+            return app_book_handle_key_action(ctx, action==APP_AI_PREV_PAGE?APP_READER_KEY_PREV:APP_READER_KEY_NEXT);
+        }
+    }
+    if(action==APP_AI_PREV_CHAPTER || action==APP_AI_NEXT_CHAPTER){
+        if(current==&app_book && app_book_reader_body_visible()){
+            return app_book_handle_key_action(ctx, action==APP_AI_PREV_CHAPTER?APP_READER_KEY_PREV_CHAPTER:APP_READER_KEY_NEXT_CHAPTER);
+        }
+    }
     return APP_REDRAW_NONE;
 }
 #endif

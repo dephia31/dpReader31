@@ -2818,7 +2818,11 @@ static void draw_turn_settings(uint8_t *fb) {
 }
 
 static const char *reader_key_label(app_reader_key_action_t action) {
-    static const char *const labels[] = {"Trang trước", "Trang sau", "Thanh công cụ đọc", "Toàn màn hình", "Về Trang chủ", "Làm mới trang", "Không dùng"};
+    static const char *const labels[] = {
+        "Trang trước", "Trang sau", "Thanh công cụ", "Toàn màn hình",
+        "Về Trang chủ", "Làm mới trang", "Không dùng",
+        "Chương trước", "Chương sau", "Bật/Tắt đèn", "Đồng bộ KOSync"
+    };
     return labels[action >= 0 && action < APP_READER_KEY_COUNT ? action : APP_READER_KEY_NONE];
 }
 static EpdRect reader_key_card(unsigned key) {
@@ -7722,17 +7726,17 @@ static bool reader_tools_swipe(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     pause_reader_prep();
     return true;
 }
-static int reader_swipe_direction(ui_gesture_type_t type, uint8_t turn_mode) {
+static int reader_swipe_direction(ui_gesture_type_t type, int mode_or_vertical) {
     int direction = 0;
-    if (turn_mode == 2) {
+    if (mode_or_vertical == 2) {
         if (type == UI_GESTURE_SWIPE_L || type == UI_GESTURE_SWIPE_U) direction = 1;
         else if (type == UI_GESTURE_SWIPE_R || type == UI_GESTURE_SWIPE_D) direction = -1;
     } else {
-        bool vertical = turn_mode == 1;
+        bool vertical = (mode_or_vertical == 1);
         if (type == UI_GESTURE_SWIPE_L || (vertical && type == UI_GESTURE_SWIPE_U)) direction = 1;
         else if (type == UI_GESTURE_SWIPE_R || (vertical && type == UI_GESTURE_SWIPE_D)) direction = -1;
     }
-    if (direction && turn_mode != 1 && app_settings_book_vertical()) direction = -direction;
+    if (direction && mode_or_vertical != 1 && app_settings_book_vertical()) direction = -direction;
     return direction;
 }
 
@@ -8006,6 +8010,21 @@ static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) 
          !reader_page_image_hit(ev->x0, ev->y0) &&
          !book_reader_center(body_rect(), ev->x0, ev->y0)))
         s_reader_tap.pending = false;
+    if (s_view == READING && s_text && s_reader_panel == READER_PANEL_NONE && !s_clear_confirm && !s_scan_pending && !ctx->consumed && ev->type == UI_GESTURE_SWIPE_U) {
+        if (ev->y0 >= UI_LOCK_HEIGHT - 120 && app_settings_reader_swipe_bottom_home()) {
+            s_reader_tap.pending = false;
+            s_pressed_control = s_reader_slider = -1;
+            return reader_return(ctx);
+        } else if (ev->y0 < UI_LOCK_HEIGHT - 120 && app_settings_reader_swipe_up_tools()) {
+            s_reader_tap.pending = false;
+            s_pressed_control = s_reader_slider = -1;
+            s_reader_panel = READER_PANEL_TOOLS;
+            s_stats_activity_ms = ctx->now_ms;
+            ctx->user_activity = true;
+            pause_reader_prep();
+            return APP_REDRAW_PAGE;
+        }
+    }
     if (reader_tools_swipe(ctx, ev)) return APP_REDRAW_PAGE;
     bool jump_handled=false;
     app_redraw_t jump_redraw=reader_chapter_jump_gesture(ctx,ev,&jump_handled);
@@ -8191,6 +8210,45 @@ static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) 
     }
     return decorated ? paint_control(ctx, start_rect) : APP_REDRAW_NONE;
 }
+static app_redraw_t reader_jump_chapter(app_ctx_t *ctx, int dir) {
+    if (!s_text || s_view != READING) return APP_REDRAW_NONE;
+    if (dir > 0 && s_chapter + 1 < book_chapter_count()) {
+        save_progress();
+        if (load_chapter(ctx, s_chapter + 1, 0, false)) {
+            s_page = 0;
+            save_progress();
+            return APP_REDRAW_PAGE;
+        }
+    } else if (dir < 0 && s_chapter > 0) {
+        save_progress();
+        if (load_chapter(ctx, s_chapter - 1, 0, false)) {
+            s_page = 0;
+            save_progress();
+            return APP_REDRAW_PAGE;
+        }
+    }
+    return APP_REDRAW_NONE;
+}
+
+void app_book_request_kosync(app_ctx_t *ctx) {
+    (void)ctx;
+    if (app_settings_kosync_user()[0] && s_text && s_path[0]) {
+        book_progress_t kp = {
+            .file_size = s_file_size,
+            .chapter = (uint16_t)s_chapter,
+            .byte_off = (uint32_t)reader_page_offset(s_page),
+            .px = (uint8_t)s_px,
+            .pct = (uint8_t)percent(s_page),
+        };
+        esp_err_t err = kosync_push_book_progress(s_path, &kp, (double)kp.pct / 100.0, NULL, 0);
+        copy_text(s_reader_notice, sizeof(s_reader_notice), err == ESP_OK ? "Đã đồng bộ KOSync" : "Đồng bộ KOSync thất bại");
+        s_reader_notice_until = esp_timer_get_time() / 1000 + 1800;
+    } else {
+        copy_text(s_reader_notice, sizeof(s_reader_notice), "Chưa đăng nhập tài khoản KOSync");
+        s_reader_notice_until = esp_timer_get_time() / 1000 + 1800;
+    }
+}
+
 static app_redraw_t reader_key_action(app_ctx_t *ctx, app_reader_key_action_t action) {
     s_reader_tap.pending = false;
     switch (action) {
@@ -8205,8 +8263,25 @@ static app_redraw_t reader_key_action(app_ctx_t *ctx, app_reader_key_action_t ac
             s_reader_panel = s_reader_panel == READER_PANEL_TOOLS ? READER_PANEL_NONE : READER_PANEL_TOOLS;
             pause_reader_prep();
             return APP_REDRAW_PAGE;
+        case APP_READER_KEY_PREV_CHAPTER:
+            return reader_jump_chapter(ctx, -1);
+        case APP_READER_KEY_NEXT_CHAPTER:
+            return reader_jump_chapter(ctx, 1);
+        case APP_READER_KEY_LIGHT:
+#if KIIKO_BOARD_METALIO47
+            metalio_frontlight_toggle();
+#endif
+            return APP_REDRAW_NONE;
+        case APP_READER_KEY_KOSYNC:
+            app_book_request_kosync(ctx);
+            return APP_REDRAW_PAGE;
         default: return APP_REDRAW_NONE;
     }
+}
+
+app_redraw_t app_book_handle_key_action(app_ctx_t *ctx, app_reader_key_action_t action) {
+    if (s_view != READING) return APP_REDRAW_NONE;
+    return reader_key_action(ctx, action);
 }
 #if KIIKO_BOARD_METALIO47
 // 音量键与底部自定义键独立；设置/确认面板期间消费输入，不关闭或改写面板。
@@ -8218,7 +8293,7 @@ bool app_book_volume_key(app_ctx_t *ctx, int direction, app_redraw_t *redraw) {
         (s_reader_panel != READER_PANEL_NONE && s_reader_panel != READER_PANEL_TOOLS)) return true;
     reader_indent_hold_cancel();
     s_pressed_control = -1;
-    *redraw = reader_key_action(ctx, direction < 0 ? APP_READER_KEY_PREV : APP_READER_KEY_NEXT);
+    *redraw = reader_key_action(ctx, app_settings_volume_key_action(direction < 0 ? 0 : 1));
     return true;
 }
 #endif

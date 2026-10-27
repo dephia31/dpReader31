@@ -21,7 +21,7 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #if KIIKO_BOARD_METALIO47
     if (pages == 20) return true;
 #endif
-    return pages == 0 || pages == 5 || pages == 10 || pages == 15 || pages == 30;
+    return pages == 0 || pages == 3 || pages == 5 || pages == 8 || pages == 10 || pages == 15 || pages == 30;
 }
 #include "book/book_font_size.h"
 
@@ -151,7 +151,7 @@ static uint8_t s_book_weight = 2;
 static int8_t s_book_weight_fine;
 static bool s_book_antialias = true;
 static char s_book_background[288];
-static uint8_t s_reader_full_pages = 15;
+static uint8_t s_reader_full_pages = 5;
 static uint8_t s_reader_turn_effect;
 static uint8_t s_book_line = 130, s_book_para = 50, s_book_margin = 24;
 static bool s_reader_power_turn;
@@ -162,6 +162,9 @@ static const char *s_reader_key_names[] = {"rd_key_l", "rd_key_m", "rd_key_r"};
 static uint8_t s_reader_hold_action = APP_READER_KEY_HOME;
 static uint8_t s_reader_keys[3] = {APP_READER_KEY_PREV, APP_READER_KEY_TOOLS, APP_READER_KEY_NEXT};
 static uint8_t s_reader_turn_mode = 0;
+static uint8_t s_volume_keys[2] = {APP_READER_KEY_PREV, APP_READER_KEY_NEXT};
+static bool s_reader_swipe_up_tools = true;
+static bool s_reader_swipe_bottom_home = true;
 static bool s_ble_turner;
 #if KIIKO_BOARD_METALIO47
 static app_ai_action_t s_ai_short=APP_AI_REFRESH;
@@ -344,7 +347,7 @@ void app_settings_init(void) {
     size_t background_len = sizeof(s_book_background);
     if (nvs_get_str(h, NVS_KEY_BOOK_BACKGROUND, s_book_background, &background_len) != ESP_OK ||
         (s_book_background[0] && strncmp(s_book_background, "/sdcard/pictures/", 17))) s_book_background[0] = 0;
-    uint8_t reader_full_pages = 15;
+    uint8_t reader_full_pages = 5;
     if (nvs_get_u8(h, NVS_KEY_READER_FULL, &reader_full_pages) == ESP_OK &&
         reader_full_pages_valid(reader_full_pages))
         s_reader_full_pages = reader_full_pages;
@@ -378,6 +381,12 @@ void app_settings_init(void) {
 #if KIIKO_BOARD_METALIO47
     uint8_t ai_short=APP_AI_REFRESH;
     s_ai_short=nvs_get_u8(h,"ai_short",&ai_short)==ESP_OK&&ai_short<APP_AI_ACTION_COUNT?(app_ai_action_t)ai_short:APP_AI_REFRESH;
+    uint8_t vol_down = APP_READER_KEY_PREV, vol_up = APP_READER_KEY_NEXT;
+    if (nvs_get_u8(h, "vol_down", &vol_down) == ESP_OK && vol_down < APP_READER_KEY_COUNT) s_volume_keys[0] = vol_down;
+    if (nvs_get_u8(h, "vol_up", &vol_up) == ESP_OK && vol_up < APP_READER_KEY_COUNT) s_volume_keys[1] = vol_up;
+    uint8_t r_swipe_up = 1, r_swipe_bot = 1;
+    if (nvs_get_u8(h, "r_swipe_up", &r_swipe_up) == ESP_OK) s_reader_swipe_up_tools = r_swipe_up == 1;
+    if (nvs_get_u8(h, "r_swipe_bot", &r_swipe_bot) == ESP_OK) s_reader_swipe_bottom_home = r_swipe_bot == 1;
 #endif
     if (nvs_get_u8(h, NVS_KEY_SHELF_RECENT, &recent_sort) == ESP_OK) s_shelf_recent_sort = recent_sort == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_FONTS, &book_fonts) == ESP_OK) s_book_fonts = book_fonts == 1;
@@ -851,6 +860,32 @@ void app_settings_set_reader_key_preset(unsigned preset) {
 }
 
 bool app_settings_reader_hold_refresh(void) { return s_reader_hold_refresh; }
+app_reader_key_action_t app_settings_volume_key_action(unsigned key) {
+    return key < 2 ? (app_reader_key_action_t)s_volume_keys[key] : APP_READER_KEY_NONE;
+}
+bool app_settings_set_volume_key_action(unsigned key, app_reader_key_action_t action) {
+    if (key >= 2 || action >= APP_READER_KEY_COUNT) return false;
+    if (s_volume_keys[key] == action) return true;
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    esp_err_t err = nvs_set_u8(h, key == 0 ? "vol_down" : "vol_up", (uint8_t)action);
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    if (err == ESP_OK) s_volume_keys[key] = action;
+    return err == ESP_OK;
+}
+bool app_settings_reader_swipe_up_tools(void) { return s_reader_swipe_up_tools; }
+void app_settings_set_reader_swipe_up_tools(bool on) {
+    if (s_reader_swipe_up_tools == on) return;
+    s_reader_swipe_up_tools = on;
+    nvs_put_u8("r_swipe_up", on ? 1 : 0);
+}
+bool app_settings_reader_swipe_bottom_home(void) { return s_reader_swipe_bottom_home; }
+void app_settings_set_reader_swipe_bottom_home(bool on) {
+    if (s_reader_swipe_bottom_home == on) return;
+    s_reader_swipe_bottom_home = on;
+    nvs_put_u8("r_swipe_bot", on ? 1 : 0);
+}
 uint8_t app_settings_reader_turn_mode(void) { return s_reader_turn_mode; }
 void app_settings_set_reader_turn_mode(uint8_t mode) {
     if (s_reader_turn_mode == mode) return;

@@ -25,7 +25,20 @@ typedef enum {
 void app_settings_init(void);
 app_sleep_mode_t app_settings_sleep_mode(void);
 #if KIIKO_BOARD_METALIO47
-typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_AI_NONE,APP_AI_ACTION_COUNT} app_ai_action_t;
+typedef enum {
+    APP_AI_REFRESH,
+    APP_AI_BOOKMARK,
+    APP_AI_FRONTLIGHT,
+    APP_AI_HOME,
+    APP_AI_NONE,
+    APP_AI_KOSYNC,
+    APP_AI_PREV_PAGE,
+    APP_AI_NEXT_PAGE,
+    APP_AI_PREV_CHAPTER,
+    APP_AI_NEXT_CHAPTER,
+    APP_AI_ACTION_COUNT
+} app_ai_action_t;
+#define APP_AI_MENU_COUNT 5
 /// AI键短按独立保存在S31设置；仅成功提交才改变当前映射。/ Persist S31 AI taps, changing the live mapping only after a successful commit.
 app_ai_action_t app_settings_ai_short(void);
 esp_err_t app_settings_set_ai_short(app_ai_action_t action);
@@ -167,6 +180,10 @@ typedef enum {
     APP_READER_KEY_HOME, ///< 返回主页（本次开书来源） / Return to the opening origin
     APP_READER_KEY_REFRESH, ///< 手动全刷 / Manual full refresh
     APP_READER_KEY_NONE, ///< 不操作 / No action
+    APP_READER_KEY_PREV_CHAPTER, ///< Chương trước
+    APP_READER_KEY_NEXT_CHAPTER, ///< Chương sau
+    APP_READER_KEY_LIGHT, ///< Tắt / Mở đèn nền
+    APP_READER_KEY_KOSYNC, ///< Đồng bộ KOSync
     APP_READER_KEY_COUNT
 } app_reader_key_action_t;
 /// 三个短按功能，0/1/2对应左/中/右；长按独立配置。/ Short actions indexed left/middle/right, with a separate hold action.
@@ -175,6 +192,14 @@ app_reader_key_action_t app_settings_reader_key_action(unsigned key);
 bool app_settings_reader_key_action_allowed(unsigned key, app_reader_key_action_t action);
 /// 返回是否成功保存；失败不改变映射。/ Return successful persistence, leaving the mapping unchanged on failure.
 bool app_settings_set_reader_key_action(unsigned key, app_reader_key_action_t action);
+/// Phím âm lượng bên hông: 0 là Vol-, 1 là Vol+
+app_reader_key_action_t app_settings_volume_key_action(unsigned key);
+bool app_settings_set_volume_key_action(unsigned key, app_reader_key_action_t action);
+/// Cử chỉ khi đọc sách: vuốt lên mở menu đọc sách, vuốt đáy lên về Home
+bool app_settings_reader_swipe_up_tools(void);
+void app_settings_set_reader_swipe_up_tools(bool on);
+bool app_settings_reader_swipe_bottom_home(void);
+void app_settings_set_reader_swipe_bottom_home(bool on);
 /// 中键长按，默认手动全刷；与短按独立保存。/ Middle hold defaults to full refresh and persists independently.
 app_reader_key_action_t app_settings_reader_hold_action(void);
 bool app_settings_set_reader_hold_action(app_reader_key_action_t action);

@@ -12,8 +12,8 @@
 // 图标、下方标签和选中点共用横向节拍；列间空隙不可误触。
 // Icons,labels and selection dots share a horizontal rhythm; inter-column gaps remain inert.
 EpdRect ui_ai_menu_option(const ui_ai_menu_t *m,int option){
-    int left=m->rect.x+16+option*(m->rect.width-32)/APP_AI_ACTION_COUNT;
-    int right=m->rect.x+16+(option+1)*(m->rect.width-32)/APP_AI_ACTION_COUNT;
+    int left=m->rect.x+16+option*(m->rect.width-32)/APP_AI_MENU_COUNT;
+    int right=m->rect.x+16+(option+1)*(m->rect.width-32)/APP_AI_MENU_COUNT;
     return (EpdRect){left+4,m->rect.y+58,right-left-8,138};
 }
 static void readable_circle(uint8_t *fb,int cx,int cy){
@@ -28,7 +28,7 @@ static void readable_circle(uint8_t *fb,int cx,int cy){
     epd_draw_circle(cx,cy,radius-1,0xf0,fb);
 }
 static int hit(const ui_ai_menu_t*m,int x,int y){
-    for(int i=0;i<APP_AI_ACTION_COUNT;++i)if(ui_rect_hit(ui_ai_menu_option(m,i),x,y))return i;
+    for(int i=0;i<APP_AI_MENU_COUNT;++i)if(ui_rect_hit(ui_ai_menu_option(m,i),x,y))return i;
     return -1;
 }
 void ui_ai_menu_end(ui_ai_menu_t *m){heap_caps_free(m->underlay);memset(m,0,sizeof(*m));}
@@ -52,15 +52,14 @@ bool ui_ai_menu_begin(ui_ai_menu_t *m,uint8_t *fb,app_ai_action_t selected,bool 
         size_t i=(size_t)y*r.width+x;saved[i/2]|=ui_read_pixel(fb,r.x+x,r.y+y)<<((i&1)*4);
     }
     *m=(ui_ai_menu_t){.underlay=saved,.frame=fb,.rect=r,.rotation=epd_get_rotation(),.selected=selected,.pressed=-1,.open=true,.draining=true};
-    if(!ui_glass_panel_frost(fb,r,40,52,160,true)){
-        ui_fill_round_rect(fb,r,40,0xe0);ui_draw_round_rect(fb,r,40,0x60);
-    }
+    ui_fill_round_rect(fb,r,40,UI_GRAY_WHITE);
+    ui_draw_control_frame(fb,r,40,0x60);
     // 最后一项是反白而非加粗；标题与标签必须黑字，且在玻璃处理完成后绘制。
     // The final flag means inverted,not bold. Draw black labels only after glass processing.
     ui_text_fixed_vc(fb,r.x+r.width/2,r.y+32,28,"Phím tắt nhanh",EPD_DRAW_ALIGN_CENTER,false);
     static const char*labels[]={"Làm mới","Dấu trang","Đèn nền","Trang chủ","Tắt phím"};
     static const ui_icon_t icons[]={UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_X};
-    for(int i=0;i<APP_AI_ACTION_COUNT;++i){
+    for(int i=0;i<APP_AI_MENU_COUNT;++i){
         EpdRect option=ui_ai_menu_option(m,i);int cx=option.x+option.width/2,cy=r.y+106;
         readable_circle(fb,cx,cy);
         ui_draw_icon(fb,cx,cy,36,icons[i],UI_GRAY_BLACK);

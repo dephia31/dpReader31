@@ -46,8 +46,8 @@
 // Count only whole system-page transitions; local controls, dialogs and cover updates do not advance
 // the cleanup cadence. Reading keeps its own configurable full-screen cleanup interval.
 #if KIIKO_BOARD_METALIO47
-#define APP_UI_GC16_EVERY 24
-#define APP_UI_GC16_MIN_INTERVAL_US 60000000LL
+#define APP_UI_GC16_EVERY 10
+#define APP_UI_GC16_MIN_INTERVAL_US 5000000LL
 #else
 #define APP_UI_GC16_EVERY 40
 #endif
@@ -57,7 +57,7 @@
 // 全像素灰阶仍不能无限消除累积残影，达到阈值时同步做完整 GC16。
 // Full-pixel gray updates cannot remove unlimited ghosting, so periodically run a synchronous GC16.
 #if KIIKO_BOARD_METALIO47
-#define APP_UI_FAST_GC16_EVERY 24
+#define APP_UI_FAST_GC16_EVERY 10
 #else
 #define APP_UI_FAST_GC16_EVERY 12
 #endif

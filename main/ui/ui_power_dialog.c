@@ -166,17 +166,11 @@ static bool control_overlap(EpdRect a,EpdRect b) {
     return a.x<b.x+b.width&&b.x<a.x+a.width&&a.y<b.y+b.height&&b.y<a.y+a.height;
 }
 static void power_control_base(uint8_t *fb,int slot,bool glass) {
+    (void)glass;
     EpdRect r=slot?power_button_rect(slot):power_track_rect();
     int radius=slot?UI_POWER_BUTTON_R:UI_POWER_TRACK_H/2;
-#if KIIKO_BOARD_METALIO47
-    bool drawn=glass&&ui_glass_panel_frost(fb,r,radius,52,160,true);
-#else
-    bool drawn=glass&&ui_glass_panel(fb,r,radius,25,160);
-#endif
-    if(!drawn){
-        ui_fill_round_rect(fb,r,radius,slot?0xf0:0xd0);
-        ui_draw_control_frame(fb,r,radius,0x70);
-    }
+    ui_fill_round_rect(fb,r,radius,slot?UI_GRAY_WHITE:0xe8);
+    ui_draw_control_frame(fb,r,radius,0x60);
     if(!slot){
         ui_text_box(fb,(EpdRect){r.x+80,r.y+45,r.width-160,60},40,"Trượt để tắt máy",EPD_DRAW_ALIGN_CENTER,false);
         return;

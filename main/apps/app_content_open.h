@@ -23,12 +23,15 @@ void app_book_request_opds(void);
 bool app_book_reader_body_visible(void);
 #if KIIKO_BOARD_METALIO47
 #include "app/app.h"
+#include "settings.h"
 /// 共用看图入口，path可空以显示列表；透明书封只收PNG。/ Shared viewer entry; an empty path opens its list, while transparent covers accept PNG only.
 bool app_image_request_lock_picker(const char *path, bool transparent);
 /// 从专用看图列表返回锁屏样式，跳转主页时不保留此请求。/ Return from the scoped viewer list to lock styles; home navigation does not queue this.
 void app_device_settings_resume_lock_style(void);
 /// 阅读音量键固定翻页；非阅读返回false，由原页面处理。/ Fixed volume turns in the reader; false delegates non-reader views to their existing keys.
 bool app_book_volume_key(app_ctx_t *ctx, int direction, app_redraw_t *redraw);
+app_redraw_t app_book_handle_key_action(app_ctx_t *ctx, app_reader_key_action_t action);
+void app_book_request_kosync(app_ctx_t *ctx);
 /// 仅当前正文允许AI书签，复用原书签保存/提示。/ AI bookmark only on the visible reader body, using existing persistence/notices.
 bool app_book_ai_bookmark(void);
 #endif

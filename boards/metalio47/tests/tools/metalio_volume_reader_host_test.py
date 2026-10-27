@@ -41,6 +41,12 @@ static bool pico_online_busy(void){return online_busy;}
 static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *app,int key,bool held){(void)ctx;(void)app;assert(!held);root_key=key;return APP_REDRAW_PAGE;}
 '''
 unit += settings[a:b] + '\n'
+unit += '''
+static app_reader_key_action_t app_settings_volume_key_action(unsigned key){return key==0?APP_READER_KEY_PREV:APP_READER_KEY_NEXT;}
+static app_redraw_t reader_jump_chapter(app_ctx_t *ctx, int dir){(void)ctx;(void)dir;return APP_REDRAW_NONE;}
+static void metalio_frontlight_toggle(void){}
+static void app_book_request_kosync(app_ctx_t *ctx){(void)ctx;}
+'''
 unit += 'static app_reader_key_action_t bindings[3];\n'
 unit += function('reader_key_action',book)+'\n'
 unit += function('app_book_volume_key',book)+'\n'
