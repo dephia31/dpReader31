@@ -34,11 +34,13 @@
 /// Both boards carry the same 1216x684 mono panel; only the driving path differs.
 #define KIIKO_BOARD_PANEL_WIDTH 1216
 #define KIIKO_BOARD_PANEL_HEIGHT 684
-/// VCOM 标定值存本机 NVS；默认 3000mV 来自 Moku 对比测试，不是本台实测。
-/// The calibrated VCOM lives in local NVS; the 3000 mV default comes from Moku's comparison and
-/// is not a measurement of this unit.
+/// VCOM 标定值存本机 NVS；默认 1200mV 与厂家固件（CloudZao/Metalio-E-INK4-Plus）一致，
+/// 也是唯一在出厂硬件上验证过的起点。标定窗口 900..2000mV。
+/// The calibrated VCOM lives in local NVS; the 1200 mV default matches the vendor
+/// firmware and is the only value verified on shipping hardware. Calibration
+/// window 900..2000 mV.
 #define KIIKO_BOARD_VCOM_IN_NVS 1
-#define KIIKO_BOARD_VCOM_DEFAULT_MV 3000
+#define KIIKO_BOARD_VCOM_DEFAULT_MV 1200
 
 /* ---- 硬件能力 / Hardware capabilities ---- */
 /// Front light (brightness + warmth) driven over I2C; haptics through a GPIO-driven motor.
@@ -99,8 +101,11 @@
 #define KIIKO_BOARD_COVER_RAM_BUDGET_KB 4096
 #define KIIKO_BOARD_CACHE_PSRAM_RESERVE_KB 2560
 #define KIIKO_BOARD_CACHE_BLOCK_RESERVE_KB 1024
-/// Bigger TTF cache than the Pico: 16 MB PSRAM leaves room for a 1 MiB working set.
-/// 字体缓存比 Pico 大：16MB PSRAM 容得下 1MiB 工作集。
+/// 字体缓存 1 MiB：这些预算按 PSRAM 余量设定，实际可用量在开机日志里记录。
+/// 各缓存都按需分配且分配前查剩余量，所以预算之和不等于常驻占用。
+/// TTF cache 1 MiB: these budgets follow the PSRAM headroom, and boot logs the
+/// actual free size. Every cache allocates lazily after checking free space, so
+/// the budgets do not sum to resident usage.
 #define KIIKO_BOARD_TTF_CACHE_LIMIT_KB 1024
 #define KIIKO_BOARD_TTF_CACHE_MID_KB 768
 #define KIIKO_BOARD_TTF_CACHE_PRESSURE_KB 320

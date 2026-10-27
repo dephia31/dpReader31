@@ -10,11 +10,11 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
-// 实测最优 VCOM -3000mV（批量标定：与对比机黑度一致）；NVS 有标定值时由
-// app_main 覆盖。只写 TPS65185 运行寄存器，不烧永久 OTP。
-// Measured optimum VCOM -3000 mV (matches the comparison unit's black level);
-// app_main overrides it when NVS holds a calibrated value. Runtime register only.
-static int vcom=3000;
+// 初始 VCOM 用厂家固件的 1200mV；NVS 有标定值时由 app_main 覆盖。
+// 只写 TPS65185 运行寄存器，不烧永久 OTP。
+// Initial VCOM is the vendor firmware's 1200 mV; app_main overrides it when NVS
+// holds a calibrated value. Runtime register only, never the TPS65185 OTP.
+static int vcom=1200;
 static read_pico_i2c_census_t census;
 void read_pico_epd_restore_lcd(void) {
     const int pins[]={18,19,35,37};
@@ -61,11 +61,12 @@ static void board_off(epd_ctrl_state_t *s) {
     board_set_ctrl(s,&mask); metalio_tps_off();
 }
 static void board_deinit(void) { board_off(epd_ctrl_state()); epd_lcd_deinit(); }
-// VCOM 运行范围放宽到 0.6..4.0V：标定页要能扫到面板真正的最优点；TPS65185 本身
-// 支持到 -5.11V，面板长期直流不平衡的风险由标定流程控制（扫完停在最优值）。
-// Runtime VCOM window widened to 0.6..4.0 V so the calibration page can reach the
-// panel's real optimum; the TPS65185 itself goes to -5.11 V.
-static void set_vcom(int mv) { if (mv>=600 && mv<=4000) vcom=mv; }
+// VCOM 运行范围 0.9..2.0V，与标定页的 900..2000mV 窗口一致；TPS65185 本身支持到
+// -5.11V，但超出厂家验证过的窗口就会长期直流不平衡，所以这里不接受更大值。
+// Runtime VCOM window 0.9..2.0 V, matching the calibration page's 900..2000 mV
+// window. The TPS65185 goes to -5.11 V, but anything outside the vendor-verified
+// window leaves long-term DC imbalance, so larger values are rejected here too.
+static void set_vcom(int mv) { if (mv>=900 && mv<=2000) vcom=mv; }
 static float temperature(void) { return 25; }
 static void no_kickback(epd_ctrl_state_t *s) { (void)s; }
 const EpdBoardDefinition epd_board_read_pico={.init=board_init,.deinit=board_deinit,

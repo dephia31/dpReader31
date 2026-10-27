@@ -4,7 +4,7 @@
   <img src="docs/screenshots/00_overview_banner.png" alt="dpReader Overview Banner" width="100%">
 </p>
 
-**dpReader** (`v1.0.0-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
+**dpReader** (`v1.0.1-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
 
 ---
 
@@ -100,7 +100,7 @@ Khi máy đã ở giao diện **dpReader**, bạn có thể cập nhật các b�
 - **Phương án 3A — Duyệt và bấm trực tiếp file `.bin` trong Quản lý tệp (Giống CrossPoint Reader):**
   1. Chép file `.bin` (ví dụ `dpReader_metalio47_firmware.bin`, không cần đổi tên) vào bất kỳ thư mục nào trên thẻ nhớ (hoặc tải lên qua WiFi Transfer).
   2. Mở ứng dụng **Quản lý tệp (`Tệp`)** trên máy đọc sách, điều hướng tới file `.bin`:
-     - **Chạm lần 1:** Máy kiểm tra header & hiển thị thông báo *"Gói cập nhật 1.0.0-vn: chạm lần nữa để cài đặt"*.
+     - **Chạm lần 1:** Máy kiểm tra header & hiển thị thông báo *"Gói cập nhật 1.0.1-vn: chạm lần nữa để cài đặt"*.
      - **Chạm lần 2:** Máy tự động ngắt cao áp màn hình E-ink an toàn, ghi firmware mới vào phân vùng OTA và tự khởi động lại.
 - **Phương án 3B — Cài đặt từ mục Cập nhật hệ thống:**
   1. Chép file vào thư mục gốc thẻ nhớ với một trong các tên: `dpReader-update.bin`, `dpReader_metalio47_firmware.bin`, `Metalio-E-Ink4-Plus.bin`, hoặc `Metalio-S31-update.bin`.
@@ -129,7 +129,7 @@ Chọn **1 trong 2 cách**:
    - Nhấn nút **Connect** và chọn cổng `USB JTAG/serial debug unit`.
    - Tại ô **Flash Address**, nhập địa chỉ: **`0x0`**
    - Tại ô **File**, chọn file **`dpReader_metalio47_full.bin`**.
-3. *(Lưu ý: **Không** bấm nút `Erase Flash` để bảo toàn thông số hiệu chuẩn màn hình `VCOM` trong phân vùng NVS).*
+3. *(Lưu ý quan trọng: `full.bin` là ảnh liền mạch từ `0x0`, nên nó ghi đè **cả vùng NVS** `0x9000`–`0xd000` bằng `0xFF` — cài đặt, mật khẩu và **VCOM đã hiệu chuẩn sẽ mất**. Nút `Erase Flash` không phải thủ phạm; chính file này đã xoá NVS. Máy vẫn khởi động được và chạy VCOM mặc định **1200 mV** của nhà sản xuất, nhưng nếu máy đã được hiệu chuẩn riêng thì phải hiệu chuẩn lại sau khi nạp.)*
 4. Nhấn nút **Program** và đợi thanh tiến trình chạy hoàn tất `100%` (khoảng 35 giây).
 5. Rút cáp USB và nhấn giữ **Nút Nguồn 3 giây** để khởi động lại máy.
 
@@ -140,10 +140,12 @@ Cài đặt `esptool` (`pip install esptool`), sau đó mở Terminal / Command 
   ```bash
   python3 -m esptool --chip esp32s31 --baud 460800 write_flash 0x0 releases/dpReader_metalio47_full.bin
   ```
-- **Hoặc chỉ nạp nhanh phân vùng ứng dụng `ota_0` tại địa chỉ `0x10000`:**
+  > ⚠️ Lệnh này **xoá NVS** (cài đặt, mật khẩu, VCOM đã hiệu chuẩn) vì `full.bin` trải liền từ `0x0` và vùng NVS trong file là `0xFF`. Dùng khi cần nạp sạch / chia lại phân vùng / cứu máy.
+- **Hoặc chỉ nạp nhanh phân vùng ứng dụng `ota_0` tại địa chỉ `0x10000` (giữ nguyên NVS):**
   ```bash
   python3 -m esptool --chip esp32s31 --baud 460800 write_flash 0x10000 releases/dpReader_metalio47_firmware.bin
   ```
+  > Lệnh này **không** đụng tới NVS, nên VCOM và cài đặt được giữ lại. Dùng khi máy đã có bảng phân vùng của dpReader và chỉ muốn cập nhật firmware.
 
 #### Bảng sơ đồ phân vùng Flash 16MB (`boards/metalio47/partitions.csv`)
 | Phân vùng | Loại / Phụ loại | Địa chỉ (`Offset`) | Kích thước | Ghi chú |

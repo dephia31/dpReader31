@@ -26,6 +26,8 @@
 #include "ttf_font.h"
 #include "book_store.h"
 #include "esp_system.h"
+#include "esp_heap_caps.h"
+#include "kiiko_board_config.h"
 #include "read_pico_sd.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -73,14 +75,15 @@ static void restore_time_from_pmu(void) {
 extern const uint8_t lock_4bpp_bin_start[] asm("_binary_lock_4bpp_bin_start");
 extern const uint8_t lock_4bpp_bin_end[] asm("_binary_lock_4bpp_bin_end");
 
-// VCOM 从 NVS 读取（默认 3000，实测最优）。V1.5 没有 Pico PMU，标定值只存本机 NVS。
-// Load VCOM from NVS (3000 by default, the measured optimum). V1.5 has no Pico
-// PMU, so the calibrated value lives in local NVS only.
-static bool resolve_vcom_at_boot(void) {
+// VCOM 从 NVS 读取；未标定时用厂家默认 1200mV，因此本板不存在"未标定"状态，
+// 不需要像 Pico 那样拦住开机。V1.5 没有 Pico PMU，标定值只存本机 NVS。
+// Load VCOM from NVS; an uncalibrated unit falls back to the vendor default
+// 1200 mV, so there is no "unset" state to gate on the way Pico had to. V1.5 has
+// no Pico PMU, so the calibrated value lives in local NVS only.
+static void resolve_vcom_at_boot(void) {
     const int mv = vcom_setup_load_mv();
     epd_set_vcom((uint16_t)mv);
-    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=%dmV (NVS, default 3000)", mv);
-    return true;
+    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=%dmV (NVS, default %dmV)", mv, KIIKO_BOARD_VCOM_DEFAULT_MV);
 }
 
 // 开机按住音量键进 VCOM 校准页；V1.5 音量键在 FCA9555 P1.0/P1.1，低有效。
@@ -143,8 +146,8 @@ static void draw_startup_frame(uint8_t *framebuffer) {
 
 // 深睡保持原物理锁图；卡与参考帧稍后就绪，不能用临时圆锁覆盖。
 // Preserve physical art on deep boot; pending media/reference recovery must not replace it with a badge.
-static bool prepare_startup_frame(EpdiyHighlevelState *hl,uint8_t *framebuffer,bool resuming,bool vcom_ok) {
-    if(resuming && vcom_ok && !lock_pin_enabled())return app_lock_resume_frame(hl);
+static bool prepare_startup_frame(EpdiyHighlevelState *hl,uint8_t *framebuffer,bool resuming) {
+    if(resuming && !lock_pin_enabled())return app_lock_resume_frame(hl);
     epd_poweron();
     if(!resuming)read_pico_i2c_census_take();
     epd_clear();
@@ -177,9 +180,18 @@ void app_main(void) {
     if (read_pico_init(&hw) != ESP_OK) return;
     rp_boot_mark("hw");
     if (hw.pmu_ready) restore_time_from_pmu();
-    const bool vcom_ok = resolve_vcom_at_boot();
+    resolve_vcom_at_boot();
     rp_boot_mark("vcom");
     ESP_LOGI(TAG,"TPS65185 last VCOM register readback=%dmV",metalio_tps_vcom_mv());
+    // 板级缓存预算按 PSRAM 余量设定，但各机型实际容量未在原理图注明；
+    // 开机打一次真实容量与空闲量，内存问题不必再靠猜。
+    // Board cache budgets assume a certain PSRAM headroom, but the actual part
+    // size is not documented for every variant. Log the real total and free size
+    // once per boot so memory problems do not have to be guessed at.
+    ESP_LOGI(TAG,"PSRAM total=%uKB free=%uKB internal free=%uKB",
+        (unsigned)(heap_caps_get_total_size(MALLOC_CAP_SPIRAM)/1024),
+        (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)/1024),
+        (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)/1024));
     pmu_selftest_bind(hw.sensor);
 
     if (!images_match_panel()) return;
@@ -194,7 +206,7 @@ void app_main(void) {
     // A double-press gate retains lock art rather than waiting behind the resource splash.
     const bool retain_lock = (pico_boot_has_resume() || pico_boot_lock_pending()) &&
         (reset != ESP_RST_POWERON || app_settings_wake_presses() == 2);
-    (void)prepare_startup_frame(&hl,framebuffer,retain_lock,vcom_ok);
+    (void)prepare_startup_frame(&hl,framebuffer,retain_lock);
     rp_boot_mark("splash");
     // 直接续读不先加载整份系统字体；密码验证仍先使用所选系统字体。
     // Direct reader resume skips loading the whole system face first; PIN authentication still uses the selected UI face.
@@ -208,13 +220,12 @@ void app_main(void) {
         return;
     }
 
-    // V1.5 没有 Pico PMU：改为开机按住音量键进入 VCOM 校准页；写入后立即生效。
-    // No Pico PMU on V1.5: hold a volume key while powering on to open VCOM
-    // calibration; an accepted value is applied on the next rail power-up.
-    if (!vcom_ok) {
-        vcom_setup_run(&hl, framebuffer, hw.touch);
-        display_request_full_refresh();
-    } else if(volume_key_held()) {
+    // V1.5 没有 Pico PMU：开机按住音量键进调试面板，VCOM 标定是其中一项。
+    // 未标定的机器直接用厂家默认 1200mV 正常开机，不再有单独的拦截页。
+    // No Pico PMU on V1.5: hold a volume key at power-on for the debug panel,
+    // whose first row is VCOM calibration. An uncalibrated unit boots normally on
+    // the vendor default 1200 mV instead of being gated by a dedicated page.
+    if(volume_key_held()) {
         debug_panel_run(&hl, framebuffer, hw.touch);
         display_request_full_refresh();
     }

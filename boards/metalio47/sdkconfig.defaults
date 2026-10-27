@@ -12,11 +12,22 @@ CONFIG_IDF_EXPERIMENTAL_FEATURES=y
 CONFIG_SPIRAM_USE_MALLOC=y
 # 渲染线程逐行流式读 PSRAM 里的 framebuffer，cache 越大预取越不容易失效
 # 多层 EPUB/PNG 调用留安全余量；大型缓存不得放栈上。/ Reserve nested EPUB/PNG stack headroom; keep large caches off-stack.
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288
+# 厂家固件（CloudZao/Metalio-E-INK4-Plus）在开机首屏 + 首次整屏刷新时撞过栈保护，
+# 因此用 16384 而不是 12288：开机路径要连续做清白、开机图、字体与 SD 等待。
+# The vendor firmware hit a stack-protection fault on the first screen plus first
+# full refresh and raised this to 16384. Boot here also chains white clear, splash,
+# font load and a bounded SD wait before the loop starts, so keep the vendor value.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 # 1ms tick：EPD 上电流程里按毫秒轮询 PGOOD，100Hz 的 tick 会把每次等待放大到 10ms
 CONFIG_FREERTOS_HZ=1000
+# 整屏 GC16 刷新会连续阻塞数秒，5s 的默认值会在每次全刷时误报 IDLE 任务超时。
+# 这里沿用厂家固件的 20s。注意 PANIC 保持关闭：超时只告警，不重启，避免刷屏期间重启。
+# A full GC16 refresh blocks for several seconds, so the 5 s default reports an
+# IDLE-task timeout on every full refresh. Keep the vendor's 20 s. PANIC stays off:
+# a timeout only warns instead of rebooting mid-refresh.
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=20
 # 长文件名以 UTF-8 交给界面与 fopen；磁盘 LFN 保持 UTF-16，不需要增加 CP936 表。
 # Pass long filenames to UI and fopen as UTF-8; on-disk LFN stays UTF-16 without a CP936 table.
 CONFIG_FATFS_LFN_HEAP=y
@@ -91,7 +102,13 @@ CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 CONFIG_SPIRAM_SPEED_200M=y
 CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=65536
-CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_300=y
+# S31 的 CPU 频率只有 40/240/320 三档（components/esp_system/port/soc/esp32s31/Kconfig.cpu）。
+# 旧行写的是 MHZ_300，该符号不存在，IDF 会当未知符号丢弃，实际一直跑 320MHz；
+# 这里显式写 320，与厂家固件一致，也避免再出现静默失效的配置行。
+# S31 offers only 40/240/320 MHz (esp32s31/Kconfig.cpu). The old MHZ_300 line named a
+# symbol that does not exist, so IDF dropped it as unknown and the chip ran at 320 MHz
+# anyway. State 320 explicitly, matching the vendor firmware and removing the silent no-op.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_320=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="boards/metalio47/partitions.csv"
 CONFIG_READ_PICO_I2C_FREQ_HZ=100000
 CONFIG_READ_PICO_I2C_PORT=1

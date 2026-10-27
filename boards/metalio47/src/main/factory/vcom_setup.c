@@ -9,9 +9,9 @@
  * stored in ESP NVS and applied on the next rail power-up; hold a volume key
  * while powering on to enter the page.
  *
- * 面板黑度不足（整屏偏淡、全刷也回不来）时先用这里扫 VCOM：900..4000mV、10mV 一档，
+ * 面板黑度不足（整屏偏淡、全刷也回不来）时先用这里扫 VCOM：900..2000mV、10mV 一档，
  * 反复调直到黑最黑、残影最少。只改运行时寄存器与 NVS，不写 TPS65185 的永久 OTP。
- * Sweep VCOM here when the whole panel looks washed out: 900..4000 mV in 10 mV
+ * Sweep VCOM here when the whole panel looks washed out: 900..2000 mV in 10 mV
  * steps until the black is deepest and ghosting least. Only the runtime register
  * and NVS change; the TPS65185 OTP is never programmed.
  */
@@ -34,14 +34,22 @@
 #define TAG "vcom_setup"
 
 #define VCOM_MIN_MV 900
-// 标定上限放宽到 4000mV（400），方便扫到面板最优点；判据是黑最深且白底/残影开始变差。
-// Calibration ceiling raised to 4000 mV (digits 400) so the sweep can find the
-// panel optimum; stop where black stops improving but white/ghosting worsens.
-#define VCOM_MAX_MV 4000
-// 实测最优 -3000mV：与对比机黑度完全一致（1200mV 时整屏偏淡）。NVS 无标定时用这个。
-// Measured optimum -3000 mV matches the comparison unit's black level (the old
-// 1200 mV default left the whole panel pale). Used when NVS has no calibration.
-#define VCOM_DEFAULT_MV 3000
+// 标定上限 2000mV：厂家固件（CloudZao/Metalio-E-INK4-Plus）只会用到 1200/1600/2000 三档，
+// 超出这个窗口即偏离面板最优点，长期直流不平衡会留下残影并加速老化。
+// 旧版曾放宽到 4000mV，但那只适合短时试探，不能作为可保存的标定值。
+// Calibration ceiling 2000 mV: the vendor firmware only ever uses 1200/1600/2000,
+// so anything above that window is off the panel optimum and long-term DC
+// imbalance leaves ghosting and ages the panel. The old 4000 mV ceiling was only
+// ever meant for a short probe, never for a saved calibration value.
+#define VCOM_MAX_MV 2000
+// 默认值沿用厂家固件：1200mV。这是唯一在出厂硬件上验证过的起点。
+// 旧版默认 3000mV 来自一次未附数据的对比，且高于厂家试过的全部档位，
+// 因此在 NVS 无标定时会以错误电压直接驱动面板。
+// Default matches the vendor firmware: 1200 mV, the only value verified on
+// shipping hardware. The old 3000 mV default came from an undocumented
+// comparison and sat above every level the vendor tried, so an uncalibrated unit
+// drove the panel at the wrong bias from the first boot.
+#define VCOM_DEFAULT_MV 1200
 #define VCOM_NVS_NAMESPACE "metalio_hw"
 #define VCOM_NVS_KEY "vcom_mv"
 #define VCOM_PAD_ROWS 4
@@ -292,7 +300,7 @@ static bool persist(int mv) {
         ESP_LOGE(TAG, "VCOM NVS save: %s", esp_err_to_name(err));
         return false;
     }
-    // 保存确认必须区分真实回读与默认值回退（3000mV）。
+    // 保存确认必须区分真实回读与默认值回退（1200mV）。
     // A failed read must not masquerade as a verified save of the default.
     uint16_t verified_mv = 0;
     err = nvs_open(VCOM_NVS_NAMESPACE, NVS_READONLY, &h);

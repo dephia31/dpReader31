@@ -547,7 +547,7 @@ def render_05_files_ota():
         ("UI_ICON_FOLDER", "books/", "Thư mục sách · 18 tệp sách", "Thư mục sách"),
         ("UI_ICON_FOLDER", "fonts/", "Thư mục phông · 4 tệp phông chữ", "Thư mục phông"),
         ("UI_ICON_FOLDER", "pictures/", "Thư mục hình ảnh & hình nền khóa", ""),
-        ("UI_ICON_FILE", "dpReader_metalio47_firmware.bin", "2.4 MB · 26/10/2026 23:15 · Bản v1.0.0-vn", "Gói cập nhật"),
+        ("UI_ICON_FILE", "dpReader_metalio47_firmware.bin", "2.4 MB · 26/10/2026 23:15 · Bản v1.0.1-vn", "Gói cập nhật"),
         ("UI_ICON_FILE", "Metalio-E-Ink4-Plus.bin", "2.1 MB · Firmware gốc CloudZao", "")
     ]
     
@@ -568,7 +568,7 @@ def render_05_files_ota():
     pop_y = 880
     draw_round_rect(draw, [36, pop_y, SCREEN_W - 36, pop_y + 215], 24, fill=0xF2, outline=0x22, width=3)
     draw_fw_icon(img, "UI_ICON_ZAP", 66, pop_y + 35, 28, INK_BLACK)
-    draw.text((90, pop_y + 20), "Cập nhật Firmware dpReader v1.0.0-vn", fill=INK_BLACK, font=get_font(26))
+    draw.text((90, pop_y + 20), "Cập nhật Firmware dpReader v1.0.1-vn", fill=INK_BLACK, font=get_font(26))
     draw.text((56, pop_y + 60), "Phát hiện gói nâng cấp trực tiếp từ thẻ nhớ TF (CrossPoint style).", fill=INK_DARK, font=get_font(19))
     draw.text((56, pop_y + 88), "Hệ thống sẽ nạp vào phân vùng OTA và tự khởi động lại an toàn.", fill=INK_MID, font=get_font(17))
     
@@ -601,7 +601,7 @@ def render_06_settings_vn():
     draw.text((78, p_y + 36), "dp", fill=0xFF, font=get_font(34))
     
     draw.text((156, p_y + 24), "dpReader Metalio 4.7", fill=INK_BLACK, font=get_font(28))
-    draw.text((156, p_y + 64), "Firmware Tiếng Việt · v1.0.0-vn", fill=INK_MID, font=get_font(20))
+    draw.text((156, p_y + 64), "Firmware Tiếng Việt · v1.0.1-vn", fill=INK_MID, font=get_font(20))
     draw.text((SCREEN_W - 100, p_y + 42), "Sửa ›", fill=INK_DARK, font=get_font(20))
     
     groups = [
@@ -669,7 +669,7 @@ def render_07_web_portal():
     
     # Portal header
     draw.text((50, 110), "dpReader Management Portal", fill=0x11, font=get_font(36))
-    draw.text((50, 155), "Metalio E-ink 4 Plus · Firmware v1.0.0-vn · Bộ nhớ thẻ trống 14.2 GB", fill=0x66, font=get_font(19))
+    draw.text((50, 155), "Metalio E-ink 4 Plus · Firmware v1.0.1-vn · Bộ nhớ thẻ trống 14.2 GB", fill=0x66, font=get_font(19))
     
     # Navigation tabs
     draw_round_rect(draw, [50, 195, 230, 245], 10, fill=0xEE, outline=0x88, width=1)
@@ -746,7 +746,7 @@ def render_00_overview_banner():
         
     # Title & Subtitle on Top Left
     draw.text((60, 36), "dpReader", fill=(255, 255, 255), font=get_font(48))
-    draw.text((275, 48), "v1.0.0-vn", fill=(88, 166, 255), font=get_font(26))
+    draw.text((275, 48), "v1.0.1-vn", fill=(88, 166, 255), font=get_font(26))
     draw.text((60, 95), "Firmware đọc sách E-ink tối ưu cho Metalio E-ink 4 Plus (4.7 inch)", fill=(201, 209, 217), font=get_font(22))
     draw.text((60, 125), "Việt hóa 100% · Font Unicode builtin.ttf sắc nét · KOSync & OPDS · OTA Thẻ nhớ", fill=(139, 148, 158), font=get_font(18))
     
