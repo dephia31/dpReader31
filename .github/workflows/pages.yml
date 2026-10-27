@@ -4,39 +4,9 @@ on:
   push:
     branches: [main]
     paths:
-      - flash/index.html
-      - flash/notices.html
-      - flash/manual.html
-      - flash/manual/**
-      - flash/new-features/**
-      - flash/assets/**
-      - flash/site.css
-      - flash/site.js
-      - flash/installer-bridge.js
-      - flash/flasher-integrity.js
-      - flash/_headers
-      - flash/manifest.json
-      - flash/releases.json
-      - flash/releases/**
-      - flash/versions.js
-      - flash/update.json
-      - flash/Pico-update*.bin
-      - flash/firmware.bin
-      - flash/ota_data_initial.bin
-      - flash/bootloader.bin
-      - flash/partitions.bin
-      - flash/vendor/**
-      - flash/licenses/**
+      - web/**
       - releases/**
       - metalio-s31-update.json
-      - THIRD_PARTY_NOTICES.md
-      - LICENSE
-      - licenses/**
-      - tools/release_assets.py
-      - flash/release-assets.json
-      - tools/stage_public_flash.py
-      - tools/verify_flash_bundle.py
-      - tools/package_flash.py
       - .github/workflows/pages.yml
   release:
     types: [published]
@@ -61,7 +31,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate and stage public flashing files
         run: |
-          python3 tools/stage_public_flash.py _site
+          mkdir -p _site
+          if [ -d web ]; then
+            cp -r web/* _site/
+          fi
           if [ -d releases ]; then
             cp -r releases _site/
             if [ -f releases/metalio-s31-update.json ]; then
@@ -70,10 +43,14 @@ jobs:
             if [ -f releases/dpReader_metalio47_firmware.bin ]; then
               cp releases/dpReader_metalio47_firmware.bin _site/
             fi
+            if [ -f releases/dpReader_metalio47_full.bin ]; then
+              cp releases/dpReader_metalio47_full.bin _site/
+            fi
           fi
           if [ -f metalio-s31-update.json ]; then
             cp metalio-s31-update.json _site/
           fi
+          touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

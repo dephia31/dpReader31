@@ -131,3 +131,4 @@ Desktop.ini
 # Local build and flash scripts
 build_firmware.sh
 flash_firmware.sh
+run_web_flasher.sh
