@@ -12,7 +12,14 @@ int main(void) {
  assert(pico_version_compare("0.3.3-rc79","0.3.3-rc9")>0);
  assert(pico_version_compare("0.3.3","0.3.3-rc79")>0);
  assert(pico_version_compare("0.4.0-rc1","0.3.3")>0);
+ assert(pico_version_compare("1.0.1-vn","1.0.0")>0);
+ assert(pico_version_compare("1.0.1-vn","1.0.1-rc5")>0);
+ assert(pico_version_compare("1.0.1-vn.1","1.0.1-vn")>0);
  assert(pico_release_url_valid("https://kiikoread.com/Pico-update-0.3.3-rc90.bin"));
+ assert(pico_release_url_valid("https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/dpReader_metalio47_firmware.bin"));
+ assert(pico_release_url_valid("https://dephia31.github.io/dpReader31/dpReader_metalio47_firmware.bin"));
+ assert(!pico_release_url_valid("https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/../a.bin"));
+ assert(!pico_release_url_valid("https://raw.githubusercontent.com/other/dpReader31/main/releases/a.bin"));
  assert(!pico_release_url_valid("https://kiikoread.com.evil/a.bin"));
  assert(!pico_release_url_valid("https://kiikoread.com@evil/a.bin"));
  assert(!pico_release_url_valid("https://kiikoread.com:8443/a.bin"));

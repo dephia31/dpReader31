@@ -27,6 +27,8 @@ on:
       - flash/partitions.bin
       - flash/vendor/**
       - flash/licenses/**
+      - releases/**
+      - metalio-s31-update.json
       - THIRD_PARTY_NOTICES.md
       - LICENSE
       - licenses/**
@@ -51,7 +53,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.repository == 'wegooo-cell/read-pico-reader'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -59,7 +60,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate and stage public flashing files
-        run: python3 tools/stage_public_flash.py _site
+        run: |
+          python3 tools/stage_public_flash.py _site
+          if [ -d releases ]; then
+            cp -r releases _site/
+            if [ -f releases/metalio-s31-update.json ]; then
+              cp releases/metalio-s31-update.json _site/
+            fi
+            if [ -f releases/dpReader_metalio47_firmware.bin ]; then
+              cp releases/dpReader_metalio47_firmware.bin _site/
+            fi
+          fi
+          if [ -f metalio-s31-update.json ]; then
+            cp metalio-s31-update.json _site/
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

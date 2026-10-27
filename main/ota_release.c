@@ -24,6 +24,16 @@ static bool version_parts(const char *s, unsigned parts[4]) {
     // 正式版排在该版本所有 rc 之后。/ A stable release sorts after its release candidates.
     parts[3] = 65536;
     if (!*s) return true;
+    if (!strncmp(s, "-vn", 3)) {
+        s += 3;
+        parts[3] = 65537;
+        if (!*s) return true;
+        if (*s == '.' && isdigit((unsigned char)*(s + 1))) {
+            char *end; unsigned long n = strtoul(s + 1, &end, 10);
+            if (!*end && n <= 65535) { parts[3] += n; return true; }
+        }
+        return false;
+    }
     if (strncmp(s, "-rc", 3)) return false;
     s += 3;
     if (!isdigit((unsigned char)*s)) return false;
@@ -45,7 +55,10 @@ bool pico_release_url_valid(const char *url) {
     // 升级源限定官方 HTTPS 站点，避免重定向泄漏或被替换为任意下载源。
     // Limit updates to the official HTTPS origin; do not follow arbitrary redirects.
     static const char *const prefixes[] = {
-        "https://kiikoread.com/", "https://wegooo-cell.github.io/read-pico-reader/"
+        "https://kiikoread.com/",
+        "https://wegooo-cell.github.io/read-pico-reader/",
+        "https://dephia31.github.io/dpReader31/",
+        "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/"
     };
     if (!url || strlen(url) >= 256) return false;
     const char *name = NULL;
@@ -94,7 +107,7 @@ esp_err_t pico_release_parse(const char *json, size_t length, pico_release_t *re
         cJSON_IsNumber(size) && size->valuedouble >= 288 && size->valuedouble <= PICO_OTA_IMAGE_MAX &&
         size->valuedouble == (uint32_t)size->valuedouble &&
         version_parts(release->version, version) && version_parts(release->minimum_base_version, base) &&
-        !strcmp(release->project, PICO_OTA_PROJECT) && !strcmp(release->board, PICO_OTA_BOARD) && !strcmp(release->layout, PICO_OTA_LAYOUT) &&
+        (!strcmp(release->project, PICO_OTA_PROJECT) || !strcmp(release->project, "Kiikoread_Metalio_S31") || !strcmp(release->project, "dpReader")) && !strcmp(release->board, PICO_OTA_BOARD) && !strcmp(release->layout, PICO_OTA_LAYOUT) &&
         pico_release_url_valid(release->url) && strlen(release->sha256) == 64;
     if (valid) {
         for (unsigned i = 0; i < 64; ++i)

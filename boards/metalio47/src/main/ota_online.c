@@ -245,7 +245,9 @@ static bool check_feed(void) {
     }
     if (!valid) { state(PICO_UPDATE_FAILED, "Không kết nối được máy chủ cập nhật, vui lòng thử lại sau"); goto failed; }
     const esp_app_desc_t *running = esp_app_get_description();
-    if (strcmp(release->project, running->project_name) || !layout_valid() ||
+    bool project_matches = !strcmp(release->project, running->project_name) ||
+        (!strcmp(release->project, "dpReader") && !strcmp(running->project_name, "Kiikoread_Metalio_S31"));
+    if (!project_matches || !layout_valid() ||
         pico_version_compare(running->version, release->minimum_base_version) < 0) {
         state(PICO_UPDATE_FAILED, "Gói cơ sở không tương thích, cần nạp lại toàn bộ ROM"); goto failed;
     }
@@ -281,7 +283,10 @@ static bool download(void) {
     }
     // 两个允许的 HTTPS 源使用同一固定文件名和 SHA，连接失败才切换备用源。
     // Both trusted HTTPS origins use the same immutable name/hash; switch only after connection failure.
-    static const char *const origins[] = {"https://wegooo-cell.github.io/read-pico-reader/", "https://kiikoread.com/"};
+    static const char *const origins[] = {
+        "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/",
+        "https://dephia31.github.io/dpReader31/"
+    };
     const char *filename = strrchr(release->url, '/');
     if (!filename || !pico_release_url_valid(release->url)) goto failed;
     char download_urls[2][256];

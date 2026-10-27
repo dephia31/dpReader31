@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "1.0.1-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "ff0b7e907dea7bb1b2568b4eba8530abf310485aa3d3c3702ac4d4b3f0235694",
+  "size": 3913872,
+  "notes": "dpReader Metalio 4.7 v1.0.1-vn: Hỗ trợ tiếng Việt Bitter font toàn hệ thống, tùy biến phím tắt và cử chỉ đọc sách, cải thiện ghosting E-ink, kênh OTA GitHub trực tiếp."
+}
