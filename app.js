@@ -142,6 +142,54 @@ async function disconnect() {
   }
 }
 
+// Tự động kiểm tra và đồng bộ phiên bản mới nhất từ máy chủ
+let currentReleaseInfo = null;
+
+async function fetchLatestRelease() {
+  const latestVerName = document.getElementById("latest-version-name");
+  const latestVerSize = document.getElementById("latest-version-size");
+  const latestVerNotes = document.getElementById("latest-version-notes");
+  const releaseTagApp = document.getElementById("release-tag-app");
+
+  try {
+    let data = null;
+    try {
+      const res = await fetch(`./metalio-s31-update.json?t=${Date.now()}`);
+      if (res.ok) data = await res.json();
+    } catch (_) {}
+
+    if (!data || !data.version) {
+      try {
+        const ghRes = await fetch("https://api.github.com/repos/dephia31/dpReader31/releases/latest");
+        if (ghRes.ok) {
+          const ghData = await ghRes.json();
+          data = {
+            version: (ghData.tag_name || "").replace(/^v/, ""),
+            notes: ghData.body || "Bản phát hành mới nhất từ GitHub Releases.",
+            size: ghData.assets && ghData.assets[0] ? ghData.assets[0].size : 0,
+          };
+        }
+      } catch (_) {}
+    }
+
+    if (data && data.version) {
+      currentReleaseInfo = data;
+      if (latestVerName) latestVerName.textContent = `v${data.version}`;
+      if (releaseTagApp) releaseTagApp.textContent = `Khuyên dùng · v${data.version}`;
+      if (latestVerNotes && data.notes) {
+        latestVerNotes.textContent = data.notes.split("\n")[0] || data.notes;
+      }
+      if (latestVerSize && data.size) {
+        latestVerSize.textContent = `${(data.size / 1024 / 1024).toFixed(2)} MB`;
+      }
+    }
+  } catch (err) {
+    console.warn("Không thể tải thông tin release mới nhất:", err);
+  }
+}
+
+fetchLatestRelease();
+
 // Convert ArrayBuffer sang Binary String cho esptool-js
 function arrayBufferToBinaryString(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -188,22 +236,23 @@ flashBtn.addEventListener("click", async () => {
     let binaryData = null;
     let offset = 0x10000;
     let fileName = "";
+    const timestamp = Date.now();
 
     if (radioApp.checked) {
       fileName = "dpReader_metalio47_firmware.bin";
       offset = 0x10000;
       progressStatus.textContent = "Đang tải firmware ứng dụng mới nhất...";
       binaryData = await fetchBinary(
-        `./releases/${fileName}`,
-        `https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/${fileName}`
+        `./releases/${fileName}?t=${timestamp}`,
+        `https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/${fileName}?t=${timestamp}`
       );
     } else if (radioFull.checked) {
       fileName = "dpReader_metalio47_full.bin";
       offset = 0x0;
       progressStatus.textContent = "Đang tải firmware toàn diện (Full Flash)...";
       binaryData = await fetchBinary(
-        `./releases/${fileName}`,
-        `https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/${fileName}`
+        `./releases/${fileName}?t=${timestamp}`,
+        `https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/${fileName}?t=${timestamp}`
       );
     } else if (radioCustom.checked) {
       const file = customFileInput.files[0];
