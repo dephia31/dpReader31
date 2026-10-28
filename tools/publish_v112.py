@@ -77,3 +77,4 @@ for path, name, mime in files:
         print(f'Upload failed for {name}: {err.code} {err.reason}')
 
 print('Release v1.1.2-vn published successfully!')
+

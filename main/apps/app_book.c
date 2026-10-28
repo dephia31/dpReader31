@@ -1298,14 +1298,14 @@ static int leaves(void) {
     int rows = s_view == BULK ? BOOK_BULK_ROWS : shelf_rows();
     return count ? 1 + (count - 1) / rows : 1;
 }
-static EpdRect shelf_manage_rect(void) { return (EpdRect){442, 94, 97, 54}; }
-static EpdRect shelf_import_rect(void) { return (EpdRect){551, 94, 97, 54}; }
+static EpdRect shelf_manage_rect(void) { return (EpdRect){404, 94, 114, 52}; }
+static EpdRect shelf_import_rect(void) { return (EpdRect){528, 94, 120, 52}; }
 static void draw_shelf_header_button(uint8_t *fb, EpdRect r, bool importing) {
     bool pressed = s_pressed_control == (importing ? 115 : 114);
-    ui_fill_round_rect(fb, r, 18, UI_GRAY_WHITE);
-    ui_draw_control_frame(fb, r, 18, 0x70);
-    if (pressed) ui_draw_pressed_round_rect(fb, r, 18);
-    ui_text_vc(fb, r.x + r.width / 2, r.y + r.height / 2 + (pressed ? 2 : 0), 20,
+    ui_fill_round_rect(fb, r, 14, UI_GRAY_WHITE);
+    ui_draw_control_frame(fb, r, 14, 0x70);
+    if (pressed) ui_draw_pressed_round_rect(fb, r, 14);
+    ui_text_vc(fb, r.x + r.width / 2, r.y + r.height / 2 + (pressed ? 2 : 0), 19,
                importing ? "+ Nhập sách" : "Quản lý", EPD_DRAW_ALIGN_CENTER, false);
 }
 static EpdRect shelf_page_arrow_rect(int direction) {
@@ -7681,8 +7681,8 @@ static void on_enter(app_ctx_t* ctx) {
     s_poll_ms = 0;
     read_pico_sd_info_t sd = {0};
     esp_err_t media_err = read_pico_sd_get_info(&sd);
-    bool reuse = s_shelf_cache_valid && media_err != ESP_ERR_NOT_FINISHED &&
-                 sd.present == s_cache_sd_present && sd.mounted == s_cache_sd_mounted &&
+    bool card_unmounted = (media_err != ESP_ERR_NOT_FINISHED && !sd.mounted && s_cache_sd_mounted);
+    bool reuse = s_shelf_cache_valid && s_shelf && s_count > 0 && !card_unmounted &&
                  s_cache_shelf_style == app_settings_shelf_style() &&
                  s_store_revision == book_store_revision();
     s_scan_pending = !reuse;
@@ -7690,10 +7690,12 @@ static void on_enter(app_ctx_t* ctx) {
         refresh_cached_progress(ctx);
         (void)open_requested_book(ctx);
     } else {
-        s_count = s_visible_count = 0;
-        s_message[0] = 0;
-        s_storage[0] = 0;
-        invalidate_covers();
+        if (card_unmounted || !s_shelf || !s_count) {
+            s_count = s_visible_count = 0;
+            s_message[0] = 0;
+            s_storage[0] = 0;
+            invalidate_covers();
+        }
         // 已指定文件可直接打开；书架目录留到真正进入书架时再扫描。
         // Open a requested file directly; scan the shelf only when it is actually shown.
         if (open_requested_book(ctx)) {

@@ -15,6 +15,13 @@ Bản cập nhật sửa lỗi căn lề văn bản và tối ưu hóa trải ng
   - Nhập trực tiếp ký tự chữ hoa/thường tức thì (zero latency), không giữ trong bộ đệm chờ chọn từ.
   - Thiết kế lại bố cục bàn phím: loại bỏ thanh gợi ý từ, mở rộng phím Dấu cách (280 px), tích hợp chuyển đổi số (`123`/`ABC`), ký tự đặc biệt (`Ký tự`/`Thêm`) và hoàn tất (`Xong`).
   - Hỗ trợ giữ phím xóa `⌫` để xóa liên tục (repeat backspace) và rung xúc giác khi gõ phím.
+- **Khắc phục triệt để lỗi thỉnh thoảng vào Tủ sách/Kệ sách bị load lại bìa và sách:**
+  - Loại bỏ việc vô hiệu hóa cache và xóa trắng danh mục sách khi thẻ nhớ đang trong trạng thái kiểm tra nền `ESP_ERR_NOT_FINISHED`.
+  - Giữ nguyên danh mục sách và bìa đã nạp trong RAM khi mở trang, chỉ quét cập nhật ngầm nếu có thay đổi thực sự, loại bỏ hoàn toàn hiện tượng chớp nháy hoặc load lại từ đầu.
+- **Tinh chỉnh giao diện nút Quản lý & Nhập sách:**
+  - Mở rộng chiều rộng nút Quản lý (114 px) và Nhập sách (120 px), bo góc 14 px và cỡ chữ 19 px, tạo khoảng đệm thoáng đãng, chấm dứt tình trạng chữ bị lấn đè vào viền bao quanh.
+- **Cập nhật giao diện Tập tin - phần Truyền tệp:**
+  - Đổi tên 3 phương thức truyền tệp thành: **Wifi cùng mạng**, **Tạo điểm phát sóng**, **Cable USB drive**.
 
 ## dpReader 1.1.1-vn · 2026-10-28
 
