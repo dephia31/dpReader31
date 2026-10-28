@@ -1775,6 +1775,53 @@ static void draw_opds(uint8_t *fb) {
     ui_pager_draw_at(fb, page_label, s_opds_page, pages, false, UI_PAGER_NONE, 1006);
     ui_nav_draw(fb, 1);
 }
+
+typedef struct {
+    app_ctx_t *ctx;
+    const char *title;
+    EpdRect modal;
+} opds_ui_progress_ctx_t;
+
+static void opds_download_progress_cb(size_t received, size_t total, void *user_ctx) {
+    opds_ui_progress_ctx_t *p = (opds_ui_progress_ctx_t *)user_ctx;
+    if (!p || !p->ctx || !p->ctx->fb || !p->ctx->hl) return;
+    uint8_t *fb = p->ctx->fb;
+    int pct = total > 0 ? (int)((received * 100) / total) : 0;
+    if (pct > 100) pct = 100;
+
+    EpdRect m = p->modal;
+    ui_fill_round_rect(fb, m, 18, UI_GRAY_WHITE);
+    ui_draw_control_frame(fb, m, 18, 0x00);
+
+    ui_text_vc(fb, m.x + m.width / 2, m.y + 36, 24, "Đang tải sách...", EPD_DRAW_ALIGN_CENTER, false);
+
+    char title_buf[96];
+    copy_text(title_buf, sizeof(title_buf), p->title ? p->title : "Sách OPDS");
+    fit_text(title_buf, 20, m.width - 40);
+    ui_text_vc(fb, m.x + m.width / 2, m.y + 76, 20, title_buf, EPD_DRAW_ALIGN_CENTER, false);
+
+    EpdRect bar = {m.x + 30, m.y + 112, m.width - 60, 26};
+    ui_fill_round_rect(fb, bar, 12, UI_GRAY_LIGHT);
+    ui_draw_control_frame(fb, bar, 12, 0x00);
+    if (total > 0 && pct > 0) {
+        int fill_w = ((bar.width - 4) * pct) / 100;
+        if (fill_w < 12) fill_w = 12;
+        if (fill_w > bar.width - 4) fill_w = bar.width - 4;
+        ui_fill_round_rect(fb, (EpdRect){bar.x + 2, bar.y + 2, fill_w, bar.height - 4}, 10, UI_GRAY_BLACK);
+    }
+
+    char detail[64];
+    if (total > 0) {
+        snprintf(detail, sizeof(detail), "%d%% · %u KB / %u KB",
+                 pct, (unsigned)(received / 1024), (unsigned)(total / 1024));
+    } else {
+        snprintf(detail, sizeof(detail), "Đã tải %u KB...", (unsigned)(received / 1024));
+    }
+    ui_text_vc(fb, m.x + m.width / 2, m.y + 168, 20, detail, EPD_DRAW_ALIGN_CENTER, false);
+
+    epd_poweron();
+    update_display_area_diff_with(p->ctx->hl, &E0470_FOLLOW_WAVEFORM, MODE_DU, m);
+}
 static void draw_batch_confirmation(uint8_t* fb) {
     if (!s_batch_confirm) return;
     EpdRect panel = {54, 406, 576, 330};
@@ -4374,10 +4421,7 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
         : update_display_with(ctx->hl, &E0470_FULL_WAVEFORM, MODE_GC16);
 #endif
     else if (s_reader_cleanup && redraw != APP_REDRAW_FULL)
-        // 周期清理使用完整原厂灰阶定稿，保留饱和驱动；一次输出，不叠加擦白或文字补刷。
-        // Periodic cleanup retains the complete vendor settling/saturation phases in one output, without erase or text replay.
-        err = update_display_area_full_with(ctx->hl, &E0470_FULL_WAVEFORM, MODE_GC16,
-                                            (EpdRect){0, 0, UI_LOCK_WIDTH, UI_LOCK_HEIGHT});
+        err = update_display_full(ctx->hl);
     else if (redraw == APP_REDRAW_FULL) err = update_display_full(ctx->hl);
     else if (redraw == APP_REDRAW_AREA && s_view == SHELF && s_shelf_feedback_pending) {
         // 抽出与复位只驱动发生变化的像素，避免整张封面被反复压黑。
@@ -6198,8 +6242,10 @@ static app_redraw_t select_reading_font_item(app_ctx_t* ctx, const ttf_font_item
     }
     unlock_draw();
 #if KIIKO_BOARD_METALIO47
-    if (ok) save_progress();
-    else reader_font_choice_finish();
+    if (ok) {
+        save_progress();
+        reader_font_choice_finish();
+    } else reader_font_choice_finish();
 #else
     if (!ok) { reader_font_choice_finish(); return APP_REDRAW_PAGE; }
     app_settings_set_font_path(item->path);
@@ -7229,9 +7275,16 @@ static app_redraw_t action_at(app_ctx_t* ctx, uint16_t x, uint16_t y) {
                                  clicked_title, (unsigned)s_opds_feed->count);
                     }
                 } else {
+                    opds_ui_progress_ctx_t prog = {
+                        .ctx = ctx,
+                        .title = entry->title,
+                        .modal = (EpdRect){66, 360, 552, 210},
+                    };
+                    opds_download_progress_cb(0, 0, &prog);
                     char saved_path[288] = {0};
                     if (opds_download_book(entry, saved_path, sizeof(saved_path),
-                                           NULL, NULL, s_opds_status, sizeof(s_opds_status)) == ESP_OK) {
+                                           opds_download_progress_cb, &prog,
+                                           s_opds_status, sizeof(s_opds_status)) == ESP_OK) {
                         book_store_notify_changed();
                         s_shelf_cache_valid = false;
                         scan_shelf(ctx);
@@ -8258,6 +8311,7 @@ void app_book_request_kosync(app_ctx_t *ctx) {
                     if (c >= book_chapter_count()) c = book_chapter_count() - 1;
                     load_chapter(ctx, c, 0, false);
                 }
+                save_progress();
                 copy_text(s_reader_notice, sizeof(s_reader_notice), msg[0] ? msg : "Đã cập nhật tiến độ KOSync");
             } else {
                 copy_text(s_reader_notice, sizeof(s_reader_notice), msg[0] ? msg : "Đã lưu tiến độ lên KOSync");

@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 static const char *TAG = "kosync";
 
@@ -143,18 +144,12 @@ void kosync_md5_string(const char *input, char out_hex[33]) {
 esp_err_t kosync_compute_doc_md5(const char *file_path, char out_hex[33]) {
     if (!file_path || !file_path[0] || !out_hex) return ESP_ERR_INVALID_ARG;
     out_hex[0] = 0;
+    struct stat st;
+    if (stat(file_path, &st) != 0 || st.st_size <= 0) return ESP_ERR_NOT_FOUND;
+    long file_size = (long)st.st_size;
+
     FILE *f = fopen(file_path, "rb");
     if (!f) return ESP_ERR_NOT_FOUND;
-
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fclose(f);
-        return ESP_FAIL;
-    }
-    long file_size = ftell(f);
-    if (fseek(f, 0, SEEK_SET) != 0) {
-        fclose(f);
-        return ESP_FAIL;
-    }
 
     uint8_t *buf = heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!buf) buf = malloc(1024);
@@ -172,7 +167,8 @@ esp_err_t kosync_compute_doc_md5(const char *file_path, char out_hex[33]) {
         long offset = (i < 0) ? 0L : (1024L << (2 * i));
         if (offset >= file_size) break;
         if (fseek(f, offset, SEEK_SET) != 0) break;
-        size_t n = fread(buf, 1, 1024, f);
+        size_t to_read = (file_size - offset < 1024) ? (size_t)(file_size - offset) : 1024;
+        size_t n = fread(buf, 1, to_read, f);
         if (n > 0) md5_update(&ctx, buf, n);
         else break;
     }
@@ -290,7 +286,7 @@ static esp_err_t kosync_request(esp_http_client_method_t method, const char *pat
         return ESP_ERR_NO_MEM;
     }
     esp_http_client_set_header(client, "Accept", "application/vnd.koreader.v1+json");
-    esp_http_client_set_header(client, "Content-Type", "application/json");
+    esp_http_client_set_header(client, "Content-Type", "application/vnd.koreader.v1+json");
     esp_http_client_set_header(client, "User-Agent", "dpReader/1.0 (Metalio47; ESP32-S31)");
     esp_http_client_set_header(client, "x-auth-user", user);
     esp_http_client_set_header(client, "x-auth-key", key);
@@ -529,6 +525,10 @@ esp_err_t kosync_sync_book(const char *file_path, uint16_t *cur_chapter, uint32_
         return ESP_ERR_INVALID_STATE;
     }
 
+    bool started_wifi = false;
+    esp_err_t net_err = kosync_acquire_network(&started_wifi, message, message_cap);
+    if (net_err != ESP_OK) return net_err;
+
     // 1. Kéo tiến độ từ máy chủ về kiểm tra
     kosync_progress_t remote = {0};
     uint16_t rem_chap = 0;
@@ -541,26 +541,29 @@ esp_err_t kosync_sync_book(const char *file_path, uint16_t *cur_chapter, uint32_
         uint8_t rem_pct = (uint8_t)(remote.percentage * 100.0 + 0.5);
         if (rem_pct > 100) rem_pct = 100;
 
-        // Nếu máy chủ có tiến độ mới hơn (hoặc tiến độ khác và remote lớn hơn local)
-        if (rem_pct > *cur_pct || (rem_pct != *cur_pct && rem_pct > 0 && remote.timestamp > 0)) {
+        // Nếu máy chủ có tiến độ mới hơn máy này (tỉ lệ lớn hơn, hoặc cùng % nhưng chương/offset xa hơn)
+        if (rem_pct > *cur_pct ||
+            (rem_pct == *cur_pct && (rem_chap > *cur_chapter || (rem_chap == *cur_chapter && rem_off > *cur_byte_off)))) {
             *cur_chapter = rem_chap;
             *cur_byte_off = rem_off;
             *cur_pct = rem_pct;
             *pulled_newer = true;
             if (message && message_cap) {
-                snprintf(message, message_cap, "Đã đồng bộ từ KoSync: %u%% (%s)",
+                snprintf(message, message_cap, "Đã kéo tiến độ KoSync: %u%% (%s)",
                          (unsigned)rem_pct, remote.device[0] ? remote.device : "Thiết bị khác");
             }
+            kosync_release_network(started_wifi);
             return ESP_OK;
         }
     }
 
-    // 2. Nếu máy chủ chưa có hoặc tiến độ máy cục bộ mới hơn, đẩy tiến độ lên máy chủ
+    // 2. Nếu máy cục bộ bằng hoặc xa hơn máy chủ (hoặc máy chủ chưa có), đẩy tiến độ lên máy chủ
     book_progress_t local_prog = {
         .chapter = *cur_chapter,
         .byte_off = *cur_byte_off,
         .pct = *cur_pct,
     };
     esp_err_t push_err = kosync_push_book_progress(file_path, &local_prog, (double)*cur_pct / 100.0, message, message_cap);
+    kosync_release_network(started_wifi);
     return push_err;
 }

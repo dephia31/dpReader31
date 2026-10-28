@@ -864,7 +864,7 @@ bool ttf_font_path_is_builtin(const char* path) {
 
 bool ttf_font_is_builtin(void) {
     const ttf_slot_t* sys = &s_slots[TTF_FONT_SLOT_SYSTEM];
-    return sys->f_ready && sys->f_mem != NULL;
+    return sys->f_ready && ttf_font_path_is_builtin(sys->f_path);
 }
 
 const char* ttf_font_display_name(void) {

@@ -1,5 +1,26 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.0.6-vn · 2026-10-28
+
+Bản cập nhật hoàn thiện hiển thị tải sách OPDS, sửa dứt điểm lỗi đổi phông chữ và tối ưu đồng bộ KoSync cùng khả năng khử ghosting:
+
+- **Thêm thanh tiến trình % và dung lượng tải sách trực quan trong OPDS:**
+  - Hiển thị hộp thoại nổi thông minh khi bấm tải sách từ kho OPDS với thanh tiến trình trực quan (progress bar), phần trăm (%) hoàn thành và dung lượng `KB đã tải / Tổng KB`.
+  - Cập nhật thời gian thực bằng chế độ làm mới vi sai siêu tốc (`MODE_DU`), không làm đơ giao diện và tự động làm mới lại trang khi tải xong.
+- **Sửa dứt điểm lỗi đổi phông chữ bị nháy 2 lần và văng về phông cũ:**
+  - Khắc phục lỗi trong `ttf_font_is_builtin()`: Trước đây hàm này kiểm tra `sys->f_mem != NULL` khiến mọi phông ngoài nạp vào PSRAM bị nhận nhầm là phông tích hợp sẵn, dẫn đến cơ chế bảo vệ `reader_font_fallback_observe()` kích hoạt sau 3 tick và ép văng về phông cũ.
+  - Sửa hàm nhận diện chuẩn xác theo đường dẫn tệp (`ttf_font_path_is_builtin(sys->f_path)`), cho phép phông chữ trên thẻ SD được áp dụng ổn định ngay lập tức trong cả trình đọc sách lẫn Cài đặt hệ thống.
+  - Gọi `reader_font_choice_finish()` đầy đủ ở nhánh chọn phông thành công để giải tỏa cờ trạng thái.
+- **Sửa dứt điểm lỗi đồng bộ hai chiều KoSync (Pull & Push):**
+  - Cập nhật định dạng header chuẩn `Content-Type: application/vnd.koreader.v1+json` tuân thủ chuẩn `koreader-sync-server`.
+  - Sửa thuật toán tính Partial MD5 (`kosync_compute_doc_md5`) bằng hàm `stat()` để xác định kích thước tệp chính xác trên FATFS thay cho `fseek()`.
+  - Quản lý vòng đời kết nối WiFi đơn phiên (`managed_wifi`) trong `kosync_sync_book`: giữ kết nối WiFi thông suốt xuyên suốt quá trình kéo (pull) rồi đẩy (push), tránh lỗi ngắt kết nối giữa chừng (`ESP_ERR_INVALID_STATE`).
+  - Tự động lưu tiến độ vào NVS ngay khi kéo thành công từ máy chủ KoSync.
+- **Tối ưu hóa khử hiện tượng Ghosting trên màn hình E-ink:**
+  - Chuyển chu kỳ dọn sạch mực toàn màn hình mặc định trong trình đọc sách sang **mỗi 3 trang** (thay vì 5 trang).
+  - Tối ưu lệnh dọn dẹp định kỳ `s_reader_cleanup` chuyển sang `update_display_full(ctx->hl)` để kích hoạt toàn bộ chu trình GC16 toàn màn hình và thiết lập lại dirty map, triệt tiêu hoàn toàn bóng ma tích tụ.
+
+
 ## dpReader 1.0.5-vn · 2026-10-28
 
 Bản cập nhật điều chỉnh điện áp VCOM chuẩn an toàn và tối ưu chu kỳ làm mới bảo vệ tuổi thọ màn hình E-ink:
