@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "1.0.9-vn",
+  "version": "1.1.0-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "9709cba71ecb6b5a4d3b47857c8c1d2f4e2e42e0159d16bc790491c0419d9f44",
-  "size": 3925568,
-  "notes": "dpReader v1.0.9-vn: Sửa triệt để lỗi đồng bộ tiến độ KoSync với KOReader (phân biệt XPointer crengine text() và byte offset dpReader; so sánh tỉ lệ thực tránh lỗi lượng tử hóa 1%; áp dụng tiến độ khi mở sách)."
+  "sha256": "52a8dcfc814b8dc012b6df3c14b4f49dc1068ac0fd1e6760600ce9ada8280969",
+  "size": 3926464,
+  "notes": "dpReader v1.1.0-vn: Thêm tùy chọn căn lề đoạn văn (Hai bên / Trái / Giữa / Phải) và hiển thị thanh tiến độ chân trang (Ẩn / Mảnh / Dày / Rất mảnh) trong Bố cục dàn trang; chân trang 3 tầng hoàn chỉnh; kèm các sửa lỗi KoSync, mục lục và chữ tiếng Việt có dấu."
 }
