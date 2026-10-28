@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "1.1.3-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "7fd5961f2250bfced6fd528f6f228b1c91ea4ac61f8077e5a24df7cd07e7d808",
+  "size": 3926032,
+  "notes": "dpReader v1.1.3-vn: Sửa triệt để lỗi nút lật trang Bluetooth nhảy nhiều trang; Bổ sung menu và tính năng xuất toàn bộ nhật ký hệ thống ra thẻ nhớ SD để chẩn đoán lỗi."
+}
