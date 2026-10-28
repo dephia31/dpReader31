@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "1.0.6-vn",
+  "version": "1.0.7-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "2772e1997d139075ea4e2199b3a44d4a9aec03da5611af327a4d8d7302d0e5bc",
+  "sha256": "d96808a9541ee8abe536e71c4f7f7938e1028343fddb2d762cb22610dd9b7dc0",
   "size": 3924400,
-  "notes": "dpReader v1.0.6-vn: Thêm thanh tiến trình % và dung lượng trực quan khi tải sách OPDS; Sửa lỗi đồng bộ hai chiều KoSync (chuẩn header vnd.koreader.v1+json, tính MD5 qua stat, duy trì phiên WiFi khi kéo/đẩy); Sửa dứt điểm lỗi đổi phông chữ ngoài bị văng về phông cũ; Tối ưu giảm ghosting và dọn sạch mực toàn màn hình sau mỗi 3 trang."
+  "notes": "dpReader v1.0.7-vn: Tự động kích hoạt Wi-Fi khi bấm kiểm tra OTA; Sửa dứt điểm lỗi không kết nối được máy chủ cập nhật (bộ đệm TLS 4096B, hỗ trợ chunked/redirect); Nâng cấp Web Flasher tự nhận diện phiên bản mới và chống cache trình duyệt."
 }

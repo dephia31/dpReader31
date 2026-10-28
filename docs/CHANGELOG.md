@@ -1,5 +1,21 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.0.7-vn · 2026-10-28
+
+Bản cập nhật nâng cấp cơ chế cập nhật OTA trực tuyến và Web Flasher thông minh:
+
+- **Tự động kích hoạt Wi-Fi khi kiểm tra OTA:**
+  - Khi bấm "Kiểm tra cập nhật", hệ thống tự động khởi động kết nối Wi-Fi bằng tài khoản/mật khẩu đã lưu trong Cài đặt mà không yêu cầu người dùng phải tự bật Wi-Fi thủ công trước đó.
+  - Xử lý triệt để race condition khi dừng/bật lại tiến trình mạng bằng cơ chế đồng bộ poll stack trước khi gọi khởi động chế độ STA (`READ_PICO_TRANSFER_MODE_STA`).
+- **Khắc phục lỗi "Không thể kết nối máy chủ" khi kiểm tra cập nhật:**
+  - Tăng bộ đệm TLS trong `open_http_range` lên `4096 bytes` (TX: `2048 bytes`) giúp bắt tay SSL với CDN/GitHub Pages ổn định tuyệt đối.
+  - Bật tính năng tự động chuyển hướng HTTP (`max_redirection_count = 4`) và hỗ trợ phân giải phản hồi dạng chunked (`Transfer-Encoding: chunked`).
+  - Chuyển lỗi đồng bộ thời gian NTP qua UDP thành cảnh báo mềm không chặn luồng cập nhật, tránh trường hợp mạng yếu làm đứt đoạn quá trình nạp firmware.
+  - Cập nhật địa chỉ feed chính thức trỏ thẳng tới GitHub Pages `https://dephia31.github.io/dpReader31/metalio-s31-update.json` và fallback `raw.githubusercontent.com`.
+- **Nâng cấp trang Web Flasher trực tuyến:**
+  - Tự động nhận diện và cập nhật thông tin phiên bản mới nhất từ máy chủ (số phiên bản, dung lượng, ghi chú phát hành).
+  - Bổ sung cơ chế chống lưu cache trình duyệt (`?t=timestamp`) khi tải tệp nhị phân nạp máy, đảm bảo người dùng luôn nạp đúng bản firmware mới nhất.
+
 ## dpReader 1.0.6-vn · 2026-10-28
 
 Bản cập nhật hoàn thiện hiển thị tải sách OPDS, sửa dứt điểm lỗi đổi phông chữ và tối ưu đồng bộ KoSync cùng khả năng khử ghosting:
