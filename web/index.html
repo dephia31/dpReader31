@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dpReader Metalio Plus Flasher - Trình Nạp Firmware Web</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📖 dpReader Metalio Plus Flasher</h1>
+      <p>Trình nạp & Nâng cấp Firmware trực tiếp qua cổng USB cho máy đọc sách Metalio 4.7 (ESP32-S31)</p>
+      <div id="browser-warning" class="badge badge-danger" style="display: none;">
+        ⚠️ Trình duyệt của bạn chưa hỗ trợ Web Serial. Vui lòng mở trang này trên Google Chrome, Microsoft Edge, Opera hoặc Brave.
+      </div>
+      <div id="browser-ok" class="badge badge-success">
+        ✓ Trình duyệt hỗ trợ nạp Web Serial trực tiếp
+      </div>
+    </header>
+
+    <!-- BƯỚC 1: KẾT NỐI -->
+    <div class="card">
+      <div class="card-title">
+        <div><span class="step">1</span> Kết nối máy đọc sách qua cáp USB Type-C</div>
+      </div>
+      <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+        Cắm cáp USB Type-C nối máy đọc sách với máy tính, sau đó bấm nút bên dưới và chọn cổng kết nối.
+      </p>
+
+      <button id="connect-btn" class="btn btn-primary btn-large">
+        🔌 Kết Nối Thiết Bị
+      </button>
+
+      <button id="disconnect-btn" class="btn btn-danger btn-large" style="display: none;">
+        ✕ Ngắt Kết Nối
+      </button>
+
+      <div id="device-info" class="device-info-grid" style="display: none;">
+        <div class="info-item">
+          <span class="info-label">Trạng thái</span>
+          <span class="info-val" style="color: var(--success-color);">Đã kết nối ✓</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Loại Chip</span>
+          <span id="chip-name" class="info-val">ESP32-S31</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Địa chỉ MAC</span>
+          <span id="mac-address" class="info-val">Đang đọc...</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Thiết bị</span>
+          <span class="info-val">Metalio Plus 4.7"</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BƯỚC 2: CHỌN FIRMWARE -->
+    <div class="card">
+      <div class="card-title">
+        <div><span class="step">2</span> Lựa chọn Firmware & Chế độ nạp</div>
+      </div>
+
+      <div class="radio-cards">
+        <label class="radio-card active">
+          <input type="radio" name="flash-mode" id="mode-app" checked>
+          <h4>Nâng cấp Ứng dụng (Khuyên dùng)</h4>
+          <p>Nạp bản cập nhật firmware mới nhất vào offset 0x10000. Giữ nguyên sách, ghi chú và cài đặt Wi-Fi.</p>
+          <span id="release-tag-app" class="tag">Khuyên dùng · Đang kiểm tra bản mới...</span>
+        </label>
+
+        <label class="radio-card">
+          <input type="radio" name="flash-mode" id="mode-full">
+          <h4>Nạp Toàn Diện (Cài mới / Cứu máy)</h4>
+          <p>Nạp toàn bộ hệ thống từ offset 0x0 (Bootloader, Partition Table, Otadata, App). Dùng khi máy mới hoặc lỗi hệ điều hành.</p>
+          <span id="release-tag-full" class="tag">Trọn gói · 0x0</span>
+        </label>
+      </div>
+
+      <!-- Khung thông tin bản phát hành mới nhất tự động đồng bộ -->
+      <div id="release-info-banner" style="margin-bottom: 16px; padding: 14px 18px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="font-weight: 700; color: #166534; font-size: 14px;">
+            🎉 Phiên bản mới nhất: <span id="latest-version-name" style="color: #15803d;">v1.1.4-vn</span>
+          </span>
+          <span id="latest-version-size" style="font-size: 12px; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 12px;">Đang tải...</span>
+        </div>
+        <div id="latest-version-notes" style="font-size: 13px; color: #374151; line-height: 1.45;">
+          Đang kiểm tra thông tin bản phát hành mới nhất từ máy chủ...
+        </div>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label class="radio-card" style="display: block;">
+          <input type="radio" name="flash-mode" id="mode-custom">
+          <h4>Chọn tệp Firmware (.bin) từ máy tính</h4>
+          <p>Tự chọn tệp nhị phân có sẵn trên máy của bạn.</p>
+        </label>
+      </div>
+
+      <div id="custom-file-container" style="display: none; padding: 16px; background: #f8fafc; border-radius: 8px; margin-bottom: 16px; border: 1px dashed var(--border-color);">
+        <div class="form-row">
+          <div class="form-group" style="flex: 2;">
+            <label for="custom-file">Chọn tệp .bin:</label>
+            <input type="file" id="custom-file" accept=".bin">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="custom-offset">Địa chỉ Offset (Hex):</label>
+            <input type="text" id="custom-offset" value="0x10000">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="baud-rate">Tốc độ nạp (Baud Rate):</label>
+          <select id="baud-rate">
+            <option value="460800" selected>460,800 baud (Khuyến nghị cho ESP32-S31)</option>
+            <option value="921600">921,600 baud (Tốc độ cao)</option>
+            <option value="230400">230,400 baud (Ổn định khi cáp dài)</option>
+            <option value="115200">115,200 baud (Chậm nhất)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- BƯỚC 3: TIẾN HÀNH NẠP -->
+    <div class="card">
+      <div class="card-title">
+        <div><span class="step">3</span> Tiến hành nạp Firmware</div>
+      </div>
+
+      <button id="flash-btn" class="btn btn-primary btn-large" disabled>
+        ⚡ Bắt Đầu Nạp Firmware
+      </button>
+
+      <!-- Progress bar -->
+      <div id="progress-container" class="progress-container">
+        <div class="progress-header">
+          <span>Tiến trình nạp</span>
+          <span id="progress-percent">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        </div>
+        <div id="progress-status" class="progress-status">Sẵn sàng...</div>
+      </div>
+
+      <!-- Terminal Console -->
+      <div style="margin-top: 20px;">
+        <div class="terminal-header">
+          <span>Nhật ký giao tiếp Serial:</span>
+          <button id="clear-terminal-btn" class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;">Xóa log</button>
+        </div>
+        <div id="terminal" class="terminal">Sẵn sàng kết nối thiết bị qua Web Serial...</div>
+      </div>
+    </div>
+
+    <!-- HƯỚNG DẪN & KHẮC PHỤC -->
+    <div class="card">
+      <div class="card-title">
+        <div>💡 Hướng dẫn & Khắc phục sự cố</div>
+      </div>
+      <div class="guide-box">
+        <h4>Trường hợp máy tính không nhận cổng USB hoặc nạp báo lỗi:</h4>
+        <ul>
+          <li><strong>Đưa máy vào chế độ BOOT (Download Mode) thủ công:</strong> Giữ phím <strong>AI</strong> bên hông trong khi nhấn giữ phím <strong>Nguồn</strong> khoảng 3-5 giây rồi nhả cả hai ra (hoặc giữ phím AI rồi cắm cáp USB vào máy tính).</li>
+          <li><strong>Kiểm tra cáp USB Type-C:</strong> Đảm bảo sử dụng cáp Type-C có đủ 4 chân dữ liệu (Data cable), tránh dùng cáp chỉ sạc.</li>
+          <li><strong>Quyền truy cập cổng Serial:</strong> Trên Linux, bạn có thể cần thêm người dùng vào nhóm <code>dialout</code> (<code>sudo usermod -a -G dialout $USER</code>). Trên macOS và Windows, trình duyệt sẽ tự động xin quyền truy cập.</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>
+      Dự án <a href="https://github.com/dephia31/dpReader31" target="_blank">dpReader31</a> · Firmware Metalio 4.7 Plus (ESP32-S31) · Mã nguồn mở Apache-2.0
+    </footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
