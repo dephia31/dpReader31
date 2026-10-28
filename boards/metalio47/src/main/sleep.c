@@ -746,11 +746,23 @@ esp_err_t app_enter_download(void) {
 
 static void lock_wait_for_unlock(sc7a20h_handle_t acc) {
     (void)acc;
-    for(;;) {
-        app_wake_source_t wake=app_light_sleep_wait_timed(NULL,APP_LOCK_IDLE_TIMEOUT_MS);
-        if(wake==APP_WAKE_KEY || wake==APP_WAKE_PICKUP) return;
-        // 超时不能触发重启或解锁；稳定性版继续保留当前锁屏内存。
-        // A timeout cannot reboot or unlock; retain the current lock context in this stability build.
+    // Tầng 1: Light sleep tối đa 10 phút để đánh thức tức thì
+    const uint32_t light_sleep_max_ms = 10 * 60 * 1000;
+    app_wake_source_t wake = app_light_sleep_wait_timed(NULL, light_sleep_max_ms);
+    if (wake == APP_WAKE_KEY || wake == APP_WAKE_PICKUP) return;
+
+    // Tầng 2: Sau 10 phút khóa màn hình không có thao tác, tự động hạ xuống Deep Sleep (<25uA)
+    ESP_LOGI(TAG, "S31 lock timeout 10min -> chuyen sang DEEP SLEEP tiet kiem pin");
+    (void)app_sync_time_to_pmu();
+    (void)read_pico_sd_sync();
+    metalio_frontlight(0, 50);
+    epd_poweroff();
+
+    // Thử ngắt nguồn cứng qua mạch PMU
+    esp_err_t err = app_enter_host_sleep(APP_SLEEP_OFF);
+    // Nếu phần cứng chưa ngắt nguồn hoàn toàn -> đưa SoC ESP32-S31 vào Deep Sleep
+    if (err != ESP_OK) {
+        (void)app_enter_host_sleep(APP_SLEEP_DEEP);
     }
 }
 

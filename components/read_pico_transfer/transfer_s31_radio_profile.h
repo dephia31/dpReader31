@@ -8,7 +8,7 @@
 #include "esp_wifi.h"
 #define TRANSFER_S31_MAX_TX_POWER 48
 static inline esp_err_t transfer_s31_radio_profile(wifi_interface_t interface) {
-    esp_err_t err = esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_err_t err = esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     if (err == ESP_OK) err = esp_wifi_set_protocol(interface,
         WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     if (err == ESP_OK) err = esp_wifi_set_max_tx_power(TRANSFER_S31_MAX_TX_POWER);

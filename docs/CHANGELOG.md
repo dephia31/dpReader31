@@ -1,6 +1,24 @@
 # Nhật ký thay đổi / Changelog
 
-## dpReader 1.1.0-vn · 2026-10-28
+## dpReader 1.1.1-vn · 2026-10-28
+
+Bản tối ưu hóa năng lượng cực đại (Ultra Low Power) toàn diện cho Metalio E-Ink4 Plus (ESP32-S31):
+
+- **Tự động ngắt Wi-Fi khi nhàn rỗi (Auto-timeout):**
+  - Tự động ngắt hoàn toàn module Wi-Fi sau 3 phút không có lưu lượng truyền tải sách, đồng bộ hay tải OTA.
+  - Sửa lỗi cờ `wifi_busy` chặn bộ đếm thời gian tự khóa màn hình: Khi Wi-Fi chỉ ở trạng thái kết nối chờ (không tải dữ liệu), thiết bị vẫn tự khóa màn hình đúng hẹn.
+  - Tự động ngắt Wi-Fi rảnh rỗi ngay trước khi vào chế độ ngủ để tránh tiêu hao dòng trong lúc khóa máy.
+- **Kích hoạt Wi-Fi Modem Sleep (DTIM Beaconing):**
+  - Chuyển chế độ hoạt động Wi-Fi STA từ `WIFI_PS_NONE` sang `WIFI_PS_MIN_MODEM`, giảm dòng RF tiêu thụ lúc kết nối mạng từ 140mA xuống ~15–20mA.
+- **Triệt tiêu dòng rò ngoại vi đèn nền:**
+  - Ngắt hoàn toàn clock PWM (gọi `ledc_stop()`) cho cả 2 kênh Channel 0 & 1 khi độ sáng = 0.
+- **Nhịp quét CPU thích ứng (Adaptive Cadence):**
+  - Vòng lặp chính co giãn thông minh: giữ 8ms (120Hz) khi có tương tác chạm vuốt để đảm bảo phản hồi cực mượt; tự động giãn ra 40ms sau 400ms không thao tác (giảm 80% tải CPU và giao tiếp I2C khi đọc sách tĩnh).
+- **Chế độ ngủ phân tầng (Tiered Sleep):**
+  - Tầng 1: Light Sleep trong 10 phút đầu khi khóa máy, cho phép đánh thức tức thì (<50ms).
+  - Tầng 2: Nếu không thao tác sau 10 phút khóa máy, tự động hạ xuống Deep Sleep (<25 µA) để bảo toàn pin tối đa khi người dùng bỏ quên thiết bị.
+- **Cập nhật mặc định tự tắt màn hình:**
+  - Chuyển thời gian tự khóa màn hình mặc định từ 0 (không tắt) thành 5 phút an toàn.
 
 Bản cập nhật bổ sung giao diện cho hai tính năng dàn trang đã có sẵn trong firmware:
 

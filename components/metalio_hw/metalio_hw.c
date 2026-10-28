@@ -274,6 +274,11 @@ esp_err_t metalio_tps_on(int mv) {
 }
 void metalio_frontlight(unsigned brightness,unsigned warmth) {
     if (!fl_ready) return;
+    if (brightness == 0) {
+        ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
+        ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
+        return;
+    }
     if (brightness>100) brightness=100;
     if (warmth>100) warmth=100;
     // 参考 76 版限制总功率到半幅。/ Keep the reference 76 half-scale power limit.

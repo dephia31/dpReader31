@@ -104,9 +104,11 @@
 
 #define TAG "app_loop"
 
-// 触摸芯片报点率远高于屏幕，主循环空转一轮只等这么久。
-// Touch reports far faster than the panel; idle this long per loop.
-#define LOOP_TICK_MS 5
+// Nhịp quét thích ứng: 8ms khi thao tác liên tục; 40ms khi đọc sách tĩnh để giảm 80% tải CPU
+#define LOOP_TICK_ACTIVE_MS 8
+#define LOOP_TICK_IDLE_MS 40
+#define LOOP_TICK_MS LOOP_TICK_ACTIVE_MS
+#define WIFI_INACTIVITY_TIMEOUT_MS (3 * 60 * 1000)
 // SD 卡插上或者刚挂好时，隔一会儿再试一次存在设置里的字体。
 // Retry the saved SD font shortly after a card appears or mounts.
 #define FONT_RETRY_INTERVAL_MS 750
@@ -993,6 +995,8 @@ void app_loop_run(const app_loop_config_t* config) {
     int64_t last_media_poll_ms = 0;
     int64_t last_network_poll_ms = 0;
     int64_t last_input_ms = esp_timer_get_time() / 1000;
+    int64_t last_wifi_active_ms = last_input_ms;
+    int current_tick_ms = LOOP_TICK_ACTIVE_MS;
     uint32_t last_ble_input = ble_pt_input_serial();
     unsigned idle_minutes = app_settings_auto_lock_minutes();
     unsigned cover_policy = (unsigned)app_settings_main_refresh_mode() | ((unsigned)app_settings_system_contrast() << 8);
@@ -1052,7 +1056,12 @@ void app_loop_run(const app_loop_config_t* config) {
         if (read_pico_pmu_ready()) (void)read_pico_pmu_poll();
 #else
 #endif
-        if (err == ESP_OK && (touch.touched || released)) last_input_ms = ctx.now_ms;
+        if (err == ESP_OK && (touch.touched || released)) {
+            last_input_ms = ctx.now_ms;
+            current_tick_ms = LOOP_TICK_ACTIVE_MS;
+        } else if (!touch.touched && ctx.now_ms - last_input_ms >= 400 && held_key < 0 && !s_quick.open && !ai_overlay_open()) {
+            current_tick_ms = LOOP_TICK_IDLE_MS;
+        }
         if (ctx.now_ms - last_network_poll_ms >= 500) {
             last_network_poll_ms = ctx.now_ms;
             read_pico_transfer_service_poll();
@@ -1626,8 +1635,20 @@ void app_loop_run(const app_loop_config_t* config) {
         // WiFi runs on C6 and BLE on S3; both consume S3 internal memory, so network leases pause BLE and release it afterwards.
         read_pico_transfer_status_t transfer;
         read_pico_transfer_get_status(&transfer);
-        const bool wifi_busy = transfer.state != READ_PICO_TRANSFER_STOPPED ||
-            pico_online_busy();
+        const bool wifi_running = (transfer.state != READ_PICO_TRANSFER_STOPPED);
+        const bool wifi_transferring = (transfer.state == READ_PICO_TRANSFER_UPLOADING || pico_online_busy() || app_download_active());
+        const bool wifi_busy = wifi_running || pico_online_busy();
+        if (wifi_running) {
+            if (wifi_transferring || current == &app_transfer) {
+                last_wifi_active_ms = ctx.now_ms;
+            } else if (last_wifi_active_ms && (ctx.now_ms - last_wifi_active_ms >= WIFI_INACTIVITY_TIMEOUT_MS)) {
+                ESP_LOGI(TAG, "Wi-Fi rảnh rỗi quá 3 phút, tự động tắt Wi-Fi để tiết kiệm pin");
+                read_pico_transfer_stop();
+                last_wifi_active_ms = ctx.now_ms;
+            }
+        } else {
+            last_wifi_active_ms = ctx.now_ms;
+        }
 #if KIIKO_BOARD_METALIO47
         ble_pt_sync(app_settings_ble_turner());
 #else
@@ -1678,9 +1699,9 @@ void app_loop_run(const app_loop_config_t* config) {
         if (ble_input != last_ble_input) { last_ble_input = ble_input; last_input_ms = ctx.now_ms; }
         unsigned requested_idle = app_settings_auto_lock_minutes();
 #if KIIKO_BOARD_METALIO47
-        bool idle_blocked = app_sd_recovery_busy() || usb_storage_active() || app_download_active() || wifi_busy || current == &app_transfer ||
+        bool idle_blocked = app_sd_recovery_busy() || usb_storage_active() || app_download_active() || wifi_transferring || (current == &app_transfer && transfer.state != READ_PICO_TRANSFER_STOPPED) ||
 #else
-        bool idle_blocked = usb_storage_active() || wifi_busy || current == &app_transfer ||
+        bool idle_blocked = usb_storage_active() || app_download_active() || wifi_transferring || (current == &app_transfer && transfer.state != READ_PICO_TRANSFER_STOPPED) ||
 #endif
             current->holds_pmu || power_dialog_open || touch.touched ||
             ctx.request_app || ctx.request_menu || ctx.request_return;
@@ -1693,6 +1714,10 @@ void app_loop_run(const app_loop_config_t* config) {
             // A chooser never disables idle lock; restore the physical underlay before transparent lock artwork can cache it.
             ai_dismiss(&ctx,current,true);
 #endif
+            if (transfer.state != READ_PICO_TRANSFER_STOPPED && !wifi_transferring) {
+                ESP_LOGI(TAG, "Chuẩn bị vào chế độ ngủ, tự động tắt Wi-Fi rảnh rỗi");
+                read_pico_transfer_stop();
+            }
             held_key = -1;
             cancel_gesture(&ctx, current, &gesture);
             if (menu_pressed >= 0) menu_feedback(&ctx, current, menu_leaf, menu_pressed, false, &feedback);
@@ -1806,8 +1831,8 @@ void app_loop_run(const app_loop_config_t* config) {
         }
 #else
 #endif
-        // 连续列表相位期间缩短等待；每次仍读触摸，并给其他任务让出一个调度周期。
-        // Reduce waits during continuous list phases; poll touch each time and yield one scheduling tick.
-        vTaskDelay(pdMS_TO_TICKS(LOOP_TICK_MS));
+        // Nhịp chờ thích ứng: 8ms khi thao tác, 40ms khi nhàn rỗi đọc trang sách tĩnh.
+        // Adaptive tick delay: 8ms during active touch/input, 40ms when reading static pages.
+        vTaskDelay(pdMS_TO_TICKS(current_tick_ms));
     }
 }

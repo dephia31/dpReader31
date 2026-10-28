@@ -3944,8 +3944,8 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     err = esp_wifi_start(); if (err != ESP_OK) goto fail;
     s_started = true;
     if (cfg->mode == READ_PICO_TRANSFER_MODE_STA && !cfg->network_only) {
-        esp_err_t power_err = esp_wifi_set_ps(WIFI_PS_NONE);
-        if (power_err != ESP_OK) ESP_LOGW("transfer", "disable wifi power save: %s", esp_err_to_name(power_err));
+        esp_err_t power_err = esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+        if (power_err != ESP_OK) ESP_LOGW("transfer", "set wifi power save min modem: %s", esp_err_to_name(power_err));
     }
     if (cfg->mode == READ_PICO_TRANSFER_MODE_AP) {
         portENTER_CRITICAL(&s_lock);

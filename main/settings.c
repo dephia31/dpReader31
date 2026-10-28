@@ -188,7 +188,7 @@ static uint8_t s_book_indent_adjust = 20;
 static uint8_t s_book_align;
 // 默认细条；0 现在是“隐藏”，不能当默认值。/ Default to the thin bar; 0 now means hidden.
 static uint8_t s_book_progress_style = APP_BOOK_PROGRESS_STYLE_THIN;
-static uint8_t s_auto_lock_minutes;
+static uint8_t s_auto_lock_minutes = 5;
 static uint8_t s_shelf_style = 2;
 static char s_books_dir[MEDIA_DIR_MAX] = "/sdcard/books";
 static char s_fonts_dir[MEDIA_DIR_MAX] = "/sdcard/fonts";
@@ -285,8 +285,8 @@ void app_settings_init(void) {
         ? (app_main_refresh_mode_t)raw : APP_MAIN_REFRESH_NORMAL;
     raw = 0;
 
-    raw = 0;
-    if (nvs_get_u8(h, NVS_KEY_AUTO_LOCK, &raw) == ESP_OK && (raw == 1 || raw == 5 || raw == 10)) s_auto_lock_minutes = raw;
+    raw = 5;
+    if (nvs_get_u8(h, NVS_KEY_AUTO_LOCK, &raw) == ESP_OK && (raw == 0 || raw == 1 || raw == 5 || raw == 10)) s_auto_lock_minutes = raw;
     size_t value_len = sizeof(s_device_name);
     if (nvs_get_str(h, NVS_KEY_DEVICE_NAME, s_device_name, &value_len) != ESP_OK || !s_device_name[0])
         strlcpy(s_device_name, "dpReader", sizeof(s_device_name));
