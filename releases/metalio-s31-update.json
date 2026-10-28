@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "1.1.4-vn",
+  "version": "1.1.5-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "ebc5a370846906370babf6c61d2372298e1fac5231c8647d61444900b0acfe7c",
-  "size": 3929056,
-  "notes": "dpReader v1.1.4-vn: Tinh chỉnh giao diện đọc sách; Gom phông nhúng, dẫn dòng, khử răng cưa vào menu Tùy Chỉnh; Kéo cài đặt chân trang ra ngoài; Tùy chọn hiển thị số trang/chương, tên chương, % tiến độ."
+  "sha256": "4a3f8446c97014dea544f4703ac6af92ec43e339e28240cd5d4313c95fbb2d11",
+  "size": 3931408,
+  "notes": "dpReader v1.1.5-vn: Tối ưu hóa RAM, Wi-Fi mặc định tắt khi không dùng, tự động tắt Wi-Fi & Bluetooth khi rảnh rỗi."
 }
