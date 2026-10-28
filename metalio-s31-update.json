@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "1.1.0-vn",
+  "version": "1.1.1-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "52a8dcfc814b8dc012b6df3c14b4f49dc1068ac0fd1e6760600ce9ada8280969",
-  "size": 3926464,
-  "notes": "dpReader v1.1.0-vn: Thêm tùy chọn căn lề đoạn văn (Hai bên / Trái / Giữa / Phải) và hiển thị thanh tiến độ chân trang (Ẩn / Mảnh / Dày / Rất mảnh) trong Bố cục dàn trang; chân trang 3 tầng hoàn chỉnh; kèm các sửa lỗi KoSync, mục lục và chữ tiếng Việt có dấu."
+  "sha256": "485222fbd0222a9de1354f42882209a9cf9f4a5af0883e0fe544350ec1ceff89",
+  "size": 3927520,
+  "notes": "dpReader v1.1.1-vn: Tối ưu hóa năng lượng cực đại (Ultra Low Power): Wi-Fi auto-timeout 3 phút, Modem Sleep (DTIM beaconing), ngắt clock PWM LEDC đèn nền khi độ sáng = 0, nhịp quét CPU thích ứng 8ms/40ms khi đọc sách tĩnh, chế độ ngủ phân tầng Tiered Sleep (10 phút Light Sleep sang Deep Sleep), mặc định tự khóa màn hình sau 5 phút."
 }
