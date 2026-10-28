@@ -18,8 +18,8 @@
 #define PICO_OTA_LAYOUT "metalio-s31-dual-5m-v1"
 #define PICO_OTA_BOARD "Metalio-EINK4-Plus-S31"
 #define PICO_OTA_CAPABILITY "dpReader/1.0 (Metalio47; ESP32-S31)"
-#define PICO_OTA_FEED_URL "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/metalio-s31-update.json"
-#define PICO_OTA_FEED_FALLBACK_URL "https://dephia31.github.io/dpReader31/metalio-s31-update.json"
+#define PICO_OTA_FEED_URL "https://dephia31.github.io/dpReader31/metalio-s31-update.json"
+#define PICO_OTA_FEED_FALLBACK_URL "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/metalio-s31-update.json"
 #else
 #define PICO_OTA_IMAGE_MAX 0x400000
 #define PICO_OTA_PROJECT "KiikoRead"

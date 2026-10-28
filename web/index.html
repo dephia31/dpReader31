@@ -67,15 +67,28 @@
           <input type="radio" name="flash-mode" id="mode-app" checked>
           <h4>Nâng cấp Ứng dụng (Khuyên dùng)</h4>
           <p>Nạp bản cập nhật firmware mới nhất vào offset 0x10000. Giữ nguyên sách, ghi chú và cài đặt Wi-Fi.</p>
-          <span class="tag">Khuyên dùng · v1.0.5-vn</span>
+          <span id="release-tag-app" class="tag">Khuyên dùng · Đang kiểm tra bản mới...</span>
         </label>
 
         <label class="radio-card">
           <input type="radio" name="flash-mode" id="mode-full">
           <h4>Nạp Toàn Diện (Cài mới / Cứu máy)</h4>
           <p>Nạp toàn bộ hệ thống từ offset 0x0 (Bootloader, Partition Table, Otadata, App). Dùng khi máy mới hoặc lỗi hệ điều hành.</p>
-          <span class="tag">Trọn gói · 0x0</span>
+          <span id="release-tag-full" class="tag">Trọn gói · 0x0</span>
         </label>
+      </div>
+
+      <!-- Khung thông tin bản phát hành mới nhất tự động đồng bộ -->
+      <div id="release-info-banner" style="margin-bottom: 16px; padding: 14px 18px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="font-weight: 700; color: #166534; font-size: 14px;">
+            🎉 Phiên bản mới nhất: <span id="latest-version-name" style="color: #15803d;">v1.0.6-vn</span>
+          </span>
+          <span id="latest-version-size" style="font-size: 12px; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 12px;">Đang tải...</span>
+        </div>
+        <div id="latest-version-notes" style="font-size: 13px; color: #374151; line-height: 1.45;">
+          Đang kiểm tra thông tin bản phát hành mới nhất từ máy chủ...
+        </div>
       </div>
 
       <div style="margin-bottom: 16px;">

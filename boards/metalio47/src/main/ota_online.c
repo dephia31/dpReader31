@@ -115,7 +115,16 @@ static bool online(bool *owned) {
         if (read_pico_transfer_get_saved_wifi(ssid, &saved) != ESP_OK || !saved) {
             state(PICO_UPDATE_FAILED, "Vui lòng kết nối WiFi trong Cài đặt trước"); return false;
         }
-        read_pico_transfer_stop();
+        if (status.state != READ_PICO_TRANSFER_STOPPED) {
+            read_pico_transfer_stop();
+            int64_t wait_stop = esp_timer_get_time() + 4000000LL;
+            while (esp_timer_get_time() < wait_stop) {
+                read_pico_transfer_service_poll();
+                read_pico_transfer_get_status(&status);
+                if (status.state == READ_PICO_TRANSFER_STOPPED) break;
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+        }
         read_pico_transfer_cfg_t cfg = {.mode = READ_PICO_TRANSFER_MODE_STA, .network_only = true};
         *owned = true;
         if (read_pico_transfer_start(&cfg) != ESP_OK) {
@@ -128,10 +137,8 @@ static bool online(bool *owned) {
         read_pico_transfer_get_status(&status);
         if (status.mode == READ_PICO_TRANSFER_MODE_STA && status.network_ready) {
             if (time(NULL) < 1704067200) {
-                uint32_t utc;
-                if (read_pico_transfer_sync_time_online(&utc) != ESP_OK) {
-                    state(PICO_UPDATE_FAILED, "Đồng bộ giờ mạng thất bại, hãy thử lại"); return false;
-                }
+                uint32_t utc = 0;
+                (void)read_pico_transfer_sync_time_online(&utc);
             }
             return !atomic_load(&s_cancel);
         }
@@ -161,9 +168,9 @@ static esp_err_t range_header(esp_http_client_event_t *event) {
 static esp_http_client_handle_t open_http_range(const char *url, uint32_t offset,
         download_range_t *range, int *status, int64_t *length) {
     if (range) memset(range, 0, sizeof(*range));
-    esp_http_client_config_t cfg = {.url = url, .timeout_ms = 15000, .buffer_size = 2048,
-        .buffer_size_tx = 1024, .crt_bundle_attach = esp_crt_bundle_attach,
-        .disable_auto_redirect = true, .keep_alive_enable = true,
+    esp_http_client_config_t cfg = {.url = url, .timeout_ms = 15000, .buffer_size = 4096,
+        .buffer_size_tx = 2048, .crt_bundle_attach = esp_crt_bundle_attach,
+        .max_redirection_count = 4, .keep_alive_enable = true,
         .event_handler = range_header, .user_data = range};
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client) return NULL;
@@ -176,9 +183,9 @@ static esp_http_client_handle_t open_http_range(const char *url, uint32_t offset
     }
     if (esp_http_client_open(client, 0) != ESP_OK || atomic_load(&s_cancel)) goto fail;
     *length = esp_http_client_fetch_headers(client);
-    if (*length < 0 || atomic_load(&s_cancel)) goto fail;
+    if ((*length < 0 && !esp_http_client_is_chunked_response(client)) || atomic_load(&s_cancel)) goto fail;
     *status = esp_http_client_get_status_code(client);
-    esp_http_client_set_timeout_ms(client, 1000);
+    esp_http_client_set_timeout_ms(client, 1500);
     return client;
 fail:
     esp_http_client_cleanup(client);
@@ -232,7 +239,7 @@ static bool check_feed(void) {
             vTaskDelay(pdMS_TO_TICKS(250));
         }
         if (!client) continue;
-        if (code != 200 || length > 8192) { esp_http_client_cleanup(client); continue; }
+        if (code != 200 || (length > 0 && length > 8192)) { esp_http_client_cleanup(client); continue; }
         size_t received = 0;
         int64_t idle = esp_timer_get_time() + 30000000;
         int n = -1;
@@ -284,8 +291,8 @@ static bool download(void) {
     // 两个允许的 HTTPS 源使用同一固定文件名和 SHA，连接失败才切换备用源。
     // Both trusted HTTPS origins use the same immutable name/hash; switch only after connection failure.
     static const char *const origins[] = {
-        "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/",
-        "https://dephia31.github.io/dpReader31/"
+        "https://dephia31.github.io/dpReader31/releases/",
+        "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/"
     };
     const char *filename = strrchr(release->url, '/');
     if (!filename || !pico_release_url_valid(release->url)) goto failed;

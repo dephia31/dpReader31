@@ -57,6 +57,7 @@ bool pico_release_url_valid(const char *url) {
     static const char *const prefixes[] = {
         "https://kiikoread.com/",
         "https://wegooo-cell.github.io/read-pico-reader/",
+        "https://dephia31.github.io/dpReader31/releases/",
         "https://dephia31.github.io/dpReader31/",
         "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/"
     };
