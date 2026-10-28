@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "1.1.2-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "34fd7ed82ddd033d5890e49f30dbc91f703978832f282deffc34d56470ee4060",
+  "size": 3914736,
+  "notes": "dpReader v1.1.2-vn: Sửa triệt để lỗi căn lề justify hai bên cho văn bản tiếng Việt/Latin; bổ sung làm mới trang tức thì khi đổi căn lề; chuẩn hóa bàn phím tiếng Anh QWERTY, loại bỏ bàn phím T9."
+}
