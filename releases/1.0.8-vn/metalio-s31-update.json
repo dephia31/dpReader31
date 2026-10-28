@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "1.0.8-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "e5029d0ca206a0258eb996e9abd7d9e5f8cc73c332c544e612423b494e25e301",
+  "size": 3925200,
+  "notes": "dpReader v1.0.8-vn: Sửa triệt để lỗi mục lục và chữ tiếng Việt có dấu bị mất thân chữ (loca composite glyph); sửa viền sáng quanh chữ mục lục khi tăng tương phản; hiển thị tên sách trên thanh trạng thái; nâng cấp chân trang đọc sách 3 tầng trực quan và tùy chọn căn lề đoạn văn."
+}

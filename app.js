@@ -190,6 +190,74 @@ async function fetchLatestRelease() {
 
 fetchLatestRelease();
 
+function sleepMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Reset chip sau khi nạp. Hai lỗi riêng biệt gây ra "nạp xong không tự khởi động lại":
+// 1) esptool-js KHÔNG có ESPLoader.hardReset() -> gọi hàm không tồn tại, TypeError bị nuốt vào catch.
+// 2) HardReset của esptool-js chỉ nhả RTS mà không kéo xuống trước, nên khi RTS vốn đã ở mức nhả
+//    (trạng thái USB-Serial/JTAG sau khi kết nối) thì không có xung EN nào: chip nằm lại trong stub.
+// Phải kéo RTS xuống (EN thấp), giữ một nhịp, rồi để esptool-js nhả ra theo đúng thứ tự của chip.
+// Two separate bugs cause "flashes fine but never reboots":
+// 1) esptool-js has NO ESPLoader.hardReset() -> the call throws TypeError, swallowed by catch.
+// 2) Its HardReset only releases RTS without asserting it first, so when RTS is already released
+//    (USB-Serial/JTAG after connecting) no EN pulse happens and the chip stays in the flasher stub.
+// Assert RTS (EN low), hold, then let esptool-js release it in the chip-specific order.
+async function resetIntoApp() {
+  // DTR cao = IO0 cao, để chip khởi động ứng dụng thay vì quay lại download mode.
+  // DTR high keeps IO0 high so the chip boots the app instead of re-entering download mode.
+  try {
+    await transport.setDTR(false);
+  } catch (e) {
+    console.warn("Không đặt được DTR:", e);
+  }
+
+  // Xung EN giống esptool bản Python khi chip chạy trên USB nội bộ: kéo RTS xuống 200 ms rồi nhả,
+  // chờ 800 ms cho thiết bị liệt kê lại trên USB.
+  // Same EN pulse as the Python esptool on chips using the internal USB peripheral: assert RTS for
+  // 200 ms, release, then wait 800 ms for the device to re-enumerate on USB.
+  try {
+    await transport.setRTS(true);
+    await sleepMs(200);
+    await transport.setRTS(false);
+    await sleepMs(800);
+    return true;
+  } catch (e) {
+    terminal.writeLine(`[!] Xung reset qua RTS lỗi: ${e.message || e}`);
+    console.warn("Reset pulse failed:", e);
+  }
+
+  // Dự phòng: để esptool-js nhả theo thứ tự riêng của chip đã nhận diện.
+  // Fallback: let esptool-js release in the detected chip's own order.
+  try {
+    await esploader.after("hard_reset");
+    await sleepMs(800);
+    return true;
+  } catch (e) {
+    console.warn("Fallback reset failed:", e);
+    return false;
+  }
+}
+
+// Sau reset, thiết bị USB-Serial/JTAG liệt kê lại nên phải nhả cổng; giữ nguyên log và thanh tiến trình.
+// The device re-enumerates on USB-Serial/JTAG after reset, so release the port while keeping log and progress.
+async function releasePortAfterFlash() {
+  try {
+    if (transport) await transport.disconnect();
+  } catch (e) {
+    console.warn("Không đóng được cổng sau khi nạp:", e);
+  }
+  transport = null;
+  esploader = null;
+  device = null;
+  connectBtn.style.display = "inline-flex";
+  disconnectBtn.style.display = "none";
+  disconnectBtn.disabled = false;
+  flashBtn.disabled = true;
+  deviceInfo.style.display = "none";
+}
+
 // Convert ArrayBuffer sang Binary String cho esptool-js
 function arrayBufferToBinaryString(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -236,11 +304,19 @@ flashBtn.addEventListener("click", async () => {
     let binaryData = null;
     let offset = 0x10000;
     let fileName = "";
+    // Chế độ "Ứng dụng" phải đưa otadata về trạng thái trống để bootloader chọn ota_0 vừa ghi.
+    // Nếu máy từng cập nhật OTA qua Wi-Fi, otadata có thể đang trỏ ota_1 và thiết bị sẽ khởi động lại
+    // đúng bản cũ dù đã ghi xong bản mới vào ota_0.
+    // App-only mode must clear otadata so the bootloader selects the freshly written ota_0.
+    // A device that OTA'd over Wi-Fi may have otadata pointing at ota_1 and would boot the old image
+    // even though the new one was written to ota_0.
+    let clearOtadata = false;
     const timestamp = Date.now();
 
     if (radioApp.checked) {
       fileName = "dpReader_metalio47_firmware.bin";
       offset = 0x10000;
+      clearOtadata = true;
       progressStatus.textContent = "Đang tải firmware ứng dụng mới nhất...";
       binaryData = await fetchBinary(
         `./releases/${fileName}?t=${timestamp}`,
@@ -276,6 +352,15 @@ flashBtn.addEventListener("click", async () => {
     const fileData = binaryData instanceof Uint8Array ? binaryData : new Uint8Array(binaryData);
     const fileArray = [{ data: fileData, address: offset }];
 
+    // Xoá otadata (ghi 0xFF) để bootloader chọn ota_0 vừa nạp. Nếu otadata còn trỏ ota_1 từ một lần
+    // cập nhật Wi-Fi trước đó, máy sẽ khởi động lại đúng bản cũ dù bản mới đã ghi xong.
+    // Clear otadata (write 0xFF) so the bootloader picks the freshly written ota_0. If otadata still
+    // points at ota_1 from an earlier Wi-Fi update, the device reboots into the old image.
+    if (clearOtadata) {
+      terminal.writeLine("[*] Xoá otadata (0xD000) để khởi động vào phân vùng vừa nạp (ota_0)...");
+      fileArray.push({ data: new Uint8Array(0x2000).fill(0xff), address: 0xd000 });
+    }
+
     const startTime = Date.now();
 
     await esploader.writeFlash({
@@ -297,19 +382,29 @@ flashBtn.addEventListener("click", async () => {
     terminal.writeLine("=======================================================");
     terminal.writeLine("🎉 NẠP FIRMWARE THÀNH CÔNG RỰC RỠ!");
     terminal.writeLine("=======================================================");
-    terminal.writeLine("[*] Đang khởi động lại thiết bị (Hard reset)...");
+    terminal.writeLine("[*] Đang khởi động lại thiết bị (xung reset EN qua RTS)...");
 
     progressBarFill.style.backgroundColor = "var(--success-color)";
     progressPercent.textContent = "100%";
     progressStatus.textContent = "Hoàn tất 100%! Thiết bị đang khởi động lại vào hệ điều hành mới.";
 
+    let resetOk = false;
     try {
-      await esploader.hardReset();
+      resetOk = await resetIntoApp();
+      if (resetOk) terminal.writeLine("[+] Đã phát xung reset, thiết bị đang khởi động lại.");
     } catch (e) {
+      terminal.writeLine(`[!] Không phát được xung reset: ${e.message || e}`);
       console.warn("Reset note:", e);
     }
 
-    alert("🎉 Nạp firmware thành công rực rỡ!\nThiết bị đang tự động khởi động lại.");
+    // Nhả cổng để thiết bị USB-Serial/JTAG liệt kê lại sau khi reset.
+    await releasePortAfterFlash();
+
+    if (resetOk) {
+      alert("🎉 Nạp firmware thành công rực rỡ!\nThiết bị đang tự động khởi động lại.");
+    } else {
+      alert("🎉 Nạp firmware thành công!\n\nKhông tự reset được thiết bị. Hãy rút cáp USB và nhấn giữ nút Nguồn khoảng 3 giây để khởi động lại.");
+    }
 
   } catch (err) {
     terminal.writeLine(`[!] LỖI TRONG QUÁ TRÌNH NẠP: ${err.message || err}`);
@@ -319,7 +414,11 @@ flashBtn.addEventListener("click", async () => {
     alert(`Nạp thất bại: ${err.message || err}`);
   } finally {
     isFlashing = false;
-    flashBtn.disabled = false;
-    disconnectBtn.disabled = false;
+    // Sau khi nạp thành công cổng đã được nhả; chỉ bật lại nút khi còn kết nối.
+    // After a successful flash the port is released; only re-enable the button while still connected.
+    if (esploader) {
+      flashBtn.disabled = false;
+      disconnectBtn.disabled = false;
+    }
   }
 });
