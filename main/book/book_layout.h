@@ -33,6 +33,15 @@ void book_layout_set_typography(int tracking_px);
 void book_layout_set_first_line_indent(unsigned em);
 /// 正文首行按像素微调-100..100，0为默认，不改变标题/对齐块或无缩进。/ Fine-tune body indent by -100..100px; default 0, leaving headings/aligned/no-indent blocks intact.
 void book_layout_set_first_line_indent_adjust(int px);
+/// 正文对齐：0 两端对齐（原行为），1 左对齐，2 居中，3 右对齐。书内 CSS 已指定居中/右对齐
+/// 的块优先，标题保持原样；居中与右对齐会取消首行缩进，只有两端对齐会拉伸行宽。
+/// 竖排忽略此项（竖排的对齐作用于列内纵向位置）。
+/// Body alignment: 0 justified (previous behaviour), 1 left, 2 center, 3 right. Blocks the book
+/// already centers or right-aligns win and headings keep their placement; centering and right
+/// alignment drop the first-line indent, and only justification stretches lines. Vertical
+/// setting ignores it (there it maps to position along a column).
+void book_layout_set_body_align(uint8_t align);
+uint8_t book_layout_body_align(void);
 /// 把正文宽度收齐到完整汉字列并居中，避免折行余量只堆在右侧。/ Center complete CJK columns so wrap slack does not accumulate on the right.
 EpdRect book_layout_balanced_rect(EpdRect outer, int px, int tracking_px);
 /// 正文阅读线：0 无，1 虚线，2 点线。/ Reading guides: none, dashed or dotted.

@@ -239,6 +239,21 @@ void app_settings_set_book_indent_adjust(int8_t px);
 /// 正文阅读线：0 无，1 虚线，2 点线。/ Body reading guides: none, dashed or dotted.
 uint8_t app_settings_book_reading_line(void);
 void app_settings_set_book_reading_line(uint8_t style);
+/// 正文对齐：0 两端对齐（原行为），1 左对齐，2 居中，3 右对齐。/ Body alignment: justified (previous behaviour), left, center, right.
+/// 与书内 CSS 的 text-align 叠加：书内已指定居中/右对齐的块保持原样，只改普通正文段。
+/// It layers on in-book text-align: blocks the book already centers or right-aligns stay put,
+/// and only ordinary body paragraphs follow this setting.
+#define APP_BOOK_ALIGN_JUSTIFY 0
+#define APP_BOOK_ALIGN_LEFT 1
+#define APP_BOOK_ALIGN_CENTER 2
+#define APP_BOOK_ALIGN_RIGHT 3
+#define APP_BOOK_ALIGN_COUNT 4
+uint8_t app_settings_book_align(void);
+void app_settings_set_book_align(uint8_t align);
+/// 页脚进度条外观：0 细圆头，1 粗圆头，2 极细圆头。/ Footer progress-bar look: thin round, thick round, hairline round.
+#define APP_BOOK_PROGRESS_STYLE_COUNT 3
+uint8_t app_settings_book_progress_style(void);
+void app_settings_set_book_progress_style(uint8_t style);
 /// 阅读线相对默认位置 -8..+8 像素，2 像素一步，默认 0。/ Guide offset in 2 px steps.
 int8_t app_settings_book_reading_line_offset(void);
 void app_settings_set_book_reading_line_offset(int8_t offset_px);

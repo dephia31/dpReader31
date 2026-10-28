@@ -86,6 +86,8 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #define NVS_KEY_BOOK_TRACK "bk_track"
 #define NVS_KEY_BOOK_INDENT "bk_indent"
 #define NVS_KEY_BOOK_INDENT_ADJUST "bk_indent_adj"
+#define NVS_KEY_BOOK_ALIGN "bk_align"
+#define NVS_KEY_BOOK_PROGRESS "bk_prog"
 #define NVS_KEY_BOOK_RULE "bk_rule"
 #define NVS_KEY_BOOK_RULE_OFFSET "bk_rule_y"
 #define NVS_KEY_SHELF_STYLE "shelf_ui"
@@ -178,6 +180,11 @@ static bool s_book_vertical;
 static uint8_t s_book_tracking = -APP_BOOK_TRACK_MIN, s_book_reading_line, s_book_rule_offset = 4;
 static uint8_t s_book_indent = 2;
 static uint8_t s_book_indent_adjust = 20;
+// 正文对齐方式与页脚进度条外观，默认沿用旧行为（两端对齐、细圆头进度条）。
+// Body alignment and footer progress-bar look; defaults keep the previous behaviour
+// (justified text, thin round-capped bar).
+static uint8_t s_book_align;
+static uint8_t s_book_progress_style;
 static uint8_t s_auto_lock_minutes;
 static uint8_t s_shelf_style = 2;
 static char s_books_dir[MEDIA_DIR_MAX] = "/sdcard/books";
@@ -406,6 +413,12 @@ void app_settings_init(void) {
         s_book_indent = indent;
     s_book_indent_adjust = nvs_get_u8(h, NVS_KEY_BOOK_INDENT_ADJUST, &indent_adjust) == ESP_OK && indent_adjust <= 200
         ? indent_adjust : 20;
+    uint8_t align = 0, progress_style = 0;
+    if (nvs_get_u8(h, NVS_KEY_BOOK_ALIGN, &align) == ESP_OK && align < APP_BOOK_ALIGN_COUNT)
+        s_book_align = align;
+    if (nvs_get_u8(h, NVS_KEY_BOOK_PROGRESS, &progress_style) == ESP_OK &&
+        progress_style < APP_BOOK_PROGRESS_STYLE_COUNT)
+        s_book_progress_style = progress_style;
     uint8_t line = 130, para = 50, margin = 24;
     if (nvs_get_u8(h, NVS_KEY_BOOK_LINE, &line) == ESP_OK) {
         if (line >= 110 && line <= 150) s_book_line = line;
@@ -933,6 +946,18 @@ void app_settings_set_book_reading_line(uint8_t style) {
     if (style > 2 || style == s_book_reading_line) return;
     s_book_reading_line = style;
     nvs_put_u8(NVS_KEY_BOOK_RULE, style);
+}
+uint8_t app_settings_book_align(void) { return s_book_align; }
+void app_settings_set_book_align(uint8_t align) {
+    if (align >= APP_BOOK_ALIGN_COUNT || align == s_book_align) return;
+    s_book_align = align;
+    nvs_put_u8(NVS_KEY_BOOK_ALIGN, align);
+}
+uint8_t app_settings_book_progress_style(void) { return s_book_progress_style; }
+void app_settings_set_book_progress_style(uint8_t style) {
+    if (style >= APP_BOOK_PROGRESS_STYLE_COUNT || style == s_book_progress_style) return;
+    s_book_progress_style = style;
+    nvs_put_u8(NVS_KEY_BOOK_PROGRESS, style);
 }
 int8_t app_settings_book_reading_line_offset(void) { return (int8_t)((int)s_book_rule_offset - 4) * 2; }
 void app_settings_set_book_reading_line_offset(int8_t offset_px) {

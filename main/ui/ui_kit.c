@@ -495,7 +495,11 @@ void ui_text_title_background_vc(uint8_t *fb, int x, int center_y, int px, const
                                  const char *font_sample, enum EpdFontFlags align, uint8_t background) {
     if (!fb || !text || !*text) return;
     int above = 0, below = 0;
-    uint8_t back = background >> 4;
+    // 与 ui_fill_round_rect / ui_text_fixed_context_aa_vc 走同一条对比度映射；直接取高四位
+    // 会在对比度调高时让字缘混向旧底色，在卡片上留下一圈亮边。
+    // Use the same contrast mapping as ui_fill_round_rect / ui_text_fixed_context_aa_vc; taking the
+    // high nibble alone blends edges toward a stale tone and leaves a bright halo on cards.
+    uint8_t back = ui_contrast_gray(background) >> 4;
     if(title_needs_ui_glyphs(font_sample?font_sample:text)) {
         // Imported subset fonts can omit a common character (e.g. U+884C).
         // Fill only missing glyphs; keep the selected face, one baseline and the

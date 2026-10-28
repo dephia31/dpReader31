@@ -143,9 +143,11 @@ Cài đặt `esptool` (`pip install esptool`), sau đó mở Terminal / Command 
   > ⚠️ Lệnh này **xoá NVS** (cài đặt, mật khẩu, VCOM đã hiệu chuẩn) vì `full.bin` trải liền từ `0x0` và vùng NVS trong file là `0xFF`. Dùng khi cần nạp sạch / chia lại phân vùng / cứu máy.
 - **Hoặc chỉ nạp nhanh phân vùng ứng dụng `ota_0` tại địa chỉ `0x10000` (giữ nguyên NVS):**
   ```bash
-  python3 -m esptool --chip esp32s31 --baud 460800 write_flash 0x10000 releases/dpReader_metalio47_firmware.bin
+  python3 -m esptool --chip esp32s31 --baud 460800 write_flash 0xd000 ota_clear.bin 0x10000 releases/dpReader_metalio47_firmware.bin
   ```
   > Lệnh này **không** đụng tới NVS, nên VCOM và cài đặt được giữ lại. Dùng khi máy đã có bảng phân vùng của dpReader và chỉ muốn cập nhật firmware.
+  >
+  > `ota_clear.bin` là tệp 8 KB toàn `0xFF` (xoá `otadata`). **Bắt buộc** phải kèm theo: nếu máy từng cập nhật qua Wi-Fi, `otadata` có thể đang trỏ `ota_1` và máy sẽ khởi động lại vào bản **cũ** dù `ota_0` đã ghi xong. Tạo tệp bằng `python3 -c "open('ota_clear.bin','wb').write(b'\xff'*8192)"`, hoặc dùng `./flash_firmware.sh --app` để script tự lo.
 
 #### Bảng sơ đồ phân vùng Flash 16MB (`boards/metalio47/partitions.csv`)
 | Phân vùng | Loại / Phụ loại | Địa chỉ (`Offset`) | Kích thước | Ghi chú |

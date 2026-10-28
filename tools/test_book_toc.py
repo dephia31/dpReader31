@@ -72,10 +72,12 @@ void ui_text_fixed(uint8_t *fb,int x,int y,int px,const char *text,enum EpdFontF
     (void)fb;(void)x;(void)y;(void)px;(void)align;(void)inverse;
     assert(!strchr(text,'\n') && !strchr(text,'\r') && !strchr(text,'\t'));
     if(px==30) large_titles++;
-    if(strstr(text,"10页")){assert(px>=24);skip_labels++;}
-    if(strstr(text,"上页")||strstr(text,"下页")){assert(px>=26);pager_labels++;}
-    if(strstr(text,"按百分比跳转")){assert(px>=28);jump_labels++;}
-    if(strstr(text,"第 99～105 节")) jump_summary++;
+    // 两个「10 节」药丸是仅有的 24px 标签；"Hiện tại" 也是 24px，先排除掉。
+    // The two "10 sections" pills are the only 24px labels; exclude the 24px current-row marker.
+    if(px==24 && !strstr(text,"Hiện")) skip_labels++;
+    if(strstr(text,"‹")||strstr(text,"Sau")){assert(px>=26);pager_labels++;}
+    if(strstr(text,"Chuyển theo phần trăm")){assert(px>=28);jump_labels++;}
+    if(strstr(text,"Khoảng tr.")) jump_summary++;
     labels++;
 }
 int ui_text_fixed_width_px(int px,const char *text){int width=0;for(;*text;text++)if(((unsigned char)*text&0xc0)!=0x80)width+=((unsigned char)*text<128?px/2:px);return width;}

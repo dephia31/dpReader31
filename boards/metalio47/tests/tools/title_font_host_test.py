@@ -74,6 +74,7 @@ static size_t live,peak;
 static const char *deny_path; static int deny_errno; static bool fail_metadata;
 static unsigned opens,active_fd,max_fd,painted,ui_scale=100;
 unsigned app_settings_system_font_size(void){return ui_scale;}
+uint8_t app_settings_system_contrast(void){return 100;}
 void *heap_caps_malloc(size_t n,int caps){(void)caps;if(fail_metadata&&n>131072){fail_metadata=false;return NULL;}allocation_t *p=malloc(sizeof(*p)+n);assert(p);p->bytes=n;live+=n;if(live>peak)peak=live;return p+1;}
 void *heap_caps_calloc(size_t n,size_t s,int caps){void *p=heap_caps_malloc(n*s,caps);if(p)memset(p,0,n*s);return p;}
 void heap_caps_free(void *p){if(!p)return;allocation_t *a=(allocation_t *)p-1;live-=a->bytes;free(a);}

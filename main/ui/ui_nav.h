@@ -21,6 +21,14 @@ bool ui_nav_refresh_power(uint8_t *fb);
 /// 系统字体就绪时缓存状态栏字宽，阅读页只复用，不重载整份系统字体。
 /// Cache status metrics when the system face is ready; reading reuses them without reloading that font.
 void ui_nav_status_font_context(bool reading, bool face_changed);
+/// 状态栏中段在阅读页显示书名而不是用户签名；传空串即清除。
+/// While reading, the status bar's middle shows the book title instead of the user signature;
+/// pass an empty string to clear it.
+void ui_nav_status_set_title(const char *title);
+const char *ui_nav_status_title(void);
+/// 书名是否顶替签名；关闭时恢复签名。/ Whether the title replaces the signature; off restores it.
+bool ui_nav_status_title_on(void);
+void ui_nav_status_set_title_on(bool on);
 /// 当前 UTC 分钟，用于显示更新判断；不读取卡或请求网络校时。
 /// Current UTC minute for display updates, without card IO or network time requests.
 int64_t ui_nav_clock_minute(void);

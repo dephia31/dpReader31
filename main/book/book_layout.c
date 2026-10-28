@@ -32,6 +32,10 @@ static unsigned s_line_percent = 150, s_paragraph_percent = 50;
 static int s_tracking_px;
 static unsigned s_first_line_indent_em = 2;
 static int s_first_line_indent_adjust_px;
+// 正文对齐：0 两端（原行为），1 左，2 居中，3 右。书内 CSS 已指定居中/右对齐的块不受影响。
+// Body alignment: 0 justified (previous behaviour), 1 left, 2 center, 3 right. Blocks the book
+// already centers or right-aligns are left alone.
+static uint8_t s_body_align;
 static unsigned s_reading_line;
 static int s_reading_line_offset;
 static bool s_images_visible = true;
@@ -299,6 +303,10 @@ void book_layout_set_first_line_indent(unsigned em) {
 void book_layout_set_first_line_indent_adjust(int px) {
     s_first_line_indent_adjust_px = px >= -100 && px <= 100 ? px : 0;
 }
+void book_layout_set_body_align(uint8_t align) {
+    s_body_align = align <= 3 ? align : 0;
+}
+uint8_t book_layout_body_align(void) { return s_body_align; }
 EpdRect book_layout_balanced_rect(EpdRect outer, int px, int tracking_px) {
     if (px <= 0 || outer.width < px || tracking_px < -15 || tracking_px > 15) return outer;
     int step = px + tracking_px;
@@ -497,10 +505,16 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
     bool first_line = block ? off == block->offset :
         off == 0 || s_text[off - 1] == '\n' || s_text[off - 1] == '\r';
     *align = block ? block->align : 0;
+    // 阅读设置的对齐只作用于书内未指定对齐的普通正文段：居中/右对齐时首行缩进会落错位置，
+    // 因此这两种对齐下放弃缩进；左对齐与两端对齐仍按设置缩进。标题和书内对齐块保持原样。
+    // The reader alignment applies only to ordinary body paragraphs the book leaves unaligned.
+    // Centered and right-aligned text must not carry a first-line indent, so those two drop it;
+    // left and justified text keep it. Headings and in-book aligned blocks are untouched.
+    const bool body_centered_or_right = !*heading && !*align && s_body_align >= 2;
     // 首行缩进由阅读设置统一控制；书内标题和对齐块仍保持原本的位置。
     // The reader setting controls paragraph indent; headings and aligned blocks keep their placement.
     *indent = 0;
-    if (first_line && !*heading && !*align) {
+    if (first_line && !*heading && !*align && !body_centered_or_right) {
         // 缩进按当前字体真实全角字宽和字间距计算，不把行高当字宽。
         // Indent by actual full-width advances plus tracking, not by the font's line height.
         slot_select_for(off);
@@ -1002,9 +1016,19 @@ static void draw_vertical_page(uint8_t* fb, size_t page, EpdRect rect) {
             const blk_t* block = block_at(off);
             bool final_column = paragraph_end || next >= s_len ||
                 (block && next >= block->offset + block->len);
+            // 竖排里阅读设置的对齐映射到列内纵向位置：居中与右对齐改变列内落点，
+            // 左对齐与两端对齐都从列首开始，只有两端对齐会摊开字间余量。
+            // In vertical setting the reader alignment maps to position along the column:
+            // centering and right alignment move the glyphs inside the column, while left and
+            // justified both start at the column head and only justification spreads the slack.
+            uint8_t column_align = align;
+            bool body_align_applies = !heading && !align && s_body_align;
+            if (body_align_applies) {
+                column_align = s_body_align == 2 ? 1 : s_body_align == 3 ? 2 : 0;
+            }
             draw_vertical_column(fb, rect, rect.x + rect.width - (int)used - pitch, pitch, lead,
-                                 px, indent, align, run_height,
-                                 !heading && !align &&
+                                 px, indent, column_align, run_height,
+                                 !heading && !column_align && !body_align_applies &&
                                  (!final_column || run_height > rect.height - lead - indent));
         }
         used += pitch;
@@ -1065,10 +1089,20 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
         if (used + leading + line_height > rect.height) return;
         used += leading;
         if (s_line[0]) {
+            // 阅读设置的对齐叠加在书内对齐之上：书内指定居中/右对齐的块优先，标题保持原样，
+            // 其余正文段按设置走两端对齐、左对齐、居中或右对齐。
+            // The reader alignment layers over in-book alignment: blocks the book centers or
+            // right-aligns win, headings keep their placement, and ordinary paragraphs follow the
+            // setting (justified, left, center or right).
+            uint8_t line_align = align;
+            bool body_align_applies = !heading && !align && s_body_align;
+            if (body_align_applies) {
+                line_align = s_body_align == 2 ? 1 : s_body_align == 3 ? 2 : 0;
+            }
             int x = rect.x + indent;
             int available = rect.width - indent;
-            if (align == 1) x += (available - line_width) / 2;
-            else if (align == 2) x += available - line_width;
+            if (line_align == 1) x += (available - line_width) / 2;
+            else if (line_align == 2) x += available - line_width;
             // 行基线整行共用，取行首那一段的字体，免得同一行上下浮动。
             // The baseline is shared by the whole line, so take it from the span the line
             // starts in and keep the line from floating.
@@ -1079,7 +1113,11 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
                 (line_block && next >= line_block->offset + line_block->len);
             // 完整正文行对齐到统一右边界；悬挂标点最多使用少量右侧留白。
             // Justify complete body lines; a hanging closer may use a small part of the right margin.
-            const bool fitted = !heading && !align && (!final_line || line_width > available);
+            // 只有两端对齐（含阅读设置的第 0 档）才拉伸；左对齐与居中/右对齐按自然字宽绘制。
+            // Only justified text stretches; left, centered and right-aligned lines keep their
+            // natural advance.
+            const bool fitted = !heading && !line_align && !body_align_applies &&
+                (!final_line || line_width > available);
             int line_extent = line_width > 0 ? line_width : 0;
             if (fitted) {
                 int hang = s_rect.x > 4 ? line_px / 3 : 0;

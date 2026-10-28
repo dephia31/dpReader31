@@ -681,6 +681,43 @@ static EpdRect progress_rect(void) {
     // The reader has no right-hand menu button; the footer spans the full content width.
     return (EpdRect){36, UI_BAR_TOP, UI_LOCK_WIDTH - 72, UI_BAR_H};
 }
+// 页脚三段：章名在上、进度条居中、页码与全书百分比在下。条粗由阅读设置选择，两端始终圆头。
+// 进度条占用固定的一条带子，改粗细只改条本身，下方页码不会上下跳。
+// Footer stacks three bands: chapter name on top, the progress bar in the middle, page and
+// whole-book percentage at the bottom. The bar's thickness is a reader setting and both ends
+// stay round. The bar owns a fixed band, so changing thickness never moves the row below it.
+#define READER_FOOTER_LINE_PX 24
+#define READER_FOOTER_META_PX 22
+#define READER_FOOTER_CHAPTER_TOP 8
+#define READER_FOOTER_CHAPTER_H 30
+#define READER_FOOTER_BAR_BAND 16
+#define READER_FOOTER_BAR_GAP 3
+#define READER_FOOTER_META_GAP 4
+#define READER_FOOTER_META_H 30
+static int reader_progress_bar_height(void) {
+    switch (app_settings_book_progress_style()) {
+        case 1: return 16;
+        case 2: return 4;
+        default: return 10;
+    }
+}
+static EpdRect reader_footer_chapter_rect(void) {
+    EpdRect r = progress_rect();
+    return (EpdRect){r.x, r.y + READER_FOOTER_CHAPTER_TOP, r.width, READER_FOOTER_CHAPTER_H};
+}
+static EpdRect reader_footer_bar_rect(void) {
+    EpdRect r = progress_rect();
+    const int band_y = r.y + READER_FOOTER_CHAPTER_TOP + READER_FOOTER_CHAPTER_H + READER_FOOTER_BAR_GAP;
+    const int height = reader_progress_bar_height();
+    return (EpdRect){r.x, band_y + (READER_FOOTER_BAR_BAND - height) / 2, r.width, height};
+}
+static EpdRect reader_footer_meta_rect(void) {
+    EpdRect r = progress_rect();
+    return (EpdRect){r.x,
+                     r.y + READER_FOOTER_CHAPTER_TOP + READER_FOOTER_CHAPTER_H +
+                         READER_FOOTER_BAR_GAP + READER_FOOTER_BAR_BAND + READER_FOOTER_META_GAP,
+                     r.width, READER_FOOTER_META_H};
+}
 static int shelf_rows(void) { return s_view == SHELF && app_settings_shelf_style() == 5 ? 4 : BOOK_GRID_ROWS; }
 #define SHELF_BOOK_LIFT_PX 16
 #define SHELF_LIST_BOUNCE_PX 8
@@ -3860,33 +3897,54 @@ static void draw_reader_outer(uint8_t *fb,size_t page) {
         ui_reader_background_paint(fb, (EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT}, true);
     draw_reader_images(fb, page, body);
     if (s_reader_fullscreen) {
-        // Full-book progress uses the last few screen rows and no footer text.
+        // 全屏只留一条进度线，靠底边，不占正文。
+        // Full screen keeps a single progress line at the bottom edge, clear of the body.
         EpdRect track = {36, READER_FULLSCREEN_PROGRESS_TOP + 3, UI_LOCK_WIDTH - 72, 3};
         ui_fill_round_rect(fb, track, 1, 0x90);
         track.width = track.width * (int)percent(page) / 100;
         if (track.width) ui_fill_round_rect(fb, track, 1, UI_GRAY_BLACK);
     } else {
-        EpdRect track = progress_rect();
-        EpdRect bar = {track.x, track.y + 16, track.width, 12};
-        ui_fill_round_rect(fb, bar, 5, UI_GRAY_LIGHT);
-        bar.width = bar.width * (int)percent(page) / 100;
-        if (bar.width) ui_fill_round_rect(fb, bar, 5, UI_GRAY_BLACK);
-        char chapter_name[72] = {0};
+        const unsigned pct = percent(page);
+        // 章名在上：长章名只截短自己这一行，不挤压下面的进度条与页码。
+        // Chapter name on top: a long name is trimmed within its own line and never squeezes
+        // the bar or the page counters below.
+        EpdRect chapter_box = reader_footer_chapter_rect();
+        char chapter_name[96] = {0};
         reader_footer_chapter_name(chapter_name, sizeof(chapter_name));
-        const int footer_px = 24;
-        char progress[48];
-        snprintf(progress, sizeof(progress), "%u/%u · Toàn sách %u%%",
-                 (unsigned)page + 1, (unsigned)book_layout_page_count(), percent(page));
-        char chapter_line[192];
+        char chapter_line[160];
         snprintf(chapter_line, sizeof(chapter_line), "%s%s",
                  s_save_failed ? "Chưa lưu · " : "", chapter_name);
-        fit_fixed_text(chapter_line, footer_px,
-                       track.width - ui_text_fixed_width_px(footer_px, progress) - 16);
-        // 页码和全书进度靠右固定，长章节名仅截短左侧；字号不跟随正文设置。
-        // Keep page and book progress right-aligned; trim only long chapter titles and ignore body font settings.
-        ui_text_fixed(fb, track.x, track.y + 35, footer_px, chapter_line, EPD_DRAW_ALIGN_LEFT, false);
-        ui_text_fixed(fb, track.x + track.width, track.y + 35, footer_px,
-                      progress, EPD_DRAW_ALIGN_RIGHT, false);
+        fit_fixed_text(chapter_line, READER_FOOTER_LINE_PX, chapter_box.width);
+        ui_text_fixed_vc(fb, chapter_box.x + chapter_box.width / 2,
+                         chapter_box.y + chapter_box.height / 2, READER_FOOTER_LINE_PX,
+                         chapter_line, EPD_DRAW_ALIGN_CENTER, false);
+        // 进度条居中，粗细按阅读设置，两端始终圆头（半径取高度的一半）。
+        // The bar sits in the middle; its thickness follows the reader setting and both ends
+        // stay round, with the radius at half the height.
+        EpdRect bar = reader_footer_bar_rect();
+        const int radius = bar.height / 2;
+        ui_fill_round_rect(fb, bar, radius, UI_GRAY_LIGHT);
+        const int filled = bar.width * (int)pct / 100;
+        if (filled > 0) {
+            EpdRect done = {bar.x, bar.y, filled, bar.height};
+            // 进度很小时保留圆头形状，至少画出一个完整的圆，避免起点看不见。
+            // Keep the round cap visible at very small percentages by drawing at least one
+            // full circle.
+            if (done.width < bar.height) done.width = bar.height;
+            if (done.width > bar.width) done.width = bar.width;
+            ui_fill_round_rect(fb, done, radius, UI_GRAY_BLACK);
+        }
+        // 底部：本章页码在左，全书百分比在右。
+        // Bottom band: the page within this chapter on the left, the whole-book percentage right.
+        EpdRect meta = reader_footer_meta_rect();
+        char page_text[48], book_text[48];
+        snprintf(page_text, sizeof(page_text), "Trang %u/%u",
+                 (unsigned)page + 1, (unsigned)book_layout_page_count());
+        snprintf(book_text, sizeof(book_text), "%u%%", pct);
+        ui_text_fixed_vc(fb, meta.x, meta.y + meta.height / 2, READER_FOOTER_META_PX,
+                         page_text, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_fixed_vc(fb, meta.x + meta.width, meta.y + meta.height / 2, READER_FOOTER_META_PX,
+                         book_text, EPD_DRAW_ALIGN_RIGHT, false);
     }
     if (s_reader_notice[0]) {
         EpdRect notice = {218, 160, 248, 48};
@@ -4717,6 +4775,10 @@ static void free_book(void) {
     s_path[0] = 0;
     s_reader_favorite = false;
     s_book_title[0] = 0;
+    // 关书后状态栏回到用户签名，书名不能跟到书架。
+    // Closing the book returns the status bar to the user signature so a stale title never
+    // follows onto the shelf.
+    ui_nav_status_set_title_on(false);
     app_font_activate_system();
 }
 // 通栏之后一页位图更大：装不下就按最大空闲块等比缩一档——图小一圈也胜过整页消失。
@@ -5139,6 +5201,11 @@ static bool open_book_impl(app_ctx_t* ctx, const char* path) {
     filename = filename ? filename + 1 : path;
     if (!book_title_from_path(path, s_book_title, sizeof(s_book_title)))
         clean_filename(s_book_title, sizeof(s_book_title), filename);
+    // 阅读页状态栏显示书名；空标题时退回文件名，绝不留下上一本书的名字。
+    // The reader status bar shows the book title, falling back to the file name, and never
+    // keeps the previous book's title.
+    ui_nav_status_set_title(s_book_title[0] ? s_book_title : filename);
+    ui_nav_status_set_title_on(true);
     s_file_size = (uint32_t)st.st_size;
     book_progress_t p = {0};
     bool resume = pending_restore(path, s_file_size, &p) || book_progress_load(path, s_file_size, &p);
@@ -7496,6 +7563,7 @@ static void on_enter(app_ctx_t* ctx) {
     book_layout_set_typography(((int)app_settings_book_tracking() + APP_BOOK_TRACK_MIN));
     book_layout_set_first_line_indent(app_settings_book_indent());
     book_layout_set_first_line_indent_adjust(app_settings_book_indent_adjust());
+    book_layout_set_body_align(app_settings_book_align());
     book_layout_set_reading_line(app_settings_book_reading_line());
     book_layout_set_reading_line_offset(app_settings_book_reading_line_offset());
     // 字体页可能刚改过书内字体开关；回正文时重排当前章，别让用户对着旧排版猜。

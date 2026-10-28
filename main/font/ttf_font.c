@@ -1664,6 +1664,7 @@ static bool load_variation(const uint8_t* header, size_t header_len) {
 }
 
 // 把当前字形及其复合引用从 SD 填进工作字体的 glyf 窗口，并改写 loca。
+// Pack the requested glyph and its composite references into the working glyf window and rewrite loca.
 static bool pack_glyph_tree(int root_gid) {
     // CFF 字形由 stb 直接从 CFF 表取，没有 glyf 可打包。
     // CFF outlines come straight out of the CFF table, so there is no glyf run to pack.
@@ -1676,6 +1677,15 @@ static bool pack_glyph_tree(int root_gid) {
     int tree[TTF_TREE_MAX];
     int tree_n = 0;
     tree[tree_n++] = root_gid;
+    // 先记下每个字形的落点，等整棵树装完再按 gid 升序写 loca。复合字形的子字形
+    // 常常排在父字形之前（á = a + 声调），边装边写会让子字形的 loca[gid+1] 覆盖
+    // 父字形的起点，父字形于是指到子字形数据上——表现就是整行只剩声调。
+    // Record each landing offset and write loca in ascending gid order once the whole tree is
+    // packed. Composite children often sit before their parent (á = a + acute); writing as we go
+    // lets a child's loca[gid+1] overwrite the parent's start, pointing it into child data — the
+    // symptom being a line that keeps only the diacritic.
+    uint32_t spot_off[TTF_TREE_MAX];
+    uint32_t spot_used[TTF_TREE_MAX];
 
     uint8_t* arena = font_data + work_glyf_off;
     uint32_t packed = 0;
@@ -1700,14 +1710,29 @@ static bool pack_glyph_tree(int root_gid) {
                 used = varied;
             }
         }
-        set_work_loca(gid, packed);
+        spot_off[i] = packed;
+        spot_used[i] = used;
         packed += used;
         packed = (packed + 3u) & ~3u;
         if (packed > TTF_GLYF_ARENA) return false;
-        set_work_loca(gid + 1, packed);
         if (used >= 2 && !enqueue_composite_children(blob, used, tree, &tree_n)) {
             return false;
         }
+    }
+    // 升序写 loca：起点先于终点落笔，每个字形最终拿到自己的起点。
+    // Write loca ascending so every start lands before any later end can overwrite it.
+    for (int i = 0; i < tree_n; i++) {
+        int lowest = i;
+        for (int j = i + 1; j < tree_n; j++) {
+            if (tree[j] < tree[lowest]) lowest = j;
+        }
+        if (lowest != i) {
+            int gid = tree[i]; tree[i] = tree[lowest]; tree[lowest] = gid;
+            uint32_t off = spot_off[i]; spot_off[i] = spot_off[lowest]; spot_off[lowest] = off;
+            uint32_t used = spot_used[i]; spot_used[i] = spot_used[lowest]; spot_used[lowest] = used;
+        }
+        set_work_loca(tree[i], spot_off[i]);
+        set_work_loca(tree[i] + 1, spot_off[i] + spot_used[i]);
     }
     packed_root = root_gid;
     packed_weight = current_weight;

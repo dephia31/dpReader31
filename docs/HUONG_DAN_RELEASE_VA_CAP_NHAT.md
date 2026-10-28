@@ -122,10 +122,12 @@ Dành cho máy mới xuất xưởng, máy cần phân vùng lại, hoặc máy 
    ```bash
    python3 -m esptool --chip esp32s31 -p /dev/cu.usbmodem* -b 460800 write_flash 0x0 dpReader_metalio47_full.bin
    ```
-   *(Hoặc nếu chỉ nâng cấp phần mềm giữ nguyên dữ liệu, nạp vào offset `0x10000`)*:
+   *(Hoặc nếu chỉ nâng cấp phần mềm giữ nguyên dữ liệu, nạp vào offset `0x10000` kèm xoá `otadata` để bootloader chọn đúng slot vừa ghi)*:
    ```bash
-   python3 -m esptool --chip esp32s31 -p /dev/cu.usbmodem* -b 460800 write_flash 0x10000 dpReader_metalio47_firmware.bin
+   python3 -c "open('ota_clear.bin','wb').write(b'\xff'*8192)"
+   python3 -m esptool --chip esp32s31 -p /dev/cu.usbmodem* -b 460800 write_flash 0xd000 ota_clear.bin 0x10000 dpReader_metalio47_firmware.bin
    ```
+   > Nếu máy từng cập nhật qua Wi-Fi, `otadata` có thể đang trỏ `ota_1`; thiếu bước xoá `otadata` thì máy khởi động lại vào bản cũ dù `ota_0` đã ghi xong.
 
 ---
 

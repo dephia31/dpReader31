@@ -1,5 +1,27 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.0.8-vn · 2026-10-28
+
+Bản cập nhật quan trọng khắc phục lỗi hiển thị mục lục, hoàn thiện hiển thị chữ tiếng Việt và trải nghiệm đọc sách:
+
+- **Sửa dứt điểm lỗi chữ tiếng Việt có dấu bị mất thân chữ trong Mục lục, tên chương và tên sách:**
+  - `pack_glyph_tree` trước đây ghi `loca` ngay khi duyệt cây composite theo thứ tự gốc-trước-con-sau. Với các glyph dựng từ dấu như `á` (thân `a` + dấu sắc) mà gid của thân đứng ngay trước gid của glyph, lần ghi `loca[gid + 1]` cho thân đã đè lên điểm bắt đầu của chính glyph đó. Kết quả: glyph trỏ vào dữ liệu của dấu, khiến dòng chữ chỉ còn dấu (ví dụ "Chương sáu" bị hiện thành "Chương s´u").
+  - Nay toàn bộ vị trí được ghi nhận trước trong lúc đóng gói và `loca` chỉ được ghi một lần theo thứ tự gid tăng dần, bảo toàn nguyên vẹn thân chữ và dấu của mọi ký tự tiếng Việt.
+  - Bổ sung bộ kiểm thử `tools/composite_glyph_host_test.py` khoá lại hành vi này ở cả cỡ chữ nội dung lẫn tiêu đề.
+- **Sửa lỗi viền chữ sáng hơn nền thẻ khi tăng độ tương phản trong Mục lục:**
+  - `ui_text_title_background_vc` trước đây lấy trực tiếp 4 bit cao của màu nền, bỏ qua hàm `ui_contrast_gray()` dùng chung. Khi người dùng đặt tương phản trên 100%, mép khử răng cưa trộn về tông cũ tạo quầng sáng quanh chữ trên thẻ mục lục. Nay cả hai đường hiển thị đều đi qua cùng một phép ánh xạ độ xám chuẩn xác.
+- **Hiển thị tên sách trên thanh trạng thái khi đọc:**
+  - Thanh trạng thái khi ở trong sách chuyển sang hiển thị tên sách đang đọc (tự động cắt gọn theo ranh giới UTF-8 và thêm dấu ba chấm nếu quá dài), không bị đè hay lưu tên sách cũ khi quay về kệ sách.
+- **Nâng cấp chân trang (Footer) đọc sách 3 tầng trực quan:**
+  - Tầng 1: Tên chương hiển thị ở trên (tự động căn giữa, ngắt dòng riêng không đè lên thanh tiến trình).
+  - Tầng 2: Thanh tiến trình đọc sách ở giữa với đầu bo tròn thẩm mỹ, chiều cao theo cài đặt.
+  - Tầng 3: Số trang hiện tại/tổng trang hiển thị bên trái, % hoàn thành toàn sách hiển thị bên phải.
+- **Hỗ trợ tùy chọn căn lề đoạn văn (Body Align):**
+  - Bổ sung tùy chọn căn lề trong cài đặt đọc sách: Hai bên (Justified), Căn trái (Left), Căn giữa (Center), Căn phải (Right).
+- **Nâng cấp Web Flasher:**
+  - Tự động phát xung reset cứng (EN qua RTS 200ms) sau khi nạp firmware, thiết bị tự khởi động lại vào hệ điều hành mới.
+  - Tự động xoá phân vùng `otadata` (0xd000) khi nạp ở chế độ Nâng cấp ứng dụng, tránh máy khởi động lại vào slot cũ.
+
 ## dpReader 1.0.7-vn · 2026-10-28
 
 Bản cập nhật nâng cấp cơ chế cập nhật OTA trực tuyến và Web Flasher thông minh:

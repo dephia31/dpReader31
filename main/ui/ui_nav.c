@@ -38,8 +38,16 @@
 #define UI_STATUS_TIME_PX 28
 #define UI_STATUS_PERCENT_PX 28
 #define UI_STATUS_SIGNATURE_PX 26
+// 书名与签名共用一条视觉中线；书名比签名略大，仍留在 56 px 状态带内。
+// The title shares the signature's centerline; it runs slightly larger and still fits the 56 px band.
+#define UI_STATUS_TITLE_PX 26
 
 static bool s_status_reading;
+// 阅读页把状态栏中段让给书名：中段原本显示用户签名，阅读时书名更有用。
+// The reader lends the status bar's middle to the book title; that slot normally shows the
+// user's signature, and while reading the title is more useful.
+static char s_status_title[96];
+static bool s_status_title_on;
 static struct {
     bool ready;
     char signature[96], face[TTF_FONT_PATH_MAX], chosen[TTF_FONT_PATH_MAX];
@@ -87,6 +95,20 @@ void ui_nav_status_font_context(bool reading, bool face_changed) {
     status_prepare_metrics();
 }
 
+void ui_nav_status_set_title(const char *title) {
+    const char *next = title ? title : "";
+    if (!strcmp(next, s_status_title)) return;
+    snprintf(s_status_title, sizeof(s_status_title), "%s", next);
+}
+
+const char *ui_nav_status_title(void) { return s_status_title; }
+
+bool ui_nav_status_title_on(void) { return s_status_title_on; }
+void ui_nav_status_set_title_on(bool on) {
+    s_status_title_on = on;
+    if (!on) s_status_title[0] = 0;
+}
+
 static int status_number_width(const char *text) {
     if (!s_status_metrics.ready) return ui_text_fixed_width_px(UI_STATUS_TIME_PX, text);
     int width = 0;
@@ -104,6 +126,39 @@ static void status_fit_signature(char *text, int width) {
         while (n && ((unsigned char)text[n] & 0xc0) == 0x80) --n;
         text[n] = 0;
     }
+}
+
+// 按 UTF-8 边界截到缓冲区容量内，避免把多字节字符切成半个。
+// Clip to the buffer capacity on a UTF-8 boundary so a multibyte glyph is never cut in half.
+static void copy_utf8_boundary(char *dst, size_t cap, const char *src) {
+    if (!cap) return;
+    size_t n = strlen(src);
+    if (n >= cap) {
+        n = cap - 1;
+        while (n && ((unsigned char)src[n] & 0xc0) == 0x80) --n;
+    }
+    memcpy(dst, src, n);
+    dst[n] = 0;
+}
+
+// 书名截短：保持整行字体来源稳定，末字留省略号位置。
+// Trim a title while keeping the face sample stable and reserving room for an ellipsis.
+static void fit_status_title(char *text, int width) {
+    if (!text || width <= 0) { if (text) text[0] = 0; return; }
+    const int px = UI_STATUS_TITLE_PX;
+    size_t len = strlen(text);
+    bool trimmed = false;
+    while (len && ui_text_fixed_context_width_px(px, text, text) > width) {
+        do { --len; } while (len && ((unsigned char)text[len] & 0xc0) == 0x80);
+        text[len] = 0;
+        trimmed = true;
+    }
+    if (!trimmed || len < 2) return;
+    while (len && ui_text_fixed_width_px(px, text) + ui_text_fixed_width_px(px, "…") > width) {
+        do { --len; } while (len && ((unsigned char)text[len] & 0xc0) == 0x80);
+        text[len] = 0;
+    }
+    if (len && len + sizeof("…") <= 96) strcat(text, "…");
 }
 
 static const char *const labels[] = {"Trang chủ", "Kệ sách", "Tệp tin", "Cài đặt"};
@@ -219,10 +274,22 @@ void ui_nav_status(uint8_t *fb) {
     available = 2 * (group_left - 12 - UI_LOCK_WIDTH / 2);
     if (available < signature_width) signature_width = available > 0 ? available : 0;
     char signature[96];
-    snprintf(signature, sizeof(signature), "%s", app_settings_status_signature());
-    status_fit_signature(signature, signature_width);
-    if (signature[0]) ui_text_fixed_vc(fb, UI_LOCK_WIDTH / 2, status_center_y, UI_STATUS_SIGNATURE_PX,
-                                      signature, EPD_DRAW_ALIGN_CENTER, false);
+    // 阅读页优先显示书名：书名通常比用户签名长，因此单独按固定字号截短，不套用签名的字宽表。
+    // The reader prefers the book title. Titles run longer than signatures, so they are trimmed
+    // separately at a fixed size instead of reusing the signature's width table.
+    const bool show_title = s_status_title_on && s_status_title[0];
+    if (show_title) {
+        copy_utf8_boundary(signature, sizeof(signature), s_status_title);
+        fit_status_title(signature, signature_width);
+        if (signature[0])
+            ui_text_fixed_vc(fb, UI_LOCK_WIDTH / 2, status_center_y, UI_STATUS_TITLE_PX,
+                             signature, EPD_DRAW_ALIGN_CENTER, false);
+    } else {
+        snprintf(signature, sizeof(signature), "%s", app_settings_status_signature());
+        status_fit_signature(signature, signature_width);
+        if (signature[0]) ui_text_fixed_vc(fb, UI_LOCK_WIDTH / 2, status_center_y, UI_STATUS_SIGNATURE_PX,
+                                          signature, EPD_DRAW_ALIGN_CENTER, false);
+    }
     if (wifi_visible) ui_nav_wifi_icon(fb, wifi_center, status_center_y, UI_NAV_NETWORK_ICON_PX, UI_GRAY_BLACK);
     if (bluetooth_visible)
         ui_draw_icon(fb, bluetooth_center, status_center_y, UI_NAV_NETWORK_ICON_PX,
