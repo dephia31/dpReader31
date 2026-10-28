@@ -696,7 +696,7 @@ static EpdRect progress_rect(void) {
 #define READER_FOOTER_META_H 30
 // 排版三连卡片显示的名称；顺序与设置枚举一致。/ Labels for the layout trio; order matches the settings enums.
 static const char *reader_align_name(uint8_t align) {
-    static const char *const names[] = {"Hai bên", "Căn trái", "Căn giữa", "Căn phải"};
+    static const char *const names[] = {"Căn đều (Hai bên)", "Căn trái", "Căn giữa", "Căn phải"};
     return names[align < APP_BOOK_ALIGN_COUNT ? align : 0];
 }
 static const char *reader_progress_style_name(uint8_t style) {
@@ -6926,6 +6926,7 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
             app_settings_set_book_align((uint8_t)((app_settings_book_align() + 1) % APP_BOOK_ALIGN_COUNT));
             book_layout_set_body_align(app_settings_book_align());
             invalidate_prep();
+            s_reader_cleanup = true;
             return APP_REDRAW_PAGE;
         }
         // 页脚外观：点一下轮换 Ẩn → Mảnh → Dày → Rất mảnh。隐藏档连全屏细线一起收起。

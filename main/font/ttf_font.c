@@ -3353,12 +3353,13 @@ void ttf_draw_text_px_fitted(
     ttf_cover_lut_init();
     pixel_height = clamp_px(pixel_height);
     warm_runs(pixel_height, text);
-    int glyph_count = 0, cjk_gaps = 0;
+    int glyph_count = 0, cjk_gaps = 0, spaces = 0;
     const char* cursor = text;
     uint32_t previous = 0;
     while (*cursor) {
         uint32_t cp = decode_utf8(&cursor);
         if (glyph_count && (cjk_spacing_point(previous) || cjk_spacing_point(cp))) ++cjk_gaps;
+        if (cp == ' ' || cp == '\t') ++spaces;
         previous = cp;
         ++glyph_count;
     }
@@ -3366,9 +3367,10 @@ void ttf_draw_text_px_fitted(
     int natural = measure_width(pixel_height, text) + tracking_px * gaps;
     int delta = target_width - natural;
     bool compress = delta < 0;
-    int adjustable = compress ? gaps : cjk_gaps;
-    if (adjustable < 2 || (compress && -delta > adjustable * 3) ||
-        (!compress && delta > adjustable * 12)) {
+    bool use_spaces = (!compress && spaces >= 1);
+    int adjustable = compress ? gaps : (use_spaces ? spaces : cjk_gaps);
+    if (adjustable < (use_spaces ? 1 : 2) || (compress && -delta > adjustable * 3) ||
+        (!compress && delta > adjustable * (use_spaces ? 48 : 12))) {
         ttf_draw_text_px_spaced(framebuffer, x, y, pixel_height, text, tracking_px, fg, bg);
         return;
     }
@@ -3395,7 +3397,9 @@ void ttf_draw_text_px_fitted(
             const char* peek = cursor;
             uint32_t next = decode_utf8(&peek);
             cursor_x += tracking_px;
-            if (compress || cjk_spacing_point(cp) || cjk_spacing_point(next)) {
+            bool should_expand = use_spaces ? (cp == ' ' || cp == '\t')
+                                            : (compress || cjk_spacing_point(cp) || cjk_spacing_point(next));
+            if (should_expand) {
                 int step = quotient;
                 if (remainder > 0 && adjusted < remainder) ++step;
                 if (remainder < 0 && adjusted < -remainder) --step;

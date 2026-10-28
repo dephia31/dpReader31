@@ -7,10 +7,10 @@
 // 系统键盘在常驻底栏上方，正文键盘由调用方独立定位。/ Keep system keyboards above persistent navigation; reader callers retain their own placement.
 #define UI_SYSTEM_KEYBOARD_TOP 560
 typedef enum { UI_KEYBOARD_NONE, UI_KEYBOARD_CHANGED, UI_KEYBOARD_DONE } ui_keyboard_result_t;
-/// 绑定编辑缓冲区；九宫格只输入拼音，密码模式只用英文全键盘、数字和符号。
-/// Bind the editor; T9 is Pinyin-only, passwords use English QWERTY, digits and symbols.
+/// 绑定编辑缓冲区；使用英文全键盘 QWERTY、数字与符号。
+/// Bind the editor; uses standard English QWERTY, digits and symbols.
 void ui_keyboard_begin(ui_text_edit_t *edit, bool ascii_only);
-/// 清除拼音、候选与编辑指针。/ Clear composition, candidates and the editor pointer.
+/// 清除编辑指针与输入状态。/ Clear input state and the editor pointer.
 void ui_keyboard_end(void);
 /// 固定 636×510 键盘，纯绘制，使用系统字体。/ Paint a fixed 636x510 keyboard using system typography only.
 void ui_keyboard_draw(uint8_t *fb, int top);

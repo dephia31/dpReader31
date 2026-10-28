@@ -1,5 +1,21 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.1.2-vn · 2026-10-28
+
+Bản cập nhật sửa lỗi căn lề văn bản và tối ưu hóa trải nghiệm bàn phím:
+
+- **Sửa triệt để lỗi căn lề đều hai bên (Justify) cho văn bản tiếng Việt & Latin:**
+  - Thuật toán căn đều trước đây chỉ tính khoảng cách co dãn cho ký tự CJK, khiến văn bản tiếng Việt/Latin bị coi là không có khoảng dãn hợp lệ và luôn tự hủy về căn lề trái.
+  - Nay thuật toán dãn dòng tự động phát hiện văn bản có khoảng trắng (spaces), phân bổ đều phần rộng dư của dòng vào các dấu cách giữa các từ, giữ nguyên cấu trúc tự nhiên của chữ cái trong từ và căn thẳng tắp mép phải đoạn văn.
+- **Làm mới hiển thị tức thì khi chuyển đổi căn lề:**
+  - Bổ sung cờ `s_reader_cleanup` khi chọn chế độ căn lề trong menu "Bố cục dàn trang", buộc toàn màn hình vẽ lại ngay lập tức thay vì chỉ làm mới nửa dưới panel.
+  - Đổi tên hiển thị thành **Căn đều (Hai bên)** để người dùng dễ phân biệt.
+- **Chuẩn hóa bàn phím QWERTY tiếng Anh, loại bỏ bàn phím T9:**
+  - Bỏ hoàn toàn chế độ 9 phím T9 và bộ gõ IME trung gian phức tạp, giúp giải phóng bộ nhớ và tăng tốc độ gõ phím.
+  - Nhập trực tiếp ký tự chữ hoa/thường tức thì (zero latency), không giữ trong bộ đệm chờ chọn từ.
+  - Thiết kế lại bố cục bàn phím: loại bỏ thanh gợi ý từ, mở rộng phím Dấu cách (280 px), tích hợp chuyển đổi số (`123`/`ABC`), ký tự đặc biệt (`Ký tự`/`Thêm`) và hoàn tất (`Xong`).
+  - Hỗ trợ giữ phím xóa `⌫` để xóa liên tục (repeat backspace) và rung xúc giác khi gõ phím.
+
 ## dpReader 1.1.1-vn · 2026-10-28
 
 Bản tối ưu hóa năng lượng cực đại (Ultra Low Power) toàn diện cho Metalio E-Ink4 Plus (ESP32-S31):
