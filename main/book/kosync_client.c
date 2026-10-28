@@ -411,6 +411,54 @@ esp_err_t kosync_push_book_progress(const char *file_path, const book_progress_t
     return ESP_FAIL;
 }
 
+// 解析进度串里的章节号与章内偏移。两种格式偏移含义不同，不能混用：
+// dpReader 自己写入 /body/DocFragment[N]/body/p[1].<章内UTF-8字节偏移>；
+// KOReader/crengine 写入 /body/DocFragment[N]/body/div/p[7]/text().<元素内字符序号>。
+// 后者的末尾数字是元素内字符序号，不是章内字节偏移，当作偏移用会跳到错误页，
+// 因此 crengine 串只取章节号，不报告精确偏移。
+// Parse the chapter and in-chapter offset from a progress pointer. The two shapes carry
+// different units: dpReader writes /body/DocFragment[N]/body/p[1].<chapter byte offset>,
+// while KOReader/crengine writes .../text().<character index inside one element>. The
+// trailing number is not a chapter byte offset, so a crengine pointer yields the chapter
+// only and never claims an exact offset.
+static void kosync_parse_pointer(const char *progress, uint16_t *out_chapter,
+                                 uint32_t *out_byte_off, bool *has_exact_offset) {
+    if (out_chapter) *out_chapter = 0;
+    if (out_byte_off) *out_byte_off = 0;
+    if (has_exact_offset) *has_exact_offset = false;
+    if (!progress || !progress[0]) return;
+
+    unsigned frag = 0;
+    unsigned long off = 0;
+    const char *df = strstr(progress, "DocFragment[");
+    if (!df || sscanf(df, "DocFragment[%u]", &frag) != 1 || frag < 1) return;
+    if (out_chapter) *out_chapter = (uint16_t)(frag - 1);
+
+    if (strstr(progress, "text()")) return;
+    unsigned parsed_frag = 0;
+    if (sscanf(progress, "/body/DocFragment[%u]/body/p[1].%lu", &parsed_frag, &off) != 2) return;
+    if (out_byte_off) *out_byte_off = (uint32_t)off;
+    if (has_exact_offset) *has_exact_offset = true;
+}
+
+// 判断远端进度是否应覆盖本地。两端都是全书比例；dpReader 本地只有 1% 粒度，
+// 远端（尤其 KOReader）有四位小数，先量化到 1% 会把 42.0% 对 42.4% 判成相等，
+// 于是走“本地不落后”分支，远端更新拉不下来。这里直接比较原始比例。
+// 比例相同时仅当远端确实指向更靠后的位置才拉；否则由本地推送刷新时间戳。
+// Decide whether the remote progress should replace the local one. Both sides are whole-book
+// ratios; dpReader's local value only has 1% granularity while the remote (KOReader especially)
+// carries four decimals, so quantising to 1% makes 42.0% tie against 42.4% and the pull never
+// happens. Compare the raw ratios instead. On an equal ratio, pull only when the remote
+// provably points further; otherwise the local push refreshes the server timestamp.
+static bool kosync_remote_wins(double local_ratio, double remote_ratio, bool has_exact_offset,
+                               uint16_t cur_chapter, uint32_t cur_byte_off,
+                               uint16_t rem_chapter, uint32_t rem_byte_off) {
+    if (remote_ratio > local_ratio + 0.0005) return true;
+    if (remote_ratio < local_ratio - 0.0005 || !has_exact_offset) return false;
+    return rem_chapter > cur_chapter ||
+        (rem_chapter == cur_chapter && rem_byte_off > cur_byte_off);
+}
+
 esp_err_t kosync_pull_book_progress(const char *file_path, kosync_progress_t *out_remote,
                                     uint16_t *out_chapter, uint32_t *out_byte_off,
                                     bool *has_exact_offset, char *message, size_t message_cap) {
@@ -486,24 +534,7 @@ esp_err_t kosync_pull_book_progress(const char *file_path, kosync_progress_t *ou
 
     cJSON_Delete(json);
 
-    /* Phân tích XPointer của KOReader / dpReader: /body/DocFragment[N]... */
-    unsigned frag = 0;
-    unsigned long off = 0;
-    const char *df = strstr(out_remote->progress, "DocFragment[");
-    if (df && sscanf(df, "DocFragment[%u]", &frag) == 1 && frag >= 1) {
-        if (out_chapter) *out_chapter = (uint16_t)(frag - 1);
-        const char *dot = strrchr(out_remote->progress, '.');
-        if (!dot) dot = strrchr(out_remote->progress, ':');
-        if (dot && *(dot + 1) >= '0' && *(dot + 1) <= '9') {
-            off = strtoul(dot + 1, NULL, 10);
-            if (out_byte_off) *out_byte_off = (uint32_t)off;
-            if (has_exact_offset) *has_exact_offset = true;
-        }
-    } else if (sscanf(out_remote->progress, "/body/DocFragment[%u]/body/p[1].%lu", &frag, &off) == 2 && frag >= 1) {
-        if (out_chapter) *out_chapter = (uint16_t)(frag - 1);
-        if (out_byte_off) *out_byte_off = (uint32_t)off;
-        if (has_exact_offset) *has_exact_offset = true;
-    }
+    kosync_parse_pointer(out_remote->progress, out_chapter, out_byte_off, has_exact_offset);
 
     if (message && message_cap) {
         snprintf(message, message_cap, "Đã tải tiến độ: %.1f%% (%s)",
@@ -537,24 +568,24 @@ esp_err_t kosync_sync_book(const char *file_path, uint16_t *cur_chapter, uint32_
     char pull_msg[96] = {0};
     esp_err_t pull_err = kosync_pull_book_progress(file_path, &remote, &rem_chap, &rem_off, &has_exact, pull_msg, sizeof(pull_msg));
 
-    if (pull_err == ESP_OK && (remote.percentage > 0.001 || has_exact || rem_chap > 0)) {
+    // 两端都是全书比例，按原始比例比较，不在 1% 上量化。
+    // Both sides are whole-book ratios; compare them unquantised rather than at 1% steps.
+    const double local_ratio = (double)*cur_pct / 100.0;
+    if (pull_err == ESP_OK &&
+        kosync_remote_wins(local_ratio, remote.percentage, has_exact,
+                           *cur_chapter, *cur_byte_off, rem_chap, rem_off)) {
         uint8_t rem_pct = (uint8_t)(remote.percentage * 100.0 + 0.5);
         if (rem_pct > 100) rem_pct = 100;
-
-        // Nếu máy chủ có tiến độ mới hơn máy này (tỉ lệ lớn hơn, hoặc cùng % nhưng chương/offset xa hơn)
-        if (rem_pct > *cur_pct ||
-            (rem_pct == *cur_pct && (rem_chap > *cur_chapter || (rem_chap == *cur_chapter && rem_off > *cur_byte_off)))) {
-            *cur_chapter = rem_chap;
-            *cur_byte_off = rem_off;
-            *cur_pct = rem_pct;
-            *pulled_newer = true;
-            if (message && message_cap) {
-                snprintf(message, message_cap, "Đã kéo tiến độ KoSync: %u%% (%s)",
-                         (unsigned)rem_pct, remote.device[0] ? remote.device : "Thiết bị khác");
-            }
-            kosync_release_network(started_wifi);
-            return ESP_OK;
+        *cur_chapter = rem_chap;
+        *cur_byte_off = has_exact ? rem_off : 0;
+        *cur_pct = rem_pct;
+        *pulled_newer = true;
+        if (message && message_cap) {
+            snprintf(message, message_cap, "Đã kéo tiến độ KoSync: %u%% (%s)",
+                     (unsigned)rem_pct, remote.device[0] ? remote.device : "Thiết bị khác");
         }
+        kosync_release_network(started_wifi);
+        return ESP_OK;
     }
 
     // 2. Nếu máy cục bộ bằng hoặc xa hơn máy chủ (hoặc máy chủ chưa có), đẩy tiến độ lên máy chủ

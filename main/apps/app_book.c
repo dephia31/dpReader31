@@ -5214,11 +5214,16 @@ static bool open_book_impl(app_ctx_t* ctx, const char* path) {
         uint16_t k_chap = 0;
         uint32_t k_off = 0;
         bool has_exact = false;
-        if (kosync_pull_book_progress(path, &remote, &k_chap, &k_off, &has_exact, NULL, 0) == ESP_OK && has_exact) {
+        if (kosync_pull_book_progress(path, &remote, &k_chap, &k_off, &has_exact, NULL, 0) == ESP_OK &&
+            (has_exact || remote.percentage > 0.0005)) {
             uint8_t k_pct = (uint8_t)(remote.percentage * 100.0 + 0.5);
+            if (k_pct > 100) k_pct = 100;
+            // KOReader 的进度串只有章节号可靠，没有精确偏移；此时仍按比例和章节定位。
+            // KOReader's pointer only carries a trustworthy fragment number; without an exact
+            // offset the ratio and chapter still place the reader correctly.
             if (!resume || k_pct >= p.pct) {
                 p.chapter = k_chap;
-                p.byte_off = k_off;
+                p.byte_off = has_exact ? k_off : 0;
                 p.pct = k_pct;
                 resume = true;
             }

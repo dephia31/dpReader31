@@ -1,5 +1,18 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.0.9-vn · 2026-10-28
+
+Bản sửa lỗi đồng bộ tiến độ đọc KoSync:
+
+- **Sửa lỗi đồng bộ tiến độ KoSync với KOReader bị nhảy sai vị trí:**
+  - Bộ phân tích XPointer dùng `strrchr(progress, '.')` để lấy số cuối chuỗi và coi đó là **byte offset trong chương**. Đúng với chuỗi do dpReader tự ghi (`/body/DocFragment[N]/body/p[1].1024`), nhưng KOReader ghi theo crengine (`/body/DocFragment[3]/body/div/p[7]/text().42`), trong đó `42` là **chỉ số ký tự bên trong một phần tử `<p>`**, không phải offset byte. Hệ quả: khi nhận tiến độ do KOReader đẩy lên, máy nhảy về đầu chương hoặc lệch trang.
+  - Nay hai định dạng được tách riêng: chuỗi crengine chỉ lấy số hiệu chương (phần đáng tin), không báo offset chính xác, và vị trí được đặt theo tỉ lệ phần trăm.
+- **Sửa lỗi tiến độ mới hơn trên máy chủ không được kéo về:**
+  - Việc so sánh hướng đồng bộ lượng tử hoá tỉ lệ về số nguyên phần trăm trước khi so. dpReader chỉ lưu tiến độ cục bộ ở độ phân giải 1%, còn máy chủ (nhất là KOReader) trả về bốn chữ số thập phân, nên 42,0% cục bộ so với 42,4% trên máy chủ bị coi là bằng nhau và máy luôn đẩy lên thay vì kéo về.
+  - Nay so sánh trực tiếp tỉ lệ gốc. Khi hai bên bằng nhau, chỉ kéo về nếu máy chủ thật sự trỏ tới vị trí xa hơn.
+- **Sửa lỗi bỏ qua tiến độ khi mở sách:** chế độ tự động lúc mở sách trước đây yêu cầu phải có offset chính xác mới áp dụng tiến độ máy chủ, nên tiến độ do KOReader đẩy lên (không có offset dạng byte) bị bỏ qua hoàn toàn. Nay tiến độ vẫn được áp dụng theo chương và tỉ lệ.
+- Thêm `tools/kosync_progress_host_test.py` chạy trên chính hai hàm xử lý của firmware, khoá lại cả hai định dạng XPointer và quy tắc chọn hướng đồng bộ.
+
 ## dpReader 1.0.8-vn · 2026-10-28
 
 Bản cập nhật quan trọng khắc phục lỗi hiển thị mục lục, hoàn thiện hiển thị chữ tiếng Việt và trải nghiệm đọc sách:
