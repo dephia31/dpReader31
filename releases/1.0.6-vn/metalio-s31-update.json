@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "1.0.6-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "aa8a8f35187faa0a5d262d09053b60e5dfff2a745fb51683a9f4b02947d682a5",
+  "size": 3924304,
+  "notes": "dpReader v1.0.6-vn: Thêm thanh tiến trình % và dung lượng trực quan khi tải sách OPDS; Sửa lỗi đồng bộ hai chiều KoSync (chuẩn header vnd.koreader.v1+json, tính MD5 qua stat, duy trì phiên WiFi khi kéo/đẩy); Sửa dứt điểm lỗi đổi phông chữ ngoài bị văng về phông cũ; Tối ưu giảm ghosting và dọn sạch mực toàn màn hình sau mỗi 3 trang."
+}
