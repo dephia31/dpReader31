@@ -92,6 +92,12 @@ bool app_settings_main_fast_refresh(void);
 /// 无操作自动锁屏分钟数：0 关闭，1/5/10。/ Idle lock timeout: off, 1/5/10 minutes.
 uint8_t app_settings_auto_lock_minutes(void);
 void app_settings_set_auto_lock_minutes(uint8_t minutes);
+/// Wi-Fi rảnh rỗi tự động tắt (phút): 0 (Tắt / không tự tắt), 1, 3, 5, 10. Mặc định 3 phút.
+uint8_t app_settings_wifi_timeout_minutes(void);
+void app_settings_set_wifi_timeout_minutes(uint8_t minutes);
+/// Bluetooth không dùng tự động tắt (phút): 0 (Tắt / không tự tắt), 5, 10, 15, 30. Mặc định 10 phút.
+uint8_t app_settings_ble_timeout_minutes(void);
+void app_settings_set_ble_timeout_minutes(uint8_t minutes);
 const char *app_settings_device_name(void);
 void app_settings_set_device_name(const char *name);
 const char *app_settings_avatar_path(void);

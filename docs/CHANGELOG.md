@@ -1,10 +1,21 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.1.5-vn · 2026-10-28
+
+Bản cập nhật tối ưu hóa bộ nhớ RAM hệ thống, quản lý tài nguyên không dây và bổ sung tính năng tự ngắt kết nối thông minh:
+
+- **Tối ưu hóa RAM và kiểm soát dịch vụ Truyền tệp / Wi-Fi:**
+  - Khắc phục tình trạng ngốn RAM do Wi-Fi và HTTP server truyền tệp chạy ngầm: Mặc định Wi-Fi và dịch vụ truyền tệp luôn TẮT, chỉ mở khi người dùng chủ động vào màn hình truyền tệp hoặc thao tác tác vụ mạng (KoSync, OPDS, OTA, Online Font).
+  - Khi người dùng thoát khỏi màn hình truyền tệp / cài đặt Wi-Fi, hệ thống tự động dừng phiên (`stop_session`) và giải phóng hoàn toàn bộ đệm HTTP, socket và tài nguyên Wi-Fi về cho heap.
+  - Ngăn chặn tác vụ đồng bộ giờ nền tự ý bật Wi-Fi ngầm khi máy đang offline; chỉ đồng bộ khi Wi-Fi đã được người dùng kết nối sẵn.
+  - Tối ưu hóa cửa sổ nhận TCP (`CONFIG_LWIP_TCP_WND_DEFAULT`) từ 64 KB về 32 KB và giảm số bộ đệm RX động từ 64 về 32 trong cấu hình S31, tiết kiệm hơn 40 KB RAM nội bộ cho hệ thống hiển thị và phông chữ.
+- **Thêm thiết lập Tự tắt Wi-Fi & Tự tắt Bluetooth khi không dùng:**
+  - Bổ sung tùy chọn **Tự tắt Wi-Fi khi rảnh** vào nhóm **Cài đặt -> Kết nối**: Cho phép chọn *1 phút, 3 phút (mặc định), 5 phút, 10 phút, Tắt*. Khi không có tệp nào đang tải lên/xuống sau thời gian đã đặt, Wi-Fi sẽ tự động tắt để tiết kiệm pin và trả lại RAM.
+  - Bổ sung tùy chọn **Tự tắt Bluetooth khi rảnh** vào nhóm **Cài đặt -> Kết nối** và trong trang **Điều khiển lật trang BLE**: Cho phép chọn *5 phút, 10 phút (mặc định), 15 phút, 30 phút, Tắt*. Nếu mất kết nối hoặc không nhận được thao tác bấm phím nào từ điều khiển lật trang sau thời gian đã định, hệ thống sẽ tự động tắt Bluetooth và giải phóng hoàn toàn NimBLE stack.
+
 ## dpReader 1.1.4-vn · 2026-10-28
 
 Bản cập nhật tinh chỉnh giao diện đọc sách, tái cấu trúc menu cài đặt phông chữ và bổ sung tùy chọn hiển thị chân trang:
-
-- **Tái cấu trúc menu Cài đặt phông chữ & Gom nhóm "Tùy Chỉnh":**
   - Tạo menu riêng **Tùy chỉnh** gom gọn 3 tính năng: *Phông chữ nhúng trong sách*, *Đường dẫn dòng* (thước đọc sách) và *Khử răng cưa* (làm mịn nét chữ).
   - Giúp giao diện Cài đặt phông chữ chính trở nên thoáng đãng, phân cấp logic và dễ sử dụng.
 - **Kéo Menu "Thanh chân trang" (Footer) ra ngoài:**

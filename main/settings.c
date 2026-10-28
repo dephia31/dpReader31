@@ -51,6 +51,8 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #define NVS_KEY_HOME_GOAL "home_goal"
 #define NVS_KEY_MAIN_REFRESH "main_mode"
 #define NVS_KEY_AUTO_LOCK "idle_lock"
+#define NVS_KEY_WIFI_TIMEOUT "wifi_tout"
+#define NVS_KEY_BLE_TIMEOUT "ble_tout"
 #define NVS_KEY_DEVICE_NAME "dev_name"
 #define NVS_KEY_AVATAR "dev_avatar"
 #define NVS_KEY_STATUS_SIGNATURE "status_sig"
@@ -195,6 +197,8 @@ static bool s_book_footer_page = true;
 static bool s_book_footer_chapter = true;
 static bool s_book_footer_pct = true;
 static uint8_t s_auto_lock_minutes = 5;
+static uint8_t s_wifi_timeout_minutes = 3;
+static uint8_t s_ble_timeout_minutes = 10;
 static uint8_t s_shelf_style = 2;
 static char s_books_dir[MEDIA_DIR_MAX] = "/sdcard/books";
 static char s_fonts_dir[MEDIA_DIR_MAX] = "/sdcard/fonts";
@@ -293,6 +297,10 @@ void app_settings_init(void) {
 
     raw = 5;
     if (nvs_get_u8(h, NVS_KEY_AUTO_LOCK, &raw) == ESP_OK && (raw == 0 || raw == 1 || raw == 5 || raw == 10)) s_auto_lock_minutes = raw;
+    raw = 3;
+    if (nvs_get_u8(h, NVS_KEY_WIFI_TIMEOUT, &raw) == ESP_OK && (raw == 0 || raw == 1 || raw == 3 || raw == 5 || raw == 10)) s_wifi_timeout_minutes = raw;
+    raw = 10;
+    if (nvs_get_u8(h, NVS_KEY_BLE_TIMEOUT, &raw) == ESP_OK && (raw == 0 || raw == 5 || raw == 10 || raw == 15 || raw == 30)) s_ble_timeout_minutes = raw;
     size_t value_len = sizeof(s_device_name);
     if (nvs_get_str(h, NVS_KEY_DEVICE_NAME, s_device_name, &value_len) != ESP_OK || !s_device_name[0])
         strlcpy(s_device_name, "dpReader", sizeof(s_device_name));
@@ -599,6 +607,22 @@ void app_settings_set_auto_lock_minutes(uint8_t minutes) {
     if (s_auto_lock_minutes == minutes) return;
     s_auto_lock_minutes = minutes;
     nvs_put_u8(NVS_KEY_AUTO_LOCK, minutes);
+}
+
+uint8_t app_settings_wifi_timeout_minutes(void) { return s_wifi_timeout_minutes; }
+void app_settings_set_wifi_timeout_minutes(uint8_t minutes) {
+    if (minutes != 0 && minutes != 1 && minutes != 3 && minutes != 5 && minutes != 10) return;
+    if (s_wifi_timeout_minutes == minutes) return;
+    s_wifi_timeout_minutes = minutes;
+    nvs_put_u8(NVS_KEY_WIFI_TIMEOUT, minutes);
+}
+
+uint8_t app_settings_ble_timeout_minutes(void) { return s_ble_timeout_minutes; }
+void app_settings_set_ble_timeout_minutes(uint8_t minutes) {
+    if (minutes != 0 && minutes != 5 && minutes != 10 && minutes != 15 && minutes != 30) return;
+    if (s_ble_timeout_minutes == minutes) return;
+    s_ble_timeout_minutes = minutes;
+    nvs_put_u8(NVS_KEY_BLE_TIMEOUT, minutes);
 }
 
 void app_settings_set_home_full_refresh(bool enabled) {

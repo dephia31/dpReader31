@@ -1029,21 +1029,14 @@ static void transfer_on_exit(app_ctx_t* ctx) {
     }
     clear_password();
     s_scan_pending = s_network_connect_pending = false;
-    read_pico_transfer_status_t latest = {0};
-    read_pico_transfer_get_status(&latest);
-    bool keep_sta = s_wifi_settings_only && latest.network_ready &&
-                    latest.mode == READ_PICO_TRANSFER_MODE_STA;
-    if (keep_sta) {
-        clear_qr();
-        s_session_started = false; // 全局循环接管保活；再次进页会从组件状态恢复。
-    } else stop_session();
+    // Rời trang truyền tệp luôn dừng phiên để giải phóng toàn bộ RAM và tài nguyên WiFi/HTTP
+    stop_session();
     s_wifi_settings_only = false;
     s_usb_entry = false;
     s_direct_entry = false;
     display_set_bulk_io(false);
     if (s_any_changed) book_store_notify_changed();
-    ESP_LOGI(TAG, "leave keep_sta=%d heap before=%u after=%u internal_before=%u internal_after=%u",
-             keep_sta,
+    ESP_LOGI(TAG, "leave heap before=%u after=%u internal_before=%u internal_after=%u",
              (unsigned)s_heap_before, (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
              (unsigned)s_internal_before, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 }

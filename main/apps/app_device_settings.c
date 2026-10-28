@@ -107,7 +107,7 @@ static void settings_card(uint8_t *fb, EpdRect rect, int radius, uint8_t fill, u
 static char s_notice[96];
 static char s_kosync_notice[96];
 static char s_opds_notice[96];
-typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
+typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_WIFI_TIMEOUT, SETTINGS_BLE_TIMEOUT, SETTINGS_TIME,
                SETTINGS_KOSYNC, SETTINGS_OPDS,
                SETTINGS_TIME_EDIT, SETTINGS_SHELF_STYLE, SETTINGS_SYSTEM_FONT,
 #if KIIKO_BOARD_METALIO47
@@ -403,7 +403,7 @@ static int settings_main_row_height(void) {
     return 82;
 }
 #define SETTINGS_ROW_H settings_main_row_height()
-#define SETTINGS_WIRELESS_ROWS 5
+#define SETTINGS_WIRELESS_ROWS 7
 #if KIIKO_BOARD_METALIO47
 #define SETTINGS_DISPLAY_ROWS 8
 #else
@@ -1301,6 +1301,40 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_navigation(fb);
         return;
     }
+    if (s_page == SETTINGS_WIFI_TIMEOUT) {
+        back_header(fb, "Tự tắt Wi-Fi");
+        section(fb, 228, "Tự động tắt Wi-Fi khi không truyền tệp");
+        const char *labels[] = {"1 phút", "3 phút", "5 phút", "10 phút", "Tắt (Không tự tắt)"};
+        const uint8_t values[] = {1, 3, 5, 10, 0};
+        for (int i = 0; i < 5; ++i) {
+            EpdRect box = {36, 272 + i * 94, 612, 78};
+            bool active = app_settings_wifi_timeout_minutes() == values[i];
+            settings_card(fb, box, 18, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
+            ui_text_vc(fb, 64, box.y + box.height / 2, 26, labels[i], EPD_DRAW_ALIGN_LEFT, false);
+            if (active) epd_fill_circle(609, box.y + box.height / 2, 8, UI_GRAY_BLACK, fb);
+        }
+        ui_text(fb, 48, 770, 21, "Tự động ngắt kết nối và tắt Wi-Fi khi rảnh rỗi", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 804, 21, "để tiết kiệm pin và giải phóng RAM hệ thống.", EPD_DRAW_ALIGN_LEFT, false);
+        settings_navigation(fb);
+        return;
+    }
+    if (s_page == SETTINGS_BLE_TIMEOUT) {
+        back_header(fb, "Tự tắt Bluetooth");
+        section(fb, 228, "Tự động tắt Bluetooth khi không dùng");
+        const char *labels[] = {"5 phút", "10 phút", "15 phút", "30 phút", "Tắt (Không tự tắt)"};
+        const uint8_t values[] = {5, 10, 15, 30, 0};
+        for (int i = 0; i < 5; ++i) {
+            EpdRect box = {36, 272 + i * 94, 612, 78};
+            bool active = app_settings_ble_timeout_minutes() == values[i];
+            settings_card(fb, box, 18, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
+            ui_text_vc(fb, 64, box.y + box.height / 2, 26, labels[i], EPD_DRAW_ALIGN_LEFT, false);
+            if (active) epd_fill_circle(609, box.y + box.height / 2, 8, UI_GRAY_BLACK, fb);
+        }
+        ui_text(fb, 48, 770, 21, "Tự động tắt Bluetooth khi mất kết nối hoặc", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text(fb, 48, 804, 21, "không bấm phím lật trang để tiết kiệm pin và RAM.", EPD_DRAW_ALIGN_LEFT, false);
+        settings_navigation(fb);
+        return;
+    }
     if (s_page == SETTINGS_SYSTEM_FONT) {
         back_header(fb, "Phông chữ hệ thống");
 #if KIIKO_BOARD_METALIO47
@@ -1770,7 +1804,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.1.4-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.1.5-vn", "ESP32-S31");
         ui_text(fb, 56, 324, 22, v_line, EPD_DRAW_ALIGN_LEFT, false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -1949,15 +1983,37 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         ui_draw_icon(fb,625,profile_y+profile_h/2,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
     }
     char wifi[56];snprintf(wifi,sizeof(wifi),"%s",s_main_wifi_saved?s_main_wifi:"Chưa cấu hình");
+    char wifi_tout[32];
+    unsigned w_tout = app_settings_wifi_timeout_minutes();
+    if (w_tout) snprintf(wifi_tout, sizeof(wifi_tout), "%u phút", w_tout); else strcpy(wifi_tout, "Tắt");
+    char ble_tout[32];
+    unsigned b_tout = app_settings_ble_timeout_minutes();
+    if (b_tout) snprintf(ble_tout, sizeof(ble_tout), "%u phút", b_tout); else strcpy(ble_tout, "Tắt");
     char kosync_val[48];
     if (!app_settings_kosync_user()[0]) {
         snprintf(kosync_val, sizeof(kosync_val), "Chưa cấu hình");
     } else {
         snprintf(kosync_val, sizeof(kosync_val), "%s", app_settings_kosync_auto() ? "Tự động" : "Bật");
     }
-    const char *connection_labels[]={"WiFi","Điều khiển lật trang BLE","Đồng bộ KOSync","Kho sách OPDS","Ngày & Giờ"};
-    const char *connection_values[]={wifi,app_settings_ble_turner()?"Đã bật":"Đã tắt",kosync_val,"Kho trực tuyến","Cài đặt"};
-    const int connection_icons[]={0,1,11,4,6};
+    const char *connection_labels[]={
+        "WiFi",
+        "Tự tắt Wi-Fi khi rảnh",
+        "Điều khiển lật trang BLE",
+        "Tự tắt Bluetooth khi rảnh",
+        "Đồng bộ KOSync",
+        "Kho sách OPDS",
+        "Ngày & Giờ"
+    };
+    const char *connection_values[]={
+        wifi,
+        wifi_tout,
+        app_settings_ble_turner()?"Đã bật":"Đã tắt",
+        ble_tout,
+        kosync_val,
+        "Kho trực tuyến",
+        "Cài đặt"
+    };
+    const int connection_icons[]={0,14,1,14,11,4,6};
     setting_group(fb,SETTINGS_WIRELESS_Y-49,"Kết nối",SETTINGS_WIRELESS_Y,
                   connection_icons,connection_labels,connection_values,SETTINGS_WIRELESS_ROWS);
     char font_name[96],contrast[24],idle[24],signature[96];
@@ -2779,6 +2835,22 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         }
         return APP_REDRAW_NONE;
     }
+    if (s_page == SETTINGS_WIFI_TIMEOUT) {
+        const uint8_t values[] = {1, 3, 5, 10, 0};
+        for (int i = 0; i < 5; ++i) if (ui_rect_hit((EpdRect){36, 272 + i * 94, 612, 78}, ev->x0, y)) {
+            app_settings_set_wifi_timeout_minutes(values[i]);
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
+    if (s_page == SETTINGS_BLE_TIMEOUT) {
+        const uint8_t values[] = {5, 10, 15, 30, 0};
+        for (int i = 0; i < 5; ++i) if (ui_rect_hit((EpdRect){36, 272 + i * 94, 612, 78}, ev->x0, y)) {
+            app_settings_set_ble_timeout_minutes(values[i]);
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
 
     if (s_page == SETTINGS_WIFI) {
         if (y >= 408 && y < 478) {
@@ -3183,13 +3255,19 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             extern const app_desc_t app_transfer;app_transfer_request_wifi_setup();ctx->request_app=&app_transfer;return APP_REDRAW_NONE;
         }
         if(row==1) {
+            s_page=SETTINGS_WIFI_TIMEOUT;return APP_REDRAW_PAGE;
+        }
+        if(row==2) {
             s_page=SETTINGS_BLUETOOTH;s_ble_scroll=s_ble_learning=0;s_ble_notice[0]=s_ble_feedback[0]=0;
             ble_pt_raw_t unused;while(ble_pt_pop_raw(&unused)){}return APP_REDRAW_PAGE;
         }
-        if(row==2) {
+        if(row==3) {
+            s_page=SETTINGS_BLE_TIMEOUT;return APP_REDRAW_PAGE;
+        }
+        if(row==4) {
             s_page=SETTINGS_KOSYNC;s_kosync_notice[0]=0;return APP_REDRAW_PAGE;
         }
-        if(row==3) {
+        if(row==5) {
             s_page=SETTINGS_OPDS;s_opds_notice[0]=0;return APP_REDRAW_PAGE;
         }
         s_page=SETTINGS_TIME;return APP_REDRAW_PAGE;

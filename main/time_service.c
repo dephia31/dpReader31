@@ -70,15 +70,10 @@ void app_time_service_poll(bool idle) {
     read_pico_transfer_get_status(&status);
     bool online = status.state == READ_PICO_TRANSFER_READY &&
                   status.mode == READ_PICO_TRANSFER_MODE_STA && status.network_ready;
-    if (!online && status.state != READ_PICO_TRANSFER_STOPPED) return;
+    if (!online) return; // Mặc định tắt; chỉ đồng bộ khi người dùng hoặc tác vụ đã kết nối WiFi sẵn
     time_t now = time(NULL);
-    uint64_t interval = online ? CLOCK_ONLINE_INTERVAL : CLOCK_OFFLINE_INTERVAL;
-    if (now >= (time_t)s_last_sync && s_last_sync && (uint64_t)now - s_last_sync < interval) return;
+    if (now >= (time_t)s_last_sync && s_last_sync && (uint64_t)now - s_last_sync < CLOCK_ONLINE_INTERVAL) return;
     s_next_attempt_us = monotonic + CLOCK_RETRY_US;
-    if (!online) {
-        char ssid[33]; bool configured = false;
-        if (read_pico_transfer_get_saved_wifi(ssid, &configured) != ESP_OK || !configured) return;
-    }
     atomic_store(&s_running, true);
     // 仅对时期间保留任务栈；不创建常驻无线任务或页面缓存。
     // Keep a task stack only during calibration; no permanent radio task or page cache.
