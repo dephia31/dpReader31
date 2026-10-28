@@ -4,7 +4,15 @@
   <img src="docs/screenshots/00_overview_banner.png" alt="dpReader Overview Banner" width="100%">
 </p>
 
-**dpReader** (`v1.0.1-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
+<p align="center">
+  <a href="https://dephia31.github.io/dpReader31/"><img src="https://img.shields.io/badge/Web%20Flasher-C%E1%BA%ADp%20nh%E1%BA%ADt%20tr%E1%BB%B1c%20tuy%E1%BA%BFn%201--Click-success?style=for-the-badge&logo=googlechrome" alt="Web Flasher Trực Tuyến"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.0.9--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
+</p>
+
+**dpReader** (`v1.0.9-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
+
+> ⚡ **Nạp Firmware Trực Tuyến 1-Click (Không cần cài phần mềm):**  
+> Truy cập ngay **[Web Flasher chính thức](https://dephia31.github.io/dpReader31/)** trên trình duyệt Google Chrome hoặc Microsoft Edge để nạp firmware trực tiếp qua cáp USB-C. Tự động nhận diện phiên bản mới nhất, tự xóa `otadata` và tự khởi động lại máy sau khi nạp!
 
 ---
 
@@ -53,9 +61,10 @@
    - Danh mục OPDS mặc định: **`https://sach.vreader.cloud:8443/opds`** (hỗ trợ tài khoản HTTP Basic Auth và tùy chỉnh địa chỉ trên Web Portal).
    - Hỗ trợ duyệt thư mục, phân trang và tải trực tiếp sách `.epub` / `.txt` về thẻ nhớ `/sdcard/books`.
 5. **Đa dạng phương thức Cập nhật & Flash Firmware:**
-   - Nâng cấp trực tiếp bằng **Thẻ nhớ MicroSD** từ cả **ROM gốc nhà sản xuất (`CloudZao/Metalio-E-INK4-Plus`)** lẫn **ROM `Kiikoread`** mà không cần máy tính hay cáp USB.
-   - Tự động nhận diện và hiển thị lại toàn bộ sách cũ trong thư mục `/sdcard/metalio/e-ink/books` của ROM gốc nhà sản xuất.
-   - Hỗ trợ chạm trực tiếp vào bất kỳ file `.bin` nào trong **Quản lý tệp (`Tệp`)** để cài đặt bản cập nhật ngay trên máy (giống **CrossPoint Reader**).
+   - **Web Flasher trực tuyến 1-Click:** Truy cập [https://dephia31.github.io/dpReader31/](https://dephia31.github.io/dpReader31/) trên trình duyệt Chrome/Edge để nạp trực tiếp qua cáp USB-C, không cần cài đặt phần mềm hay driver phức tạp.
+   - **Cập nhật OTA qua Wi-Fi:** Máy tự động kích hoạt kết nối Wi-Fi đã lưu, kiểm tra máy chủ và tải bản cập nhật mới nhất chỉ với 1 chạm trong **Cài đặt -> Cập nhật hệ thống**.
+   - **Nâng cấp trực tiếp bằng Thẻ nhớ MicroSD:** Hỗ trợ nâng cấp từ cả **ROM gốc nhà sản xuất (`CloudZao/Metalio-E-INK4-Plus`)** lẫn **ROM `Kiikoread`** mà không cần máy tính hay cáp USB.
+   - **Cài đặt kiểu CrossPoint Reader:** Chạm 2 lần vào bất kỳ file `.bin` nào trong **Quản lý tệp (`Tệp`)** để cài đặt trực tiếp ngay trên máy.
 
 ---
 
@@ -122,16 +131,22 @@ Chọn **1 trong 2 cách**:
 
 ### Bước 2: Chọn công cụ Flash trên máy tính
 
-#### Cách 4: Flash trực tiếp bằng Trình duyệt Web (Chrome / Edge — Không cần cài phần mềm)
-1. Mở trình duyệt **Google Chrome** hoặc **Microsoft Edge**, truy cập trang công cụ chính thức của Espressif:
-   👉 **`https://espressif.github.io/esptool-js/`**
-2. Tại mục **Program**:
-   - Nhấn nút **Connect** và chọn cổng `USB JTAG/serial debug unit`.
-   - Tại ô **Flash Address**, nhập địa chỉ: **`0x0`**
-   - Tại ô **File**, chọn file **`dpReader_metalio47_full.bin`**.
-3. *(Lưu ý quan trọng: `full.bin` là ảnh liền mạch từ `0x0`, nên nó ghi đè **cả vùng NVS** `0x9000`–`0xd000` bằng `0xFF` — cài đặt, mật khẩu và **VCOM đã hiệu chuẩn sẽ mất**. Nút `Erase Flash` không phải thủ phạm; chính file này đã xoá NVS. Máy vẫn khởi động được và chạy VCOM mặc định **1200 mV** của nhà sản xuất, nhưng nếu máy đã được hiệu chuẩn riêng thì phải hiệu chuẩn lại sau khi nạp.)*
-4. Nhấn nút **Program** và đợi thanh tiến trình chạy hoàn tất `100%` (khoảng 35 giây).
-5. Rút cáp USB và nhấn giữ **Nút Nguồn 3 giây** để khởi động lại máy.
+#### Cách 4: Nạp bằng dpReader Web Flasher Trực Tuyến (Khuyên dùng — 1-Click qua Trình duyệt)
+Trang Web Flasher chính thức của dpReader được tích hợp sẵn công nghệ Web Serial API, cho phép nạp firmware trực tiếp từ trình duyệt mà không cần cài đặt Python, esptool hay driver phức tạp:
+
+👉 **Truy cập ngay:** **[https://dephia31.github.io/dpReader31/](https://dephia31.github.io/dpReader31/)**
+
+1. **Chuẩn bị:** Mở trình duyệt **Google Chrome** hoặc **Microsoft Edge** trên máy tính (Windows, macOS hoặc Linux).
+2. **Đưa máy về chế độ nạp ROM (BOOT):**
+   - Cắm cáp USB-C kết nối máy đọc sách với máy tính.
+   - Nhấn giữ đồng thời **Nút Giữa (phím BOOT)** và **Nút Nguồn** khoảng 3–5 giây (hoặc vào **Cài đặt -> Nạp ROM qua máy tính -> Mở cổng nạp ROM**).
+3. **Kết nối:** Bấm nút **Kết nối Thiết bị** trên trang web và chọn thiết bị có tên `USB JTAG/serial debug unit` (hoặc cổng COM tương ứng).
+4. **Chọn chế độ nạp:**
+   - **Nâng cấp Ứng dụng (Khuyên dùng):** Nạp bản cập nhật mới nhất vào offset `0x10000`, tự động xoá `otadata` để máy boot ngay vào bản mới, **giữ nguyên toàn bộ sách, ghi chú, WiFi và cài đặt VCOM**.
+   - **Nạp Toàn Diện (Full Flash):** Nạp toàn bộ hệ thống từ offset `0x0` (`Bootloader` + `Partition Table` + `Otadata` + `Firmware`) dành cho máy mới xuất xưởng hoặc cứu máy bị lỗi hệ điều hành.
+   - *(Hoặc bạn có thể chọn "Tự chọn file .bin từ máy tính" nếu muốn nạp một bản build riêng).*
+5. **Tiến hành nạp:** Bấm **Bắt đầu Nạp Firmware**. Trang web sẽ tự động tải file nhị phân mới nhất từ máy chủ với cơ chế chống cache, hiển thị thanh tiến trình % trực quan.
+6. **Tự động khởi động lại:** Khi thanh tiến trình đạt `100%`, Web Flasher sẽ tự động phát xung reset cứng (RTS/EN) để khởi động lại máy thẳng vào hệ điều hành `dpReader` mới và tự động nhả cổng kết nối USB.
 
 #### Cách 5: Flash bằng công cụ dòng lệnh `esptool.py` (Windows / macOS / Linux)
 Cài đặt `esptool` (`pip install esptool`), sau đó mở Terminal / Command Prompt tại thư mục chứa file `.bin`:
