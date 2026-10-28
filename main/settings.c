@@ -90,6 +90,9 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #define NVS_KEY_BOOK_PROGRESS "bk_prog"
 // 页脚新增“隐藏”档，改用独立键避免与旧 0..2 存档混淆。/ The footer gained a hidden stop; a new key keeps it apart from legacy 0..2.
 #define NVS_KEY_BOOK_PROGRESS_V2 "bk_prog2"
+#define NVS_KEY_BOOK_FOOTER_PAGE "bk_ft_page"
+#define NVS_KEY_BOOK_FOOTER_CHAPTER "bk_ft_chap"
+#define NVS_KEY_BOOK_FOOTER_PCT "bk_ft_pct"
 #define NVS_KEY_BOOK_RULE "bk_rule"
 #define NVS_KEY_BOOK_RULE_OFFSET "bk_rule_y"
 #define NVS_KEY_SHELF_STYLE "shelf_ui"
@@ -188,6 +191,9 @@ static uint8_t s_book_indent_adjust = 20;
 static uint8_t s_book_align;
 // 默认细条；0 现在是“隐藏”，不能当默认值。/ Default to the thin bar; 0 now means hidden.
 static uint8_t s_book_progress_style = APP_BOOK_PROGRESS_STYLE_THIN;
+static bool s_book_footer_page = true;
+static bool s_book_footer_chapter = true;
+static bool s_book_footer_pct = true;
 static uint8_t s_auto_lock_minutes = 5;
 static uint8_t s_shelf_style = 2;
 static char s_books_dir[MEDIA_DIR_MAX] = "/sdcard/books";
@@ -435,6 +441,10 @@ void app_settings_init(void) {
         s_book_progress_style = progress_style;
     else if (nvs_get_u8(h, NVS_KEY_BOOK_PROGRESS, &progress_style) == ESP_OK)
         s_book_progress_style = book_progress_style_from_legacy(progress_style);
+    uint8_t ft_page = 1, ft_chap = 1, ft_pct = 1;
+    if (nvs_get_u8(h, NVS_KEY_BOOK_FOOTER_PAGE, &ft_page) == ESP_OK) s_book_footer_page = ft_page == 1;
+    if (nvs_get_u8(h, NVS_KEY_BOOK_FOOTER_CHAPTER, &ft_chap) == ESP_OK) s_book_footer_chapter = ft_chap == 1;
+    if (nvs_get_u8(h, NVS_KEY_BOOK_FOOTER_PCT, &ft_pct) == ESP_OK) s_book_footer_pct = ft_pct == 1;
     uint8_t line = 130, para = 50, margin = 24;
     if (nvs_get_u8(h, NVS_KEY_BOOK_LINE, &line) == ESP_OK) {
         if (line >= 110 && line <= 150) s_book_line = line;
@@ -974,6 +984,24 @@ void app_settings_set_book_progress_style(uint8_t style) {
     if (style >= APP_BOOK_PROGRESS_STYLE_COUNT || style == s_book_progress_style) return;
     s_book_progress_style = style;
     nvs_put_u8(NVS_KEY_BOOK_PROGRESS_V2, style);
+}
+bool app_settings_book_footer_page(void) { return s_book_footer_page; }
+void app_settings_set_book_footer_page(bool on) {
+    if (s_book_footer_page == on) return;
+    s_book_footer_page = on;
+    nvs_put_u8(NVS_KEY_BOOK_FOOTER_PAGE, on ? 1 : 0);
+}
+bool app_settings_book_footer_chapter(void) { return s_book_footer_chapter; }
+void app_settings_set_book_footer_chapter(bool on) {
+    if (s_book_footer_chapter == on) return;
+    s_book_footer_chapter = on;
+    nvs_put_u8(NVS_KEY_BOOK_FOOTER_CHAPTER, on ? 1 : 0);
+}
+bool app_settings_book_footer_pct(void) { return s_book_footer_pct; }
+void app_settings_set_book_footer_pct(bool on) {
+    if (s_book_footer_pct == on) return;
+    s_book_footer_pct = on;
+    nvs_put_u8(NVS_KEY_BOOK_FOOTER_PCT, on ? 1 : 0);
 }
 int8_t app_settings_book_reading_line_offset(void) { return (int8_t)((int)s_book_rule_offset - 4) * 2; }
 void app_settings_set_book_reading_line_offset(int8_t offset_px) {

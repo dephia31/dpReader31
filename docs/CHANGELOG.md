@@ -1,6 +1,21 @@
 # Nhật ký thay đổi / Changelog
 
-## dpReader 1.1.3-vn · 2026-10-28
+## dpReader 1.1.4-vn · 2026-10-28
+
+Bản cập nhật tinh chỉnh giao diện đọc sách, tái cấu trúc menu cài đặt phông chữ và bổ sung tùy chọn hiển thị chân trang:
+
+- **Tái cấu trúc menu Cài đặt phông chữ & Gom nhóm "Tùy Chỉnh":**
+  - Tạo menu riêng **Tùy chỉnh** gom gọn 3 tính năng: *Phông chữ nhúng trong sách*, *Đường dẫn dòng* (thước đọc sách) và *Khử răng cưa* (làm mịn nét chữ).
+  - Giúp giao diện Cài đặt phông chữ chính trở nên thoáng đãng, phân cấp logic và dễ sử dụng.
+- **Kéo Menu "Thanh chân trang" (Footer) ra ngoài:**
+  - Chuyển mục cài đặt chân trang ra trực tiếp bảng Cài đặt phông chữ chính (nằm ngang hàng với Bố cục dàn trang), không còn bị ẩn sâu ở đáy bảng Bố cục như trước.
+- **Bổ sung các tùy chọn hiển thị chi tiết cho Chân trang (Footer Display Options):**
+  - Bổ sung tùy chọn bật/tắt độc lập từng thành phần ở chân trang sách:
+    - **Thanh tiến độ**: Tùy chỉnh độ dày vạch (*Ẩn / Mảnh / Dày / Rất mảnh*).
+    - **Số trang / chương (trái)**: Bật/Tắt hiển thị số trang hiện tại trong chương (ví dụ `Trang 3/12`).
+    - **Tên Chương (nằm trên thanh tiến độ)**: Bật/Tắt hiển thị tên chương nằm căn giữa phía trên thanh tiến độ.
+    - **% tiến độ sách (phải)**: Bật/Tắt hiển thị % đọc toàn cuốn sách ở góc phải (ví dụ `45%`).
+  - Toàn bộ cài đặt được lưu trữ bền vững vào NVS và tự động đồng bộ khi chuyển trang.
 
 Bản cập nhật sửa triệt để lỗi nhảy trang của nút lật trang Bluetooth và bổ sung tính năng chẩn đoán & xuất nhật ký hệ thống:
 

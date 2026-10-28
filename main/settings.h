@@ -259,6 +259,14 @@ void app_settings_set_book_align(uint8_t align);
 #define APP_BOOK_PROGRESS_STYLE_COUNT 4
 uint8_t app_settings_book_progress_style(void);
 void app_settings_set_book_progress_style(uint8_t style);
+/// Chân trang hiển thị: số trang/chương (trái), tên chương (trên thanh tiến độ), % tiến độ sách (phải).
+/// Footer display components: page count/chapter (left), chapter title (above bar), book progress % (right).
+bool app_settings_book_footer_page(void);
+void app_settings_set_book_footer_page(bool on);
+bool app_settings_book_footer_chapter(void);
+void app_settings_set_book_footer_chapter(bool on);
+bool app_settings_book_footer_pct(void);
+void app_settings_set_book_footer_pct(bool on);
 /// 阅读线相对默认位置 -8..+8 像素，2 像素一步，默认 0。/ Guide offset in 2 px steps.
 int8_t app_settings_book_reading_line_offset(void);
 void app_settings_set_book_reading_line_offset(int8_t offset_px);
