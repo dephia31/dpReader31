@@ -88,6 +88,8 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #define NVS_KEY_BOOK_INDENT_ADJUST "bk_indent_adj"
 #define NVS_KEY_BOOK_ALIGN "bk_align"
 #define NVS_KEY_BOOK_PROGRESS "bk_prog"
+// 页脚新增“隐藏”档，改用独立键避免与旧 0..2 存档混淆。/ The footer gained a hidden stop; a new key keeps it apart from legacy 0..2.
+#define NVS_KEY_BOOK_PROGRESS_V2 "bk_prog2"
 #define NVS_KEY_BOOK_RULE "bk_rule"
 #define NVS_KEY_BOOK_RULE_OFFSET "bk_rule_y"
 #define NVS_KEY_SHELF_STYLE "shelf_ui"
@@ -184,12 +186,24 @@ static uint8_t s_book_indent_adjust = 20;
 // Body alignment and footer progress-bar look; defaults keep the previous behaviour
 // (justified text, thin round-capped bar).
 static uint8_t s_book_align;
-static uint8_t s_book_progress_style;
+// 默认细条；0 现在是“隐藏”，不能当默认值。/ Default to the thin bar; 0 now means hidden.
+static uint8_t s_book_progress_style = APP_BOOK_PROGRESS_STYLE_THIN;
 static uint8_t s_auto_lock_minutes;
 static uint8_t s_shelf_style = 2;
 static char s_books_dir[MEDIA_DIR_MAX] = "/sdcard/books";
 static char s_fonts_dir[MEDIA_DIR_MAX] = "/sdcard/fonts";
 static void nvs_put_u8(const char* key, uint8_t value);
+
+// 旧存档里 bk_prog 是 0..2（细/粗/极细）。新枚举在最前面插入了“隐藏”档，
+// 所以只有“还没有 bk_prog2”的旧记录才需要 +1；新键一旦写过就以它为准，
+// 否则用户选中的“隐藏”(0) 会在重启后被误读成“细条”。
+// Legacy bk_prog stored 0..2 (thin/thick/hairline). The new enum inserts "hidden" first, so
+// only records without bk_prog2 shift by one. Once the new key exists it wins, otherwise a
+// saved "hidden" (0) would read back as "thin" after a reboot.
+static uint8_t book_progress_style_from_legacy(uint8_t stored) {
+    return stored <= APP_BOOK_PROGRESS_STYLE_HAIRLINE - 1
+        ? (uint8_t)(stored + 1) : APP_BOOK_PROGRESS_STYLE_THIN;
+}
 #if KIIKO_BOARD_METALIO47
 static void nvs_put_u32(const char* key,uint32_t value);
 #endif
@@ -416,9 +430,11 @@ void app_settings_init(void) {
     uint8_t align = 0, progress_style = 0;
     if (nvs_get_u8(h, NVS_KEY_BOOK_ALIGN, &align) == ESP_OK && align < APP_BOOK_ALIGN_COUNT)
         s_book_align = align;
-    if (nvs_get_u8(h, NVS_KEY_BOOK_PROGRESS, &progress_style) == ESP_OK &&
+    if (nvs_get_u8(h, NVS_KEY_BOOK_PROGRESS_V2, &progress_style) == ESP_OK &&
         progress_style < APP_BOOK_PROGRESS_STYLE_COUNT)
         s_book_progress_style = progress_style;
+    else if (nvs_get_u8(h, NVS_KEY_BOOK_PROGRESS, &progress_style) == ESP_OK)
+        s_book_progress_style = book_progress_style_from_legacy(progress_style);
     uint8_t line = 130, para = 50, margin = 24;
     if (nvs_get_u8(h, NVS_KEY_BOOK_LINE, &line) == ESP_OK) {
         if (line >= 110 && line <= 150) s_book_line = line;
@@ -957,7 +973,7 @@ uint8_t app_settings_book_progress_style(void) { return s_book_progress_style; }
 void app_settings_set_book_progress_style(uint8_t style) {
     if (style >= APP_BOOK_PROGRESS_STYLE_COUNT || style == s_book_progress_style) return;
     s_book_progress_style = style;
-    nvs_put_u8(NVS_KEY_BOOK_PROGRESS, style);
+    nvs_put_u8(NVS_KEY_BOOK_PROGRESS_V2, style);
 }
 int8_t app_settings_book_reading_line_offset(void) { return (int8_t)((int)s_book_rule_offset - 4) * 2; }
 void app_settings_set_book_reading_line_offset(int8_t offset_px) {

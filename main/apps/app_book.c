@@ -694,10 +694,24 @@ static EpdRect progress_rect(void) {
 #define READER_FOOTER_BAR_GAP 3
 #define READER_FOOTER_META_GAP 4
 #define READER_FOOTER_META_H 30
+// 排版三连卡片显示的名称；顺序与设置枚举一致。/ Labels for the layout trio; order matches the settings enums.
+static const char *reader_align_name(uint8_t align) {
+    static const char *const names[] = {"Hai bên", "Căn trái", "Căn giữa", "Căn phải"};
+    return names[align < APP_BOOK_ALIGN_COUNT ? align : 0];
+}
+static const char *reader_progress_style_name(uint8_t style) {
+    static const char *const names[] = {"Ẩn", "Mảnh", "Dày", "Rất mảnh"};
+    return names[style < APP_BOOK_PROGRESS_STYLE_COUNT ? style : APP_BOOK_PROGRESS_STYLE_THIN];
+}
+// 页脚是否显示：隐藏档连全屏那条细线一起收起。
+// Whether the footer is shown at all; the hidden stop also drops the full-screen hairline.
+static bool reader_footer_visible(void) {
+    return app_settings_book_progress_style() != APP_BOOK_PROGRESS_STYLE_HIDDEN;
+}
 static int reader_progress_bar_height(void) {
     switch (app_settings_book_progress_style()) {
-        case 1: return 16;
-        case 2: return 4;
+        case APP_BOOK_PROGRESS_STYLE_THICK: return 16;
+        case APP_BOOK_PROGRESS_STYLE_HAIRLINE: return 4;
         default: return 10;
     }
 }
@@ -2691,7 +2705,7 @@ static void draw_rule_settings(uint8_t *fb) {
 }
 
 static EpdRect indent_adjust_rect(int index) {
-    const EpdRect controls[] = {{214,1044,100,72}, {322,1044,208,72}, {538,1044,100,72}};
+    const EpdRect controls[] = {{214,994,100,72}, {322,994,208,72}, {538,994,100,72}};
     return controls[index];
 }
 static EpdRect reader_layout_back_rect(void) { return (EpdRect){36,1132,612,72}; }
@@ -2702,6 +2716,19 @@ static int indent_adjust_hit(int x, int y) {
         if(ui_rect_hit(r,x,y))return i;
     }
     return -1;
+}
+// 排版双卡：正文对齐与页脚进度条粗细各占一张可点卡片，点一下轮换下一档。
+// 两者都只影响绘制、不重排正文，所以放在页脚按钮上方，不用另开子面板。
+// Layout pair: body alignment and footer bar thickness, one tap target each, tap cycles.
+// Both only affect drawing and never re-typeset, so they sit above the back button instead of
+// needing a sub-panel of their own.
+#define LAYOUT_CARD_TOP 1080
+#define LAYOUT_CARD_H 48
+static EpdRect layout_choice_card(int index) {
+    return (EpdRect){36 + index * 312, LAYOUT_CARD_TOP, 300, LAYOUT_CARD_H};
+}
+static EpdRect layout_indent_choice(int index) {
+    return (EpdRect){214 + index * 108, 922, 100, 64};
 }
 static void reader_indent_hold_cancel(void) {
     memset(&s_indent_hold,0,sizeof(s_indent_hold));
@@ -2722,7 +2749,7 @@ static void draw_indent_adjustments(uint8_t *fb) {
 }
 static app_redraw_t reader_indent_feedback(app_ctx_t *ctx) {
     ui_text_set_system_scale(true);draw_indent_adjustments(ctx->fb);ui_text_set_system_scale(false);
-    s_area=(EpdRect){214,1044,424,72};s_mode=MODE_DU;s_indent_feedback_pending=true;
+    s_area=(EpdRect){214,994,424,72};s_mode=MODE_DU;s_indent_feedback_pending=true;
     return APP_REDRAW_AREA;
 }
 static bool reader_indent_present(app_ctx_t *ctx,app_redraw_t redraw) {
@@ -2749,24 +2776,41 @@ static void draw_layout_settings(uint8_t* fb) {
     if (line_i < 0) line_i = 0;
     if (line_i > 40) line_i = 40;
     draw_pill_slider(fb, reader_slider_rect(2), "Khít", "Thoáng", "Giãn dòng", line_i, 41, 21, 21);
-    reader_panel_text(fb, 42, 715, 21, "Cách đoạn", EPD_DRAW_ALIGN_LEFT, false);
+    reader_panel_text(fb, 42, 680, 21, "Cách đoạn", EPD_DRAW_ALIGN_LEFT, false);
     char value[16]; snprintf(value, sizeof(value), "%d%%", shown_para);
     draw_pill_slider(fb, reader_slider_rect(3), "Khít", "Thoáng", value, app_settings_book_paragraph_level((uint8_t)shown_para), APP_BOOK_PARAGRAPH_COUNT, 21, 21);
-    reader_panel_text(fb, 42, 835, 21, "Khoảng cách chữ", EPD_DRAW_ALIGN_LEFT, false);
+    reader_panel_text(fb, 42, 800, 21, "Khoảng cách chữ", EPD_DRAW_ALIGN_LEFT, false);
     char track_name[24];snprintf(track_name,sizeof(track_name),"%+d px",shown_tracking+APP_BOOK_TRACK_MIN);
     draw_pill_slider(fb, reader_slider_rect(4), "Khít", "Thoáng", track_name, shown_tracking, APP_BOOK_TRACK_COUNT, 21, 21);
-    ui_text_box(fb,(EpdRect){42,970,154,64},24,"Lùi đầu dòng",EPD_DRAW_ALIGN_LEFT,false);
+    ui_text_box(fb,(EpdRect){42,922,154,64},24,"Lùi đầu dòng",EPD_DRAW_ALIGN_LEFT,false);
     static const char* indent_names[] = {"Không", "1 chữ", "2 chữ", "3 chữ"};
     int indent = app_settings_book_indent();
     for (int i = 0; i < 4; ++i) {
-        EpdRect choice = {214 + i * 108, 970, 100, 64};
+        EpdRect choice = layout_indent_choice(i);
         bool selected = i == indent;
         ui_fill_round_rect(fb, choice, 16, selected ? UI_GRAY_BLACK : 0xe4);
         ui_draw_control_frame(fb, choice, 16, selected ? UI_GRAY_BLACK : 0x98);
         ui_text_box(fb,(EpdRect){choice.x+8,choice.y+5,choice.width-16,choice.height-10},23,indent_names[i],EPD_DRAW_ALIGN_CENTER,selected);
     }
-    ui_text_box(fb,(EpdRect){42,1044,154,72},24,"Chỉnh lùi đầu dòng",EPD_DRAW_ALIGN_LEFT,false);
+    ui_text_box(fb,(EpdRect){42,994,154,72},24,"Chỉnh lùi đầu dòng",EPD_DRAW_ALIGN_LEFT,false);
     draw_indent_adjustments(fb);
+    // 正文对齐与页脚进度条粗细：点一下轮换下一档，立即生效且不重排正文。
+    // Body alignment and footer bar thickness cycle on tap, taking effect without re-typesetting.
+    static const char *const card_titles[] = {"Căn lề đoạn văn", "Thanh tiến độ"};
+    const char *card_values[] = {
+        reader_align_name(app_settings_book_align()),
+        reader_progress_style_name(app_settings_book_progress_style()),
+    };
+    for (int i = 0; i < 2; ++i) {
+        EpdRect card = layout_choice_card(i);
+        ui_fill_round_rect(fb, card, 16, 0xe4);
+        ui_draw_control_frame(fb, card, 16, 0x58);
+        ui_text_box(fb,(EpdRect){card.x+18,card.y+1,card.width-56,card.height/2-2},17,
+                    card_titles[i],EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_box(fb,(EpdRect){card.x+18,card.y+card.height/2-1,card.width-56,card.height/2-1},21,
+                    card_values[i],EPD_DRAW_ALIGN_LEFT,false);
+        ui_draw_icon(fb,card.x+card.width-30,card.y+card.height/2,22,UI_ICON_ROTATE_CW,0x38);
+    }
     EpdRect back = reader_layout_back_rect();
     ui_fill_round_rect(fb, back, 20, UI_GRAY_BLACK);
     reader_panel_text_vc(fb, 342, 1168, 24, "Về Cài đặt phông", EPD_DRAW_ALIGN_CENTER, true);
@@ -3897,13 +3941,16 @@ static void draw_reader_outer(uint8_t *fb,size_t page) {
         ui_reader_background_paint(fb, (EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT}, true);
     draw_reader_images(fb, page, body);
     if (s_reader_fullscreen) {
-        // 全屏只留一条进度线，靠底边，不占正文。
-        // Full screen keeps a single progress line at the bottom edge, clear of the body.
-        EpdRect track = {36, READER_FULLSCREEN_PROGRESS_TOP + 3, UI_LOCK_WIDTH - 72, 3};
-        ui_fill_round_rect(fb, track, 1, 0x90);
-        track.width = track.width * (int)percent(page) / 100;
-        if (track.width) ui_fill_round_rect(fb, track, 1, UI_GRAY_BLACK);
-    } else {
+        // 全屏只留一条进度线，靠底边，不占正文；隐藏档连这条线也不画。
+        // Full screen keeps a single progress line at the bottom edge, clear of the body; the
+        // hidden stop draws no line either.
+        if (reader_footer_visible()) {
+            EpdRect track = {36, READER_FULLSCREEN_PROGRESS_TOP + 3, UI_LOCK_WIDTH - 72, 3};
+            ui_fill_round_rect(fb, track, 1, 0x90);
+            track.width = track.width * (int)percent(page) / 100;
+            if (track.width) ui_fill_round_rect(fb, track, 1, UI_GRAY_BLACK);
+        }
+    } else if (reader_footer_visible()) {
         const unsigned pct = percent(page);
         // 章名在上：长章名只截短自己这一行，不挤压下面的进度条与页码。
         // Chapter name on top: a long name is trimmed within its own line and never squeezes
@@ -4672,7 +4719,8 @@ static app_redraw_t paint_reading(app_ctx_t* ctx, enum EpdDrawMode mode) {
     unlock_draw();
     ESP_LOGI(TAG, "paint cached=%d ms=%lld", cached, (esp_timer_get_time() - started) / 1000);
     s_area = reader_area();
-    s_reader_footer_pending = !s_reader_fullscreen;
+    // 隐藏档没有页脚可推，省掉一次空刷新。/ The hidden stop has no footer to present, so skip that pass.
+    s_reader_footer_pending = !s_reader_fullscreen && reader_footer_visible();
     s_mode = mode;
     return APP_REDRAW_AREA;
 }
@@ -6348,10 +6396,10 @@ static int reader_margin_input(EpdRect rect, int x, int current, int px, int tra
 static EpdRect reader_slider_rect(int slider) {
     // 字号滑杆在双列字体卡片上方，绘制与拖动共用位置。/ The size rail sits above the paired cards; paint and drag share its position.
     if (slider == 0) return (EpdRect){36,700-reader_ui_extra(112),612,76};
-    if (slider == 1) return (EpdRect){36, 620, 294, 66};
-    if (slider == 2) return (EpdRect){354, 620, 294, 66};
-    if (slider == 3) return (EpdRect){36, 740, 612, 66};
-    return (EpdRect){36, 860, 612, 66};
+    if (slider == 1) return (EpdRect){36, 610, 294, 66};
+    if (slider == 2) return (EpdRect){354, 610, 294, 66};
+    if (slider == 3) return (EpdRect){36, 730, 612, 66};
+    return (EpdRect){36, 850, 612, 66};
 }
 
 static int reader_slider_at(uint16_t x, uint16_t y) {
@@ -6862,7 +6910,7 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
         if (ui_rect_hit(tracking, x, y))
             return apply_reader_typography(ctx, slider_index(tracking, x, APP_BOOK_TRACK_COUNT));
         for (int i = 0; i < 4; ++i) {
-            EpdRect choice = {214 + i * 108, 970, 100, 64};
+            EpdRect choice = layout_indent_choice(i);
             if (ui_rect_hit(choice, x, y)) return apply_reader_indent(ctx, i, app_settings_book_indent_adjust());
         }
         for (int i = 0; i < 3; ++i) {
@@ -6871,6 +6919,26 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
             if (adjustment < -100) adjustment = -100;
             if (adjustment > 100) adjustment = 100;
             return apply_reader_indent(ctx, app_settings_book_indent(), adjustment);
+        }
+        // 正文对齐：点一下轮换 两端对齐 → 左 → 居中 → 右。只影响绘制，不重排正文。
+        // Body alignment cycles justified → left → center → right; drawing only, no re-typeset.
+        if (ui_rect_hit(layout_choice_card(0), x, y)) {
+            app_settings_set_book_align((uint8_t)((app_settings_book_align() + 1) % APP_BOOK_ALIGN_COUNT));
+            book_layout_set_body_align(app_settings_book_align());
+            invalidate_prep();
+            return APP_REDRAW_PAGE;
+        }
+        // 页脚外观：点一下轮换 Ẩn → Mảnh → Dày → Rất mảnh。隐藏档连全屏细线一起收起。
+        // Footer look cycles hidden → thin → thick → hairline; hidden also drops the full-screen hairline.
+        if (ui_rect_hit(layout_choice_card(1), x, y)) {
+            app_settings_set_book_progress_style(
+                (uint8_t)((app_settings_book_progress_style() + 1) % APP_BOOK_PROGRESS_STYLE_COUNT));
+            s_reader_footer_pending = true;
+            // 隐藏与恢复都要整页重绘，页脚区域才会被正确擦掉或补回。
+            // Hiding or restoring redraws the whole page so the footer area is erased or restored.
+            invalidate_prep();
+            s_reader_cleanup = true;
+            return APP_REDRAW_PAGE;
         }
         if(y<top){s_reader_panel=READER_PANEL_NONE;invalidate_prep();return APP_REDRAW_PAGE;}
         return APP_REDRAW_NONE;

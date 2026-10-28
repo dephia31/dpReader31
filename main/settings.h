@@ -250,8 +250,13 @@ void app_settings_set_book_reading_line(uint8_t style);
 #define APP_BOOK_ALIGN_COUNT 4
 uint8_t app_settings_book_align(void);
 void app_settings_set_book_align(uint8_t align);
-/// 页脚进度条外观：0 细圆头，1 粗圆头，2 极细圆头。/ Footer progress-bar look: thin round, thick round, hairline round.
-#define APP_BOOK_PROGRESS_STYLE_COUNT 3
+/// 页脚外观：0 隐藏页脚，1 细圆头，2 粗圆头，3 极细圆头。旧存档的 0..2 需要 +1 迁移。
+/// Footer look: 0 hides the footer, then thin, thick and hairline round bars. Legacy 0..2 shift by one.
+#define APP_BOOK_PROGRESS_STYLE_HIDDEN 0
+#define APP_BOOK_PROGRESS_STYLE_THIN 1
+#define APP_BOOK_PROGRESS_STYLE_THICK 2
+#define APP_BOOK_PROGRESS_STYLE_HAIRLINE 3
+#define APP_BOOK_PROGRESS_STYLE_COUNT 4
 uint8_t app_settings_book_progress_style(void);
 void app_settings_set_book_progress_style(uint8_t style);
 /// 阅读线相对默认位置 -8..+8 像素，2 像素一步，默认 0。/ Guide offset in 2 px steps.

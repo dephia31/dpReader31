@@ -1,5 +1,20 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.1.0-vn · 2026-10-28
+
+Bản cập nhật bổ sung giao diện cho hai tính năng dàn trang đã có sẵn trong firmware:
+
+- **Thêm tùy chọn căn lề đoạn văn vào Cài đặt đọc sách:**
+  - Mở `Cài đặt đọc sách` → `Bố cục dàn trang`, mục mới **Căn lề đoạn văn**. Chạm để luân chuyển bốn chế độ: **Hai bên** (justified, mặc định), **Căn trái**, **Căn giữa**, **Căn phải**.
+  - Chỉ áp dụng cho đoạn văn thường; đoạn sách đã tự căn giữa hoặc căn phải theo CSS trong sách, và các dòng tiêu đề, được giữ nguyên.
+  - Đổi căn lề chỉ thay đổi cách vẽ, không dàn trang lại, nên có hiệu lực ngay và không làm mất vị trí đang đọc.
+- **Thêm tùy chọn hiển thị thanh tiến độ ở chân trang:**
+  - Mục mới **Thanh tiến độ** trong cùng panel, chạm để luân chuyển: **Ẩn** → **Mảnh** (10 px) → **Dày** (16 px) → **Rất mảnh** (4 px).
+  - Chọn **Ẩn** sẽ thu gọn toàn bộ chân trang ba tầng (tên chương, thanh tiến độ, số trang và phần trăm), đồng thời bỏ luôn đường tiến độ mảnh ở chế độ toàn màn hình. Vùng đọc không thay đổi vì chân trang vốn nằm dưới phần dàn trang.
+  - Lựa chọn được lưu vào khóa NVS mới `bk_prog2`; giá trị cũ `bk_prog` (0–2) được tự động quy đổi sang thang mới nên người dùng đang dùng không bị mất cài đặt hay bất ngờ mất chân trang.
+- Bố cục panel `Bố cục dàn trang` được nén lại để hai mục mới nằm gọn phía trên nút quay về, không chồng lấn vùng chạm.
+- Thêm `tools/footer_style_host_test.py` khoá lại quy tắc quy đổi giá trị cũ và bảo đảm thang mới không bao giờ tự chuyển sang trạng thái ẩn.
+
 ## dpReader 1.0.9-vn · 2026-10-28
 
 Bản sửa lỗi đồng bộ tiến độ đọc KoSync:
