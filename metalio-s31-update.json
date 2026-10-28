@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "1.0.8-vn",
+  "version": "1.0.9-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "e5029d0ca206a0258eb996e9abd7d9e5f8cc73c332c544e612423b494e25e301",
-  "size": 3925200,
-  "notes": "dpReader v1.0.8-vn: Sửa triệt để lỗi mục lục và chữ tiếng Việt có dấu bị mất thân chữ (loca composite glyph); sửa viền sáng quanh chữ mục lục khi tăng tương phản; hiển thị tên sách trên thanh trạng thái; nâng cấp chân trang đọc sách 3 tầng trực quan và tùy chọn căn lề đoạn văn."
+  "sha256": "9709cba71ecb6b5a4d3b47857c8c1d2f4e2e42e0159d16bc790491c0419d9f44",
+  "size": 3925568,
+  "notes": "dpReader v1.0.9-vn: Sửa triệt để lỗi đồng bộ tiến độ KoSync với KOReader (phân biệt XPointer crengine text() và byte offset dpReader; so sánh tỉ lệ thực tránh lỗi lượng tử hóa 1%; áp dụng tiến độ khi mở sách)."
 }
