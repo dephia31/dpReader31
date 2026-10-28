@@ -57,6 +57,9 @@
 #include "book_lock_collage.h"
 #include "book_lock_bookmark.h"
 #include "boot_state.h"
+#include "log_export.h"
+#include "read_pico_sd.h"
+#include "read_pico_crashlog.h"
 #include "ble_page_turner.h"
 #include "read_pico_pmu.h"
 #include "read_pico_pmu_protocol.h"
@@ -114,6 +117,7 @@ typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
                SETTINGS_SYSTEM_SIZE, SETTINGS_SYSTEM_CONTRAST, SETTINGS_MAIN_REFRESH, SETTINGS_LOCK_STYLE,
                SETTINGS_WALLPAPER, SETTINGS_WALLPAPER_PREVIEW,
                SETTINGS_CONFIG, SETTINGS_UPGRADE, SETTINGS_BOOT, SETTINGS_FACTORY_RESET,
+               SETTINGS_LOG_EXPORT,
 #if KIIKO_BOARD_METALIO47
                SETTINGS_POWER_SLEEP, SETTINGS_AUTO_LOCK, SETTINGS_PROFILE, SETTINGS_AVATAR,
 #else
@@ -408,9 +412,9 @@ static int settings_main_row_height(void) {
 #define SETTINGS_PERSONAL_ROWS 4
 #define SETTINGS_CONTROLS_ROWS 1
 #if KIIKO_BOARD_METALIO47
-#define SETTINGS_MAINTENANCE_ROWS 6
+#define SETTINGS_MAINTENANCE_ROWS 7
 #else
-#define SETTINGS_MAINTENANCE_ROWS 5
+#define SETTINGS_MAINTENANCE_ROWS 6
 #endif
 #define SETTINGS_WIRELESS_Y (180 + settings_profile_height() + 77)
 #define SETTINGS_DISPLAY_Y (SETTINGS_WIRELESS_Y + SETTINGS_WIRELESS_ROWS * SETTINGS_ROW_H + 78)
@@ -1759,6 +1763,54 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_navigation(fb);
         return;
     }
+    if (s_page == SETTINGS_LOG_EXPORT) {
+        back_header(fb, "Nhật ký & Chẩn đoán lỗi");
+        section(fb, 248, "Thông tin hệ thống và xuất log để kiểm tra lỗi");
+        EpdRect info_card = {36, 298, 612, 216};
+        settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
+        char v_line[80];
+        const esp_app_desc_t *app_d = esp_app_get_description();
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.1.3-vn", "ESP32-S31");
+        ui_text(fb, 56, 324, 22, v_line, EPD_DRAW_ALIGN_LEFT, false);
+        char heap_line[80];
+        snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
+                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
+                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
+        ui_text(fb, 56, 360, 20, heap_line, EPD_DRAW_ALIGN_LEFT, false);
+        const pmu_snapshot_t *pmu = read_pico_pmu_get();
+        char bat_line[80];
+        if (pmu) {
+            int pct = pmu_battery_percent(pmu);
+            bool chg = pmu_battery_charging(pmu);
+            snprintf(bat_line, sizeof(bat_line), "Pin: %d%% (%u mV) %s", pct >= 0 ? pct : 0, (unsigned)pmu->battery_mv, chg ? "· Đang sạc" : "");
+        } else {
+            snprintf(bat_line, sizeof(bat_line), "Pin: Đang đo...");
+        }
+        ui_text(fb, 56, 396, 20, bat_line, EPD_DRAW_ALIGN_LEFT, false);
+        read_pico_sd_info_t sd = {0};
+        read_pico_sd_get_info(&sd);
+        char sd_line[80];
+        snprintf(sd_line, sizeof(sd_line), "Thẻ nhớ SD: %s", sd.mounted ? "Đã nhận (Sẵn sàng xuất log)" : "Chưa cắm / Không nhận");
+        ui_text(fb, 56, 432, 20, sd_line, EPD_DRAW_ALIGN_LEFT, false);
+        char ble_line[80];
+        snprintf(ble_line, sizeof(ble_line), "Bluetooth: %s", ble_pt_connected() ? ble_pt_connected_name() : (ble_pt_running() ? "Bật (Chưa kết nối)" : "Tắt"));
+        ui_text(fb, 56, 468, 20, ble_line, EPD_DRAW_ALIGN_LEFT, false);
+        EpdRect log_box = {36, 532, 612, 250};
+        settings_card(fb, log_box, 18, 0xf0, 0x50);
+        char preview[512] = {0};
+        log_export_get_recent(preview, sizeof(preview));
+        if (!preview[0]) {
+            snprintf(preview, sizeof(preview), "Nhật ký hệ thống trống hoặc chưa có bản ghi mới.\nBấm nút bên dưới để xuất toàn bộ log ra thẻ nhớ.");
+        }
+        ui_text_box(fb, (EpdRect){48, 544, 588, 226}, 16, preview, EPD_DRAW_ALIGN_LEFT, false);
+        ui_draw_button(fb, (EpdRect){36, 804, 612, 80}, "Xuất log ra thẻ nhớ (/sdcard/dpreader_log.txt)", false);
+        ui_draw_button(fb, (EpdRect){36, 902, 612, 80}, "Xóa nhật ký lưu tạm", false);
+        if (s_notice[0]) {
+            ui_text(fb, 48, 1010, 20, s_notice, EPD_DRAW_ALIGN_LEFT, false);
+        }
+        settings_navigation(fb);
+        return;
+    }
     if (s_page == SETTINGS_BLE_SCAN) {
         ui_nav_back(fb, 36, 79);
         ui_text_vc(fb, 342, 107, 34, "Quét thiết bị", EPD_DRAW_ALIGN_CENTER, false);
@@ -1943,13 +1995,13 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     setting_group(fb,SETTINGS_CONTROLS_Y-49,"Điều khiển",SETTINGS_CONTROLS_Y,
                   controls_icons,controls_labels,controls_values,SETTINGS_CONTROLS_ROWS);
 #if KIIKO_BOARD_METALIO47
-    const char *maintenance_labels[]={"Cập nhật hệ thống","Khôi phục thẻ nhớ","Sao lưu & Khôi phục","Khử bóng mờ màn hình","Nạp ROM (BOOT)","Khôi phục cài đặt gốc"};
-    const char *maintenance_values[]={"OTA / Thẻ nhớ","Thẻ nhớ & Phông chữ","Cấu hình","Làm sạch vệt mờ","Nạp ROM qua máy tính","Đặt lại hệ thống"};
-    const int maintenance_icons[]={12,11,8,17,13,11};
+    const char *maintenance_labels[]={"Cập nhật hệ thống","Khôi phục thẻ nhớ","Sao lưu & Khôi phục","Nhật ký & Chẩn đoán","Khử bóng mờ màn hình","Nạp ROM (BOOT)","Khôi phục cài đặt gốc"};
+    const char *maintenance_values[]={"OTA / Thẻ nhớ","Thẻ nhớ & Phông chữ","Cấu hình","Xuất log ra thẻ nhớ","Làm sạch vệt mờ","Nạp ROM qua máy tính","Đặt lại hệ thống"};
+    const int maintenance_icons[]={12,11,8,10,17,13,11};
 #else
-    const char *maintenance_labels[]={"Cập nhật hệ thống","Sao lưu & Khôi phục","Khử bóng mờ màn hình","Nạp ROM (BOOT)","Khôi phục cài đặt gốc"};
-    const char *maintenance_values[]={"OTA / Thẻ nhớ","Cấu hình","Làm sạch vệt mờ","Nạp ROM qua máy tính","Đặt lại hệ thống"};
-    const int maintenance_icons[]={12,8,17,13,11};
+    const char *maintenance_labels[]={"Cập nhật hệ thống","Sao lưu & Khôi phục","Nhật ký & Chẩn đoán","Khử bóng mờ màn hình","Nạp ROM (BOOT)","Khôi phục cài đặt gốc"};
+    const char *maintenance_values[]={"OTA / Thẻ nhớ","Cấu hình","Xuất log ra thẻ nhớ","Làm sạch vệt mờ","Nạp ROM qua máy tính","Đặt lại hệ thống"};
+    const int maintenance_icons[]={12,8,10,17,13,11};
 #endif
     setting_group(fb,SETTINGS_MAINTENANCE_Y-49,"Cập nhật & Khôi phục",SETTINGS_MAINTENANCE_Y,
                   maintenance_icons,maintenance_labels,maintenance_values,SETTINGS_MAINTENANCE_ROWS);
@@ -2988,6 +3040,27 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         }
         return APP_REDRAW_NONE;
     }
+    if (s_page == SETTINGS_LOG_EXPORT) {
+        if (ev->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
+        if (y >= 804 && y < 884) {
+            char err[96] = {0};
+            char path[64] = {0};
+            esp_err_t err_code = log_export_to_sd(path, sizeof(path), err, sizeof(err));
+            if (err_code == ESP_OK) {
+                snprintf(s_notice, sizeof(s_notice), "Đã xuất log thành công ra %s", path[0] ? path : "/sdcard/dpreader_log.txt");
+            } else {
+                snprintf(s_notice, sizeof(s_notice), "Lỗi: %s", err[0] ? err : "Thất bại");
+            }
+            return APP_REDRAW_PAGE;
+        }
+        if (y >= 902 && y < 982) {
+            log_export_clear();
+            rp_crash_log_clear();
+            snprintf(s_notice, sizeof(s_notice), "Đã xóa sạch nhật ký tạm thời");
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
     if (s_page == SETTINGS_BLUETOOTH) {
         const ble_layout_t l = ble_layout();
         if (ev->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
@@ -3155,10 +3228,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if(row==1){s_page=SETTINGS_SD_RECOVERY;s_sd_notice[0]=0;return APP_REDRAW_PAGE;}
         if(row>1)--row;
 #endif
-        if(row==4) {s_page=SETTINGS_FACTORY_RESET;s_reset_confirm=s_reset_pending=false;s_reset_notice[0]=0;}
+        if(row==5) {s_page=SETTINGS_FACTORY_RESET;s_reset_confirm=s_reset_pending=false;s_reset_notice[0]=0;}
         else if(row==0)upgrade_open();
         else if(row==1){s_page=SETTINGS_CONFIG;s_config_confirm=false;s_notice[0]=0;}
-        else if(row==2){
+        else if(row==2){s_page=SETTINGS_LOG_EXPORT;s_notice[0]=0;}
+        else if(row==3){
             // 屏幕在刷新中途断电会停在半帧，常规差分刷新永远盖不掉那道条纹；点一下就整屏盲刷
             // 一遍，然后自己把当前页面（含底栏）推回面板。
             // A power cut mid-refresh leaves the panel half-driven, and an ordinary differential

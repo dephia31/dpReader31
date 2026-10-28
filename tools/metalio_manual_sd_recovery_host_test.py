@@ -77,7 +77,7 @@ typedef struct {int64_t now_ms;int requested;}app_ctx_t;
 typedef struct {int type,x0,y0;}ui_gesture_event_t;
 typedef int app_redraw_t;
 enum {APP_REDRAW_NONE,APP_REDRAW_PAGE,UI_GESTURE_TAP,UI_GESTURE_MOVE};
-enum {SETTINGS_MAIN,SETTINGS_SD_RECOVERY,SETTINGS_FACTORY_RESET,SETTINGS_CONFIG,SETTINGS_BOOT,SETTINGS_UPGRADE};
+enum {SETTINGS_MAIN,SETTINGS_SD_RECOVERY,SETTINGS_FACTORY_RESET,SETTINGS_CONFIG,SETTINGS_LOG_EXPORT,SETTINGS_BOOT,SETTINGS_UPGRADE};
 static int s_page;static char s_sd_notice[96],s_notice[96],s_boot_notice[96],s_reset_notice[96];
 static bool s_reset_confirm,s_reset_pending,s_config_confirm,s_panel_repair_pending,s_boot_pending;
 static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&y>=r.y&&x<r.x+r.width&&y<r.y+r.height;}
@@ -92,7 +92,7 @@ body=select_source(function('on_gesture',ui),'metalio47')
 body=body[body.index('    if(y>=SETTINGS_MAINTENANCE_Y'):body.rindex('    return APP_REDRAW_NONE;')]
 unit+='''
 #define SETTINGS_MAINTENANCE_Y 2000
-#define SETTINGS_MAINTENANCE_ROWS 6
+#define SETTINGS_MAINTENANCE_ROWS 7
 #define SETTINGS_ROW_H 82
 static app_redraw_t maintenance(app_ctx_t *ctx,int y) {int row;(void)ctx;
 '''+body+'return APP_REDRAW_NONE;}\n'

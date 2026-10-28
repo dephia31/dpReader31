@@ -1929,9 +1929,15 @@ static void poll_locked(void) {
     const uint8_t usage = s_held_usage;
     if (!usage) return;
     const uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
-    // 超时兜底要放在重复之前：报告断了就当作松开，别让自动重复没有终点。
-    // The timeout is checked before any repeat: a silent link counts as released, so auto-repeat
-    // can never run without an end.
+    // 超时兜底要放在重复之前：遥控器通常不发松开报告，静默超 150ms 即视为按键已松开，
+    // 立即清空按住状态，杜绝翻页器无意触发自动重复导致的连翻。
+    // The timeout is checked before any repeat: remotes rarely send release reports, so silence
+    // exceeding RAW_RELEASE_GAP_MS counts as released and clears held state, preventing runaway turns.
+    if (s_last_rx_ms && now - s_last_rx_ms > RAW_RELEASE_GAP_MS) {
+        s_held_usage = 0;
+        s_last_repeat = 0;
+        return;
+    }
     if (s_last_rx_ms && now - s_last_rx_ms > HELD_TIMEOUT_MS) {
         s_held_usage = 0;
         s_last_repeat = 0;

@@ -18,6 +18,7 @@
 #include <time.h>
 
 #include "app_loop.h"
+#include "log_export.h"
 #include "app_content_open.h"
 #include "boot_state.h"
 #include "lock_screen.h"
@@ -159,6 +160,7 @@ static bool prepare_startup_frame(EpdiyHighlevelState *hl,uint8_t *framebuffer,b
 }
 
 void app_main(void) {
+    log_export_init();
     setenv("TZ", "ICT-7", 1);
     tzset();
     app_lock_capture_boot_wakeup();

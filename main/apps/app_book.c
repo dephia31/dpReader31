@@ -8681,8 +8681,12 @@ static app_redraw_t shelf_key_tick(app_ctx_t *ctx) {
 }
 
 // 键事件与原始边沿可能属于同一份报告，每轮最多执行一次；其他子页只清理旧输入。
-// Keys and raw edges may come from the same report: apply one turn per tick, discard on other subpages.
-static int book_remote_direction(void) {
+// 蓝牙翻页器防抖冷却：市面蓝牙翻页器/自拍器按一次可能连续发送数帧或无松开报告，
+// 350ms 冷却与队列清空保证单次物理按键绝不会发生多页连翻。
+#define BLE_REMOTE_DEBOUNCE_MS 350
+static uint32_t s_last_ble_remote_turn_ms = 0;
+
+static int book_remote_direction(uint32_t now_ms) {
     int direction = 0;
     ble_pt_event_t event;
     while (ble_pt_pop_key(&event)) {
@@ -8696,6 +8700,16 @@ static int book_remote_direction(void) {
         ble_pt_action_t action = ble_pt_action_for_frame(&raw.frame);
         if (action == BLE_PT_ACTION_PREV) direction = -1;
         else if (action == BLE_PT_ACTION_NEXT) direction = 1;
+    }
+    if (direction != 0) {
+        if (s_last_ble_remote_turn_ms && now_ms - s_last_ble_remote_turn_ms < BLE_REMOTE_DEBOUNCE_MS) {
+            // 350ms 内重复事件直接丢弃
+            return 0;
+        }
+        s_last_ble_remote_turn_ms = now_ms;
+        // 成功识别一次翻页，立刻抽干两端队列，杜绝同一按键残留的重复包在下一 tick 再次触发
+        while (ble_pt_pop_key(&event)) {}
+        while (ble_pt_pop_raw(&raw)) {}
     }
     return direction;
 }
@@ -8783,7 +8797,7 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
     // 上/左为上一页，下/右为下一页；书架复用滑动的局部刷新，不闪动题头和底栏。
     // Up/left turn back, down/right turn forward; the shelf reuses swipe refresh without flashing chrome.
     if (app_settings_ble_turner()) {
-        int ble_dir = book_remote_direction();
+        int ble_dir = book_remote_direction(ctx->now_ms);
         if (ble_dir && s_view == SHELF) {
             app_redraw_t redraw = shelf_turn_page(ctx, ble_dir);
             if (redraw != APP_REDRAW_NONE) return redraw;

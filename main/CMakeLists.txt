@@ -63,6 +63,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "app/app_loop.c"
         "app/sd_recovery.c"
         "app/crash_note.c"
+        "app/log_export.c"
         "app/app_registry.c"
         "ui/ui_kit.c"
         "ui/ui_text_edit.c"

@@ -1,5 +1,19 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.1.3-vn · 2026-10-28
+
+Bản cập nhật sửa triệt để lỗi nhảy trang của nút lật trang Bluetooth và bổ sung tính năng chẩn đoán & xuất nhật ký hệ thống:
+
+- **Khắc phục lỗi nút lật trang Bluetooth nhảy nhiều trang (Bluetooth turner multi-page jump):**
+  - Khắc phục cơ chế Auto-Repeat vô hạn trong BLE stack (`poll_locked`): Hầu hết các remote Bluetooth lật trang / chụp ảnh không gửi gói báo nhả phím (release report), timeout trước đây (5000ms) khiến firmware tự coi nút vẫn đang giữ và liên tục gửi lệnh lật trang mỗi 120ms (tới 60 lần). Nay hệ thống tự động giải phóng trạng thái phím ngay khi đường truyền im lặng quá 150ms.
+  - Bổ sung cơ chế chống dội (debounce/cooldown 350ms) trong trình đọc sách (`app_book.c`) và tự động làm rỗng (drain) hàng đợi phím thô / phím HID còn dư ngay sau khi nhận lệnh lật trang, đảm bảo 1 lần bấm vật lý chỉ lật đúng 1 trang sách.
+- **Bổ sung Menu & Tính năng Xuất nhật ký hệ thống (Log Export & Diagnostics):**
+  - Tích hợp bộ đệm vòng 32 KB trong RAM ghi nhận toàn bộ log runtime của hệ thống qua `esp_log_set_vprintf` mà không làm gián đoạn cổng Serial/USB.
+  - Thêm menu **Nhật ký & Chẩn đoán** trong **Cài đặt -> Cập nhật & Khôi phục**.
+  - Giao diện trực quan hiển thị thông tin RAM/PSRAM, % pin và điện áp, tình trạng thẻ nhớ SD, kết nối Bluetooth, chi tiết sự cố crash/panic (nếu có) và khung xem trước các dòng log gần nhất.
+  - Nút bấm **Xuất log ra thẻ nhớ (/sdcard/dpreader_log.txt)** xuất toàn bộ báo cáo chẩn đoán và nhật ký lỗi ra file văn bản trên thẻ nhớ SD để IDE và kỹ sư firmware dễ dàng kiểm tra, khắc phục lỗi.
+  - Nút bấm **Xóa nhật ký lưu tạm** để làm sạch bộ đệm nhật ký khi cần.
+
 ## dpReader 1.1.2-vn · 2026-10-28
 
 Bản cập nhật sửa lỗi căn lề văn bản và tối ưu hóa trải nghiệm bàn phím:
