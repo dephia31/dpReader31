@@ -18,7 +18,7 @@ import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RELEASES_DIR = REPO_ROOT / "releases"
-BUILD_DIR = REPO_ROOT / "build/boards/metalio47"
+BUILD_DIR = REPO_ROOT / "build/boards"
 
 OFFSETS = {
     "bootloader.bin": 0x2000,
