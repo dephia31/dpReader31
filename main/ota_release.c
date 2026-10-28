@@ -76,8 +76,17 @@ bool pico_release_url_valid(const char *url) {
 }
 static bool field(const cJSON *root, const char *key, char *out, size_t cap) {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, key);
-    if (!cJSON_IsString(v) || !v->valuestring || !*v->valuestring || strlen(v->valuestring) >= cap) return false;
-    memcpy(out, v->valuestring, strlen(v->valuestring) + 1);
+    if (!cJSON_IsString(v) || !v->valuestring || !*v->valuestring) return false;
+    size_t len = strlen(v->valuestring);
+    if (len >= cap) {
+        if (!strcmp(key, "notes")) {
+            len = cap - 1;
+        } else {
+            return false;
+        }
+    }
+    memcpy(out, v->valuestring, len);
+    out[len] = 0;
     return true;
 }
 esp_err_t pico_release_parse(const char *json, size_t length, pico_release_t *release) {

@@ -8,5 +8,5 @@
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
   "sha256": "485222fbd0222a9de1354f42882209a9cf9f4a5af0883e0fe544350ec1ceff89",
   "size": 3927520,
-  "notes": "dpReader v1.1.1-vn: Tối ưu hóa năng lượng cực đại (Ultra Low Power): Wi-Fi auto-timeout 3 phút, Modem Sleep (DTIM beaconing), ngắt clock PWM LEDC đèn nền khi độ sáng = 0, nhịp quét CPU thích ứng 8ms/40ms khi đọc sách tĩnh, chế độ ngủ phân tầng Tiered Sleep (10 phút Light Sleep sang Deep Sleep), mặc định tự khóa màn hình sau 5 phút."
+  "notes": "dpReader v1.1.1-vn: Tối ưu năng lượng (ULP): Wi-Fi auto-timeout 3 phút, Modem Sleep, ngắt clock PWM đèn nền khi tắt, nhịp CPU thích ứng 8ms/40ms khi đọc sách tĩnh, chế độ ngủ phân tầng Tiered Sleep (10 phút Light Sleep sang Deep Sleep), tự tắt màn hình sau 5 phút."
 }
