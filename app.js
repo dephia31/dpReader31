@@ -149,7 +149,7 @@ let currentReleaseInfo = null;
 // English: Allow only archived versions so current and previous firmware install independently.
 function selectedReleaseFolder() {
   const version = document.getElementById("release-version")?.value || "";
-  return version === "1.1.6-vn" ? `releases/${version}` : "releases";
+  return (version === "1.1.7-vn" || version === "1.1.6-vn") ? `releases/${version}` : "releases";
 }
 const releaseVersionSelect = document.getElementById("release-version");
 releaseVersionSelect?.addEventListener("change", () => {
@@ -169,13 +169,22 @@ async function fetchLatestRelease() {
   try {
     let data = null;
     try {
-      const res = await fetch(`./${requestedFolder}/metalio-s31-update.json?t=${Date.now()}`);
+      const res = await fetch(`./${requestedFolder}/metalio-s31-update.json?t=${Date.now()}`, { cache: "no-store" });
       if (res.ok) data = await res.json();
     } catch (_) {}
 
     if (!data || !data.version) {
       try {
-        const ghRes = await fetch(`https://api.github.com/repos/dephia31/dpReader31/releases/${selectedReleaseFolder() === "releases" ? "latest" : "tags/v1.1.6-vn"}`);
+        const rawRes = await fetch(`https://raw.githubusercontent.com/dephia31/dpReader31/main/${requestedFolder}/metalio-s31-update.json?t=${Date.now()}`, { cache: "no-store" });
+        if (rawRes.ok) data = await rawRes.json();
+      } catch (_) {}
+    }
+
+    if (!data || !data.version) {
+      try {
+        const selectedVer = document.getElementById("release-version")?.value;
+        const targetTag = selectedReleaseFolder() === "releases" ? "latest" : `tags/v${selectedVer}`;
+        const ghRes = await fetch(`https://api.github.com/repos/dephia31/dpReader31/releases/${targetTag}`);
         if (ghRes.ok) {
           const ghData = await ghRes.json();
           data = {
@@ -197,6 +206,22 @@ async function fetchLatestRelease() {
       }
       if (latestVerSize && data.size) {
         latestVerSize.textContent = `${(data.size / 1024 / 1024).toFixed(2)} MB`;
+      }
+
+      // Tự động đồng bộ và chọn đúng bản mới nhất trong dropdown
+      if (requestedFolder === "releases" && releaseVersionSelect) {
+        const firstOpt = releaseVersionSelect.options[0];
+        if (firstOpt && firstOpt.value === "") {
+          firstOpt.textContent = `${data.version} — mới nhất`;
+        }
+        if (data.previous_version && releaseVersionSelect.options.length > 1) {
+          releaseVersionSelect.options[1].value = data.previous_version;
+          releaseVersionSelect.options[1].textContent = `${data.previous_version} — bản chính thức trước`;
+        }
+        // Đảm bảo option đầu tiên (mới nhất) được chọn khi vào trang
+        if (!releaseVersionSelect.value) {
+          releaseVersionSelect.selectedIndex = 0;
+        }
       }
     }
   } catch (err) {
