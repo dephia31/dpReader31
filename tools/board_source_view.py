@@ -78,7 +78,7 @@ def materialize(root, destination, board, tests=False):
             target.write_bytes(data)
         generated.add(str(relative))
 
-    ignored = {'.git', 'build', '__pycache__', 'managed_components', 'build-s31-native', '.venv'}
+    ignored = {'.git', 'build', 'Test Build', '__pycache__', 'managed_components', 'build-s31-native', '.venv'}
     for top in root.iterdir():
         if top.name in ignored or (top.name == 'flash' and not tests) or top.name.startswith('.'):
             continue

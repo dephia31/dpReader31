@@ -4,6 +4,7 @@
 English: Execute S31 network/BLE leases with exclusion, failure rollback and peer restoration.
 """
 from pathlib import Path
+import os
 import subprocess,tempfile
 from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1];source=root/'components/ble_page_turner/src/ble_page_turner.c'
@@ -48,7 +49,8 @@ int main(void){
  puts("PASS: actual S31 network lease stops BLE under lifecycle lock,nested ownership blocks restart,lock/stop failures roll back,balanced/double release,sleep overlap and saved/connected peer restoration");
 }
 '''
+sanitizers=[] if os.environ.get('HOST_TEST_SANITIZERS')=='0' else ['-fsanitize=address,undefined']
 with tempfile.TemporaryDirectory(prefix='s31-radio-lease-') as folder:
  p=Path(folder);(p/'test.c').write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+ subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',*sanitizers,str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)

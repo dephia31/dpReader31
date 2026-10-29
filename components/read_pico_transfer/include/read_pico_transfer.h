@@ -34,6 +34,7 @@ typedef enum {
 
 typedef struct {
     read_pico_transfer_mode_t mode; ///< 网络模式，默认热点 / Network mode, default AP
+    bool exclusive_radio; ///< 临时同步先暂停BLE释放内存，stop后归还；普通连接默认不暂停 / Pause BLE for a temporary sync and restore ownership on stop; ordinary connections default to coexistence
     bool network_only; ///< 仅连接已有 WiFi，不启动上传服务或访问存储 / Connect saved WiFi without upload server or storage
     const char *root_dir; ///< 已挂载根目录，start 内复制 / Mounted root, copied by start
     bool is_flash; ///< 内置存储标志 / Internal storage flag

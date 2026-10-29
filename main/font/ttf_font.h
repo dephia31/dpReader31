@@ -200,6 +200,11 @@ void ttf_font_cache_clear(void);
 /// faces loaded; returns the bytes reclaimed. Call it before opening a book: the system face's
 /// cache is the easiest PSRAM to reclaim and embedded faces need exactly that room.
 size_t ttf_font_cache_clear_all(void);
+#if KIIKO_BOARD_METALIO47
+/// 释放可重建字形和表映射，不卸载字库/改变字体选择；调用方先停止绘字任务。
+/// Release glyph/table caches without unloading faces or changing choices; join font consumers first.
+size_t ttf_font_reclaim_optional_cache(void);
+#endif
 void ttf_bench_begin(void);
 void ttf_bench_end(ttf_bench_stats_t* out);
 #if KIIKO_BOARD_METALIO47

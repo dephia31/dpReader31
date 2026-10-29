@@ -1,6 +1,6 @@
 """Exercise production battery header visibility, unplug/replug and low-SOC bolt rendering."""
 from pathlib import Path
-import subprocess,tempfile
+import subprocess,tempfile,os
 from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1]
 unit=r'''
@@ -13,9 +13,10 @@ unit=r'''
 #define UI_LOCK_WIDTH 684
 #define UI_GRAY_WHITE 0xf0
 #define UI_GRAY_BLACK 0
-#define UI_STATUS_TIME_PX 28
-#define UI_STATUS_PERCENT_PX 28
-#define UI_STATUS_SIGNATURE_PX 26
+#define UI_STATUS_TIME_PX 40
+#define UI_STATUS_PERCENT_PX 40
+#define UI_STATUS_SIGNATURE_PX 40
+#define UI_STATUS_TITLE_PX 40
 #define UI_NAV_NETWORK_ICON_PX 28
 #define UI_ICON_WIFI 1
 #define UI_ICON_BLUETOOTH 2
@@ -82,5 +83,5 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as d:
  p=Path(d);(p/'test.c').write_text(unit)
- subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+ subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror',*(['-fsanitize=address,undefined'] if os.environ.get('HOST_TEST_SANITIZERS','1')!='0' else []),str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)

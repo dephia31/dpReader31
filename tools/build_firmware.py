@@ -49,6 +49,66 @@ def check_image(data, board):
             'sha256': hashlib.sha256(data).hexdigest()}
 
 
+def write_usb_launcher(output):
+    shutil.copyfile(ROOT / 'tools/flash_test_usb.py', output / 'flash_usb.py')
+    batch = r'''@echo off
+setlocal
+cd /d "%~dp0"
+where py >nul 2>nul
+if not errorlevel 1 (
+  py -3 flash_usb.py %*
+) else (
+  where python >nul 2>nul
+  if errorlevel 1 (
+    echo Install Python 3 from python.org, then retry.
+    pause
+    exit /b 1
+  )
+  python flash_usb.py %*
+)
+set "FLASH_RESULT=%ERRORLEVEL%"
+echo.
+if not "%FLASH_RESULT%"=="0" echo USB flash failed. Read the error above.
+pause
+exit /b %FLASH_RESULT%
+'''
+    (output / 'FLASH_USB.bat').write_bytes(batch.replace('\n', '\r\n').encode('ascii'))
+
+    mac = r'''#!/bin/bash
+# 中文：使用兼容S31的本机Python环境。/ English: Use a local Python environment supporting S31.
+cd -- "$(dirname -- "$0")" || exit 1
+shopt -s nullglob
+PYTHON_USB=""
+for candidate in "$PWD/.usb-python/bin/python" "$HOME"/.espressif/python_env/*/bin/python; do
+  if [ -x "$candidate" ] && "$candidate" -c 'import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
+    PYTHON_USB="$candidate"
+    break
+  fi
+done
+if [ -z "$PYTHON_USB" ] && command -v python3 >/dev/null 2>&1; then
+  candidate="$(command -v python3)"
+  if "$candidate" -c 'import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
+    PYTHON_USB="$candidate"
+  fi
+fi
+if [ -z "$PYTHON_USB" ]; then
+  echo 'Python with esptool >=5.6 is missing. In this folder run:'
+  echo 'python3 -m venv .usb-python'
+  echo '.usb-python/bin/python -m pip install "esptool==5.6.0"'
+  read -r -p 'Press Enter to close...'
+  exit 1
+fi
+"$PYTHON_USB" flash_usb.py "$@"
+FLASH_RESULT=$?
+echo
+if [ "$FLASH_RESULT" -ne 0 ]; then echo 'USB flash failed. Read the error above.'; fi
+if [ -t 0 ]; then read -r -p 'Press Enter to close...'; fi
+exit "$FLASH_RESULT"
+'''
+    (output / 'FLASH_USB.command').write_text(mac)
+    (output / 'FLASH_USB.command').chmod(0o755)
+
+
 def export(build, output, board):
     info = metadata(board)
     app = build / (info['project'] + '.bin')
@@ -66,6 +126,10 @@ def export(build, output, board):
     if identity['size'] > entries['ota_0'][3] or identity['size'] > entries['ota_1'][3]:
         raise ValueError('Application does not fit both OTA slots')
     output.mkdir(parents=True, exist_ok=True)
+    # 当前包不混入构建缓存中的旧版本应用。/ Exclude older versioned apps left in the package cache.
+    for stale in output.glob(f'dpReader-{board}-*.bin'):
+        if stale.name != f"dpReader-{board}-{identity['version']}.bin":
+            stale.unlink()
     # 从本次SDK构建结果读取地址，S31的bootloader起点与S3不同。
     # Read this build's SDK flash plan: S31 and S3 have different bootloader offsets.
     plan = json.loads((build / 'flasher_args.json').read_text())
@@ -153,6 +217,7 @@ def export(build, output, board):
               'local_transfer_start_test': bool(transfer_start),
               'built': True, 'device_flashed': False, 'published': False}
     (output / 'verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+    write_usb_launcher(output)
     with zipfile.ZipFile(output.parent / f"dpReader-{board}-{identity['version']}-USB.zip", 'w', zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(output.iterdir()):
             if path.is_file():
@@ -250,6 +315,9 @@ def build_one(board, args):
         print((work / 'build.log').read_text(errors='replace')[-8000:])
         raise RuntimeError(f'{board} build failed; see {work / "build.log"}')
     result = export(build, args.output.resolve() / 'packages' / board, board)
+    if 'RC' in info['version']:
+        destination = ROOT / 'Test Build' / info['version']
+        shutil.copytree(args.output.resolve() / 'packages' / board, destination, dirs_exist_ok=True)
     (work / '.kiiko-built-version').write_text(info['version'] + '\n')
     print(json.dumps(result, ensure_ascii=False))
     return result

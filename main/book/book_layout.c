@@ -7,6 +7,8 @@
  *
  * 冻结：原文由调用方持有；字体测量和绘制必须由调用方串行化。
  * Frozen: Caller owns source text and serializes all font measurement and drawing.
+ * 用户2026-10-29要求利用页底余白：末行按真实墨迹高度判定，行间距不变，页脚外不画阅读线。
+ * User revision 2026-10-29: fit a final line by its ink height, retain inter-line spacing, and keep reading guides inside the body.
  */
 #include "book_layout.h"
 #include <limits.h>
@@ -427,6 +429,19 @@ int book_layout_page_image(size_t page) {
 }
 
 static int line_height_for(int px) { return (int)((unsigned)px * s_line_percent / 100); }
+// 只在完整行距放不下时测量末行；不同字体run也纳入下沿，避免越南语下行字形被切。
+// Measure only when a full pitch does not fit; include face runs so Vietnamese descenders stay inside the body.
+static int final_line_height(size_t off,int px) {
+    if(!s_line[0])return line_height_for(px);
+    slot_select_for(off);
+    int baseline=ttf_ascender_px(px),above=0,below=0;
+    ttf_draw_set_runs(s_line_run_count?s_line_runs:NULL,s_line_run_count);
+    ttf_measure_line_px(px,s_line,&above,&below);
+    ttf_draw_set_runs(NULL,0);
+    ttf_font_select(TTF_FONT_SLOT_SYSTEM);
+    int height=baseline+below;
+    return height>px?height:px;
+}
 static int gap_for(int height, bool heading) {
     return (int)((unsigned)height * s_paragraph_percent / (heading ? 150 : 100));
 }
@@ -842,7 +857,8 @@ bool book_layout_build_blocks(const char* utf8, size_t len, const blk_t* blocks,
         line_height = line_height_for(line_px);
         if (line_height > rect.height) goto fail;
         int leading = used ? margin_before : 0;
-        if (used + leading + line_height > rect.height) {
+        if (used + leading + line_height > rect.height &&
+            (used + leading >= rect.height || used + leading + final_line_height(off,line_px) > rect.height)) {
             if (!append_page(off)) goto fail;
             used = 0;
             leading = 0;
@@ -1086,7 +1102,8 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
                        &line_width, &indent, &align, &margin_before, &margin_after)) { if(s_idle_draw)s_idle_draw->failed=true; return; }
         int line_height = line_height_for(line_px);
         int leading = used ? margin_before : 0;
-        if (used + leading + line_height > rect.height) return;
+        if (used + leading + line_height > rect.height &&
+            (used + leading >= rect.height || used + leading + final_line_height(off,line_px) > rect.height)) return;
         used += leading;
         if (s_line[0]) {
             // 阅读设置的对齐叠加在书内对齐之上：书内指定居中/右对齐的块优先，标题保持原样，
@@ -1140,7 +1157,7 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
                     if (right > rect.x + rect.width) right = rect.x + rect.width;
                     if (left < ink_left) left = ink_left;
                     if (right > ink_right) right = ink_right;
-                    if (right > left)
+                    if (right > left && guide_y>=rect.y && guide_y+2<=rect.y+rect.height)
                         epd_fill_rect((EpdRect){left, guide_y, right - left, 2}, 0x50, fb);
                 }
             }

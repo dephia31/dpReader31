@@ -53,7 +53,7 @@ static void ui_text_set_system_font(bool on){system_face=on;}
 static void ui_text_set_system_scale(bool on){system_scale=on;}
 static void ui_nav_status_font_context(bool reading,bool changed){(void)changed;assert(reading==s_reading);}
 '''
-for name in ('font_file', 'system_path', 'activate', 'app_font_activate_system', 'app_font_activate_reading',
+for name in ('font_file', 'font_allowed', 'system_path', 'activate', 'app_font_activate_system', 'app_font_activate_reading',
              'app_font_retry_active', 'app_font_begin_lock', 'app_font_end_lock'):
     unit += function(name, FONT) + '\n'
 unit += r'''

@@ -10,8 +10,11 @@
  * User revision: tickets use the system face from every page; light wake restores the previous reader face, while deep wake uses the startup checkpoint.
  * 用户修订：单击锁屏提示复用Pico布局；双击/PIN和S31外设休眠顺序保持。
  * User revision: use Pico's single-click hint layout, retaining double-click/PIN and S31 peripheral sleep sequencing.
+ * 用户2026-10-29修订：手动/自动锁屏立即浅睡，用户选择1..24小时后关机；PIN与无PIN共用计时。
+ * User revision 2026-10-29: manual/idle locks light-sleep immediately, powering off after user-selected1..24 hours with one PIN/non-PIN deadline.
  */
 
+#include "kosync_client.h"
 #include "sleep.h"
 #include "ui_avatar.h"
 #include "book_cover_jobs.h"
@@ -322,8 +325,8 @@ static void lock_hint_end(void) {
     s_lock_hint_hl=NULL;
 }
 
-// 锁屏先浅睡，十分钟后同步外挂RTC并硬关机；USB/输入和交接失败保持锁定。
-// Light-sleep locks, then sync the external RTC and power off after ten minutes; failed handoffs retain the gate.
+// 锁屏先浅睡，用户设定小时后同步外挂RTC并硬关机；USB/输入和交接失败保持锁定。
+// Light-sleep locks, then sync the external RTC and power off after the selected hours; failed handoffs retain the gate.
 app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc,uint32_t timeout_ms) {
     if (!(book_cover_jobs_quiesce(2000) && ui_avatar_quiesce(2000))) return APP_WAKE_TIMEOUT;
     const int64_t start=esp_timer_get_time();
@@ -336,13 +339,13 @@ app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc,uint32_t timeo
     metalio_frontlight(0,50);
     app_wake_source_t wake=APP_WAKE_NONE;
     bool usb_was_blocked=metalio_usb_blocks_sleep();
-    const int64_t off_at=s_lock_sleep_touch&&!timeout_ms ? start+APP_LOCK_OFF_AFTER_US : 0;
+    const int64_t off_at=s_lock_sleep_touch&&!timeout_ms ? start+(int64_t)app_settings_sleep_off_hours()*INT64_C(3600000000) : 0;
     int64_t off_retry_at=off_at;
     bool frame_marked=false;
     unsigned light_failures=0;
     int64_t light_retry_at=0;
-    ESP_LOGI(TAG,"S31 lock wait: light then hardware off after 10min; usb=%u pickup=%u checkpoint=%u",
-        (unsigned)usb_was_blocked,(unsigned)pickup,(unsigned)s_lock_deep_ready);
+    ESP_LOGI(TAG,"S31 lock wait: light then configured hardware off; hours=%u usb=%u pickup=%u checkpoint=%u",
+        (unsigned)app_settings_sleep_off_hours(),(unsigned)usb_was_blocked,(unsigned)pickup,(unsigned)s_lock_deep_ready);
     for(;;) {
         if(lock_take_key_wakeup()) { wake=APP_WAKE_KEY; break; }
         lock_resume_io_service();
@@ -442,7 +445,7 @@ static bool lock_prepare_key_wake(void) {
 
 // 中文：按官方 power_hw 的顺序执行；保留PSRAM/排版/字体缓存，定时唤醒不解锁或点灯。
 // English: Follow vendor power_hw ordering; timer wakes retain RAM/layout/font caches and never unlock/light.
-// 维护切片不跨越十分钟交接点；定时到达只恢复外设，不作为解锁动作。
+// 维护切片不跨越用户设定小时交接点；定时到达只恢复外设，不作为解锁动作。
 // Maintenance slices cannot overrun the ten-minute handoff; a deadline restores peripherals, never unlocks.
 static uint64_t lock_light_sleep_slice_us(int64_t wake_by) {
     int64_t remaining=wake_by?wake_by-esp_timer_get_time():INT64_C(60000000);
@@ -746,24 +749,8 @@ esp_err_t app_enter_download(void) {
 
 static void lock_wait_for_unlock(sc7a20h_handle_t acc) {
     (void)acc;
-    // Tầng 1: Light sleep tối đa 10 phút để đánh thức tức thì
-    const uint32_t light_sleep_max_ms = 10 * 60 * 1000;
-    app_wake_source_t wake = app_light_sleep_wait_timed(NULL, light_sleep_max_ms);
-    if (wake == APP_WAKE_KEY || wake == APP_WAKE_PICKUP) return;
-
-    // Tầng 2: Sau 10 phút khóa màn hình không có thao tác, tự động hạ xuống Deep Sleep (<25uA)
-    ESP_LOGI(TAG, "S31 lock timeout 10min -> chuyen sang DEEP SLEEP tiet kiem pin");
-    (void)app_sync_time_to_pmu();
-    (void)read_pico_sd_sync();
-    metalio_frontlight(0, 50);
-    epd_poweroff();
-
-    // Thử ngắt nguồn cứng qua mạch PMU
-    esp_err_t err = app_enter_host_sleep(APP_SLEEP_OFF);
-    // Nếu phần cứng chưa ngắt nguồn hoàn toàn -> đưa SoC ESP32-S31 vào Deep Sleep
-    if (err != ESP_OK) {
-        (void)app_enter_host_sleep(APP_SLEEP_DEEP);
-    }
+    // 与PIN路径共用内部小时计时；准备失败不能提前关机。/ Share the PIN path's internal hour deadline; preparation failure must not power off early.
+    while(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_TIMEOUT)vTaskDelay(pdMS_TO_TICKS(100));
 }
 
 bool lock_pin_grace_active(void) {
@@ -778,6 +765,11 @@ void enter_lock_and_sleep(
     EpdiyHighlevelState* hl, int64_t* ignore_until_ms, sc7a20h_handle_t acc, cst836u_handle_t touch,
     bool reader_background
 ) {
+    if(kosync_busy()) {
+        s_lock_feedback_started=false;
+        metalio_frontlight_restore();
+        return;
+    }
     // 先灭灯并消费本次锁屏动作；后续生成/推屏期间的新短按必须保留给唤醒。
     // Turn the lamp off and consume the initiating action before composition; retain later wake presses.
     metalio_frontlight(0, 50);
@@ -857,8 +849,8 @@ void enter_lock_and_sleep(
     }
     // 密码启用时即使显示失败也保持验证边界，绝不回到未验证页面。
     // A display failure must never return an unauthenticated page when the PIN is enabled.
-    // 锁屏统一浅睡十分钟后同步RTC并硬件关机；保留密码和阅读检查点。
-    // Every lock light-sleeps ten minutes before RTC sync and hardware power-off, retaining PIN and reader checkpoints.
+    // 锁屏统一浅睡用户设定小时后同步RTC并硬件关机；保留密码和阅读检查点。
+    // Every lock light-sleeps the selected hours before RTC sync and hardware power-off, retaining PIN and reader checkpoints.
     ESP_LOGI(TAG, "lock LIGHT");
     epd_poweroff();
     s_lock_sleep_touch=touch;

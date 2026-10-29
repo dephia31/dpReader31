@@ -54,6 +54,10 @@ bool pico_release_url_valid(const char *url);
 esp_err_t pico_online_check(void);
 esp_err_t pico_online_download(void);
 bool pico_online_busy(void);
+#if KIIKO_BOARD_METALIO47
+/// 仅固件更新事务，不包含KoSync待办。/ Firmware-update transaction only, excluding queued KoSync work.
+bool pico_online_update_busy(void);
+#endif
 void pico_online_get_status(pico_update_status_t *status);
 void pico_online_cancel_join(void);
 /// 刷屏与 OTA 擦写共用递归锁；未初始化 OTA 时不分配内存。/ Recursive display/OTA exclusion; no allocation before OTA initialization.

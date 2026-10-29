@@ -26,7 +26,12 @@ static pico_resume_t s_resume;
 static bool s_recovery, s_resume_pending, s_writable, s_interrupted, s_resume_frame;
 #if KIIKO_BOARD_METALIO47
 static bool s_lock_pending;
+// 只在本次启动内放宽字体限制；异常启动保护的其他边界（开书、封面）保持。
+// Relax the font gate for this boot only; other abnormal-start protections (books, covers) remain.
+static bool s_font_allowed;
 bool pico_boot_lock_pending(void) { return s_lock_pending; }
+void pico_boot_allow_font(void) { s_font_allowed = true; }
+bool pico_boot_font_allowed(void) { return s_font_allowed || !s_recovery; }
 #endif
 typedef struct {
     uint32_t magic;
@@ -133,6 +138,7 @@ void pico_boot_init(bool abnormal_reset) {
     s_recovery = abnormal_reset;
 #if KIIKO_BOARD_METALIO47
     s_lock_pending = false;
+    s_font_allowed = false;
 #endif
     nvs_handle_t h;
     esp_err_t err = nvs_open(KIIKO_BOARD_STARTUP_NAMESPACE, NVS_READWRITE, &h);

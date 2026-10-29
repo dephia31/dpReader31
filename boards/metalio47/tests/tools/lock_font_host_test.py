@@ -4,6 +4,7 @@ SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 import subprocess
 import tempfile
+import os
 from home_cover_cache_host_test import function
 ROOT = Path(__file__).resolve().parents[1]
 FONT = ROOT / 'main/font/app_font_context.c'
@@ -24,6 +25,11 @@ static bool read_pico_sd_io_ready(void){return media_ready;}
 #include <string.h>
 #include <sys/stat.h>
 #define ESP_OK 0
+#define ESP_ERR_NO_MEM 0x101
+#define MALLOC_CAP_SPIRAM 1
+#define MALLOC_CAP_8BIT 2
+#define ESP_LOGW(tag,fmt,...) do{if(0)printf(fmt,__VA_ARGS__);}while(0)
+
 #define TTF_FONT_PATH_MAX 288
 #define TTF_FONT_BUILTIN "builtin"
 typedef struct {char path[288];bool reading;} app_lock_font_t;
@@ -46,7 +52,9 @@ static int mock_stat(const char *path,struct stat *st){
  memset(st,0,sizeof(*st));st->st_mode=S_IFREG;st->st_size=100;st->st_mtime=1;return 0;
 }
 #define stat(path,st) mock_stat(path,st)
-static bool pico_boot_recovery(void){return recovery;}
+static bool manual_font;
+static bool pico_boot_font_allowed(void){return manual_font||!recovery;}
+static void pico_boot_allow_font(void){manual_font=true;}
 static const char *app_settings_system_font_path(void){return chosen;}
 static const char *app_settings_font_path(void){return reader;}
 static const char *app_settings_fonts_dir(void){return "/absent/fonts";}
@@ -65,7 +73,7 @@ static void ui_text_set_system_font(bool on){system_face=on;}
 static void ui_text_set_system_scale(bool on){system_scale=on;}
 static void ui_nav_status_font_context(bool reading,bool changed){(void)changed;assert(reading==s_reading);}
 '''
-for name in ('font_file', 'system_path', 'activate', 'app_font_activate_system', 'app_font_activate_reading',
+for name in ('font_file', 'font_allowed', 'system_path', 'activate', 'app_font_activate_system', 'app_font_activate_reading',
              'app_font_retry_active', 'app_font_recover_media', 'app_font_begin_lock', 'app_font_end_lock'):
     unit += function(name, FONT) + '\n'
 unit += r'''
@@ -129,12 +137,19 @@ int main(void){
  assert(app_font_recover_media()&&!strcmp(active,chosen)&&!s_rejected[0]&&!s_rejected_retry_us);
  recovery=true;strcpy(active,"builtin");strcpy(s_rejected,chosen);
  assert(!app_font_recover_media()&&ttf_font_is_builtin()&&!strcmp(chosen,"/fonts/system.ttf"));
+ // Explicit successful choices survive periodic retry and lock/unlock in recovery mode.
+ manual_font=false;recovery=true;media_ready=true;missing[0]=corrupt[0]=0;
+ strcpy(chosen,"/fonts/system.ttf");strcpy(reader,"/fonts/reader.ttf");strcpy(active,"builtin");
+ assert(!app_font_activate_reading()&&ttf_font_is_builtin());
+ assert(ttf_font_open(reader)==ESP_OK);pico_boot_allow_font();
+ for(int i=0;i<100;++i){app_font_retry_active();assert(!strcmp(active,reader));}
+ app_font_begin_lock(&saved);assert(!strcmp(active,chosen)&&system_face);app_font_end_lock(&saved);assert(!strcmp(active,reader));
  puts("PASS: ticket/wake font contexts, paused IO, manual retry clears transient rejection, abnormal boot protection and saved choices retained");
 }
 '''
 with tempfile.TemporaryDirectory(dir=ROOT / 'build') as folder:
     c, exe = Path(folder) / 'test.c', Path(folder) / 'test'
     c.write_text(unit)
-    subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
+    subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', *(['-fsanitize=address,undefined'] if os.environ.get('HOST_TEST_SANITIZERS','1')!='0' else []),
                     str(c), '-o', str(exe)], check=True)
     subprocess.run([str(exe)], check=True)

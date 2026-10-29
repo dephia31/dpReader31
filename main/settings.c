@@ -40,6 +40,7 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #define TAG "settings"
 #define NVS_NS KIIKO_BOARD_SETTINGS_NAMESPACE
 #define NVS_KEY_SLEEP "sleep"
+#define NVS_KEY_SLEEP_OFF_HOURS "slp_off_h"
 #define NVS_KEY_SHUTDOWN_MODE "shutdown"
 #define NVS_KEY_WAKE_PRESSES "wake_press"
 #if KIIKO_BOARD_METALIO47
@@ -114,6 +115,7 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #define MEDIA_DIR_MAX 96
 
 static app_sleep_mode_t s_sleep = APP_SLEEP_DEEP;
+static uint8_t s_sleep_off_hours=APP_SLEEP_OFF_HOURS_DEFAULT;
 #if KIIKO_BOARD_METALIO47
 static bool s_staged_shutdown = true;
 #else
@@ -274,6 +276,9 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_SHUTDOWN_MODE, &raw) == ESP_OK)
 #endif
         s_staged_shutdown = raw == 1;
+    raw=APP_SLEEP_OFF_HOURS_DEFAULT;
+    if(nvs_get_u8(h,NVS_KEY_SLEEP_OFF_HOURS,&raw)==ESP_OK&&raw>=APP_SLEEP_OFF_HOURS_MIN&&raw<=APP_SLEEP_OFF_HOURS_MAX)
+        s_sleep_off_hours=raw;
     raw = 1;
     if (nvs_get_u8(h, NVS_KEY_WAKE_PRESSES, &raw) != ESP_OK || (raw != 1 && raw != 2)) raw = 1;
     s_wake_presses = raw;
@@ -517,6 +522,19 @@ void app_settings_set_sleep_mode(app_sleep_mode_t mode) {
     nvs_close(h);
 }
 
+uint8_t app_settings_sleep_off_hours(void) { return s_sleep_off_hours; }
+esp_err_t app_settings_set_sleep_off_hours(uint8_t hours) {
+    if(hours<APP_SLEEP_OFF_HOURS_MIN||hours>APP_SLEEP_OFF_HOURS_MAX)return ESP_ERR_INVALID_ARG;
+    if(hours==s_sleep_off_hours)return ESP_OK;
+    nvs_handle_t h;
+    esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
+    if(err!=ESP_OK)return err;
+    err=nvs_set_u8(h,NVS_KEY_SLEEP_OFF_HOURS,hours);
+    if(err==ESP_OK)err=nvs_commit(h);
+    nvs_close(h);
+    if(err==ESP_OK)s_sleep_off_hours=hours;
+    return err;
+}
 bool app_settings_staged_shutdown(void) { return s_staged_shutdown; }
 void app_settings_set_staged_shutdown(bool staged) {
     if (staged == s_staged_shutdown) return;
@@ -872,10 +890,11 @@ esp_err_t app_settings_set_ai_short(app_ai_action_t action){
 #endif
 bool app_settings_ble_turner(void) { return s_ble_turner; }
 app_reader_key_action_t app_settings_reader_key_action(unsigned key) {
-    return key < 3 ? (app_reader_key_action_t)s_reader_keys[key] : APP_READER_KEY_NONE;
+    if (key >= 3) return APP_READER_KEY_NONE;
+    return s_reader_keys[key] == APP_READER_KEY_FULLSCREEN ? APP_READER_KEY_TOOLS : (app_reader_key_action_t)s_reader_keys[key];
 }
 bool app_settings_reader_key_action_allowed(unsigned key, app_reader_key_action_t action) {
-    return key < 4 && action >= 0 && action < APP_READER_KEY_COUNT;
+    return key < 4 && action >= 0 && action < APP_READER_KEY_COUNT && action != APP_READER_KEY_FULLSCREEN;
 }
 bool app_settings_set_reader_key_action(unsigned key, app_reader_key_action_t action) {
     if (key >= 3 || !app_settings_reader_key_action_allowed(key, action)) return false;
@@ -888,7 +907,9 @@ bool app_settings_set_reader_key_action(unsigned key, app_reader_key_action_t ac
     if (err == ESP_OK) s_reader_keys[key] = action;
     return err == ESP_OK;
 }
-app_reader_key_action_t app_settings_reader_hold_action(void) { return (app_reader_key_action_t)s_reader_hold_action; }
+app_reader_key_action_t app_settings_reader_hold_action(void) {
+    return s_reader_hold_action == APP_READER_KEY_FULLSCREEN ? APP_READER_KEY_TOOLS : (app_reader_key_action_t)s_reader_hold_action;
+}
 bool app_settings_set_reader_hold_action(app_reader_key_action_t action) {
     if (!app_settings_reader_key_action_allowed(3, action)) return false;
     if (s_reader_hold_action == action) return true;
@@ -903,7 +924,7 @@ bool app_settings_set_reader_hold_action(app_reader_key_action_t action) {
 void app_settings_set_reader_key_preset(unsigned preset) {
     static const uint8_t values[2][3] = {
         {APP_READER_KEY_PREV, APP_READER_KEY_TOOLS, APP_READER_KEY_NEXT},
-        {APP_READER_KEY_HOME, APP_READER_KEY_FULLSCREEN, APP_READER_KEY_TOOLS}
+        {APP_READER_KEY_HOME, APP_READER_KEY_REFRESH, APP_READER_KEY_TOOLS}
     };
     if (preset < 1 || preset > 2) return;
     nvs_handle_t h;
@@ -921,10 +942,11 @@ void app_settings_set_reader_key_preset(unsigned preset) {
 
 bool app_settings_reader_hold_refresh(void) { return s_reader_hold_refresh; }
 app_reader_key_action_t app_settings_volume_key_action(unsigned key) {
-    return key < 2 ? (app_reader_key_action_t)s_volume_keys[key] : APP_READER_KEY_NONE;
+    if (key >= 2) return APP_READER_KEY_NONE;
+    return s_volume_keys[key] == APP_READER_KEY_FULLSCREEN ? APP_READER_KEY_TOOLS : (app_reader_key_action_t)s_volume_keys[key];
 }
 bool app_settings_set_volume_key_action(unsigned key, app_reader_key_action_t action) {
-    if (key >= 2 || action >= APP_READER_KEY_COUNT) return false;
+    if (key >= 2 || !app_settings_reader_key_action_allowed(key, action)) return false;
     if (s_volume_keys[key] == action) return true;
     nvs_handle_t h;
     if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;

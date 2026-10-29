@@ -7,7 +7,39 @@ from pathlib import Path
 import re
 
 
+def archive_s31_flat(folder: Path, commit: str) -> None:
+    """中文：保留S31稳定版原文件与目录入口。/ English: Retain original stable S31 files and versioned entries."""
+    manifest=json.loads((folder/'metalio-s31-update.json').read_text())
+    version=manifest['version']
+    assert re.fullmatch(r'\d+\.\d+\.\d+-vn',version)
+    assert re.fullmatch(r'[a-f0-9]{40}',commit)
+    sums={line.split()[1]:line.split()[0] for line in (folder/'SHA256SUMS.txt').read_text().splitlines() if line.strip()}
+    names=('dpReader_metalio47_firmware.bin','dpReader_metalio47_full.bin','SHA256SUMS.txt','metalio-s31-update.json')
+    payloads={name:(folder/name).read_bytes() for name in names}
+    for name in names[:2]:assert hashlib.sha256(payloads[name]).hexdigest()==sums[name],name
+    app=payloads[names[0]]
+    assert len(app)==manifest['size'] and hashlib.sha256(app).hexdigest()==manifest['sha256']
+    assert app[48:80].split(b'\0')[0].decode()==version and int.from_bytes(app[12:14],'little')==32
+    destination=folder/version
+    for name,data in payloads.items():assert not (destination/name).exists() or (destination/name).read_bytes()==data,'immutable archive differs: '+name
+    destination.mkdir(exist_ok=True)
+    for name,data in payloads.items():(destination/name).write_bytes(data)
+    path=folder/'releases.json'
+    catalog=json.loads(path.read_text()) if path.exists() else {'schema':1,'releases':[]}
+    entry={'version':version,'source_commit':commit,'path':'releases/'+version,
+           'files':{n:{'size':len(d),'sha256':hashlib.sha256(d).hexdigest()} for n,d in payloads.items()}}
+    old=[r for r in catalog['releases'] if r['version']==version]
+    assert not old or old==[entry]
+    catalog['releases']=[entry]+[r for r in catalog['releases'] if r['version']!=version]
+    catalog['previous_version']=version
+    path.write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n')
+    print('Archived original official S31 release:',version)
+
+
 def archive(folder: Path, commit: str, payloads: Path | None = None) -> None:
+    if not (folder/'manifest.json').exists() and (folder/'metalio-s31-update.json').exists():
+        archive_s31_flat(folder,commit)
+        return
     from verify_flash_bundle import check_archived_releases
     folder = folder.resolve()
     payloads = (payloads or folder).resolve()

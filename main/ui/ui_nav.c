@@ -35,12 +35,12 @@
 #define UI_NAV_BACK_ICON_PX 48
 #define UI_NAV_BOLT_ICON_PX 26
 #define UI_NAV_NETWORK_ICON_PX 28
-#define UI_STATUS_TIME_PX 28
-#define UI_STATUS_PERCENT_PX 28
-#define UI_STATUS_SIGNATURE_PX 26
-// 书名与签名共用一条视觉中线；书名比签名略大，仍留在 56 px 状态带内。
-// The title shares the signature's centerline; it runs slightly larger and still fits the 56 px band.
-#define UI_STATUS_TITLE_PX 26
+#define UI_STATUS_TIME_PX 40
+#define UI_STATUS_PERCENT_PX 40
+#define UI_STATUS_SIGNATURE_PX 40
+// 用户修订：状态文字与40px阅读页脚一致，保持在原56px状态带内。
+// User revision: status text matches the 40px reader footer within the existing 56px band.
+#define UI_STATUS_TITLE_PX 40
 
 static bool s_status_reading;
 // 阅读页把状态栏中段让给书名：中段原本显示用户签名，阅读时书名更有用。

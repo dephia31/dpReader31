@@ -30,7 +30,7 @@ enum {MODE_DU,MODE_GL16,MODE_GC16,APP_PAGE_REFRESH_MODE=MODE_GL16};
 #define UI_LOCK_HEIGHT 1216
 #define UI_BAR_H 96
 #define UI_BAR_TOP (UI_LOCK_HEIGHT-24-UI_BAR_H)
-#define READER_FULLSCREEN_PROGRESS_TOP (UI_LOCK_HEIGHT-12)
+#define READER_FULLSCREEN_PROGRESS_TOP UI_BAR_TOP
 static int E0470_WAVEFORM,E0470_FULL_WAVEFORM,E0470_FOLLOW_WAVEFORM;
 static int reader_waveform;
 static const int *display_main_gray_waveform(void){return &reader_waveform;}
@@ -97,7 +97,8 @@ unit+='static bool s_shelf_key_paint_pending;\n'
 unit+='static bool reader_indent_present(app_ctx_t *ctx,app_redraw_t redraw){(void)ctx;(void)redraw;return false;}\n'
 for name in ('clip_refresh_rect','ui_rect_union'):
  unit+=function(name,root/'main/ui/ui_kit.c')+'\n'
-for name in ('reader_area','reader_fullscreen_progress_area','progress_rect'):
+unit += '#define READER_FOOTER_TOP (UI_LOCK_HEIGHT-96)\n#define READER_FOOTER_HEIGHT 94\n'
+for name in ('reader_area','progress_rect'):
  unit+=function(name,root/'main/apps/app_book.c')+'\n'
 unit+=function('present',root/'main/apps/app_book.c')
 unit+=r'''

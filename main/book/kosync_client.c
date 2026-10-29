@@ -6,6 +6,8 @@
  */
 #include "kosync_client.h"
 #include "settings.h"
+#include "book_store.h"
+#include "ota_online.h"
 #include "read_pico_transfer.h"
 #include "cJSON.h"
 #include "esp_crt_bundle.h"
@@ -16,6 +18,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/portmacro.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -184,12 +187,6 @@ static esp_err_t kosync_acquire_network(bool *started_by_us, char *msg, size_t m
     read_pico_transfer_status_t st = {0};
     read_pico_transfer_get_status(&st);
     if (st.mode == READ_PICO_TRANSFER_MODE_STA && st.network_ready) return ESP_OK;
-    char ssid[33] = {0};
-    bool configured = false;
-    if (read_pico_transfer_get_saved_wifi(ssid, &configured) != ESP_OK || !configured) {
-        if (msg && msg_cap) snprintf(msg, msg_cap, "Chưa cấu hình mạng WiFi");
-        return ESP_ERR_NOT_FOUND;
-    }
     // 阅读中同步不该要求用户先离开热点/空闲会话：直接抢占射频并连回已保存网络。
     // 只有上传在写卡时不能抢断，此时才提示用户。
     // A sync while reading must not force the user out of a hotspot or idle session: take the
@@ -204,12 +201,17 @@ static esp_err_t kosync_acquire_network(bool *started_by_us, char *msg, size_t m
             : "WiFi đang được trang truyền tệp giữ, hãy thoát trang đó rồi thử lại");
         return err;
     }
+    if (err == ESP_ERR_NOT_FOUND) {
+        if (msg && msg_cap) snprintf(msg,msg_cap,"Chưa cấu hình mạng WiFi");
+        return err;
+    }
     if (err != ESP_OK) {
         if (msg && msg_cap) snprintf(msg, msg_cap, "Không thể bật WiFi (%s)", esp_err_to_name(err));
         return err;
     }
     *started_by_us = true;
-    int64_t deadline = esp_timer_get_time() + 12000000LL;
+    // 与联网层30秒连接窗口对齐，保留事件派发余量。/ Match the network layer's 30-second connect window plus event slack.
+    int64_t deadline = esp_timer_get_time() + 35000000LL;
     while (esp_timer_get_time() < deadline) {
         read_pico_transfer_service_poll();
         read_pico_transfer_get_status(&st);
@@ -255,11 +257,14 @@ static esp_err_t kosync_request(esp_http_client_method_t method, const char *pat
                                 const char *body, int *out_status,
                                 char *resp_buf, size_t resp_cap,
                                 char *msg, size_t msg_cap) {
-    const char *base = app_settings_kosync_url();
-    const char *user = app_settings_kosync_user();
-    const char *key  = app_settings_kosync_key();
-    if (!base || !base[0]) base = DPREADER_DEFAULT_KOSYNC_URL;
-    if (!user || !user[0] || !key || !key[0]) {
+    // 等待网络期间设置页仍可操作，请求使用自己的有界凭据副本。
+    // Settings remain usable during network waits; each request owns bounded credential copies.
+    char base[128],user[64],key[36];
+    strlcpy(base,app_settings_kosync_url(),sizeof(base));
+    strlcpy(user,app_settings_kosync_user(),sizeof(user));
+    strlcpy(key,app_settings_kosync_key(),sizeof(key));
+    if (!base[0]) strlcpy(base,DPREADER_DEFAULT_KOSYNC_URL,sizeof(base));
+    if (!user[0] || !key[0]) {
         if (msg && msg_cap) snprintf(msg, msg_cap, "Chưa nhập tài khoản KOSync");
         return ESP_ERR_INVALID_STATE;
     }
@@ -313,7 +318,7 @@ static esp_err_t kosync_request(esp_http_client_method_t method, const char *pat
     return ESP_OK;
 }
 
-esp_err_t kosync_verify_account(bool register_new, char *message, size_t message_cap) {
+static esp_err_t kosync_verify_account_impl(bool register_new, char *message, size_t message_cap) {
     char resp[512] = {0};
     int status = 0;
     if (register_new) {
@@ -355,7 +360,7 @@ esp_err_t kosync_verify_account(bool register_new, char *message, size_t message
     return ESP_FAIL;
 }
 
-esp_err_t kosync_push_book_progress(const char *file_path, const book_progress_t *local_prog,
+static esp_err_t kosync_push_book_progress_impl(const char *file_path, const book_progress_t *local_prog,
                                     double exact_ratio, char *message, size_t message_cap) {
     if (!file_path || !local_prog) return ESP_ERR_INVALID_ARG;
     char doc_md5[33] = {0};
@@ -464,7 +469,7 @@ static bool kosync_remote_wins(double local_ratio, double remote_ratio, bool has
         (rem_chapter == cur_chapter && rem_byte_off > cur_byte_off);
 }
 
-esp_err_t kosync_pull_book_progress(const char *file_path, kosync_progress_t *out_remote,
+static esp_err_t kosync_pull_book_progress_impl(const char *file_path, kosync_progress_t *out_remote,
                                     uint16_t *out_chapter, uint32_t *out_byte_off,
                                     bool *has_exact_offset, char *message, size_t message_cap) {
     if (!file_path || !out_remote) return ESP_ERR_INVALID_ARG;
@@ -549,7 +554,7 @@ esp_err_t kosync_pull_book_progress(const char *file_path, kosync_progress_t *ou
     return ESP_OK;
 }
 
-esp_err_t kosync_sync_book(const char *file_path, uint16_t *cur_chapter, uint32_t *cur_byte_off,
+static esp_err_t kosync_sync_book_impl(const char *file_path, uint16_t *cur_chapter, uint32_t *cur_byte_off,
                            uint8_t *cur_pct, bool *pulled_newer, char *message, size_t message_cap) {
     if (!file_path || !file_path[0] || !cur_chapter || !cur_byte_off || !cur_pct || !pulled_newer) {
         return ESP_ERR_INVALID_ARG;
@@ -602,4 +607,144 @@ esp_err_t kosync_sync_book(const char *file_path, uint16_t *cur_chapter, uint32_
     esp_err_t push_err = kosync_push_book_progress(file_path, &local_prog, (double)*cur_pct / 100.0, message, message_cap);
     kosync_release_network(started_wifi);
     return push_err;
+}
+
+/* ---- 非阻塞自动同步 / Nonblocking automatic sync ---- */
+static portMUX_TYPE s_sync_lock = portMUX_INITIALIZER_UNLOCKED;
+static bool s_sync_active;
+static TaskHandle_t s_sync_owner;
+static unsigned s_sync_depth;
+typedef struct {
+    bool pending, pull;
+    char path[BOOK_STORE_PATH_MAX];
+    book_progress_t progress;
+    double ratio;
+} auto_job_t;
+static auto_job_t s_auto_push, s_auto_pull, s_auto_running;
+static struct {
+    bool ready;
+    char path[BOOK_STORE_PATH_MAX];
+    book_progress_t original;
+    kosync_progress_t remote;
+    uint16_t chapter;
+    uint32_t offset;
+    bool exact;
+} s_auto_result;
+static int64_t s_auto_retry_at;
+static unsigned s_auto_task_failures;
+
+static bool sync_begin(void) {
+#if KIIKO_BOARD_METALIO47
+    if(pico_online_update_busy())return false;
+#endif
+    TaskHandle_t task=xTaskGetCurrentTaskHandle();
+    portENTER_CRITICAL(&s_sync_lock);
+    bool ok=!s_sync_active || s_sync_owner==task;
+    if(ok){s_sync_active=true;s_sync_owner=task;++s_sync_depth;}
+    portEXIT_CRITICAL(&s_sync_lock);
+    return ok;
+}
+static void sync_end(void) {
+    portENTER_CRITICAL(&s_sync_lock);
+    if(--s_sync_depth==0){s_sync_active=false;s_sync_owner=NULL;}
+    portEXIT_CRITICAL(&s_sync_lock);
+}
+bool kosync_busy(void) {
+    portENTER_CRITICAL(&s_sync_lock);
+    bool busy=s_sync_active||s_auto_push.pending||s_auto_pull.pending;
+    portEXIT_CRITICAL(&s_sync_lock);
+    return busy;
+}
+static esp_err_t sync_busy_message(char *message,size_t cap) {
+    if(message&&cap)snprintf(message,cap,"KoSync đang đồng bộ, hãy thử lại sau");
+    return ESP_ERR_INVALID_STATE;
+}
+esp_err_t kosync_verify_account(bool reg,char *message,size_t cap) {
+    if(!sync_begin())return sync_busy_message(message,cap);
+    esp_err_t err=kosync_verify_account_impl(reg,message,cap);sync_end();return err;
+}
+esp_err_t kosync_push_book_progress(const char *path,const book_progress_t *progress,double ratio,char *message,size_t cap) {
+    if(!sync_begin())return sync_busy_message(message,cap);
+    esp_err_t err=kosync_push_book_progress_impl(path,progress,ratio,message,cap);sync_end();return err;
+}
+esp_err_t kosync_pull_book_progress(const char *path,kosync_progress_t *remote,uint16_t *chapter,uint32_t *offset,bool *exact,char *message,size_t cap) {
+    if(!sync_begin())return sync_busy_message(message,cap);
+    esp_err_t err=kosync_pull_book_progress_impl(path,remote,chapter,offset,exact,message,cap);sync_end();return err;
+}
+esp_err_t kosync_sync_book(const char *path,uint16_t *chapter,uint32_t *offset,uint8_t *pct,bool *pulled,char *message,size_t cap) {
+    if(!sync_begin())return sync_busy_message(message,cap);
+    esp_err_t err=kosync_sync_book_impl(path,chapter,offset,pct,pulled,message,cap);sync_end();return err;
+}
+void kosync_auto_submit(const char *path,const book_progress_t *progress,double ratio,bool pull) {
+    if(!path||!path[0]||!progress||strlen(path)>=BOOK_STORE_PATH_MAX)return;
+    portENTER_CRITICAL(&s_sync_lock);
+    auto_job_t *job=pull?&s_auto_pull:&s_auto_push;
+    job->pending=true;job->pull=pull;strlcpy(job->path,path,sizeof(job->path));
+    job->progress=*progress;job->ratio=ratio;
+    if(pull)s_auto_result.ready=false;
+    else if(s_auto_pull.pending&&!strcmp(s_auto_pull.path,path))s_auto_pull.pending=false;
+    portEXIT_CRITICAL(&s_sync_lock);
+}
+static void auto_sync_task(void *arg) {
+    (void)arg;
+    portENTER_CRITICAL(&s_sync_lock);
+    s_sync_owner=xTaskGetCurrentTaskHandle();s_sync_depth=1;
+    portEXIT_CRITICAL(&s_sync_lock);
+    esp_err_t err;
+    if(s_auto_running.pull) {
+        kosync_progress_t remote={0};uint16_t chapter=0;uint32_t offset=0;bool exact=false;
+        err=kosync_pull_book_progress_impl(s_auto_running.path,&remote,&chapter,&offset,&exact,NULL,0);
+        if(err==ESP_OK) {
+            portENTER_CRITICAL(&s_sync_lock);
+            strlcpy(s_auto_result.path,s_auto_running.path,sizeof(s_auto_result.path));
+            s_auto_result.original=s_auto_running.progress;s_auto_result.remote=remote;
+            s_auto_result.chapter=chapter;s_auto_result.offset=offset;s_auto_result.exact=exact;s_auto_result.ready=true;
+            portEXIT_CRITICAL(&s_sync_lock);
+        }
+    } else {
+        // 离页前下载可能尚未完成，先比较远端，不能用旧本地快照覆盖更远进度。
+        // The opening pull may still be pending on exit; compare first so an old local snapshot cannot overwrite remote progress.
+        uint16_t chapter=s_auto_running.progress.chapter;
+        uint32_t offset=s_auto_running.progress.byte_off;
+        uint8_t pct=s_auto_running.progress.pct;bool pulled=false;
+        err=kosync_sync_book_impl(s_auto_running.path,&chapter,&offset,&pct,&pulled,NULL,0);
+    }
+    ESP_LOGI(TAG,"automatic %s finished: %s",s_auto_running.pull?"pull":"push",esp_err_to_name(err));
+    sync_end();
+    vTaskDelete(NULL);
+}
+void kosync_auto_poll(void) {
+#if KIIKO_BOARD_METALIO47
+    if(pico_online_update_busy())return;
+#endif
+    int64_t now=esp_timer_get_time();
+    portENTER_CRITICAL(&s_sync_lock);
+    bool start=!s_sync_active&&now>=s_auto_retry_at&&(s_auto_push.pending||s_auto_pull.pending);
+    if(start){
+        auto_job_t *job=s_auto_push.pending?&s_auto_push:&s_auto_pull;
+        s_auto_running=*job;job->pending=false;s_sync_active=true;s_sync_owner=NULL;s_sync_depth=0;
+    }
+    portEXIT_CRITICAL(&s_sync_lock);
+    if(!start)return;
+    if(!app_settings_kosync_auto()||!app_settings_kosync_user()[0]) {
+        portENTER_CRITICAL(&s_sync_lock);s_sync_active=false;portEXIT_CRITICAL(&s_sync_lock);return;
+    }
+    if(xTaskCreate(auto_sync_task,"kosync_auto",12288,NULL,2,NULL)!=pdPASS) {
+        portENTER_CRITICAL(&s_sync_lock);
+        auto_job_t *job=s_auto_running.pull?&s_auto_pull:&s_auto_push;
+        if(++s_auto_task_failures<3&&!job->pending)*job=s_auto_running;
+        s_sync_active=false;s_auto_retry_at=now+5000000;
+        portEXIT_CRITICAL(&s_sync_lock);
+        ESP_LOGW(TAG,"automatic sync deferred: no task memory");
+    } else s_auto_task_failures=0;
+}
+bool kosync_auto_take_pull(const char *path,const book_progress_t *current,kosync_progress_t *remote,uint16_t *chapter,uint32_t *offset,bool *exact) {
+    portENTER_CRITICAL(&s_sync_lock);
+    bool ready=s_auto_result.ready;
+    bool match=ready&&!strcmp(path,s_auto_result.path)&&current->chapter==s_auto_result.original.chapter&&
+        current->byte_off==s_auto_result.original.byte_off;
+    if(match){*remote=s_auto_result.remote;*chapter=s_auto_result.chapter;*offset=s_auto_result.offset;*exact=s_auto_result.exact;}
+    if(ready)s_auto_result.ready=false;
+    portEXIT_CRITICAL(&s_sync_lock);
+    return match;
 }

@@ -2,7 +2,8 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * Log export and diagnostics implementation for kiikoread / dpReader.
+ * 中文：捕获日志并导出SD诊断文件；文件I/O必须在环形缓冲锁外。
+ * English: Capture logs and export SD diagnostics; keep file I/O outside the ring-buffer lock.
  */
 
 #include "log_export.h"
@@ -119,6 +120,18 @@ void log_export_clear(void) {
     portEXIT_CRITICAL(&s_log_lock);
 }
 
+// 锁内只复制固定大小快照，不执行SD/日志调用。/ Copy a bounded snapshot under the lock, without SD or logging calls.
+static size_t log_snapshot(char *out) {
+    portENTER_CRITICAL(&s_log_lock);
+    size_t count=s_log_total_written<LOG_BUF_SIZE?s_log_total_written:LOG_BUF_SIZE;
+    size_t start=(s_log_head+LOG_BUF_SIZE-count)%LOG_BUF_SIZE;
+    size_t first=count<LOG_BUF_SIZE-start?count:LOG_BUF_SIZE-start;
+    memcpy(out,s_log_buf+start,first);
+    memcpy(out+first,s_log_buf,count-first);
+    portEXIT_CRITICAL(&s_log_lock);
+    return count;
+}
+
 esp_err_t log_export_to_sd(char *out_path, size_t out_path_size, char *err_msg, size_t err_msg_size) {
     read_pico_sd_info_t sd = {0};
     esp_err_t err = read_pico_sd_get_info(&sd);
@@ -134,8 +147,18 @@ esp_err_t log_export_to_sd(char *out_path, size_t out_path_size, char *err_msg, 
         snprintf(out_path, out_path_size, "%s", target);
     }
 
+    // 不使用32KB任务栈数组；内存不足时返回错误，不能进入持锁写文件路径。
+    // Avoid a 32KB task-stack array; return an allocation error rather than writing while locked.
+    char *snapshot=heap_caps_malloc(LOG_BUF_SIZE,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!snapshot)snapshot=heap_caps_malloc(LOG_BUF_SIZE,MALLOC_CAP_8BIT);
+    if(!snapshot){
+        if(err_msg&&err_msg_size)snprintf(err_msg,err_msg_size,"Không đủ bộ nhớ để xuất log");
+        return ESP_ERR_NO_MEM;
+    }
+    size_t snapshot_size=log_snapshot(snapshot);
     FILE *f = fopen(target, "w");
     if (!f) {
+        heap_caps_free(snapshot);
         if (err_msg && err_msg_size) {
             snprintf(err_msg, err_msg_size, "Không thể tạo file trên thẻ nhớ");
         }
@@ -228,22 +251,19 @@ esp_err_t log_export_to_sd(char *out_path, size_t out_path_size, char *err_msg, 
     fprintf(f, "[5. SYSTEM RUNTIME LOG BUFFER (LAST %u KB)]\n", (unsigned)(LOG_BUF_SIZE / 1024));
     fprintf(f, "--------------------------------------------------------\n");
 
-    portENTER_CRITICAL(&s_log_lock);
-    size_t count = s_log_total_written < LOG_BUF_SIZE ? s_log_total_written : LOG_BUF_SIZE;
-    if (count > 0) {
-        size_t start = (s_log_head + LOG_BUF_SIZE - count) % LOG_BUF_SIZE;
-        for (size_t i = 0; i < count; ++i) {
-            char c = s_log_buf[(start + i) % LOG_BUF_SIZE];
-            fputc(c, f);
-        }
-    }
-    portEXIT_CRITICAL(&s_log_lock);
+    bool payload_failed=snapshot_size && fwrite(snapshot,1,snapshot_size,f)!=snapshot_size;
 
     fprintf(f, "\n--------------------------------------------------------\n");
     fprintf(f, "=== END OF DIAGNOSTIC LOG ===\n");
 
-    fflush(f);
-    fclose(f);
+    bool failed=payload_failed || ferror(f)!=0;
+    if(fflush(f)!=0 || ferror(f))failed=true;
+    if(fclose(f)!=0)failed=true;
+    heap_caps_free(snapshot);
+    if(failed){
+        if(err_msg&&err_msg_size)snprintf(err_msg,err_msg_size,"Không thể ghi đầy đủ log lên thẻ nhớ");
+        return ESP_FAIL;
+    }
 
     ESP_LOGI("log_export", "System logs exported successfully to %s", target);
     return ESP_OK;

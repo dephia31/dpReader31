@@ -3,6 +3,7 @@
 # 中文：真实边距输入/几何与扩展缩进编码，覆盖不同字体和旧配置。
 # English: Actual margin input/geometry and extended indent encoding, across font sizes and legacy configurations.
 from pathlib import Path
+import os
 import subprocess,tempfile
 from home_cover_cache_host_test import function
 r=Path(__file__).resolve().parents[1]
@@ -20,15 +21,15 @@ u=r'''
 #define BOOK_MARGIN_MAX 48
 #define BOOK_MARGIN_CHOICES 9
 typedef struct {int x,y,width,height;} EpdRect;
-static bool s_reader_fullscreen,vertical;
+static bool vertical;
 static int s_margin;
-static bool app_settings_reader_immersive(void){return false;}
 static bool app_settings_book_vertical(void){return vertical;}
 static int slider_index(EpdRect r,unsigned x,int n){int p=(int)x-r.x;if(p<0)p=0;if(p>=r.width)p=r.width-1;return(p*(n-1)+(r.width-1)/2)/(r.width-1);}
 static unsigned s_book_indent_adjust=20;
 static void nvs_put_u8(const char *key,uint8_t v){(void)key;assert(v==s_book_indent_adjust);}
 #define NVS_KEY_BOOK_INDENT_ADJUST "bk_indent_adj"
 '''
+u += '#define READER_FOOTER_TOP (1216 - 96)\n'
 for n in ('body_rect_for_tracking','reader_margin_width','reader_margin_levels','reader_margin_level_for','reader_margin_for_level','reader_margin_input'):
     u+=function(n,f)+'\n'
 for n in ('app_settings_book_indent_adjust','app_settings_set_book_indent_adjust'):
@@ -41,9 +42,9 @@ int main(void){
   for(int i=0;i<=48;++i)assert(reader_margin_for_level(reader_margin_level_for(i,px,tr),i,px,tr)==i);
  }
  for(int full=0;full<2;++full)for(int v=0;v<2;++v){
-  s_reader_fullscreen=full;vertical=v;
+  (void)full;vertical=v;
   for(int i=0;i<9;++i){s_margin=i*6;EpdRect a=body_rect_for_tracking(2);
-   if(v){assert(a.y==(full?96:188)+s_margin);assert(a.height==(full?1196:1128)-(full?96:188)-2*s_margin);}
+   if(v){assert(a.y==80+s_margin);assert(a.height==(READER_FOOTER_TOP-2)-80-2*s_margin);}
    else assert(a.x==s_margin&&a.width==684-2*s_margin);
   }
  }
@@ -52,7 +53,9 @@ int main(void){
  puts("PASS: nine distinct physical margins in both orientations, preserved legacy margin values, all 201 indent adjustments and legacy encoding");
 }
 '''
+# 中文：默认启用；不支持 sanitizer 的主机可显式关闭。/ English: Enabled by default; unsupported hosts may opt out.
+sanitizers = [] if os.environ.get('HOST_TEST_SANITIZERS') == '0' else ['-fsanitize=address,undefined']
 with tempfile.TemporaryDirectory() as d:
  p=Path(d)/'test.c';p.write_text(u);out=p.with_suffix('')
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined',str(p),'-o',str(out)],check=True)
+ subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function',*sanitizers,str(p),'-o',str(out)],check=True)
  subprocess.run([str(out)],check=True)

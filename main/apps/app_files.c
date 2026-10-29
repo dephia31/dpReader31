@@ -38,6 +38,7 @@
 #include "read_pico_sd.h"
 #include "read_pico_search.h"
 #include "settings.h"
+#include "boot_state.h"
 #include "ttf_font.h"
 #include "app_font_context.h"
 #include "ui_gesture.h"
@@ -856,6 +857,15 @@ static void open_selected(app_ctx_t *ctx) {
         if (ttf_font_open(s_selected.path) == ESP_OK) {
             app_settings_set_system_font_path(s_selected.path);
             app_settings_set_font_path(s_selected.path);
+            if(strcmp(app_settings_system_font_path(),s_selected.path)||strcmp(app_settings_font_path(),s_selected.path)){
+                app_font_activate_system();
+                snprintf(s_message,sizeof(s_message),"Lưu phông chữ thất bại, vui lòng thử lại");return;
+            }
+#if KIIKO_BOARD_METALIO47
+            // 明确应用字体视为用户确认，解除本次启动的异常启动字体限制。
+            // Applying a font explicitly counts as user confirmation and lifts this boot's font gate.
+            pico_boot_allow_font();
+#endif
             app_font_activate_system();
             ttf_font_scan();
             snprintf(s_message, sizeof(s_message), "Đã áp dụng làm phông chữ hệ thống & đọc sách");

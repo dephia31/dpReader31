@@ -4,9 +4,7 @@
 #endif
 #include "esp_timer.h"
 #endif
-#ifdef KIIKO_LOCAL_LATENCY
 #include "esp_log.h"
-#endif
 /*
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
@@ -862,6 +860,7 @@ static void refresh_excerpt(void) {
     if(book->has_progress)book_excerpt_load(book->path,book->progress.chapter,s_excerpt);
 }
 static void on_enter(app_ctx_t *ctx) {
+    const int64_t home_started=esp_timer_get_time();
     s_component_dirty=(EpdRect){0};
     s_cover_generation=book_cover_jobs_begin();
     const uint32_t progress_revision=book_progress_revision();
@@ -893,6 +892,7 @@ static void on_enter(app_ctx_t *ctx) {
         if(key!=s_folder_key){free(s_folder);s_folder=NULL;s_folder_attempted=false;}}
     refresh_excerpt();
     rp_boot_mark("excerpt");
+    ESP_LOGI("home","home enter local elapsed_ms=%lld",(long long)((esp_timer_get_time()-home_started)/1000));
 }
 static void on_media_lost(app_ctx_t *ctx) {
 #if KIIKO_BOARD_METALIO47

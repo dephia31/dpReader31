@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：正文单击翻页与固定中间双击全屏；页面负责取消离页/锁屏/滑动后的等待。
- * English: Body tap turns and invariant center double-tap full screen; pages cancel pending taps on exit, lock or swipe.
+ * 中文：正文单击翻页与双击识别；页面处理插图缩放并取消离页/锁屏/滑动后的等待。
+ * English: Recognize page taps and double taps; pages own illustration zoom and cancellation on exit, lock or swipe.
  */
 #pragma once
 #include <stdbool.h>
@@ -8,7 +8,7 @@
 #include "epdiy.h"
 
 #define BOOK_READER_DOUBLE_MS 340
-#define BOOK_READER_TAP_FULLSCREEN 2
+#define BOOK_READER_TAP_DOUBLE 2
 
 typedef struct {
     bool pending;
@@ -38,7 +38,7 @@ static inline int book_reader_tap_feed(book_reader_tap_t *tap, EpdRect body,
     if (tap->pending && now_ms >= tap->at_ms && now_ms - tap->at_ms <= BOOK_READER_DOUBLE_MS &&
         dx * dx + dy * dy <= 96 * 96) {
         tap->pending = false;
-        return BOOK_READER_TAP_FULLSCREEN;
+        return BOOK_READER_TAP_DOUBLE;
     }
     const int expired = tap->pending && now_ms >= tap->at_ms &&
         now_ms - tap->at_ms > BOOK_READER_DOUBLE_MS ? tap->direction : 0;
@@ -63,7 +63,7 @@ static inline int book_reader_tap_feed_any(book_reader_tap_t *tap, EpdRect body,
     if (tap->pending && now_ms >= tap->at_ms && now_ms - tap->at_ms <= BOOK_READER_DOUBLE_MS &&
         dx * dx + dy * dy <= 120 * 120) {
         tap->pending = false;
-        return BOOK_READER_TAP_FULLSCREEN;
+        return BOOK_READER_TAP_DOUBLE;
     }
     const int expired = tap->pending && now_ms >= tap->at_ms &&
         now_ms - tap->at_ms > BOOK_READER_DOUBLE_MS ? tap->direction : 0;

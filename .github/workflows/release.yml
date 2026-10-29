@@ -1,96 +1,20 @@
 name: Publish GitHub Release
-
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'Tên Tag (vd: v1.0.1-vn)'
-        required: true
-        default: 'v1.0.1-vn'
-      release_name:
-        description: 'Tiêu đề Release'
-        required: false
-        default: 'dpReader Metalio 4.7 Firmware v1.0.1-vn'
-      notes:
-        description: 'Ghi chú phát hành'
-        required: false
-        default: 'Bản cập nhật firmware chính thức cho dpReader Metalio 4.7.'
-
 permissions:
   contents: write
-
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Determine Release Tag
-        id: release_info
-        shell: bash
-        run: |
-          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
-            TAG="${{ github.event.inputs.tag_name }}"
-            TITLE="${{ github.event.inputs.release_name }}"
-            NOTES="${{ github.event.inputs.notes }}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-            TITLE="dpReader Metalio 4.7 Firmware ${TAG}"
-            NOTES="Bản phát hành chính thức ${TAG} cho máy đọc sách dpReader Metalio 4.7 (ESP32-S31)."
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
-          echo "notes=$NOTES" >> "$GITHUB_OUTPUT"
-
-      - name: Verify release artifacts exist
-        shell: bash
-        run: |
-          echo "Kiểm tra các tệp tin trong thư mục releases/..."
-          ls -la releases/
-          if [ ! -f releases/dpReader_metalio47_firmware.bin ]; then
-            echo "Lỗi: Không tìm thấy releases/dpReader_metalio47_firmware.bin!"
-            exit 1
-          fi
-          if [ ! -f releases/dpReader_metalio47_full.bin ]; then
-            echo "Lỗi: Không tìm thấy releases/dpReader_metalio47_full.bin!"
-            exit 1
-          fi
-          if [ ! -f releases/SHA256SUMS.txt ]; then
-            echo "Tạo SHA256SUMS.txt..."
-            cd releases && sha256sum dpReader_metalio47_firmware.bin dpReader_metalio47_full.bin > SHA256SUMS.txt && cd ..
-          fi
-
-      - name: Create GitHub Release and Upload Assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release_info.outputs.tag }}
-          name: ${{ steps.release_info.outputs.title }}
-          body: |
-            ## ${{ steps.release_info.outputs.title }}
-            ${{ steps.release_info.outputs.notes }}
-
-            ### 📦 Các tệp tin phát hành:
-            - **`dpReader_metalio47_firmware.bin`**: Firmware cập nhật dành cho **OTA qua Wi-Fi** hoặc **cập nhật từ thẻ nhớ TF/SD**.
-            - **`dpReader_metalio47_full.bin`**: Firmware toàn diện trọn gói (Bootloader + Partitions + Otadata + App) dùng để **nạp ban đầu / khôi phục máy qua cổng USB (Type-C)**.
-            - **`SHA256SUMS.txt`**: Bảng mã băm SHA-256 xác thực tính toàn vẹn của firmware.
-            - **`metalio-s31-update.json`**: Manifest thông tin phiên bản cho kênh OTA tự động.
-
-            ### 🚀 Hướng dẫn cập nhật:
-            1. **Cập nhật OTA trực tiếp (Khuyên dùng)**: Kết nối Wi-Fi trên máy -> Vào `Cài đặt` -> `Cập nhật hệ thống` -> Bấm `Kiểm tra cập nhật` -> Chọn `Cập nhật`.
-            2. **Cập nhật qua Thẻ nhớ TF**: Chép file `dpReader_metalio47_firmware.bin` vào thư mục gốc của thẻ TF -> Cắm thẻ vào máy -> Vào `Cài đặt` -> `Cập nhật hệ thống` -> Chọn `Cập nhật từ thẻ nhớ`.
-            3. **Nạp qua USB Type-C**: Dùng trình nạp Web Flasher tại `https://dephia31.github.io/dpReader31/` hoặc dùng lệnh esptool nạp file `dpReader_metalio47_full.bin` từ offset `0x0`.
-          files: |
-            releases/dpReader_metalio47_firmware.bin
-            releases/dpReader_metalio47_full.bin
-            releases/SHA256SUMS.txt
-            releases/metalio-s31-update.json
-          draft: false
-          prerelease: false
+      - name: Validate official S31 release
+        run: python3 tools/publish_release.py --dry-run
+      - name: Upload verified draft assets and publish
+        run: python3 tools/publish_release.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

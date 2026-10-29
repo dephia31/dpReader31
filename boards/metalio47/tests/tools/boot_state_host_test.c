@@ -153,6 +153,12 @@ int main(void) {
     assert(pico_boot_book_begin("/sdcard/books/unadmitted.epub")==ESP_FAIL);
     assert(present&&durable_size==sizeof(legacy)&&erases==1);
     fail_commit=false;free_bytes=SIZE_MAX;
+    // 手动确认只放行本次字体，不放宽开书隔离，下一次启动重新保护。
+    // Manual confirmation admits fonts for this boot only, preserving book quarantine and the next boot gate.
+    pico_boot_init(true);assert(pico_boot_recovery()&&!pico_boot_font_allowed());
+    pico_boot_allow_font();assert(pico_boot_font_allowed()&&pico_boot_recovery());
+    assert(!pico_boot_asset_allowed("/sdcard/books/retry.epub"));
+    pico_boot_init(true);assert(!pico_boot_font_allowed());
     puts("PASS: compact/legacy startup records; interrupted EPUB quarantine; unsupported cache ignored; low-space key-only reclaim; interrupted reclaim and failed commits stay safe; retry after transient NVS failure; settings/progress preserved");
     puts("PASS: one-shot reader/fullscreen resume; power-cut book quarantine; explicit retry; no false book blame; absent/corrupt NVS and commit failure; checked paths");
 }

@@ -4,6 +4,7 @@ English: Missing image records must not abort remaining prose, matching PR9.
 SPDX-License-Identifier: Apache-2.0
 """
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 
@@ -37,6 +38,7 @@ static bool take_line(size_t off,size_t *next,bool *end,int *px,bool *heading,in
  assert(off==4);strcpy(s_line,"tail");*next=8;*end=true;*px=10;*heading=false;*width=40;*indent=0;*align=0;*before=*after=0;return true;
 }
 static int line_height_for(int px){return px;}
+static int final_line_height(size_t off,int px){(void)off;return px;}
 static int gap_for(int height,bool heading){(void)height;(void)heading;return 0;}
 static int ttf_ascender_px(int px){return px;}
 int test_guide_segments,test_guide_first_y,test_guide_height;
@@ -57,10 +59,11 @@ int main(void){
  puts("PASS: PR9 missing/mismatched image slots skip the unmatched record and continue prose");
 }
 '''
+sanitizers=[] if os.environ.get('HOST_TEST_SANITIZERS')=='0' else ['-fsanitize=address,undefined']
 with tempfile.TemporaryDirectory(prefix='book-image-record-') as directory:
     work=Path(directory)
     (work/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',*sanitizers,
                     '-I'+str(root/'tools/book_layout_stubs'),'-I'+str(root/'tools/book_source_host_stubs'),'-I'+str(root/'main/book'),
                     str(work/'test.c'),'-o',str(work/'test')],check=True)
     subprocess.run([str(work/'test')],check=True)

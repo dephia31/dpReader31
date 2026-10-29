@@ -2170,6 +2170,7 @@ esp_err_t read_pico_transfer_preempt_for_network(void) {
     read_pico_transfer_cfg_t cfg = {
         .mode = READ_PICO_TRANSFER_MODE_STA,
         .network_only = true,
+        .exclusive_radio = true,
     };
     return read_pico_transfer_start(&cfg);
 }
@@ -2202,8 +2203,9 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     if (!claim_config()) return ESP_ERR_INVALID_STATE;
     if (s_wifi || s_netif || s_http) { release_config(); return ESP_ERR_INVALID_STATE; }
-    // 传输服务持有临时BLE租约；仅联网保持共存，对时与配置仍串行。/ Transfer owns a temporary BLE lease; network-only retains coexistence and configuration stays serialized.
-    if(!cfg->network_only) {
+    // 短同步显式回收BLE内存；普通常驻WiFi继续共存，停网后归还临时租约。
+    // Short syncs explicitly reclaim BLE memory; ordinary persistent WiFi keeps coexistence and stop releases the temporary lease.
+    if(!cfg->network_only || cfg->exclusive_radio){
         const esp_err_t reserve=ble_pt_network_acquire();
         if(reserve!=ESP_OK){release_config();return reserve;}
         s_ble_network_reserved=true;
@@ -2243,7 +2245,12 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
     init.nvs_enable = false; // 与原厂S31一致；凭据只由本设备设置区管理。/ Reference S31 RAM-only driver config.
     transfer_s31_bulk_receive_config(&init, !cfg->network_only);
-    err = esp_wifi_init(&init); if (err != ESP_OK) goto fail;
+    ESP_LOGI("transfer","wifi init network_only=%u internal_free=%u internal_largest=%u psram_free=%u",
+        (unsigned)cfg->network_only,(unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
+    err = esp_wifi_init(&init);
+    if (err != ESP_OK) { ESP_LOGE("transfer","wifi init failed: %s",esp_err_to_name(err)); goto fail; }
     s_wifi = true;
     s_active_static_rx = init.static_rx_buf_num;
     s_active_rx_ba = init.rx_ba_win;

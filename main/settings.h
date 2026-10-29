@@ -47,11 +47,18 @@ esp_err_t app_settings_set_ai_short(app_ai_action_t action);
 void app_settings_set_sleep_mode(app_sleep_mode_t mode);
 const char* app_sleep_mode_name(app_sleep_mode_t mode);
 #if KIIKO_BOARD_METALIO47
-/// S31关机：默认浅睡十分钟后同步RTC并硬关机；false立即断电，保存后生效。/ S31 syncs RTC and powers off after ten minutes of light sleep; false powers off immediately, effective after saving.
+/// S31关机：默认按所选小时浅睡后同步RTC并硬关机；false立即断电。/ S31 powers off after selected light-sleep hours by default; false powers off immediately.
 #else
 /// 电源菜单“关机”：false 为彻底断电，true 为先浅睡 10 分钟再由 PMU 软睡断电。
-/// Power-menu shutdown: false powers fully off; true light-sleeps for 10 minutes, then PMU soft-sleeps.
+/// Power-menu shutdown: false powers fully off; true light-sleeps for10 minutes before PMU soft sleep.
 #endif
+#define APP_SLEEP_OFF_HOURS_MIN 1
+#define APP_SLEEP_OFF_HOURS_MAX 24
+#define APP_SLEEP_OFF_HOURS_DEFAULT 1
+/// 锁屏后浅睡的小时数，默认1小时；不改变自动锁屏等待时间。/ Hours in light sleep after locking, default1; independent of the idle-lock delay.
+uint8_t app_settings_sleep_off_hours(void);
+/// 仅在NVS提交成功后更新；范围1..24小时。/ Update only after NVS commit; accept1..24 hours.
+esp_err_t app_settings_set_sleep_off_hours(uint8_t hours);
 bool app_settings_staged_shutdown(void);
 void app_settings_set_staged_shutdown(bool staged);
 /// 电源键开机次数：1 单击开机，2 双击开机；默认 1，已保存的选择继续保留。
@@ -162,7 +169,7 @@ void app_settings_set_reader_turn_effect(uint8_t effect);
 /// 阅读正文里短按电源键翻下一页；默认关闭。/ Short power press turns forward only in reader body; off by default.
 bool app_settings_reader_power_turn(void);
 void app_settings_set_reader_power_turn(bool on);
-/// 沉浸全屏时隐藏阅读状态栏。/ Hide the reader status bar in immersive full screen.
+/// 旧备份兼容字段；阅读不再使用全屏模式。/ Legacy backup field; the reader no longer uses full screen.
 bool app_settings_reader_immersive(void);
 void app_settings_set_reader_immersive(bool on);
 /// 阅读时跳过书内插图页；原图仍保留在 EPUB 中。/ Skip inline illustrations while reading without changing the EPUB.
@@ -182,8 +189,8 @@ typedef enum {
     APP_READER_KEY_PREV, ///< 上一页 / Previous page
     APP_READER_KEY_NEXT, ///< 下一页 / Next page
     APP_READER_KEY_TOOLS, ///< 阅读工具栏 / Reader toolbar
-    APP_READER_KEY_FULLSCREEN, ///< 切换全屏 / Toggle full screen
-    APP_READER_KEY_HOME, ///< 返回主页（本次开书来源） / Return to the opening origin
+    APP_READER_KEY_FULLSCREEN, ///< 已退役的存档槽；读为工具栏 / Retired storage slot; reads as tools
+    APP_READER_KEY_HOME, ///< 返回主页 / Return to Home
     APP_READER_KEY_REFRESH, ///< 手动全刷 / Manual full refresh
     APP_READER_KEY_NONE, ///< 不操作 / No action
     APP_READER_KEY_PREV_CHAPTER, ///< Chương trước

@@ -47,6 +47,8 @@ int metalio_take_ai(void);
 void metalio_ai_clear(void);
 void metalio_volume_clear(void);
 void metalio_volume_sample(uint16_t inputs,int64_t now_ms);
+/// 音量按住/去抖期间继续采样，避免等待中断吞掉按下。/ Keep sampling held/debouncing volume keys so IRQ waits cannot swallow presses.
+bool metalio_volume_sampling_pending(void);
 esp_err_t metalio_tps_on(int vcom_mv);
 /// 仅提前唤醒TPS，PWRUP/VCOM保持低；取消或失败仍下电。/ Wake only TPS ahead of paint, holding PWRUP/VCOM low; cancel/failure powers down.
 esp_err_t metalio_tps_prepare(void);

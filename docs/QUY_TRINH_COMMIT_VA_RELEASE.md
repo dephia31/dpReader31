@@ -70,7 +70,7 @@ Công cụ `build_firmware.py` sẽ thực hiện:
 2. Biên dịch firmware với cấu hình tối ưu.
 3. Tạo 2 tệp nhị phân cốt lõi trong thư mục `build/boards/packages/metalio47/`:
    - **`dpReader_metalio47_firmware.bin`**: Tệp ứng dụng (nạp tại offset `0x10000`), dùng cho OTA và cập nhật thẻ nhớ TF.
-   - **`dpReader_metalio47_full.bin`**: Tệp gộp toàn bộ từ offset `0x0` (gồm Bootloader tại `0x0`, Partition Table tại `0x8000`, Otadata tại `0xd000` và Ứng dụng tại `0x10000`).
+   - **`dpReader_metalio47_full.bin`**: Tệp gộp toàn bộ từ offset `0x0` (gồm Bootloader S31 tại `0x2000`, Partition Table tại `0x8000`, Otadata tại `0xd000` và Ứng dụng tại `0x10000`).
 
 ### 4.2. Sao chép và tính toán mã băm SHA-256
 Sau khi build xong:
@@ -224,6 +224,13 @@ Sau khi hoàn thành các bước trên, AI Agent thực hiện kiểm tra các 
   - HEAD đang ở nhánh `main`, trùng commit với tag `v1.1.6-vn`.
 
 ---
+
+## Quy trình kiểm tra hiện tại
+
+- Chạy `tools/archive_current_release.py releases --source-commit <commit-bản-cũ>` trước khi thay gói chính thức; giữ nguyên bytes và checksum của phiên bản trước.
+- `python3 tools/publish_release.py --dry-run` kiểm tra descriptor S31/version, hash/size app, ảnh full với bootloader0x2000, USB/TF ZIP và bản trước.
+- Tag phải trùng HEAD và manifest. Workflow release dùng `tools/publish_release.py`: tạo draft, tải đủ app/full/USB ZIP/TF ZIP/manifest/verification/checksum, kiểm tra digest GitHub từng tệp rồi mới công khai. Lỗi tải không được báo thành công hoặc ghi đè tài sản đã công khai.
+- Sau khi release và tải lại các tệp được kiểm tra, dọn RC cũ theo AGENTS.md; không dọn trước khi phát hành thành công.
 
 ## 9. TÓM TẮT DÀNH CHO AI AGENT (QUICK CHEATSHEET)
 

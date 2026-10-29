@@ -49,6 +49,16 @@ esp_err_t kosync_pull_book_progress(const char *file_path, kosync_progress_t *ou
 esp_err_t kosync_sync_book(const char *file_path, uint16_t *cur_chapter, uint32_t *cur_byte_off,
                            uint8_t *cur_pct, bool *pulled_newer, char *message, size_t message_cap);
 
+
+/// 后台同步持有网络/文件时禁止睡眠与媒体重挂。/ Block sleep and media recovery while a sync owns network/files.
+bool kosync_busy(void);
+/// 复制进度快照，不在调用线程联网；同类待办合并。/ Copy progress without network IO on the caller; coalesce pending jobs by kind.
+void kosync_auto_submit(const char *path,const book_progress_t *progress,double ratio,bool pull);
+/// 主循环启动待办，启动失败退避。/ Start pending work from the loop, backing off on allocation failure.
+void kosync_auto_poll(void);
+/// 仅返回同书同位置的结果，用户已翻页则丢弃。/ Return only a same-book, unchanged-position result; discard after user movement.
+bool kosync_auto_take_pull(const char *path,const book_progress_t *current,kosync_progress_t *remote,uint16_t *chapter,uint32_t *offset,bool *exact);
+
 #ifdef __cplusplus
 }
 #endif

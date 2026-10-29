@@ -83,7 +83,9 @@ int ttf_text_width_px(int px, const char* text) {
     measure_calls++;
     return width + n * test_slot_advance[test_slot];
 }
+static int test_descender;
 int ttf_ascender_px(int px) { return px; }
+void ttf_measure_line_px(int px,const char *text,int *above,int *below) { (void)text; *above=px; *below=test_descender; }
 int ttf_text_left_bearing_px(int px, const char* text) {
     (void)px; (void)text; return test_opener_bearing;
 }
@@ -491,8 +493,8 @@ int main(void) {
     book_layout_set_chapter_lead(0, 0);
     r.width = 20;
     assert(book_layout_build_blocks(styled, strlen(styled), blocks, 2, r, 10));
-    assert(book_layout_page_count() == 6);
-    assert(book_layout_page_start_offset(5) == 6);
+    assert(book_layout_page_count() == 4);
+    assert(book_layout_page_start_offset(3) == 6);
     drawn[0] = 0;
     for (size_t i = 0; i < book_layout_page_count(); ++i) book_layout_draw_page(&fb, i, r, 10);
     assert(!strcmp(drawn, "Titlebody"));
@@ -915,6 +917,22 @@ int main(void) {
         }
     }
     capture_lines=false;book_layout_set_vertical(false);
+    // 末行只需容纳墨迹，不占下一行的行距；真实下行字形仍必须留在正文内。
+    // A final line needs ink space rather than the next line's pitch; real descenders must still fit.
+    book_layout_set_spacing(200,0);
+    const char *last_lines="a\nb\nc\n";
+    EpdRect last_box={0,0,200,30};
+    assert(book_layout_build(last_lines,strlen(last_lines),last_box,10));
+    assert(book_layout_page_count()==2&&book_layout_page_start_offset(1)==4);
+    drawn[0]=0;book_layout_draw_page(&fb,0,last_box,10);assert(!strcmp(drawn,"ab"));
+    drawn[0]=0;book_layout_draw_page(&fb,1,last_box,10);assert(!strcmp(drawn,"c"));
+    test_descender=3;
+    assert(book_layout_build(last_lines,strlen(last_lines),last_box,10));
+    assert(book_layout_page_count()==3);
+    last_box.height=33;
+    assert(book_layout_build(last_lines,strlen(last_lines),last_box,10));
+    assert(book_layout_page_count()==2);
+    test_descender=0;book_layout_set_spacing(150,50);
     // 大章节的行缓冲不应跟整章等大；沿用同样的分页结果与限制。
     // A large chapter's scratch line must not reserve a whole chapter; pagination rules stay intact.
     char *large_chapter=malloc(240001);assert(large_chapter);memset(large_chapter,'a',240000);large_chapter[240000]=0;

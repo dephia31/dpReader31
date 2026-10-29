@@ -1,0 +1,66 @@
+{
+  "board": "metalio47",
+  "target": "esp32s31",
+  "chip_id": 32,
+  "project": "Kiikoread_Metalio_S31",
+  "version": "1.1.7-vn",
+  "size": 3938416,
+  "sha256": "123af5e655dfe5bf21eda025923d955ae782b8ad3ebdd8cd345e6995eb6b0c28",
+  "partitions": {
+    "nvs": [
+      1,
+      2,
+      36864,
+      16384
+    ],
+    "otadata": [
+      1,
+      0,
+      53248,
+      8192
+    ],
+    "phy_init": [
+      1,
+      1,
+      61440,
+      4096
+    ],
+    "ota_0": [
+      0,
+      16,
+      65536,
+      5242880
+    ],
+    "ota_1": [
+      0,
+      17,
+      5308416,
+      5242880
+    ],
+    "storage": [
+      1,
+      129,
+      10551296,
+      6160384
+    ],
+    "coredump": [
+      1,
+      3,
+      16711680,
+      65536
+    ]
+  },
+  "bootloader_offset": 8192,
+  "esptool_stub": false,
+  "free_app_bytes": 1304464,
+  "experimental_pie_pixels": false,
+  "experimental_text_ripple": false,
+  "experimental_reader_panel37": false,
+  "experimental_shelf37": false,
+  "experimental_fast_reader_panels": false,
+  "experimental_network_probe": false,
+  "local_transfer_start_test": false,
+  "built": true,
+  "device_flashed": false,
+  "published": false
+}

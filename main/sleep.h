@@ -71,11 +71,11 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
 /// Wait for the power key to release so the same press does not wake immediately.
 void app_lock_wait_key_idle(int timeout_ms);
 #if KIIKO_BOARD_METALIO47
-// 十分钟交接由S31等待事务内部管理，外层超时不能被当作解锁。
-// The S31 wait transaction owns the ten-minute handoff; an outer timeout is never an unlock.
+// 设定小时后的交接由S31等待事务内部管理，外层超时不能被当作解锁。
+// The S31 wait transaction owns the configured-hour handoff; an outer timeout is never an unlock.
 #define APP_LOCK_IDLE_TIMEOUT_MS 0U
-#define APP_LOCK_OFF_AFTER_US INT64_C(600000000)
-/// 锁屏先浅睡十分钟后同步RTC并硬关机；USB暂缓。/ Light sleep for ten minutes, sync RTC and power off; defer for USB.
+
+/// 锁屏先浅睡所选小时后同步RTC并硬关机；USB暂缓。/ Light sleep for the selected hours, sync RTC and power off; defer for USB.
 #else
 /// ESP 浅睡，按键或拿起唤醒。acc 为空则只等按键。
 /// ESP light sleep; wake on key or pickup. Key only when acc is NULL.

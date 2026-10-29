@@ -132,3 +132,10 @@ Desktop.ini
 build_firmware.sh
 flash_firmware.sh
 run_web_flasher.sh
+
+# 本地测试固件导出目录；仅保留目录占位。/ Local test firmware exports; retain only the folder placeholder.
+/Test Build/*
+!/Test Build/.gitkeep
+
+# 既有USB恢复备份，RC清理前移出测试目录。/ Existing USB recovery backups moved out before RC cleanup.
+/USB Backups/

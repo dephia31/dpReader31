@@ -619,11 +619,24 @@ static void io_flush_touches(void) {
     touch_n = 0;
 }
 
+#if KIIKO_BOARD_METALIO47
+// 所有字体槽共用2MiB可选表缓存；大字体继续流式读取，不能挤掉活动字库。
+// All faces share2MiB of optional table maps; stream larger tables instead of displacing active faces.
+#define TTF_TABLE_CACHE_MAX (2u * 1024u * 1024u)
+static size_t mapped_table_bytes(void) {
+    size_t used=0;
+    for(int i=0;i<TTF_FONT_SLOTS;++i)used+=s_slots[i].f_glyf_ram_len+s_slots[i].f_gvar_ram_len;
+    return used;
+}
+#endif
 static bool try_map_table(
     uint32_t off, uint32_t len, uint8_t** ram, uint32_t* ram_off,
     uint32_t* ram_len, const char* name
 ) {
     if (*ram != NULL || len < 4096 || len > TTF_MAP_MAX) return false;
+#if KIIKO_BOARD_METALIO47
+    if(len>TTF_TABLE_CACHE_MAX||mapped_table_bytes()>TTF_TABLE_CACHE_MAX-len||!metalio_cache_can_grow(len))return false;
+#endif
     size_t largest = heap_caps_get_largest_free_block(
         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT
     );
@@ -2669,6 +2682,20 @@ size_t ttf_font_cache_clear_all(void) {
     return freed;
 }
 
+#if KIIKO_BOARD_METALIO47
+size_t ttf_font_reclaim_optional_cache(void) {
+    size_t freed=ttf_font_cache_clear_all();
+    int keep=s_cur_index;
+    for(int i=0;i<TTF_FONT_SLOTS;++i){
+        s_cur_index=i;s_cur=&s_slots[i];
+        freed+=glyf_ram_len+gvar_ram_len;
+        io_unmap();
+    }
+    slot_restore(keep);
+    return freed;
+}
+#endif
+
 void ttf_font_close_embedded(void) {
     ttf_font_slots_init();
     int keep = s_cur_index;
@@ -2818,6 +2845,17 @@ esp_err_t ttf_font_open(const char* path) {
     ttf_font_slots_init();
     int keep = slot_lend(TTF_FONT_SLOT_SYSTEM);
     esp_err_t err = open_path_here(path);
+#if KIIKO_BOARD_METALIO47
+    if(err==ESP_ERR_NO_MEM){
+        // 仅在OOM时回收可重建缓存并重试一次，保留保存的选择与已装载字库。
+        // On OOM only, reclaim rebuildable caches and retry once without changing saved choices or loaded faces.
+        size_t freed=ttf_font_reclaim_optional_cache();
+        ESP_LOGW(TAG,"font allocation retry freed=%u psram=%u largest=%u",(unsigned)freed,
+            (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT),
+            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
+        err=open_path_here(path);
+    }
+#endif
     s_cur_index = keep;
     s_cur = &s_slots[keep];
     return err;

@@ -48,6 +48,7 @@
  * User revision2026-10-21: children retain gray navigation; content right-swipes reuse reading recognition without left-edge or extra angle restrictions. Keyboards keep their gestures; back reuses cleanup and one board-local LTR ripple.
  */
 
+#include "kosync_client.h"
 #include "app_loop.h"
 #if KIIKO_BOARD_METALIO47
 #include "anti_fade.h"
@@ -908,6 +909,7 @@ static void prepare_lock(app_ctx_t *ctx, const app_desc_t *current, bool feedbac
 #endif
 }
 static void run_power_action(app_ctx_t *ctx, const app_desc_t *current, bool restart) {
+    if(kosync_busy()){app_present(ctx,current,APP_REDRAW_PAGE);return;}
     prepare_lock(ctx, current, false);
     ui_power_final_draw(ctx->fb, restart);
     guard_draw_result(ctx->hl, update_display_full(ctx->hl));
@@ -1029,6 +1031,7 @@ void app_loop_run(const app_loop_config_t* config) {
 #endif
 
     while (true) {
+        kosync_auto_poll();
         unsigned requested_cover_policy = (unsigned)app_settings_main_refresh_mode() | ((unsigned)app_settings_system_contrast() << 8);
         if (requested_cover_policy != cover_policy) {
             app_home_cover_mode_changed(); app_book_cover_mode_changed();
@@ -1619,7 +1622,7 @@ void app_loop_run(const app_loop_config_t* config) {
             }
         }
 #if KIIKO_BOARD_METALIO47
-        // 音量键主页面沿用左右键，阅读固定翻页；覆盖层不透传。/ Volume follows root side keys, fixes reader turns, and cannot pass through overlays.
+        // 音量键主页面沿用左右键，阅读采用独立快捷操作；覆盖层不透传。/ Volume follows root side keys or independent reader shortcuts, without passing through overlays.
         int volume=metalio_take_volume();
         if(volume && !power_dialog_open && !power_input_owned && !menu_open && !s_quick.open && !ai_overlay_open() && !quick_input_owned) {
             cancel_gesture(&ctx,current,&gesture); last_input_ms=ctx.now_ms;

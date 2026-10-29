@@ -6,6 +6,7 @@
  * 用户修订：分段擦除并串行化闪存与屏幕推送，启动前检查连续内存，低内存安全失败。
  * User revision: erase incrementally and serialize flash with display output; require memory headroom and fail safely on shortage.
  */
+#include "kosync_client.h"
 #include "ota_online.h"
 #include "esp_private/cache_utils.h"
 #include "esp_app_desc.h"
@@ -83,12 +84,13 @@ static void state(pico_update_state_t value, const char *message) {
     ++s_status->revision;
     xSemaphoreGive(s_mutex);
 }
-bool pico_online_busy(void) {
+bool pico_online_update_busy(void) {
     if (!s_status || !s_mutex) return false;
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     bool busy = s_status->busy;
     xSemaphoreGive(s_mutex); return busy;
 }
+bool pico_online_busy(void) { return kosync_busy() || pico_online_update_busy(); }
 void pico_online_get_status(pico_update_status_t *status) {
     if (!status) return;
     memset(status, 0, sizeof(*status));
@@ -410,6 +412,7 @@ static void worker(void *unused) {
     vTaskDelete(NULL);
 }
 static esp_err_t start(bool downloading) {
+    if(kosync_busy())return ESP_ERR_INVALID_STATE;
     if (!initialize()) return ESP_ERR_NO_MEM;
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     bool busy = s_status->busy;

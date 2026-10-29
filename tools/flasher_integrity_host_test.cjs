@@ -100,3 +100,48 @@ async function verify(snapshot) {
   assert.equal(opens, before); assert.equal(alerts.pop(), '内部版本不一致'); assert(!element._preparing);
   console.log('PASS: cache bypass, four hashes, embedded app version, corruption rejection, independent snapshots, archive compatibility and verification before port opening');
 })().catch(error => {console.error(error); process.exitCode = 1;});
+
+
+// 中文：执行当前网页真实文件选择分支，确认自选应用也切换启动槽，其他偏移不写otadata。
+// English: Execute the current web file-selection branch; custom apps switch boot slots while other offsets leave otadata alone.
+(async () => {
+  const webSource = fs.readFileSync(path.join(__dirname, '../web/app.js'), 'utf8');
+  const begin = webSource.indexOf('    if (radioApp.checked) {', webSource.indexOf('let clearOtadata = false;'));
+  const end = webSource.indexOf('    const startTime = Date.now();', begin);
+  assert(begin >= 0 && end > begin);
+  const branch = webSource.slice(begin, end);
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const select = new AsyncFunction('mode', 'customOffset', 'folder', `
+    const radioApp = {checked: mode === 'app'}, radioFull = {checked: mode === 'full'}, radioCustom = {checked: mode === 'custom'};
+    const payload = new Uint8Array([0xe9, 0, 0, 0]);
+    const customFileInput = {files: [{name: 'rc-app.bin', arrayBuffer: async () => payload.buffer}]};
+    const customOffsetInput = {value: customOffset}, progressStatus = {}, terminal = {writeLine() {}};
+    const fetched = [];
+    const timestamp = 1, fetchBinary = async (...urls) => {fetched.push(urls); return payload;}, selectedReleaseFolder = () => folder || "releases";
+    let binaryData = null, offset = 0, fileName = '', clearOtadata = false;
+    ${branch}
+    fileArray.fetched = fetched; return fileArray;
+  `);
+  for (const mode of ['app', 'custom']) {
+    const parts = await select(mode, '0x10000');
+    assert.deepEqual(parts.map(p => p.address), [0x10000, 0xd000]);
+    assert.equal(parts[1].data.length, 0x2000);
+    assert(parts[1].data.every(byte => byte === 0xff));
+  }
+  assert.deepEqual((await select('full', '0x0')).map(p => p.address), [0]);
+  assert.deepEqual((await select('custom', '0x510000')).map(p => p.address), [0x510000]);
+  const archived = await select('app', '0x10000', 'releases/1.1.6-vn');
+  assert(archived.fetched[0].every(url => url.includes('/releases/1.1.6-vn/')));
+  console.log('PASS: web custom/app ota_0 writes include exact otadata reset; full and alternate offsets leave selection alone');
+})().catch(error => {console.error(error); process.exitCode = 1;});
+
+{
+  const source=fs.readFileSync(path.join(__dirname,'../web/app.js'),'utf8');
+  const helper=source.slice(source.indexOf('function selectedReleaseFolder()'),source.indexOf('const releaseVersionSelect'));
+  for(const value of ['', '1.1.6-vn','../../private','1.1.7-vn']) {
+    const context={document:{getElementById:()=>({value})}};
+    vm.runInNewContext(helper,context);
+    assert.equal(context.selectedReleaseFolder(),value==='1.1.6-vn'?'releases/1.1.6-vn':'releases');
+  }
+  console.log('PASS: official version chooser only selects the previous archive or the current release');
+}

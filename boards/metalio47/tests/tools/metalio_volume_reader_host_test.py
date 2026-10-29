@@ -4,6 +4,7 @@
 English: Exercise actual S31 volume routing independently of bottom bindings and with modal/navigation guards.
 """
 from pathlib import Path
+import os
 import re, subprocess, tempfile
 from home_cover_cache_host_test import function
 root = Path(__file__).resolve().parents[1]
@@ -28,12 +29,12 @@ static bool s_scan_pending,s_clear_confirm,root_visible,usb_busy,online_busy;
 static const char *s_text="text";
 static struct {bool pending;}s_reader_tap;
 static int64_t s_stats_activity_ms;
+static int lights;
 static int turned,turns,home,fullscreen,refresh,bindings_read,held_cancel,prep,root_key,child_key=-1;
 static void reader_indent_hold_cancel(void){++held_cancel;}
 static void pause_reader_prep(void){++prep;}
 static app_redraw_t turn_page(app_ctx_t *ctx,int direction){(void)ctx;turned=direction;++turns;s_reader_panel=READER_PANEL_NONE;return APP_REDRAW_AREA;}
 static app_redraw_t reader_return(app_ctx_t *ctx){(void)ctx;++home;return APP_REDRAW_NONE;}
-static app_redraw_t toggle_reader_fullscreen(app_ctx_t *ctx){(void)ctx;++fullscreen;return APP_REDRAW_PAGE;}
 static app_redraw_t reader_manual_refresh(app_ctx_t *ctx){(void)ctx;++refresh;return APP_REDRAW_FULL;}
 static bool main_page_ready(app_ctx_t *ctx,const app_desc_t *app){(void)ctx;(void)app;return root_visible;}
 static bool usb_storage_active(void){return usb_busy;}
@@ -42,12 +43,13 @@ static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *app,int key
 '''
 unit += settings[a:b] + '\n'
 unit += '''
-static app_reader_key_action_t app_settings_volume_key_action(unsigned key){return key==0?APP_READER_KEY_PREV:APP_READER_KEY_NEXT;}
+static app_reader_key_action_t volume_bindings[2];
+static app_reader_key_action_t app_settings_volume_key_action(unsigned key){return volume_bindings[key];}
 static app_redraw_t reader_jump_chapter(app_ctx_t *ctx, int dir){(void)ctx;(void)dir;return APP_REDRAW_NONE;}
-static void metalio_frontlight_toggle(void){}
+static void metalio_frontlight_toggle(void){++lights;}
 static void app_book_request_kosync(app_ctx_t *ctx){(void)ctx;}
 '''
-unit += 'static app_reader_key_action_t bindings[3];\n'
+unit += 'static app_reader_key_action_t bindings[3];\nstatic bool s_reader_return_home;\n'
 unit += function('reader_key_action',book)+'\n'
 unit += function('app_book_volume_key',book)+'\n'
 unit += r'''
@@ -60,6 +62,7 @@ unit += r'''
 static void reset(void){
  s_view=READING;s_reader_panel=READER_PANEL_NONE;s_reader_slider=2;s_pressed_control=9;
  s_text="text";s_reader_tap.pending=true;s_scan_pending=s_clear_confirm=root_visible=usb_busy=online_busy=false;
+ lights=0;s_reader_return_home=false;volume_bindings[0]=APP_READER_KEY_PREV;volume_bindings[1]=APP_READER_KEY_NEXT;
  turns=turned=home=fullscreen=refresh=bindings_read=held_cancel=prep=0;root_key=child_key=-1;
 }
 int main(void){
@@ -72,6 +75,10 @@ int main(void){
   assert(turns==1&&turned==dir&&!home&&!fullscreen&&!refresh&&!bindings_read);
   assert(!s_reader_tap.pending&&s_pressed_control==-1&&held_cancel==1&&s_stats_activity_ms==ctx.now_ms);
  }
+ reset();volume_bindings[0]=APP_READER_KEY_LIGHT;
+ assert(volume_key_action(&ctx,&app_book,-1)==APP_REDRAW_NONE&&lights==1&&!turns);
+ reset();volume_bindings[1]=APP_READER_KEY_HOME;
+ assert(volume_key_action(&ctx,&app_book,1)==APP_REDRAW_NONE&&home==1&&s_reader_return_home&&!turns);
  reset();bindings[0]=APP_READER_KEY_HOME;bindings[2]=APP_READER_KEY_TOOLS;
  assert(bottom_key(&ctx,0)==APP_REDRAW_NONE&&home==1&&!turns);
  assert(bottom_key(&ctx,2)==APP_REDRAW_PAGE&&s_reader_panel==READER_PANEL_TOOLS&&!turns);
@@ -96,11 +103,12 @@ int main(void){
   reset();s_view=TOC;assert(volume_key_action(&ctx,&child,dir)==APP_REDRAW_PAGE&&child_key==(dir<0?0:2)&&!turns);
   reset();assert(volume_key_action(&ctx,&no_keys,dir)==APP_REDRAW_NONE);
  }
- puts("PASS: actual S31 volume routing and reader actions: all49 bottom binding pairs, fixed previous/next, unchanged custom bottom actions, tools closing, modal/missing-book/scan/navigation/USB/OTA guards and root/child delegation");
+ puts("PASS: actual S31 volume routing and reader actions: all49 bottom binding pairs, independent volume shortcuts including Home/light, unchanged custom bottom actions, tools closing, modal/missing-book/scan/navigation/USB/OTA guards and root/child delegation");
 }
 '''
+sanitizers=[] if os.environ.get('HOST_TEST_SANITIZERS')=='0' else ['-fsanitize=address,undefined']
 with tempfile.TemporaryDirectory() as tmp:
     path=Path(tmp)/'test.c';path.write_text(unit)
     exe=path.with_suffix('')
-    subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(path),'-o',str(exe)],check=True)
+    subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror',*sanitizers,str(path),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)

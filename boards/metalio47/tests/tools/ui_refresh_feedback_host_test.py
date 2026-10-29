@@ -3,6 +3,8 @@ SPDX-License-Identifier: Apache-2.0
 """
 from pathlib import Path
 import re
+import os
+import sys
 import subprocess
 import tempfile
 
@@ -11,6 +13,8 @@ root = Path(__file__).resolve().parents[1]
 
 def function(path, name):
     text = (root / path).read_text()
+    # 保留字符串但去掉注释，避免注释引号干扰括号解析。/ Keep strings and strip comments before brace parsing.
+    text = re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/', lambda m: m[0] if m[0].startswith('"') else ' ', text, flags=re.S)
     match = re.search(r"^(?:static )?[^\n]+\b" + name + r"\([^;{}]*?\)\s*\{", text, re.M)
     assert match, name
     start, at, depth, quote, escape = match.start(), match.end(), 1, None, False
@@ -396,7 +400,7 @@ int main(void){
    reading_context=false;chosen_system=s_system_ttf=font;wifi=mask&1;bluetooth=mask&2;pct=percentages[p];text_count=0;network_left=1000;
    snprintf(signature,sizeof(signature),"时间统一 · 正在阅读我的收藏书籍，保持热爱 ABCabc");
    ui_nav_status_font_context(false,true);
-   ui_nav_status(&fb);assert(text_count==3&&texts[0].px==28&&texts[1].px==26&&texts[2].px==28);
+   ui_nav_status(&fb);assert(text_count==3&&texts[0].px==40&&texts[1].px==40&&texts[2].px==40);
    for(int i=0;i<3;++i)assert(texts[i].center>=39&&texts[i].center<=41);
    assert(texts[0].right+12<=texts[1].left);
    assert(texts[1].right+12<=(mask?network_left:texts[2].left));
@@ -529,10 +533,12 @@ int main(void){
 with tempfile.TemporaryDirectory() as folder:
     for name, unit in (("shelf", shelf), ("status", status),
                        ("nav-modes", navigation), ("image-bw", image_bw)):
+        if "--status-only" in sys.argv and name != "status":
+            continue
         source, binary = Path(folder) / (name + ".c"), Path(folder) / name
         source.write_text(unit)
         extras = [str(root / "main/ui/ui_image_dither.c")] if name == "image-bw" else []
-        subprocess.run(["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-fsanitize=address,undefined",
+        subprocess.run(["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", *(["-fsanitize=address,undefined"] if os.environ.get("HOST_TEST_SANITIZERS","1")!="0" else []),
                         "-I" + str(root),
                         str(source), *extras, "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)

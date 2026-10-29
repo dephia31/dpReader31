@@ -21,8 +21,8 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # "Trim" the build. Include the minimal set of components, main, and anything it depends on.
 idf_build_set_property(MINIMAL_BUILD ON)
 
-# 本地测试沿用当前正式版号；仅正式发布或明确的 OTA 验证指定新版本。
-# Local tests keep the current release version; override only for publication or explicit OTA validation.
+# 本地测试使用下一正式版的递增 RC 编号；构建器传入与应用描述一致的版本。
+# Local tests use increasing RC numbers for the next release; the build driver supplies the app descriptor version.
 if(DEFINED ENV{KIIKO_PROJECT_VER} AND NOT "$ENV{KIIKO_PROJECT_VER}" STREQUAL "")
     set(PROJECT_VER "$ENV{KIIKO_PROJECT_VER}")
 elseif(DEFINED ENV{PICO_PROJECT_VER} AND NOT "$ENV{PICO_PROJECT_VER}" STREQUAL "")

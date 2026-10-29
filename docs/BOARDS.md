@@ -43,6 +43,11 @@ S31使用SDK原生JPEG硬解处理兼容的8位基线YCbCr/灰度图，按MCU填
 
 English: Native S31 JPEG decoding handles compatible8-bit baseline YCbCr/gray with MCU-padded stride, luminance conversion and area/bilinear resampling. Keep streaming fallback for large-source thumbnails, unsupported layouts, budget/allocation errors or timeouts. Pinned libjpeg-turbo3.2.0~1 fully decodes progressive scans at a target-appropriate IDCT scale, retaining the old small preview as the final low-memory fallback. Serialize hybrid work, cap its budget at12MiB with2MiB PSRAM reserved, use bounded200ms hardware /2.5s progressive checks, and release temporary buffers/engines on every exit. Keep PNG alpha, display grayscale, vendor waveforms and existing caches; version S31 cover/wallpaper products independently. Host fixtures do not measure native hardware speed. The official libjpeg component requires a build path without spaces; a dedicated/tmp build directory can be exported to the normal workspace afterward.
 
+## S31 Flash缓存保护 / Flash cache protection
+
+S31构建通过`components/metalio_hw/s31_sleep/s31_flash_cache_sdk.cmake`回移Espressif修复[f91ec54912](https://github.com/espressif/esp-idf/commit/f91ec54912c001be169a5aa3976f04077178fee0)：flash等待核与IPC停驻核在cache关闭期间禁用分支预测，恢复后重新启用；panic等待不再启用。否则即便等待代码位于IRAM，推测性外部取指也会在NVS读操作中触发Core1 Cache access error。仅生成SDK源副本并替换S31构建目标，保留原basename以维持IRAM链接规则；SDK锚点变化必须停止并复审，禁止关闭cache错误检测或擦除用户NVS来规避。
+English: S31 builds backport Espressif [f91ec54912](https://github.com/espressif/esp-idf/commit/f91ec54912c001be169a5aa3976f04077178fee0) through the project-local CMake module. Disable branch prediction on flash/IPC parked cores before cache suspension and restore afterward; panic parking never re-enables it. Speculative external fetches can otherwise cause a Core1 cache-access panic during NVS reads despite the wait code being in IRAM. Compile generated SDK copies for S31 only, preserving basenames for SDK IRAM linker rules and the installed SDK. Changed anchors fail the build for review. Do not disable cache-error detection or erase NVS to mask this defect.
+
 ## S31关机与锁屏省电
 
 S31挂载发布不等待全卡FAT空闲计数；文件管理先完成目录首帧，再在空闲时异步查询分区用量。浅睡唤醒先恢复显示与触摸，媒体最多短等500ms，之后由已有恢复服务继续重试。暂停期间不对字体路径做stat或卸载保留槽，恢复后补一次页面；不覆盖用户选择，也不改变异常启动使用内建字体的保护。500ms只限制挂载状态轮询，底层单次卡命令和字体/书籍文件重开仍受其自身I/O超时约束，不代表任何坏卡都能在500ms恢复。
@@ -53,17 +58,20 @@ English: Try at most8 profiles: four-line40/40/20/10/5/1MHz, then single-line5/1
 
 English: Publish a mounted filesystem before scanning FAT allocation counts. File management draws its directory first and queries partition space during idle. Light wake restores LCD/touch before a bounded500ms media poll; existing services continue recovery. Do not stat/unload retained font faces while media is suspended, and repaint once recovery completes. Saved font choices and abnormal-boot fallback remain intact. The poll bound does not replace individual SD-command/file-reopen timeouts or guarantee recovery of faulty media.
 
-“关机睡眠”只保留“浅睡10分钟后关机”（默认）和“彻底断电”，不再单独选择锁屏省电方式。旧`lock_lp`值忽略，已明确保存的关机/睡眠选择仍保留；新选择在NVS提交成功后生效。日常短按及自动锁屏先浅睡十分钟，之后同步外挂PCF8563、关闭书籍和字体文件并同步卸载TF，再走原厂硬件关机脉冲。RTC仅保时，不设置闹钟或定时重新开机；无效系统时间不覆盖RTC。
+用户2026-10-29修订：手动锁屏与自动锁屏立即进入浅睡，用户通过关机睡眠页的−/+选择1..24小时后关机，默认1小时，NVS提交后生效；PIN与无PIN使用同一内部截止时间。自动锁屏分钟数独立，不因选择关机小时数改变。保留USB/忙I/O/恢复检查点/物理按键/PIN门禁，不允许准备失败提前关机。
+English: Manual and idle locks immediately enter light sleep, then power off after user-selected1..24 hours (default1), committed to NVS through the power/sleep page's minus/plus controls. PIN and non-PIN paths share the internal deadline. Idle-lock minutes remain independent. Preserve USB/busy IO/checkpoints/physical-key/PIN gates; preparation failure cannot power off early.
 
-浅睡保留RAM、字形与阅读索引，使用Metalio原厂SD、TPS、屏总线、P17/GPIO2和断轨顺序。每个维护切片不超过60秒，最后一段按十分钟截止时间缩短，不反复挂载TF。真正按键优先于到时交接，定时不能解锁或点前光。共享EXT1中断不能单独补造短按：恢复按键方向和慢挂卡前两次有效P17低电平才确认，未确认或I2C读失败仍保持锁屏。真实按键释放与双击继续由原采样器消费；有密码仍须验证。
+“关机睡眠”只保留“浅睡所选小时后关机”（默认1小时）和“彻底断电”，不再单独选择锁屏省电方式。旧`lock_lp`值忽略，已明确保存的关机/睡眠选择仍保留；新选择在NVS提交成功后生效。日常短按及自动锁屏先浅睡所选小时，之后同步外挂PCF8563、关闭书籍和字体文件并同步卸载TF，再走原厂硬件关机脉冲。RTC仅保时，不设置闹钟或定时重新开机；无效系统时间不覆盖RTC。
+
+浅睡保留RAM、字形与阅读索引，使用Metalio原厂SD、TPS、屏总线、P17/GPIO2和断轨顺序。每个维护切片不超过60秒，最后一段按所选小时截止时间缩短，不反复挂载TF。真正按键优先于到时交接，定时不能解锁或点前光。共享EXT1中断不能单独补造短按：恢复按键方向和慢挂卡前两次有效P17低电平才确认，未确认或I2C读失败仍保持锁屏。真实按键释放与双击继续由原采样器消费；有密码仍须验证。
 
 USB、忙传输、活动挂载和不安全唤醒线暂缓浅睡；无卡且没有待重开句柄时可以浅睡，不必一直空转。没有成功保存的检查点不贸然自动关机。浅睡失败按1/3/10/30秒退避，硬件关机失败保持锁定、30秒后重试；文件关闭/同步失败不发关机脉冲，按键事务拒绝时保留真实输入。关机不切换字体、不改设置；重新硬件开机后单击模式直接恢复，有密码/双击继续门禁，软件复位与未确认的深睡唤醒不能直接放行。超短按若未被采样确认可能需要再按，不能为避免漏按而把共享中断当真实按键。异常启动字体保护不变，另从校验通过的原NVS记录保留锁屏门禁，不能因禁用自动开书而直接进入首页；NVS格式不变。
 
 S31浅睡SDK兼容模块来自[Metalio官方2.0.66](https://github.com/CloudZao/Metalio-E-INK4-Plus/commit/2c1e5efba74f9ffd6f7d72e348011308e53f39a1)，源固定为`ad8edf4150a688737c0d7c00cae4413079b262ef`中的`s31_sleep`，保留MIT许可。恢复MPLL模拟校准前置条件与12/12偏置、PSRAM/XTAL/MPLL时钟交接，保留看门狗和CPU/PSRAM睡眠配置，只编译工程内SDK兼容副本，不修改全局SDK。RTC RAM阶段记录与复位原因在启动后有界重放，区分真实唤醒和复位恢复；这里的RTC RAM诊断与外挂PCF8563保时是不同用途。此项只适用于S31，不能移植寄存器参数到Pico。
 
-English: S31 offers default light sleep for ten minutes followed by PCF8563 sync and hardware power-off, or immediate complete power-off. Close/sync book/font/SD before the vendor power pulse, retaining saved selections and checkpoints; RTC preserves time without alarm wake. No-card/no-handle standby is allowed, while busy media/USB/unsafe IRQ defer sleep. Retain bounded slices, retries and PIN/double gates. Shared EXT1 alone cannot grant unlock: verify physical P17 twice before restoring inputs/media. Very short unobserved presses may require another press. Single-press hardware boots resume directly; software resets and unconfirmed deep wakes remain gated, and abnormal-font protection stays intact. The MIT vendor2.0.66 sleep module backports MPLL calibration/bias and PSRAM clock handoff through project-local SDK sources, preserving watchdogs and board isolation. Delayed reset/RTC-RAM traces distinguish wake from reboot; external RTC timekeeping is separate. Current draw, actual ten-minute power-off and wake/media/USB behavior still require hardware validation.
+English: S31 offers default light sleep for ten minutes followed by PCF8563 sync and hardware power-off, or immediate complete power-off. Close/sync book/font/SD before the vendor power pulse, retaining saved selections and checkpoints; RTC preserves time without alarm wake. No-card/no-handle standby is allowed, while busy media/USB/unsafe IRQ defer sleep. Retain bounded slices, retries and PIN/double gates. Shared EXT1 alone cannot grant unlock: verify physical P17 twice before restoring inputs/media. Very short unobserved presses may require another press. Single-press hardware boots resume directly; software resets and unconfirmed deep wakes remain gated, and abnormal-font protection stays intact. The MIT vendor2.0.66 sleep module backports MPLL calibration/bias and PSRAM clock handoff through project-local SDK sources, preserving watchdogs and board isolation. Delayed reset/RTC-RAM traces distinguish wake from reboot; external RTC timekeeping is separate. Current draw, actual configured-hour power-off and wake/media/USB behavior still require hardware validation.
 
-S31同步Pico PR46–49的设置控件、密码白底与标题提示排版。密码页可点按切换“关闭/5分钟/1小时/8小时/24小时”宽限期，默认关闭，档位存入S31自身NVS命名空间；只在本次锁屏的真实电源键浅睡唤醒后检查当前有效时钟。共享中断、定时、触摸和USB不授予免密资格；到期、无效时间、时钟回拨及硬件重新开机仍需密码。冷启动不复用旧宽限，异常启动字体保护、十分钟RTC同步硬件关机与PIN门禁保持独立。密码层先在内存铺白供按钮采样，入场一次输出；等待及取消恢复原锁图，不额外全刷。
+S31同步Pico PR46–49的设置控件、密码白底与标题提示排版。密码页可点按切换“关闭/5分钟/1小时/8小时/24小时”宽限期，默认关闭，档位存入S31自身NVS命名空间；只在本次锁屏的真实电源键浅睡唤醒后检查当前有效时钟。共享中断、定时、触摸和USB不授予免密资格；到期、无效时间、时钟回拨及硬件重新开机仍需密码。冷启动不复用旧宽限，异常启动字体保护、所选小时后的RTC同步硬件关机与PIN门禁保持独立。密码层先在内存铺白供按钮采样，入场一次输出；等待及取消恢复原锁图，不额外全刷。
 
 English: S31 adopts Pico PR46–49 control/PIN/notice presentation. Optional PIN grace cycles off/5min/1h/8h/24h, defaults off and uses the S31 NVS namespace. Recheck valid current time only after a real power-key light wake in this lock session; timers/shared IRQ/USB/touch cannot grant grace. Expiry, invalid/rollback time, hardware reboot and abnormal-start protection retain authentication. Sample PIN buttons on white memory, present once, and retain artwork while waiting/cancelling without extra full scans.
 
@@ -87,7 +95,7 @@ English: Paint crisp black labels after glass. Keep the S312×2 switches and dua
 
 ## S31锁屏与侧键
 
-“双击解锁”位于显示主列表的自动休眠锁屏下一行；新配置默认关闭，旧配置中的明确单击/双击选择不改变。S31继续使用自身单击/双击事件消费与PIN门禁，关机睡眠页统一为先浅睡十分钟后深睡或彻底断电。票根封面与背景仅经一次对比度灰阶映射，保持自然比例和旧封面缓存兼容。用户主动选择导入阅读字体连续三次真正回退内建后，可选择保存进度再重启或返回字体页；未保存成功不能重启，异常启动保护仍独立生效。
+“双击解锁”位于显示主列表的自动休眠锁屏下一行；新配置默认关闭，旧配置中的明确单击/双击选择不改变。S31继续使用自身单击/双击事件消费与PIN门禁，关机睡眠页统一为先浅睡所选小时后深睡或彻底断电。票根封面与背景仅经一次对比度灰阶映射，保持自然比例和旧封面缓存兼容。用户主动选择导入阅读字体连续三次真正回退内建后，可选择保存进度再重启或返回字体页；未保存成功不能重启，异常启动保护仍独立生效。
 
 首页元数据、封面索引与头像使用PSRAM BSS，保留静态零初始化；DMA、ISR、板级状态和缓存预算不变。时钟预览待更新范围独立于按下反馈，在失败后合并后续范围，仅输出成功才清除。S31冷启动使用已有内建字形绘制Kiikoread与准备资源，不再链接全屏loading位图；USB接管、VCOM校准、深睡保图与PIN流程保留。
 
@@ -251,9 +259,13 @@ Child layouts use the1216px viewport: extend file lists, bottom-anchor directory
 
 English: Large S31 uploads use two bounded ordered slots,one optional PSRAM block and4096B internal worker stack; resource failure falls back synchronously. Join before close/cleanup/commit on every path. TCP receive65535/mailbox64,default staticRX6/dynamicRX64/BA12 and bounded12-packet SACK. PSRAM bulk sessions compare the SDK16-slot staticRX/BA minimum (capped at16),while ordinary connectivity/time sync retain6; MSC16KiB with unchanged four-bit20MHz card timing and exclusive ownership. Preserve physical deep-lock art while media is pending; trusted snapshots restore references without scanning,unknown transparent art never receives difference hints. Cancel deferred work before unlock,retain PIN/abnormal-font/board sleep guards,and clean reader entry once with vendorGC48 without changing subsequent body or graphical waveforms.
 
-文件传输服务持有BLE网络租约，停止扫描/连接并阻止主循环重启蓝牙；关闭服务后按原设置及最近设备恢复，不清配对/学习。仅连接WiFi的常驻会话不持有该租约，仍可使用蓝牙翻页器。临时扫描/联网的失败必须回滚租约；成功启动后的任何退出都释放一次。`/info`提供固件ELF身份、实际接收预算、BLE运行状态和内部RAM余量，便于核对实机；这些诊断不提供任意命令或存储访问。
+文件传输服务持有BLE网络租约，停止扫描/连接并阻止主循环重启蓝牙；关闭服务后按原设置及最近设备恢复，不清配对/学习。普通仅连接WiFi的常驻会话不持有该租约，仍可使用蓝牙翻页器；KoSync/OPDS临时抢占连接显式设置exclusive_radio，短暂回收BLE内存，用毕归还。临时扫描/联网的失败必须回滚租约；成功启动后的任何退出都释放一次。`/info`提供固件ELF身份、实际接收预算、BLE运行状态和内部RAM余量，便于核对实机；这些诊断不提供任意命令或存储访问。
 
-English: File-transfer sessions own a BLE radio lease,stop scanning/links and prevent foreground restart until release,retaining user settings and recent peers. Network-only keeps coexistence;temporary-network failures roll back ownership. `/info` reports firmware ELF identity,actual RX budget,BLE and internal heap without arbitrary command/storage access.
+English: File-transfer sessions own a BLE radio lease,stop scanning/links and prevent foreground restart until release,retaining user settings and recent peers. Ordinary persistent network-only sessions keep coexistence; temporary KoSync/OPDS preemption explicitly sets exclusive_radio to reclaim BLE memory until stop;temporary-network failures roll back ownership. `/info` reports firmware ELF identity,actual RX budget,BLE and internal heap without arbitrary command/storage access.
+
+KoSync自动开/关书同步只提交不可变的路径与进度快照，主循环启动短生命周期后台任务，不阻塞页面切换；同类待办合并，离页先比较远端以免旧本地进度覆盖较新远端。下载结果只在同书同位置的阅读正文应用；用户已经翻页则丢弃。同步串行化，并与OTA、睡眠和媒体恢复互斥；任务分配失败有界退避，退出归还资源。手动同步仍通过原显式操作执行。
+English: Automatic open/close sync queues immutable path/progress snapshots for a short-lived worker without blocking navigation. Coalesce pending jobs by kind; compare remote progress before an exit upload to avoid overwriting a newer remote position. Apply pulls on the UI thread only for the same book and unchanged position; discard after movement. Serialize syncs and exclude OTA, sleep and media recovery. Bound allocation retries and release resources on completion. Manual sync retains its explicit entry points.
+
 
 ## 板级能力与跨平台入口
 
@@ -270,6 +282,10 @@ S31 SDMMC沿用Metalio官方内部DMA中转：固定4096字节内部对齐缓冲
 显式本地`--s31-transfer-startup-test`仅用于无人值守对照，启动仍保留PIN/恢复门禁，随后进入已保存网络的传书页。正常构建强制关闭并在manifest/verification记录该开关；此测试包不得交付。
 
 ### Metalio 字体恢复与文件名
+
+用户2026-10-29修订：异常启动仍先用内建字体；手动选择实际加载并保存成功后，仅本次启动重新允许TF字体，定时重试/页面切换/锁屏恢复不得再强制回内建。失败的选择不解除门禁；下一次启动重新检查，开书/封面隔离不变。可选glyf/gvar表映射改为所有槽共享2MiB并遵守公共PSRAM/连续块预留；较大的表继续流式读取。公共TTF打开入口在OOM时回收可重建字形及表映射，只重试一次，不关闭字库或改写保存路径。最大字形缓存1MiB（压力时320KiB）、四页缓存约1.59MiB与12KiB预绘任务仍各自有界；这些是预算上限，不是实机测量值。减少表映射会增加部分大字库的SD读取，避免用缓存挤掉必须装载的字体。
+English: Abnormal boots still begin with built-in fonts. A successful explicit load/save re-admits SD fonts for that boot, including periodic retry, navigation and lock restoration; failed choices do not relax the gate, and the next boot checks anew. Book/cover quarantine remains unchanged. All optional glyf/gvar maps share2MiB and obey common PSRAM/contiguous reserves; larger tables stream. The public TTF loader reclaims rebuildable glyph/table caches on OOM and retries once without closing loaded faces or changing saved paths. Glyph cache remains capped at1MiB (320KiB under pressure), four page rasters at about1.59MiB, and prefetch stack at12KiB; these are code budgets rather than measured usage. Smaller map budgets trade additional SD reads for room to load required fonts.
+
 
 S31正常待机后继续恢复TF上的字体与书籍句柄；临时读卡/内存失败按1、3、10、30秒间隔重试，成功手动加载可清除旧拒绝记录。已判定无效的字体仍限制自动重试，异常启动仍使用内建字库，不覆盖保存的选择。字体列表最多128款，按实际路径区分文件，标签按完整UTF-8字符截短并区分重名；仅收录`.ttf`和`.otf`，扩展名不代表所有内部格式都支持。原本超过设置路径容量的文件名才会缩短并附校验标识，保留字体内容、避开已有文件。字体上传自动规范化不适合FAT的符号，其他上传类型的路径检查保持原样。
 

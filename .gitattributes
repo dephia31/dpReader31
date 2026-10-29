@@ -1,1 +1,4 @@
 *.pdf binary
+
+*.bin binary
+*.zip binary

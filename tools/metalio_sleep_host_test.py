@@ -1,6 +1,6 @@
 """Run the actual retained S31 lock wait; model scheduler progress and long idle."""
 from pathlib import Path
-import subprocess,tempfile
+import subprocess,tempfile,os
 from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1]
 unit=r'''
@@ -10,7 +10,9 @@ unit=r'''
 #include <stdlib.h>
 #include <stdio.h>
 #include <setjmp.h>
-#define APP_LOCK_OFF_AFTER_US INT64_C(600000000)
+#define APP_LOCK_OFF_AFTER_US ((int64_t)hours*INT64_C(3600000000))
+static unsigned hours=1;
+static unsigned app_settings_sleep_off_hours(void){return hours;}
 typedef int app_wake_source_t;
 enum {APP_WAKE_NONE,APP_WAKE_KEY,APP_WAKE_PICKUP,APP_WAKE_TIMEOUT};
 typedef void *sc7a20h_handle_t;
@@ -45,7 +47,8 @@ static int lock_light_sleep_once(void*a,void*t,bool*k,int64_t until){
 static int lock_resume_media_io(unsigned ms){assert(ms==0);return 0;}
 static int app_enter_host_sleep(int m){assert(m==APP_SLEEP_OFF);assert(clock_us>=APP_LOCK_OFF_AFTER_US);deep_calls++;if(deep_success)longjmp(deep_jump,1);return -1;}
 typedef int esp_err_t;
-static bool book_cover_jobs_quiesce(unsigned ms){assert(ms==2000);return true;}
+static unsigned quiesce_failures;
+static bool book_cover_jobs_quiesce(unsigned ms){assert(ms==2000);if(quiesce_failures){--quiesce_failures;return false;}return true;}
 static bool ui_avatar_quiesce(unsigned ms){assert(ms==2000);return true;}
 #define pdMS_TO_TICKS(ms) (ms)
 #define ESP_LOGI(...) ((void)0)
@@ -65,15 +68,19 @@ static bool lock_take_key_wakeup(void){return key_at>=0&&clock_us>=key_at;}
 static bool metalio_usb_blocks_sleep(void){return usb||powered||(plug_at>=0&&clock_us>=plug_at);}
 static void metalio_usb_serial_reconnect(void){++reconnects;}
 static void read_pico_clear_ioe_int(void){}
-static void vTaskDelay(int ms){assert(ms==30);scheduler_yields++;clock_us+=(int64_t)ms*1000;}
+static void vTaskDelay(int ms){assert(ms==30||ms==100);scheduler_yields++;clock_us+=(int64_t)ms*1000;}
 static void app_settings_set_last_wake(unsigned source){last_wake=source;}
 '''
 unit+='static void lock_resume_service(void){}\n'
 unit+=function('app_light_sleep_wait_timed',root/'main/sleep.c')
+unit+=function('lock_wait_for_unlock',root/'boards/metalio47/src/main/sleep.c')+'\n'
 unit+=r'''
-static void reset(void){hint_window=false;s_lock_hint.pending_at=s_lock_hint.until=0;clock_us=0;recover_at=key_at=plug_at=-1;frontlight_calls=motion_reads=sensor_on=sensor_off=reconnects=scheduler_yields=0;pickup=usb=powered=stale_motion=false;light_calls=deep_calls=cached_marks=0;light_step=0;deep_success=false;cached_error=0;pin=s_lock_frame_cached=s_lock_io_pending=false;light_key=light_fail=s_lock_deep_ready=false;s_lock_sleep_touch=NULL;}
+static void reset(void){hours=1;quiesce_failures=0;hint_window=false;s_lock_hint.pending_at=s_lock_hint.until=0;clock_us=0;recover_at=key_at=plug_at=-1;frontlight_calls=motion_reads=sensor_on=sensor_off=reconnects=scheduler_yields=0;pickup=usb=powered=stale_motion=false;light_calls=deep_calls=cached_marks=0;light_step=0;deep_success=false;cached_error=0;pin=s_lock_frame_cached=s_lock_io_pending=false;light_key=light_fail=s_lock_deep_ready=false;s_lock_sleep_touch=NULL;}
 static void settled(void){assert(frontlight_calls==(last_wake==APP_WAKE_NONE?1:2));}
 int main(void){
+ reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;quiesce_failures=1;key_at=100000;
+ lock_wait_for_unlock(NULL);assert(!deep_calls&&clock_us>=100000);
+
  reset();assert(app_light_sleep_wait_timed(NULL,1000)==APP_WAKE_TIMEOUT&&last_wake==APP_WAKE_NONE&&scheduler_yields==34);settled();
  reset();key_at=500000;assert(app_light_sleep_wait_timed(NULL,1000)==APP_WAKE_KEY&&clock_us<540000&&!reconnects);settled();
  reset();pickup=true;assert(app_light_sleep_wait_timed((void*)1,1000)==APP_WAKE_PICKUP&&sensor_on==1&&sensor_off==1&&motion_reads==2&&clock_us>=250000&&clock_us<300000);settled();
@@ -89,21 +96,21 @@ int main(void){
  // No checkpoint must not reboot or deep-sleep before the pending save has succeeded.
  reset();s_lock_sleep_touch=(void*)1;light_step=60000000;recover_at=700000000;key_at=800000000;
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!deep_calls&&clock_us>=700000000);settled();
- // Ten-minute handoff is independent of a removed selector, including PIN and cached-art combinations.
- for(unsigned c=0;c<2;c++)for(unsigned p=0;p<2;p++)for(int e=0;e<2;e++){
- reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;s_lock_frame_cached=c;pin=p;cached_error=e?-1:0;
+ // Configured-hour handoff follows the selected duration, including PIN and cached-art combinations.
+ for(unsigned h=1;h<=24;h=h==1?2:h==2?24:25)for(unsigned c=0;c<2;c++)for(unsigned p=0;p<2;p++)for(int e=0;e<2;e++){
+ reset();hours=h;s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;s_lock_frame_cached=c;pin=p;cached_error=e?-1:0;
  light_step=60000000;deep_success=true;
  if(!setjmp(deep_jump)){app_light_sleep_wait_timed(NULL,0);assert(0);}
- assert(deep_calls==1&&light_calls==10&&clock_us>=600000000&&clock_us<600100000&&cached_marks==(c&&!p));
+ assert(deep_calls==1&&light_calls>0&&light_calls<=hours*60&&clock_us>=APP_LOCK_OFF_AFTER_US&&clock_us<APP_LOCK_OFF_AFTER_US+2000000&&cached_marks==(c&&!p));
  assert(frontlight_calls==1); // A timer-to-off handoff never restores the lamp or reports an unlock.
  }
  // A real wake immediately before the deadline wins over the handoff.
- reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;light_step=60000000;recover_at=599000000;
+ reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;light_step=60000000;recover_at=APP_LOCK_OFF_AFTER_US-1000000;
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!deep_calls);settled();
  // A refused power-off handoff returns to bounded light slices and retries after30s, remaining locked.
- reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;light_step=60000000;recover_at=649000000;
- assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&deep_calls==2&&clock_us>=649000000);settled();
- reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;usb=true;key_at=700000000;
+ reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;light_step=60000000;recover_at=APP_LOCK_OFF_AFTER_US+49000000;
+ assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&deep_calls==2&&clock_us>=APP_LOCK_OFF_AFTER_US+49000000);settled();
+ reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;usb=true;key_at=APP_LOCK_OFF_AFTER_US+100000000;
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!light_calls&&!deep_calls);settled();
  reset();s_lock_sleep_touch=(void*)1;usb=true;key_at=500000;assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!light_calls);settled();
  reset();hint_window=true;s_lock_sleep_touch=(void*)1;light_key=true;assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&light_calls==1&&clock_us>=500000);settled();
@@ -115,10 +122,10 @@ int main(void){
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&light_calls==6);settled();
  reset();s_lock_sleep_touch=(void*)1;s_lock_io_pending=true;key_at=500000;
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!light_calls);settled();
- puts("PASS: production S31 10min actual wait handoff model, no early power-off, PIN/art checkpoint boundaries, key priority, USB exclusion, power-off refusal then bounded retry, transient light recovery");
+ puts("PASS: production S31 configured-hour actual wait handoff model, no early power-off, PIN/art checkpoint boundaries, key priority, USB exclusion, power-off refusal then bounded retry, transient light recovery");
 }
 '''
 with tempfile.TemporaryDirectory() as d:
  p=Path(d);(p/'test.c').write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+ subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g',*(['-fsanitize=address,undefined'] if os.environ.get('HOST_TEST_SANITIZERS','1')!='0' else []),str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)

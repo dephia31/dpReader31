@@ -52,6 +52,7 @@ static void frontlight_load(void);
 static portMUX_TYPE volume_lock=portMUX_INITIALIZER_UNLOCKED;
 static int volume_events[8];
 static unsigned volume_head,volume_count;
+static bool volume_sampling_pending;
 
 i2c_master_bus_handle_t metalio_bus(void) { return bus; }
 fca9555_handle_t metalio_ioe(void) { return ioe; }
@@ -214,14 +215,21 @@ void metalio_volume_sample(uint16_t inputs,int64_t now_ms) {
     static uint16_t stable=0xffff,candidate=0xffff;
     static int64_t since;
     inputs|=~((1u<<8)|(1u<<9));
-    if (inputs!=candidate) { candidate=inputs; since=now_ms; }
-    if (candidate==stable || now_ms-since<25) return;
-    uint16_t down=stable&~candidate; stable=candidate;
-    int event=down&(1u<<8)?-1:down&(1u<<9)?1:0;
-    if (!event) return;
     portENTER_CRITICAL(&volume_lock);
-    if (volume_count<8) { volume_events[(volume_head+volume_count)%8]=event; ++volume_count; }
+    if (inputs!=candidate) { candidate=inputs; since=now_ms; }
+    volume_sampling_pending=inputs!=0xffff || stable!=0xffff || candidate!=stable;
+    if (candidate==stable || now_ms-since<25) { portEXIT_CRITICAL(&volume_lock); return; }
+    uint16_t down=stable&~candidate; stable=candidate;
+    volume_sampling_pending=stable!=0xffff;
+    int event=down&(1u<<8)?-1:down&(1u<<9)?1:0;
+    if (event && volume_count<8) { volume_events[(volume_head+volume_count)%8]=event; ++volume_count; }
     portEXIT_CRITICAL(&volume_lock);
+}
+bool metalio_volume_sampling_pending(void) {
+    portENTER_CRITICAL(&volume_lock);
+    bool pending=volume_sampling_pending;
+    portEXIT_CRITICAL(&volume_lock);
+    return pending;
 }
 int metalio_take_volume(void) {
     portENTER_CRITICAL(&volume_lock);
