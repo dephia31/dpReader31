@@ -24,6 +24,8 @@ static bool ui_avatar_quiesce(unsigned ms){assert(ms==2000);return true;}
 #define pdTRUE 1
 #define ESP_LOGW(...) ((void)0)
 #define ESP_LOGE(...) ((void)0)
+#define ESP_LOGI(...) ((void)0)
+#define TAG "sleep_test"
 typedef int esp_err_t;typedef int app_sleep_mode_t;typedef int app_wake_source_t;typedef void *sc7a20h_handle_t;
 enum {APP_SLEEP_DEEP,APP_SLEEP_OFF};
 enum {APP_WAKE_NONE,APP_WAKE_KEY,APP_WAKE_PICKUP,APP_WAKE_TIMEOUT};
@@ -45,6 +47,9 @@ static int fail_io(void){assert(io_taken);return ++io_calls==io_fail_at?ESP_ERR_
 static int fca9555_set_output(int dev,unsigned port,uint8_t value){assert(dev==ioe&&port<2);int err=fail_io();if(!err)latches[port]=value;return err;}
 static int fca9555_set_config(int dev,unsigned port,uint8_t value){assert(dev==ioe&&port<2);int err=fail_io();if(!err)config[port]=value;return err;}
 static int fca9555_read_input(int dev,unsigned port,uint8_t *out){assert(dev==ioe&&port<2);int err=fail_io();if(!err)*out=port==1&&key_low?0x7f:0xff;return err;}
+// 生产代码用自增读一次取回两个端口；桩保持同样的端口语义。
+// Production reads both ports in one auto-increment transfer; the stub keeps the same semantics.
+static int fca9555_read_n(int dev,unsigned start,uint8_t *out,size_t n){assert(dev==ioe&&start==0&&n==2);int err=fail_io();if(!err){out[0]=0xff;out[1]=key_low?0x7f:0xff;}return err;}
 static int read_pico_pmu_keys_pause(void){if(paused)return -1;paused=true;return ESP_OK;}
 static void read_pico_pmu_keys_resume(void){assert(paused);paused=false;}
 static void vTaskDelay(int ms){delay_ms+=ms;assert(delay_ms<5000);}
@@ -85,7 +90,7 @@ static void metalio_poweroff(void){++off_calls;}
 static void epd_lcd_deinit(void){++lcd_deinit;}
 static void metalio_hold_for_deep_sleep(void){++hold_calls;}
 static void esp_deep_sleep_start(void){++sleep_calls;assert(wake_source&&paused&&font_closed&&sd_closed&&hold_calls&&lcd_deinit&&deep_pins&&deep_rails);deep_success=true;longjmp(deep,1);}
-static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc&&ms==0);return ++waits<=wait_timeouts?APP_WAKE_TIMEOUT:APP_WAKE_KEY;}
+static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc&&ms==10u*60u*1000u);return ++waits<=wait_timeouts?APP_WAKE_TIMEOUT:APP_WAKE_KEY;}
 '''
 for name in ('metalio_io_read','metalio_prepare_key_wake','metalio_restore_key_io'):
     unit+=function(name,root/'components/metalio_hw/metalio_hw.c')+'\n'
@@ -101,7 +106,10 @@ int main(void){
  reset();assert(lock_prepare_key_wake());assert(paused&&wake_source&&config[0]==0&&config[1]==0x80&&latches[0]==0x20&&latches[1]==0x97);
  lock_restore_key_wake();intact();
  // Every failed transfer in the reference mask restores normal directions before TF/font closure.
- for(int i=1;i<=9;i++){reset();io_fail_at=i;app_enter_host_sleep(APP_SLEEP_DEEP);intact();}
+ // 掩码仍是7笔写，等待循环用一次自增读取代替两次单端口读取，故失败注入共8笔。
+ // The mask still writes7 registers; the wait loop now reads both ports in one auto-increment
+ // transfer instead of two, so the injection covers8 transfers.
+ for(int i=1;i<=8;i++){reset();io_fail_at=i;app_enter_host_sleep(APP_SLEEP_DEEP);intact();}
  reset();irq_low=1;app_enter_host_sleep(APP_SLEEP_DEEP);assert(delay_ms==600);intact();
  reset();key_low=1;app_enter_host_sleep(APP_SLEEP_DEEP);assert(delay_ms==600);intact();
  reset();usb=true;app_enter_host_sleep(APP_SLEEP_DEEP);assert(!io_calls);intact();
@@ -118,9 +126,10 @@ int main(void){
   assert(app_enter_host_sleep(APP_SLEEP_DEEP)==-3);intact();
  }
  reset();late_usb=true;assert(app_enter_host_sleep(APP_SLEEP_DEEP)==ESP_ERR_INVALID_STATE);intact();
- // A timeout handoff that returns never unlocks; only the third, real key wake exits this loop.
- reset();usb=true;wait_timeouts=2;lock_wait_for_unlock((void*)1);assert(waits==3&&!sleep_calls);intact();
- puts("PASS: production reference TCA mask/P17-only wake, all 9 I2C faults, stuck IRQ/held key/USB/radio deferral before TF closure, SD-failure font restore, deep rail/touch/bus transaction and rollback, late USB deferral, and timeout cannot unlock");
+ // A timeout handoff that returns never unlocks; the S31 wait transaction owns the ten-minute
+ // handoff, so production waits once and then falls to power-off/deep sleep rather than looping.
+ reset();usb=true;wait_timeouts=2;lock_wait_for_unlock((void*)1);assert(waits==1&&!sleep_calls);intact();
+ puts("PASS: production reference TCA mask/P17-only wake, all 8 I2C faults, stuck IRQ/held key/USB/radio deferral before TF closure, SD-failure font restore, deep rail/touch/bus transaction and rollback, late USB deferral, and timeout cannot unlock");
 }
 '''
 with tempfile.TemporaryDirectory() as d:

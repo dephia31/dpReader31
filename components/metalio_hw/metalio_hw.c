@@ -55,11 +55,27 @@ static unsigned volume_head,volume_count;
 
 i2c_master_bus_handle_t metalio_bus(void) { return bus; }
 fca9555_handle_t metalio_ioe(void) { return ioe; }
+// 触摸每帧13字节、扩展口每次2字节，100kHz下事务时间占比过高；传感器类走400kHz。
+// 电源芯片(0x68 TPS65185、0x6b CX25601N)保持100kHz：参考驱动与充电时序只在该速率验证过。
+// 总线只有内部弱上拉，400kHz 的上升沿余量需在真机确认；若出现零星 NACK/丢键，
+// 用 -DMETALIO_I2C_FAST_HZ=200000 回退，无需改代码。
+// Touch reads13B and the expander2B per sample; at100kHz the transaction dominates. Run sensors
+// at400kHz. Keep the power parts (0x68 TPS65185, 0x6b CX25601N) at100kHz: the reference drivers
+// and charger sequence were only validated at that rate. The bus only has internal weak pull-ups,
+// so verify rise-time margin on hardware; on scattered NACKs or lost key presses fall back with
+// -DMETALIO_I2C_FAST_HZ=200000 instead of editing code.
+#ifndef METALIO_I2C_FAST_HZ
+#define METALIO_I2C_FAST_HZ 400000
+#endif
+#define METALIO_I2C_SLOW_HZ 100000
+static uint32_t device_speed_hz(uint8_t address) {
+    return (address==0x68||address==0x6b) ? METALIO_I2C_SLOW_HZ : METALIO_I2C_FAST_HZ;
+}
 static esp_err_t get_device(uint8_t address, i2c_master_dev_handle_t *dev) {
     if (!bus || address>=128) return ESP_ERR_INVALID_STATE;
     if (!devices[address]) {
         i2c_device_config_t cfg={.dev_addr_length=I2C_ADDR_BIT_LEN_7,
-            .device_address=address,.scl_speed_hz=100000};
+            .device_address=address,.scl_speed_hz=device_speed_hz(address)};
         esp_err_t err=i2c_master_bus_add_device(bus,&cfg,&devices[address]);
         if (err!=ESP_OK) return err;
     }
@@ -106,12 +122,52 @@ esp_err_t metalio_io_set(unsigned pin,bool high) {
 esp_err_t metalio_io_read(uint16_t *inputs) {
     if (!ioe || !inputs) return ESP_ERR_INVALID_STATE;
     if (xSemaphoreTake(mutex,pdMS_TO_TICKS(100))!=pdTRUE) return ESP_ERR_TIMEOUT;
-    uint8_t p0,p1;
-    esp_err_t err=fca9555_read_input(ioe,0,&p0);
-    if (err==ESP_OK) err=fca9555_read_input(ioe,1,&p1);
-    if (err==ESP_OK) *inputs=(uint16_t)p0|((uint16_t)p1<<8);
+    // 一次自增读取出两个端口，代替两次独立事务：按键采样最热的路径少一半总线时间。
+    // One auto-increment read replaces two separate transactions on the hottest key path.
+    uint8_t ports[2];
+    esp_err_t err=fca9555_read_n(ioe,0,ports,2);
+    if (err==ESP_OK) *inputs=(uint16_t)ports[0]|((uint16_t)ports[1]<<8);
     xSemaphoreGive(mutex);
     return err;
+}
+static bool s_key_irq_ready;
+// 按键采样任务同时看两条输入线：扩展口INT(P17/音量)与独立AI键GPIO61。
+// 只挂扩展口会漏掉AI键——它不经过FCA9555，任务一旦阻塞就再也采不到。
+// The key sampler watches two lines: the expander INT (P17/volume) and the dedicated AI key GPIO61.
+// Attaching only the expander would lose the AI key, which bypasses the FCA9555; once the task
+// blocks it would never sample that pin again.
+esp_err_t metalio_key_irq_attach(void (*isr)(void *), void *arg) {
+    if (!ioe || !isr) return ESP_ERR_INVALID_STATE;
+    const gpio_num_t pin=fca9555_int_gpio(ioe);
+    if (pin==GPIO_NUM_NC) return ESP_ERR_INVALID_STATE;
+    if (s_key_irq_ready) return ESP_OK;
+    // 两条线都是上电即输入+上拉；这里只加边沿与处理函数。
+    // Both lines are input+pull-up since board init; only the edge and handler are added here.
+    gpio_config_t irq={.pin_bit_mask=1ULL<<pin,.mode=GPIO_MODE_INPUT,
+        .pull_up_en=GPIO_PULLUP_ENABLE,.intr_type=GPIO_INTR_NEGEDGE};
+    esp_err_t err=gpio_config(&irq);
+    // AI键低有效，按下与抬起都要唤醒任务，否则松开沿会被丢在睡眠里。
+    // The AI key is active low; wake on both edges so the release is not lost while asleep.
+    gpio_config_t ai={.pin_bit_mask=1ULL<<METALIO_AI_KEY_GPIO,.mode=GPIO_MODE_INPUT,
+        .pull_up_en=GPIO_PULLUP_ENABLE,.intr_type=GPIO_INTR_ANYEDGE};
+    if (err==ESP_OK) err=gpio_config(&ai);
+    // 触摸驱动可能已经建好ISR服务；重复安装返回INVALID_STATE可接受。
+    // The touch driver may already own the ISR service; a repeated install reports INVALID_STATE.
+    if (err==ESP_OK) err=gpio_install_isr_service(0);
+    if (err==ESP_OK||err==ESP_ERR_INVALID_STATE) err=gpio_isr_handler_add(pin,isr,arg);
+    if (err==ESP_OK) err=gpio_isr_handler_add(METALIO_AI_KEY_GPIO,isr,arg);
+    if (err!=ESP_OK) { gpio_intr_disable(pin); gpio_intr_disable(METALIO_AI_KEY_GPIO); return err; }
+    s_key_irq_ready=true;
+    return ESP_OK;
+}
+void metalio_key_irq_detach(void) {
+    if (!s_key_irq_ready || !ioe) return;
+    const gpio_num_t pin=fca9555_int_gpio(ioe);
+    gpio_intr_disable(pin);
+    gpio_intr_disable(METALIO_AI_KEY_GPIO);
+    gpio_isr_handler_remove(pin);
+    gpio_isr_handler_remove(METALIO_AI_KEY_GPIO);
+    s_key_irq_ready=false;
 }
 esp_err_t metalio_prepare_key_wake(void) {
     if (!ioe) return ESP_ERR_INVALID_STATE;
@@ -327,7 +383,9 @@ esp_err_t metalio_hw_init(void) {
     i2c_master_bus_config_t ic={.i2c_port=1,.sda_io_num=GPIO_NUM_0,.scl_io_num=GPIO_NUM_1,
         .clk_source=I2C_CLK_SRC_DEFAULT,.glitch_ignore_cnt=7,.flags.enable_internal_pullup=true};
     esp_err_t err=i2c_new_master_bus(&ic,&bus); if (err!=ESP_OK) return err;
-    fca9555_config_t fc=FCA9555_CONFIG_DEFAULT(); fc.i2c_addr=0x20; fc.int_gpio=GPIO_NUM_2; fc.scl_speed_hz=100000;
+    // 扩展口是按键采样热路径，按设备上限400kHz；电源芯片仍在device_speed_hz里保持100kHz。
+    // The expander sits on the key-sampling hot path, so run it at its400kHz ceiling; power parts stay100kHz.
+    fca9555_config_t fc=FCA9555_CONFIG_DEFAULT(); fc.i2c_addr=0x20; fc.int_gpio=GPIO_NUM_2; fc.scl_speed_hz=METALIO_I2C_FAST_HZ;
     err=fca9555_init(bus,&fc,&ioe); if (err!=ESP_OK) return err;
     // 写锁存后改方向；电源/音量感应脚保持输入。/ Write latches before direction; never drive key inputs.
     err=fca9555_set_output(ioe,0,outputs[0]);

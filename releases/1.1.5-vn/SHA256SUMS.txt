@@ -1,0 +1,2 @@
+4a3f8446c97014dea544f4703ac6af92ec43e339e28240cd5d4313c95fbb2d11  dpReader_metalio47_firmware.bin
+3007a57ced67cfe69a7ebd30def4f679690dd860995fe8d6091fd79e87dce683  dpReader_metalio47_full.bin

@@ -30,6 +30,7 @@ static int metalio_io_read(uint16_t *value){++input_reads;*value=input_reads==re
 static void metalio_volume_sample(uint16_t value,int64_t ms){(void)value;(void)ms;}
 static void metalio_volume_clear(void){++drains;}
 #define GPIO_NUM_61 61
+#define METALIO_AI_KEY_GPIO GPIO_NUM_61
 static int gpio_get_level(int pin){assert(pin==61);return 1;}
 static void metalio_ai_sample(bool down,int64_t ms){assert(!down);(void)ms;}
 static void metalio_ai_clear(void){}
@@ -37,6 +38,10 @@ static int read_pico_pmu_poll(void){return poll_error;}
 static const typeof(state) *read_pico_pmu_get(void){return &state;}
 static void read_pico_clear_ioe_int(void){}
 static void vTaskDelay(int ms){clock_us+=(int64_t)ms*1000;}
+// 生产代码在暂停/恢复/补记后踢一次采样任务，让它重算等待条件；桩只需记录次数。
+// Production kicks the sampler after pause/resume/latch so it re-evaluates its wait; the stub counts calls.
+static unsigned kicks;
+static void key_kick(void){++kicks;}
 '''
 for name in ('read_pico_pmu_lock_key_serial','keys','read_pico_pmu_keys_pause','read_pico_pmu_keys_resume','read_pico_pmu_latch_power_wakeup','read_pico_pmu_drain_events','read_pico_pmu_take_key_wakeup','read_pico_pmu_take_key_wakeup_single'):
     unit+=function(name,ROOT/'components/read_pico_pmu/metalio_power_adapter.c')+'\n'

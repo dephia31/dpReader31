@@ -184,21 +184,26 @@ static esp_err_t kosync_acquire_network(bool *started_by_us, char *msg, size_t m
     read_pico_transfer_status_t st = {0};
     read_pico_transfer_get_status(&st);
     if (st.mode == READ_PICO_TRANSFER_MODE_STA && st.network_ready) return ESP_OK;
-    if (st.state != READ_PICO_TRANSFER_STOPPED) {
-        if (msg && msg_cap) snprintf(msg, msg_cap, "Đang bật phát WiFi nội bộ, hãy chuyển sang mạng WiFi");
-        return ESP_ERR_INVALID_STATE;
-    }
     char ssid[33] = {0};
     bool configured = false;
     if (read_pico_transfer_get_saved_wifi(ssid, &configured) != ESP_OK || !configured) {
         if (msg && msg_cap) snprintf(msg, msg_cap, "Chưa cấu hình mạng WiFi");
         return ESP_ERR_NOT_FOUND;
     }
-    read_pico_transfer_cfg_t cfg = {
-        .mode = READ_PICO_TRANSFER_MODE_STA,
-        .network_only = true,
-    };
-    esp_err_t err = read_pico_transfer_start(&cfg);
+    // 阅读中同步不该要求用户先离开热点/空闲会话：直接抢占射频并连回已保存网络。
+    // 只有上传在写卡时不能抢断，此时才提示用户。
+    // A sync while reading must not force the user out of a hotspot or idle session: take the
+    // radio and reconnect to the saved network. Only an in-flight upload (file mid-write) is
+    // exempt, and only then does the user see a prompt.
+    esp_err_t err = read_pico_transfer_preempt_for_network();
+    if (err == ESP_ERR_INVALID_STATE) {
+        read_pico_transfer_status_t busy = {0};
+        read_pico_transfer_get_status(&busy);
+        if (msg && msg_cap) snprintf(msg, msg_cap, busy.state == READ_PICO_TRANSFER_UPLOADING
+            ? "Đang nhận tệp, hãy đợi truyền xong rồi đồng bộ"
+            : "WiFi đang được trang truyền tệp giữ, hãy thoát trang đó rồi thử lại");
+        return err;
+    }
     if (err != ESP_OK) {
         if (msg && msg_cap) snprintf(msg, msg_cap, "Không thể bật WiFi (%s)", esp_err_to_name(err));
         return err;

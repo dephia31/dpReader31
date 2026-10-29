@@ -25,7 +25,12 @@ static int64_t charger_retry_at,charge_valid_at;
 static read_pico_pmu_key_action_t action;
 static power_double_click_t s_wake_click;
 static TaskHandle_t key_task;
+// 扩展口INT已接GPIO2；装中断后空闲不再10ms轮询，失败则保持原轮询语义。
+// The expander INT is wired to GPIO2; once the IRQ is installed the idle loop stops polling at10ms.
+// On failure the original polling behaviour is kept unchanged.
+static bool s_key_irq;
 static portMUX_TYPE key_lock=portMUX_INITIALIZER_UNLOCKED;
+static void key_kick(void);
 static unsigned unbcd(unsigned v) { return (v&15)>9 || (v>>4)>9 ? 255 : (v>>4)*10+(v&15); }
 static unsigned bcd(unsigned v) { return (v/10<<4)|(v%10); }
 static esp_err_t rtc_read(void) {
@@ -68,7 +73,7 @@ static void keys(void) {
     if (paused) return;
     // 独立GPIO先采样，扩展口读错不吞AI键；暂停事务仍由epoch及清队列保护。
     // Sample the dedicated pin before I2C, so a failed expander read cannot swallow AI input.
-    bool ai_down=gpio_get_level(GPIO_NUM_61)==0;
+    bool ai_down=gpio_get_level(METALIO_AI_KEY_GPIO)==0;
     portENTER_CRITICAL(&key_lock);
     if(!keys_paused&&epoch==key_epoch)metalio_ai_sample(ai_down,esp_timer_get_time()/1000);
     portEXIT_CRITICAL(&key_lock);
@@ -105,6 +110,7 @@ esp_err_t read_pico_pmu_keys_pause(void) {
     if (can_pause) { keys_paused=true; ++key_epoch; }
     portEXIT_CRITICAL(&key_lock);
     if(can_pause)metalio_ai_clear();
+    key_kick();
     return can_pause?ESP_OK:ESP_ERR_INVALID_STATE;
 }
 void read_pico_pmu_keys_resume(void) {
@@ -120,10 +126,43 @@ void read_pico_pmu_keys_resume(void) {
     state.key_state=held?1:0;
     ++key_epoch; keys_paused=false;
     portEXIT_CRITICAL(&key_lock);
+    key_kick();
+}
+// 唤醒采样任务重新评估等待条件。INT是电平信号、读端口即释放，所以“状态被外部改动”
+// 不会产生新边沿；不踢一下，任务会一直睡到下一次真实按键。
+// 暂停进入时也踢：AI键中断会唤醒任务，而暂停中的 keys() 直接返回，不踢就会让每次
+// 唤醒都白跑一趟（轮询模式下反而靠10ms自然复采）。
+// Wake the sampler to re-evaluate its wait. The INT is level-held and released by the port read,
+// so an externally changed state produces no new edge; without a kick the task would sleep until
+// the next real key press. Also kick when pausing: an AI-key IRQ wakes the task while keys()
+// returns early, so without a kick every such wake is wasted (polling mode re-samples naturally).
+static void key_kick(void) {
+    TaskHandle_t task=key_task;
+    if (task) xTaskNotifyGive(task);
+}
+static void key_isr(void *arg) {
+    TaskHandle_t task=(TaskHandle_t)arg;
+    BaseType_t higher=pdFALSE;
+    if (task) vTaskNotifyGiveFromISR(task,&higher);
+    if (higher) portYIELD_FROM_ISR();
 }
 static void key_feed(void *arg) {
     (void)arg;
-    for (;;) { keys(); vTaskDelay(pdMS_TO_TICKS(10)); }
+    for (;;) {
+        keys();
+        // 按住、去抖窗口内或有未消费动作时10ms续采；其余时间等中断。
+        // AI键按下也要续采：它的500ms长按是在采样函数里按时间推进的，任务睡过去就永远等不到。
+        // Poll at10ms while held, inside the debounce window or with an unconsumed action;
+        // otherwise block until an IRQ. A held AI key must also keep sampling: its500ms long press
+        // advances inside the sampler, so a sleeping task would never reach it.
+        bool settle;
+        portENTER_CRITICAL(&key_lock);
+        settle=held||candidate||action!=READ_PICO_PMU_KEY_NONE;
+        portEXIT_CRITICAL(&key_lock);
+        if (gpio_get_level(METALIO_AI_KEY_GPIO)==0) settle=true;
+        const TickType_t wait=(!s_key_irq||settle)?pdMS_TO_TICKS(10):portMAX_DELAY;
+        ulTaskNotifyTake(pdTRUE,wait);
+    }
 }
 // 原厂浅睡把EXT1解释为P17按键；TF恢复前按键已松开时仍保留一次短按。
 // Vendor light sleep identifies EXT1 as P17; retain one short click when it was released before media restoration.
@@ -135,6 +174,8 @@ void read_pico_pmu_latch_power_wakeup(void) {
         power_double_click_push(&s_wake_click,(uint32_t)(esp_timer_get_time()/1000));
     }
     portEXIT_CRITICAL(&key_lock);
+    // 补记的动作要立即生效，避免任务停在无中断的等待里。/ The latched action must take effect now, not after the next IRQ.
+    key_kick();
 }
 static esp_err_t charger_update(uint8_t reg,uint8_t mask,uint8_t value) {
     uint8_t previous;
@@ -217,9 +258,16 @@ esp_err_t read_pico_pmu_init(i2c_master_bus_handle_t bus,const read_pico_pmu_con
     (void)bus;(void)cfg; ready=metalio_ioe()!=NULL; state.present=ready;
     if (ready) { held=candidate=metalio_key_down(); down_since=candidate_since=esp_timer_get_time()/1000; battery(); (void)rtc_read(); }
     if (ready && !key_task && xTaskCreate(key_feed,"metalio_keys",2048,NULL,5,&key_task)!=pdPASS) ready=false;
+    // 任务先存在再挂ISR：中断可能立刻到来，通知句柄必须已经有效。
+    // The task must exist before the ISR is attached: the IRQ can fire immediately.
+    if (ready) s_key_irq=metalio_key_irq_attach(key_isr,key_task)==ESP_OK;
+    if (ready && !s_key_irq) ESP_LOGW("metalio_power","expander IRQ unavailable; keys stay on10ms polling");
     return ready?ESP_OK:ESP_ERR_INVALID_STATE;
 }
-esp_err_t read_pico_pmu_deinit(void) { if(key_task) {vTaskDelete(key_task);key_task=NULL;} ready=false; return ESP_OK; }
+esp_err_t read_pico_pmu_deinit(void) {
+    if(s_key_irq) { metalio_key_irq_detach(); s_key_irq=false; }
+    if(key_task) {vTaskDelete(key_task);key_task=NULL;} ready=false; return ESP_OK;
+}
 bool read_pico_pmu_ready(void) { return ready; }
 const pmu_snapshot_t *read_pico_pmu_get(void) { return &state; }
 esp_err_t read_pico_pmu_poll(void) { if (!ready) return ESP_ERR_INVALID_STATE; battery(); return ESP_OK; }

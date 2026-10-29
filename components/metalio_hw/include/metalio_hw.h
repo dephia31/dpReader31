@@ -18,6 +18,14 @@ esp_err_t metalio_write(uint8_t address, uint8_t reg, const void *data, size_t s
 esp_err_t metalio_write8(uint8_t address, uint8_t reg, uint8_t data);
 esp_err_t metalio_io_set(unsigned pin, bool high);
 esp_err_t metalio_io_read(uint16_t *inputs);
+/// 扩展口INT(GPIO2)下降沿与AI键(GPIO61)双沿都会唤醒调用方任务，ISR不做I2C。
+/// 中断服务本身不读寄存器：FCA9555的INT是电平信号，随后的端口读取会释放它。
+/// Both the expander INT (GPIO2, falling) and the AI key (GPIO61, both edges) wake the caller's
+/// task; the ISR performs no I2C. The FCA9555 INT is level-held and the following port read
+/// releases it.
+esp_err_t metalio_key_irq_attach(void (*isr)(void *), void *arg);
+/// 摘除中断，恢复按键任务的纯轮询语义。/ Detach the IRQ and restore pure polling.
+void metalio_key_irq_detach(void);
 /// 原厂休眠掩码：非按键中断隔离，仅 P17 电源键保留输入；失败后调用恢复。
 /// Reference sleep mask: isolate non-key IRQs, keeping only P17 as an input; restore after a failed admission.
 esp_err_t metalio_prepare_key_wake(void);
@@ -31,6 +39,7 @@ bool metalio_boot_power_key(void);
 int metalio_take_volume(void);
 /// 官方AI/BOOT输入GPIO61，25ms去抖、500ms长按；长按抬手不触发短按。
 /// Vendor AI/BOOT input GPIO61,25ms debounce and500ms hold; release after a hold never produces a tap.
+#define METALIO_AI_KEY_GPIO GPIO_NUM_61
 enum { METALIO_AI_NONE, METALIO_AI_SHORT, METALIO_AI_LONG };
 void metalio_ai_sample(bool down,int64_t now_ms);
 int metalio_take_ai(void);

@@ -1,5 +1,16 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.1.6-vn · 2026-10-29
+
+Bản cập nhật về độ trễ phím, tải bus I2C và lỗi kết nối WiFi của KoSync/OPDS:
+
+- **Phím cứng chuyển sang ngắt thay vì thăm dò 10 ms:** Trước đây tác vụ quét phím đọc chip mở rộng 100 lần/giây kể cả khi không ai chạm máy. Nay tác vụ chỉ đọc khi có cạnh xuống trên INT của chip mở rộng hoặc khi phím AI (GPIO61) đổi mức, và chỉ tiếp tục thăm dò 10 ms trong lúc đang giữ phím, trong cửa sổ chống dội hoặc khi còn thao tác chưa được lấy. Phím AI vẫn nhận đủ nhấn giữ 500 ms. Nếu không gắn được ngắt, tác vụ tự quay về thăm dò 10 ms như cũ.
+- **Đọc chip mở rộng bằng một giao dịch:** Hai lần đọc cổng riêng lẻ được gộp thành một lần đọc tự tăng địa chỉ, giảm một nửa thời gian bus trên đường phím nóng nhất.
+- **I2C 400 kHz cho cảm biến, giữ 100 kHz cho chip nguồn:** Cảm ứng, chip mở rộng, pin và RTC chạy 400 kHz; TPS65185 và CX25601N vẫn 100 kHz vì trình điều khiển tham chiếu chỉ được xác nhận ở tốc độ đó. Nếu thực máy xuất hiện NACK lẻ hoặc mất phím, hạ xuống 200 kHz bằng `-DMETALIO_I2C_FAST_HZ=200000` mà không cần sửa mã.
+- **KoSync và OPDS tự kết nối WiFi khi cần:** Trước đây bấm đồng bộ KoSync trong lúc đang đọc sách mà máy đang phát hotspot (hoặc còn phiên chỉ-đăng-nhập) thì chỉ hiện thông báo *"Đang bật phát WiFi nội bộ"* và không kết nối được — người dùng phải tự thoát ra trang Truyền tệp. Nay hai dịch vụ này chủ động thu hồi sóng, kết nối ngay mạng WiFi đã lưu để đồng bộ, rồi tự tắt WiFi khi xong, đúng như mong đợi khi đang đọc. Chỉ khi đang có tệp được truyền lên (đang ghi thẻ) mới từ chối và báo rõ lý do, vì cắt ngang sẽ để lại tệp dở.
+
+Cần đo trên máy thật: thời gian mở sách và lật trang trước/sau, và xác nhận không mất phím khi bấm nhanh.
+
 ## dpReader 1.1.5-vn · 2026-10-28
 
 Bản cập nhật tối ưu hóa bộ nhớ RAM hệ thống, quản lý tài nguyên không dây và bổ sung tính năng tự ngắt kết nối thông minh:

@@ -54,6 +54,15 @@ Publish GitHub Releases alongside the web flasher, TF downloads and online OTA. 
 用户2026-10-21要求每次保留上一正式版的官网刷机与TF下载入口。替换正式清单前，使用tools/archive_current_release.py归档原Release的四件套和校验值；releases.json保留历次归档，manifest.previous_version指向上一版，发布工具校验该入口存在。不得以本地同号测试包代替原正式字节。TF包是完整应用镜像；引导程序、分区表及用户存储不由TF升级写入，整机四件套继续通过USB安装。
 The user requires a previous-release web/TF entry for every publication. Archive the original Release parts with tools/archive_current_release.py before replacing metadata; retain earlier releases.json entries and verify manifest.previous_version. Never substitute a same-version local test. TF updates use a complete application image; bootloader, partition table and user storage remain untouched, with full base installation through USB.
 
+### dpReader Metalio 4.7 (ESP32-S31) 发布流程 / dpReader Release & Web Flash Workflow
+
+dpReader Metalio 4.7 固件与 Web Flasher 完整发布步骤详见 [docs/QUY_TRINH_COMMIT_VA_RELEASE.md](docs/QUY_TRINH_COMMIT_VA_RELEASE.md)。
+Detailed commit, release and Web Flasher steps for dpReader Metalio 4.7 live in [docs/QUY_TRINH_COMMIT_VA_RELEASE.md](docs/QUY_TRINH_COMMIT_VA_RELEASE.md).
+- **版本同步 / Version sync**: `boards/metalio47/board.json`, `main/ota_update.c`, `main/apps/app_device_settings.c`, `web/index.html`, `docs/CHANGELOG.md`, `metalio-s31-update.json`.
+- **构建与打包 / Build & stage**: `python3 tools/build_firmware.py --board dpReader_metalio47`, copy outputs to `releases/`, update `releases/SHA256SUMS.txt` & `metalio-s31-update.json` (`notes` must stay < 384 bytes).
+- **提交与标签 / Commit & tag**: commit changes, tag `vX.Y.Z-vn`, push `main` and tag `vX.Y.Z-vn` to `origin`.
+- **发布 / Publish**: Run `python3 tools/publish_release.py` or trigger `.github/workflows/release.yml`. Web Flasher auto-deploys via `.github/workflows/pages.yml`.
+
 ## 目录职责 / Layout
 
 用户2026-10-21明确指定GitHub Pages为默认OTA清单及应用来源，rc97真机已下载并校验原rc98成功。新固件优先GitHub清单、官网清单备用；原已发布rc97/98仍依照其原内置顺序请求。官网网页刷机独立保持，正式Bin及历史包继续归档GitHub Release；旧OTA不能直接使用会重定向的Release附件URL。保留双槽、HTTPS与完整SHA校验；不得因官网证书问题重现而自动改回官网应用地址，也不得外推为任意镜像或关闭TLS校验。后续更改默认来源先获得用户指示并验证旧信任库与实际下载。

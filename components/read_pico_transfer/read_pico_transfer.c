@@ -2152,6 +2152,28 @@ void read_pico_transfer_resume_after_sleep(void) {
     if (err != ESP_OK) ESP_LOGW("transfer", "resume after sleep: %s", esp_err_to_name(err));
 }
 
+// KoSync/OPDS 的短请求不应被热点或空闲STA挡住：拆掉纯联网会话再按已保存凭据重连。
+// 上传是唯一例外——里面正有文件在写卡，抢断会留下半个文件。
+// Short KoSync/OPDS requests must not be blocked by a hotspot or an idle STA: drop the
+// network-only session and reconnect with the saved credentials. Upload is the only exception,
+// because a file is mid-write and preemption would leave a partial one.
+esp_err_t read_pico_transfer_preempt_for_network(void) {
+    read_pico_transfer_status_t st = {0};
+    read_pico_transfer_get_status(&st);
+    if (st.state == READ_PICO_TRANSFER_UPLOADING) return ESP_ERR_INVALID_STATE;
+    if (st.state != READ_PICO_TRANSFER_STOPPED) {
+        // 只有“仅联网”会话可以抢占；带上传服务的会话其文件根可能已被页面持有。
+        // Only a network-only session may be preempted; a server session's file root may be page-owned.
+        if (!s_cfg.network_only) return ESP_ERR_INVALID_STATE;
+        if (!read_pico_transfer_try_stop_if_idle()) return ESP_ERR_INVALID_STATE;
+    }
+    read_pico_transfer_cfg_t cfg = {
+        .mode = READ_PICO_TRANSFER_MODE_STA,
+        .network_only = true,
+    };
+    return read_pico_transfer_start(&cfg);
+}
+
 void read_pico_transfer_stop(void) {
     if (!cancel_time_sync(false)) return;
     portENTER_CRITICAL(&s_lock); s_stopping = true; portEXIT_CRITICAL(&s_lock);

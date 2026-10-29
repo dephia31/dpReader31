@@ -77,6 +77,12 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg);
 void read_pico_transfer_stop(void);
 /// 原子拒绝文件操作期间的停止；成功则已停服，由同一控制任务调用。/ Atomically refuse stopping during file operations; true means stopped. Owner task only.
 bool read_pico_transfer_try_stop_if_idle(void);
+/// 抢占仅联网会话：热点或空闲STA先拆掉，再按已保存凭据重新连接；上传中拒绝。
+/// 供 KoSync/OPDS 这类短请求立即联网，不必让用户先离开当前会话。
+/// Take the radio from a session that only carries the network: tear down AP or an idle STA and
+/// reconnect with the saved credentials; refused during upload. Lets KoSync/OPDS connect right
+/// away instead of making the user leave the current session first.
+esp_err_t read_pico_transfer_preempt_for_network(void);
 /// 锁屏浅睡前停用射频；唤醒后按原会话配置恢复。上传中返回 false。
 bool read_pico_transfer_pause_for_sleep(void);
 void read_pico_transfer_resume_after_sleep(void);
