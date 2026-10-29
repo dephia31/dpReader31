@@ -256,6 +256,35 @@ header p {
   font-weight: 600;
 }
 
+.radio-card-first-install {
+  border: 2px solid #d97706;
+  background: #fffbeb;
+}
+
+.radio-card-first-install:hover,
+.radio-card-first-install.active {
+  border-color: #b45309;
+  background: #fef3c7;
+}
+
+.first-install-badge {
+  display: block;
+  margin: 0 20px 10px 0;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.radio-card h4 {
+  padding-right: 20px;
+}
+
+.radio-card-first-install .tag {
+  background: #fde68a;
+  color: #78350f;
+}
+
 /* Form group */
 .form-row {
   display: flex;

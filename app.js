@@ -191,7 +191,7 @@ async function fetchLatestRelease() {
     if (data && data.version) {
       currentReleaseInfo = data;
       if (latestVerName) latestVerName.textContent = `v${data.version}`;
-      if (releaseTagApp) releaseTagApp.textContent = `Khuyên dùng · v${data.version}`;
+      if (releaseTagApp) releaseTagApp.textContent = `Dành cho máy đã cài dpReader · v${data.version}`;
       if (latestVerNotes && data.notes) {
         latestVerNotes.textContent = data.notes.split("\n")[0] || data.notes;
       }

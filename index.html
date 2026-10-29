@@ -63,18 +63,19 @@
       </div>
 
       <div class="radio-cards">
-        <label class="radio-card active">
-          <input type="radio" name="flash-mode" id="mode-app" checked>
-          <h4>Nâng cấp Ứng dụng (Khuyên dùng)</h4>
-          <p>Nạp bản cập nhật firmware mới nhất vào offset 0x10000. Giữ nguyên sách, ghi chú và cài đặt Wi-Fi.</p>
-          <span id="release-tag-app" class="tag">Khuyên dùng · Đang kiểm tra bản mới...</span>
+        <label class="radio-card radio-card-first-install">
+          <input type="radio" name="flash-mode" id="mode-full">
+          <span class="first-install-badge">CÀI FIRMWARE LẦN ĐẦU? CHỌN MỤC NÀY</span>
+          <h4>Nạp Toàn Diện</h4>
+          <p>Cài đầy đủ hệ thống cho máy chưa từng cài dpReader hoặc cần cứu máy. <strong>Nếu đây là lần đầu cài firmware, hãy chọn Nạp Toàn Diện.</strong></p>
+          <span id="release-tag-full" class="tag">Cài mới / Cứu máy · Trọn gói</span>
         </label>
 
-        <label class="radio-card">
-          <input type="radio" name="flash-mode" id="mode-full">
-          <h4>Nạp Toàn Diện (Cài mới / Cứu máy)</h4>
-          <p>Nạp toàn bộ hệ thống từ offset 0x0 (Bootloader, Partition Table, Otadata, App). Dùng khi máy mới hoặc lỗi hệ điều hành.</p>
-          <span id="release-tag-full" class="tag">Trọn gói · 0x0</span>
+        <label class="radio-card active">
+          <input type="radio" name="flash-mode" id="mode-app" checked>
+          <h4>Nâng cấp Ứng dụng</h4>
+          <p>Dành cho máy đã cài dpReader. Cập nhật firmware, giữ nguyên sách, ghi chú và cài đặt Wi-Fi.</p>
+          <span id="release-tag-app" class="tag">Đang chọn mặc định · Đang kiểm tra bản mới...</span>
         </label>
       </div>
 
