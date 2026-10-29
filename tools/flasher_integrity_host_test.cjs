@@ -138,10 +138,10 @@ async function verify(snapshot) {
 {
   const source=fs.readFileSync(path.join(__dirname,'../web/app.js'),'utf8');
   const helper=source.slice(source.indexOf('function selectedReleaseFolder()'),source.indexOf('const releaseVersionSelect'));
-  for(const value of ['', '1.1.6-vn','../../private','1.1.7-vn']) {
+  for(const value of ['', '1.1.7-vn', '../../private', '1.1.6-vn']) {
     const context={document:{getElementById:()=>({value})}};
     vm.runInNewContext(helper,context);
-    assert.equal(context.selectedReleaseFolder(),value==='1.1.6-vn'?'releases/1.1.6-vn':'releases');
+    assert.equal(context.selectedReleaseFolder(),(value==='1.1.7-vn'||value==='1.1.6-vn')?`releases/${value}`:'releases');
   }
   console.log('PASS: official version chooser only selects the previous archive or the current release');
 }
