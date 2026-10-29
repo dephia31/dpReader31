@@ -1,5 +1,12 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.1.8-vn · 2026-10-29
+
+- Tối ưu hóa bộ nhớ: Giảm 60 KiB dữ liệu tĩnh SRAM, chuyển bộ đệm log, metadata font, bảng hiển thị, trạng thái KoSync, danh sách Bluetooth, CPU buffer đọc sách và cấu trúc ZIP sang PSRAM; bảo toàn DMA/ISR và vòng quét phím trong SRAM.
+- Đồng bộ KoSync: Hiển thị trạng thái "Đang đồng bộ" tức thì trên màn hình trước khi bật Wi-Fi; quản lý vòng đời HTTP/TLS/buffer chặt chẽ, tự động giải phóng tài nguyên sau khi hoàn tất hoặc lỗi.
+- Xóa bóng mờ E-Paper: Sửa đường Home và đen trắng bỏ qua GC16 định kỳ; tự động dọn toàn màn hình bằng waveform đầy đủ sau 6 khung thay đổi và tối thiểu 3 giây từ lần dọn trước; giữ nguyên làm mới cục bộ khi đọc sách.
+- Giao diện chữ lớn 100–200%: Cải thiện hiển thị ở mọi tỷ lệ chữ hệ thống; tiêu đề chừa chỗ cho nút Back/nút phụ, danh sách cài đặt tách nhãn–giá trị từ 150%, giới hạn độ rộng chữ tránh chồng lấn và tràn viền icon.
+
 ## dpReader 1.1.7-vn · 2026-10-29
 
 - Footer gọn, chữ status/footer40px; bỏ chế độ toàn màn hình và hàng tiêu đề trùng. Thanh tiến độ có phần đã đọc dày/đen, phần còn lại mảnh/nhạt, không biến mất khi lật nhanh; hai bên cân đối.

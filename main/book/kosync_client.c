@@ -4,6 +4,13 @@
  *
  * Triển khai KOSyncClient (KOReader Sync) cho dpReader trên nền ESP32-S31.
  */
+#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#include "esp_attr.h"
+// 仅普通任务访问的CPU数据；锁和ISR数据保留内部RAM。/ Task-only CPU data; locks and ISR data stay internal.
+#define CPU_STATE_RAM EXT_RAM_BSS_ATTR
+#else
+#define CPU_STATE_RAM
+#endif
 #include "kosync_client.h"
 #include "settings.h"
 #include "book_store.h"
@@ -155,7 +162,6 @@ esp_err_t kosync_compute_doc_md5(const char *file_path, char out_hex[33]) {
     if (!f) return ESP_ERR_NOT_FOUND;
 
     uint8_t *buf = heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!buf) buf = malloc(1024);
     if (!buf) {
         fclose(f);
         return ESP_ERR_NO_MEM;
@@ -489,7 +495,6 @@ static esp_err_t kosync_pull_book_progress_impl(const char *file_path, kosync_pr
     snprintf(path, sizeof(path), "/syncs/progress/%s", doc_md5);
 
     char *resp = heap_caps_malloc(2048, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!resp) resp = malloc(2048);
     if (!resp) return ESP_ERR_NO_MEM;
 
     int status = 0;
@@ -620,8 +625,8 @@ typedef struct {
     book_progress_t progress;
     double ratio;
 } auto_job_t;
-static auto_job_t s_auto_push, s_auto_pull, s_auto_running;
-static struct {
+static CPU_STATE_RAM auto_job_t s_auto_push, s_auto_pull, s_auto_running;
+static CPU_STATE_RAM struct {
     bool ready;
     char path[BOOK_STORE_PATH_MAX];
     book_progress_t original;

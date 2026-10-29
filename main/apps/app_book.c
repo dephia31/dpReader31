@@ -123,6 +123,14 @@
  * User approval: choose books subfolders in the title menu, retain per-category/layout pages, remove the header rule and lower the approved body by 8px.
  */
 #if KIIKO_BOARD_METALIO47
+#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#include "esp_attr.h"
+// 仅普通任务访问的CPU数据；锁和ISR数据保留内部RAM。/ Task-only CPU data; locks and ISR data stay internal.
+#define CPU_STATE_RAM EXT_RAM_BSS_ATTR
+#else
+#define CPU_STATE_RAM
+#endif
+#include "metalio_memory_profile.h"
 #include "metalio_hw.h"
 #endif
 #include <dirent.h>
@@ -555,6 +563,7 @@ static int s_turn_direction=1;
 #define s_toolbar (s_reader_panel != READER_PANEL_NONE)
 
 static void render(app_ctx_t* ctx, uint8_t* fb);
+static void reader_show_sync_notice(app_ctx_t *ctx);
 static void draw_reader_panel(uint8_t* fb);
 static EpdRect reader_slider_rect(int slider);
 static void scan_shelf(app_ctx_t* ctx);
@@ -1756,7 +1765,7 @@ static void draw_import(uint8_t* fb) {
 static opds_feed_t *s_opds_feed;
 static int s_opds_page;
 static char s_opds_url[256];
-static char s_opds_history[6][256];
+static CPU_STATE_RAM char s_opds_history[6][256];
 static int s_opds_depth;
 static char s_opds_status[128];
 
@@ -5371,6 +5380,10 @@ static bool open_book_impl(app_ctx_t* ctx, const char* path) {
     // again is the signal that it belongs there.
     if (shelf_hidden_load(s_path)) (void)shelf_hidden_save(s_path, false);
     ESP_LOGI(TAG, "opened kind=%d chapters=%u pages=%u px=%d", book_kind(), (unsigned)book_chapter_count(), (unsigned)book_layout_page_count(), s_px);
+#if KIIKO_BOARD_METALIO47
+    print_memory_profile(book_kind()==BOOK_KIND_EPUB?"epub-opened":"txt-opened");
+    print_task_stack_profile();
+#endif
     return true;
 }
 static bool open_book(app_ctx_t *ctx, const char *path) {
@@ -6621,6 +6634,7 @@ static app_redraw_t reader_chapter_jump_action(app_ctx_t *ctx,uint16_t x,uint16_
             s_reader_panel=READER_PANEL_STATS_RECENT;return APP_REDRAW_PAGE;
         }
         if(control==8){
+            reader_show_sync_notice(ctx);
             reader_prepare_network();
             book_progress_t kp = {
                 .file_size = s_file_size,
@@ -8497,6 +8511,19 @@ static app_redraw_t reader_jump_chapter(app_ctx_t *ctx, int dir) {
     return APP_REDRAW_NONE;
 }
 
+// 先把提示推到屏上，再等待网络；不分配整页或后台任务。/ Present feedback before waiting for networking, without allocating a page or worker.
+static void reader_show_sync_notice(app_ctx_t *ctx) {
+    copy_text(s_reader_notice, sizeof(s_reader_notice), "Đang đồng bộ");
+    s_reader_notice_until = INT64_MAX;
+    if (!ctx || !ctx->fb || !ctx->hl) return;
+    EpdRect notice = {218, 160, 248, 48};
+    lock_draw();
+    ui_fill_round_rect(ctx->fb, notice, 24, 0xd0);
+    ui_text_vc(ctx->fb, 342, 184, 19, s_reader_notice, EPD_DRAW_ALIGN_CENTER, false);
+    unlock_draw();
+    guard_draw_result(ctx->hl, update_display_area_diff_with(ctx->hl, &E0470_WAVEFORM, MODE_GL16, notice));
+}
+
 void app_book_request_kosync(app_ctx_t *ctx) {
     if (!app_settings_kosync_user()[0]) {
         copy_text(s_reader_notice, sizeof(s_reader_notice), "Chưa đăng nhập tài khoản KOSync");
@@ -8505,15 +8532,13 @@ void app_book_request_kosync(app_ctx_t *ctx) {
     }
 
     if (s_text && s_path[0]) {
+        reader_show_sync_notice(ctx);
         reader_prepare_network();
         uint16_t chap = (uint16_t)s_chapter;
         uint32_t off = (uint32_t)reader_page_offset(s_page);
         uint8_t pct = (uint8_t)percent(s_page);
         bool pulled_newer = false;
         char msg[96] = {0};
-
-        copy_text(s_reader_notice, sizeof(s_reader_notice), "Đang đồng bộ KOSync...");
-        s_reader_notice_until = esp_timer_get_time() / 1000 + 3000;
 
         esp_err_t err = kosync_sync_book(s_path, &chap, &off, &pct, &pulled_newer, msg, sizeof(msg));
         if (err == ESP_OK) {

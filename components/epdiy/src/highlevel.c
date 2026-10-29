@@ -40,11 +40,11 @@ EpdiyHighlevelState epd_hl_init(const EpdWaveform* waveform) {
     );
 #endif
     EpdiyHighlevelState state;
-    state.back_fb = heap_caps_aligned_alloc(16, fb_size, MALLOC_CAP_SPIRAM);
+    state.back_fb = heap_caps_aligned_alloc(16, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     assert(state.back_fb != NULL);
-    state.front_fb = heap_caps_aligned_alloc(16, fb_size, MALLOC_CAP_SPIRAM);
+    state.front_fb = heap_caps_aligned_alloc(16, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     assert(state.front_fb != NULL);
-    state.difference_fb = heap_caps_aligned_alloc(16, 2 * fb_size, MALLOC_CAP_SPIRAM);
+    state.difference_fb = heap_caps_aligned_alloc(16, 2 * fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     assert(state.difference_fb != NULL);
     state.dirty_lines = malloc(epd_height() * sizeof(bool));
     assert(state.dirty_lines != NULL);

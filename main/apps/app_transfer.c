@@ -254,8 +254,8 @@ static bool stop_upload_if_idle(void);
 static void transfer_header(uint8_t *fb, const char *title, const char *subtitle) {
     ui_nav_status(fb);
     ui_nav_back(fb, 36, 79);
-    ui_text_vc(fb, 342, 107, 34, title, EPD_DRAW_ALIGN_CENTER, false);
-    if (subtitle && subtitle[0]) ui_text(fb, 36, 153, 20, subtitle, EPD_DRAW_ALIGN_LEFT, false);
+    ui_text_box(fb,(EpdRect){108,70,468,72},34,title,EPD_DRAW_ALIGN_CENTER,false);
+    if (subtitle && subtitle[0]) ui_text_box(fb,(EpdRect){36,153,612,32},20,subtitle,EPD_DRAW_ALIGN_LEFT,false);
     if (subtitle && subtitle[0]) ui_hairline(fb, 190, 36, 612, UI_GRAY_LIGHT);
 }
 
@@ -292,8 +292,8 @@ static void draw_methods(uint8_t *fb) {
         int cy = row.y + row.height / 2;
         if (i == 0) ui_nav_wifi_icon(fb, 72, cy, 30, 0x6a);
         else if (i == 1) ui_draw_icon(fb, 72, cy, 48, UI_ICON_RADIO_TOWER, 0x6a);
-        ui_text(fb, 112, row.y + 21, 27, titles[i], EPD_DRAW_ALIGN_LEFT, false);
-        ui_text(fb, 112, row.y + 64, 19, details[i], EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_box(fb,(EpdRect){112,row.y+10,470,44},27,titles[i],EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_box(fb,(EpdRect){112,row.y+62,470,38},19,details[i],EPD_DRAW_ALIGN_LEFT,false);
         ui_text_vc(fb, 617, cy, 29, "›", EPD_DRAW_ALIGN_CENTER, false);
     }
     if (s_method_message[0]) {
@@ -356,8 +356,7 @@ static void network_button(uint8_t *fb, int id, const char *label, bool dark) {
     EpdRect rect = network_control_rect(id);
     ui_fill_round_rect(fb, rect, 16, s_pressed == id ? 0xb0 : dark ? UI_GRAY_BLACK : UI_GRAY_WHITE);
     if (!dark) network_border(fb, rect, 16);
-    ui_text_vc(fb, rect.x + rect.width / 2, rect.y + rect.height / 2, 24, label,
-               EPD_DRAW_ALIGN_CENTER, dark && s_pressed != id);
+    ui_text_box(fb,ui_inset_rect(rect,10),24,label,EPD_DRAW_ALIGN_CENTER,dark&&s_pressed!=id);
 }
 
 static void draw_networks(uint8_t* fb) {
@@ -383,18 +382,18 @@ static void draw_networks(uint8_t* fb) {
     if (s_saved_configured) {
         char saved[40]; snprintf(saved, sizeof(saved), "%s", s_saved_ssid); fit_label(saved, 29, 375);
         ui_nav_wifi_icon(fb, 74, 265, 28, UI_GRAY_BLACK);
-        ui_text(fb, 104, 243, 29, saved, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_box(fb,(EpdRect){104,238,375,48},29,saved,EPD_DRAW_ALIGN_LEFT,false);
         const char *state = s_status.network_ready ? "Đã kết nối" :
             s_network_connect_pending || s_status.state == READ_PICO_TRANSFER_STARTING ? "Đang kết nối…" : "Đã lưu · Chưa kết nối";
-        ui_text(fb, 64, 297, 23, state, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_box(fb,(EpdRect){64,294,419,34},23,state,EPD_DRAW_ALIGN_LEFT,false);
         char address[80];
         const char *url = !strncmp(s_status.url, "http://", 7) ? s_status.url + 7 : s_status.url;
         snprintf(address, sizeof(address), "%.79s", s_status.network_ready ? url[0] ? url : "Đã kết nối, có thể truyền sách" : "Kết nối để truyền sách và đồng bộ giờ");
         fit_label(address, 21, 419);
-        ui_text(fb, 64, 336, 21, address, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_box(fb,(EpdRect){64,336,419,32},21,address,EPD_DRAW_ALIGN_LEFT,false);
         network_button(fb, 6, s_status.network_ready ? "Ngắt" : "Kết nối", !s_status.network_ready);
         if (s_pressed == 11) ui_draw_pressed_round_rect(fb, network_control_rect(11), 14);
-        ui_text_vc(fb, 563, 341, 21, "Quên mạng", EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_box(fb,(EpdRect){509,323,107,36},21,"Quên mạng",EPD_DRAW_ALIGN_CENTER,false);
     } else {
         ui_text(fb, 64, 253, 29, "Chưa lưu mạng WiFi", EPD_DRAW_ALIGN_LEFT, false);
         ui_text(fb, 64, 312, 23, "Chọn mạng WiFi 2.4 GHz từ danh sách dưới", EPD_DRAW_ALIGN_LEFT, false);
@@ -402,8 +401,8 @@ static void draw_networks(uint8_t* fb) {
     char count[64];
     snprintf(count, sizeof(count), "%u mạng · Trang %u/%u", (unsigned)s_network_count,
              (unsigned)s_network_page + 1, (unsigned)(s_network_count ? (s_network_count + NETWORK_ROWS - 1) / NETWORK_ROWS : 1));
-    ui_text(fb, 42, 418, 24, "Mạng lân cận", EPD_DRAW_ALIGN_LEFT, false);
-    ui_text(fb, 642, 420, 21, count, EPD_DRAW_ALIGN_RIGHT, false);
+    ui_text_box(fb,(EpdRect){42,410,260,44},24,"Mạng lân cận",EPD_DRAW_ALIGN_LEFT,false);
+    ui_text_box(fb,(EpdRect){320,410,322,44},21,count,EPD_DRAW_ALIGN_RIGHT,false);
     EpdRect list = {36, 465, 612, 380};
     ui_fill_round_rect(fb, list, 22, UI_GRAY_WHITE);
     if (s_scan_pending) {
@@ -424,10 +423,10 @@ static void draw_networks(uint8_t* fb) {
         char name[33], detail[64];
         snprintf(name, sizeof(name), "%s", network->ssid);
         fit_label(name, 28, 520);
-        ui_text(fb, 64, rect.y + 16, 28, name, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_box(fb,(EpdRect){64,rect.y+8,520,40},28,name,EPD_DRAW_ALIGN_LEFT,false);
         snprintf(detail, sizeof(detail), "%s · %s", network->rssi > -60 ? "Sóng mạnh" : network->rssi > -75 ? "Sóng tốt" : "Sóng vừa",
                  !network->supported ? "Chưa hỗ trợ" : network->requires_password ? "Có mật khẩu" : "Mạng mở");
-        ui_text(fb, 64, rect.y + 59, 21, detail, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_box(fb,(EpdRect){64,rect.y+54,520,34},21,detail,EPD_DRAW_ALIGN_LEFT,false);
         ui_text_vc(fb, 615, rect.y + 47, 27, "›", EPD_DRAW_ALIGN_CENTER, false);
     }
     network_border(fb, list, 22);

@@ -6,6 +6,14 @@
  * Retain reference tables; ordinary/ripple output uses vendor b400605 runtime trimming.
  */
 
+// 仅移动CPU使用的派生表；原厂原始脉冲与ISR转换表不变。
+// Move CPU-only derived tables; retain raw vendor pulses and ISR conversion tables unchanged.
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+#define CPU_TABLE_RAM EXT_RAM_BSS_ATTR
+#else
+#define CPU_TABLE_RAM
+#endif
 #include "e0470_epaper_waveform.h"
 
 #include <assert.h>
@@ -168,7 +176,7 @@ int e0470_waveform_white_boost(uint8_t (*data)[16][4], int frames, int extra) {
 /* ---- 完整表 / Full tables ---- */
 // DU 20 相，GC16 48 相；GL16 用 RAM 副本以便白底补 1 帧。
 // / DU 20, GC16 48; GL16 uses a RAM copy so the white-bg tick can be added.
-static uint8_t e0470_full_gl16_live[E0470_FULL_GL16_FRAMES][16][4];
+static CPU_TABLE_RAM uint8_t e0470_full_gl16_live[E0470_FULL_GL16_FRAMES][16][4];
 static const EpdWaveformPhases e0470_full_gl16_live_phases = {
     .phases = E0470_FULL_GL16_FRAMES,
     .phase_times = NULL,
@@ -213,8 +221,8 @@ const EpdWaveform E0470_GRAY8_WAVEFORM = {
 // 厂家 2.0.76 起默认完整 48 相；只有 E0470_WAVEFORM_TRIM=1 才在开机裁成 GC36/GL37。
 // / Vendor 2.0.76 defaults to the full 48 phases; trimming only runs with
 // E0470_WAVEFORM_TRIM=1.
-static uint8_t e0470_gc16_data[E0470_FULL_GC16_FRAMES][16][4];
-static uint8_t e0470_gl16_data[E0470_FULL_GL16_FRAMES][16][4];
+static CPU_TABLE_RAM uint8_t e0470_gc16_data[E0470_FULL_GC16_FRAMES][16][4];
+static CPU_TABLE_RAM uint8_t e0470_gl16_data[E0470_FULL_GL16_FRAMES][16][4];
 static const EpdWaveformPhases e0470_gc16_phases = {
     .phases = E0470_GC16_FRAMES,
     .phase_times = NULL,
@@ -246,7 +254,7 @@ const EpdWaveform E0470_WAVEFORM = {
     .temp_intervals = e0470_intervals,
 };
 
-static uint8_t e0470_textturn_gl16_data[E0470_GL16_FRAMES][16][4];
+static CPU_TABLE_RAM uint8_t e0470_textturn_gl16_data[E0470_GL16_FRAMES][16][4];
 static const EpdWaveformPhases e0470_textturn_gl16_phases = {
     .phases = E0470_GL16_FRAMES,
     .phase_times = NULL,

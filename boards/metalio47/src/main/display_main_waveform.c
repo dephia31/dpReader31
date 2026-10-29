@@ -8,6 +8,14 @@
  * Vendor source: CloudZao/Metalio-E-INK4-Plus b400605 and the 2.0.76-debug source
  *          snapshot / display/waveforms/my_waveform.c.
  */
+// 仅移动CPU使用的派生表；原厂原始脉冲与ISR转换表不变。
+// Move CPU-only derived tables; retain raw vendor pulses and ISR conversion tables unchanged.
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+#define CPU_TABLE_RAM EXT_RAM_BSS_ATTR
+#else
+#define CPU_TABLE_RAM
+#endif
 #include "display_main_waveform.h"
 #include "e0470_epaper_waveform.h"
 #include "e0470_waveform_trim.h"
@@ -69,14 +77,14 @@ const EpdWaveform* display_main_switch_waveform(const EpdWaveform* source, enum 
     return &slot->wave;
 }
 
-static uint8_t s_gray[E0470_GL16_FRAMES][16][4];
+static CPU_TABLE_RAM uint8_t s_gray[E0470_GL16_FRAMES][16][4];
 static const EpdWaveformPhases s_gray_phases={E0470_GL16_FRAMES,(const uint8_t*)s_gray,NULL};
 static const EpdWaveformPhases *s_gray_ranges[]={&s_gray_phases};
 static const EpdWaveformMode s_gray_mode={5,1,s_gray_ranges};
 static const EpdWaveformMode *s_gray_modes[]={&s_gray_mode};
 static EpdWaveform s_gray_waveform={.num_modes=1,.num_temp_ranges=1,.mode_data=s_gray_modes};
 static bool s_gray_ready;
-static uint8_t s_bw[E0470_FULL_DU_FRAMES][16][4];
+static CPU_TABLE_RAM uint8_t s_bw[E0470_FULL_DU_FRAMES][16][4];
 static const EpdWaveformPhases s_bw_phases={E0470_FULL_DU_FRAMES,(const uint8_t*)s_bw,NULL};
 static const EpdWaveformPhases *s_bw_ranges[]={&s_bw_phases};
 static const EpdWaveformMode s_bw_mode={1,1,s_bw_ranges};
@@ -274,7 +282,7 @@ const EpdWaveform* display_main_shelf37_waveform(bool art) {
 
 // 整页补白与固定底栏/局部反馈分开；保持厂商表和相数。
 // Separate page white maintenance from frozen navigation/local feedback; preserve vendor arrays and phase counts.
-static uint8_t s_page_gray[E0470_GL16_FRAMES][16][4];
+static CPU_TABLE_RAM uint8_t s_page_gray[E0470_GL16_FRAMES][16][4];
 static const EpdWaveformPhases s_page_gray_phases={E0470_GL16_FRAMES,(const uint8_t*)s_page_gray,NULL};
 static const EpdWaveformPhases *s_page_gray_ranges[]={&s_page_gray_phases};
 static const EpdWaveformMode s_page_gray_mode={5,1,s_page_gray_ranges};

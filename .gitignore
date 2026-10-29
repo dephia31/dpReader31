@@ -50,6 +50,7 @@ tools/buzzer_score_wav
 *.bin
 !main/assets/*.bin
 !releases/*.bin
+!releases/*/*.bin
 !/flash/bootloader.bin
 !/flash/partitions.bin
 !/flash/firmware.bin

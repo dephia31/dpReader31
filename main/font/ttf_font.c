@@ -44,6 +44,7 @@
 
 #include "settings.h"
 #include "esp_heap_caps.h"
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #if KIIKO_BOARD_METALIO47
@@ -278,7 +279,12 @@ typedef struct {
     bool f_used;           ///< 槽位已被占用 / the slot is in use
 } ttf_slot_t;
 
+#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+// 字库元数据只由绘字任务使用，不属于DMA/缓存关闭ISR。/ Font metadata belongs to rendering tasks, never DMA/cache-off ISRs.
+static EXT_RAM_BSS_ATTR ttf_slot_t s_slots[TTF_FONT_SLOTS];
+#else
 static ttf_slot_t s_slots[TTF_FONT_SLOTS];
+#endif
 static ttf_slot_t* s_cur = &s_slots[TTF_FONT_SLOT_SYSTEM];
 static int s_cur_index = TTF_FONT_SLOT_SYSTEM;
 

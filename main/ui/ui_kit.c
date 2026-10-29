@@ -1019,10 +1019,8 @@ void ui_draw_button(
     uint8_t* framebuffer, EpdRect rect, const char* label, bool on
 ) {
     ui_draw_choice_round_rect(framebuffer, rect, UI_BTN_RADIUS, on);
-    ui_text_vc(
-        framebuffer, rect.x + rect.width / 2, rect.y + rect.height / 2,
-        UI_PX_BTN, label, EPD_DRAW_ALIGN_CENTER, false
-    );
+    // 大字号仍须留在按钮内部，不越过相邻控件。/ Large labels must remain inside the button and clear neighboring controls.
+    ui_text_box(framebuffer,ui_inset_rect(rect,12),UI_PX_BTN,label,EPD_DRAW_ALIGN_CENTER,false);
 }
 
 void ui_draw_chip(

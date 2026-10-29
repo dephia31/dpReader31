@@ -11,6 +11,7 @@
  * is unset, the factory page blocks first. Then control goes to app_loop.
  */
 
+#include "metalio_memory_profile.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -161,6 +162,7 @@ static bool prepare_startup_frame(EpdiyHighlevelState *hl,uint8_t *framebuffer,b
 
 void app_main(void) {
     log_export_init();
+    print_memory_profile("runtime-after-bootloader");
     setenv("TZ", "ICT-7", 1);
     tzset();
     app_lock_capture_boot_wakeup();
@@ -181,6 +183,7 @@ void app_main(void) {
     read_pico_handle_t hw;
     if (read_pico_init(&hw) != ESP_OK) return;
     rp_boot_mark("hw");
+    print_memory_profile("display-and-board-ready");
     if (hw.pmu_ready) restore_time_from_pmu();
     resolve_vcom_at_boot();
     rp_boot_mark("vcom");

@@ -178,7 +178,7 @@ esp_err_t zip_open(const char* path, zip_reader_t** out) {
     if (!out) return ESP_ERR_INVALID_ARG;
     *out = NULL;
     if (!path || !*path) return ESP_ERR_INVALID_ARG;
-    zip_reader_t* z = calloc(1, sizeof(*z));
+    zip_reader_t* z = heap_caps_calloc(1, sizeof(*z), PSRAM);
     if (!z) return ESP_ERR_NO_MEM;
     esp_err_t err = ESP_ERR_INVALID_SIZE;
     uint8_t* tail = NULL;

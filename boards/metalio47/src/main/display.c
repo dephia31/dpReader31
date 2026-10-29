@@ -6,14 +6,14 @@
  * Latest S31 revision: system pages/children use BW output; only edge returns call existing water, never taps or top-left back.
  * 刷屏出口：按模式推屏、HV 轨空闲下电、pclk 欠载回退。
  *
- * 子页返回沿用柔和端点并错相整理；周期清理不额外插入整屏白/黑刷新。
- * Child returns use soft endpoints and staggered cleanup, without an additional white/black full output.
+ * 普通子页返回沿用柔和端点；用户反馈残影后，周期清理改为原厂整屏GC，不再保留导航/白底。
+ * Ordinary child returns retain soft endpoints; after the reported ghosting, periodic cleanup uses vendor full-panel GC including navigation/white backgrounds.
  * Present path: push by mode, drop HV rails on idle, fall back pclk on
  * underrun.
  * 用户继续优化快刷响应：无灰阶条带时按32位并行归一八像素，已为黑白的字不重复写PSRAM；不删相位、不增加缓存或改变清残影和底栏边界。
  * User continues fast responsiveness tuning: normalize eight pixels per 32-bit word when no gray bands exist and avoid rewriting binary PSRAM words; retain phases, cleanup and navigation bounds without extra caches.
- * 用户修订：三种主页模式均固定底栏，仅局部移动横条；普通切页复用柔和灰阶表，黑白端点单向驱动、等灰保持，中灰保留校准相位。取消每三次全像素整理，仍每十二次完整清残影。快刷棋盘格输出、首次进入、解锁及手动全刷不变，不得伪造back。
- * User revision: all main modes retain navigation with local markers; ordinary transitions reuse soft grays with directional BW endpoints, held equal grays and calibrated changed midgrays. Remove third-page full-pixel settling but retain twelfth-page cleanup. Fast checkerboards, initial entry, unlock and manual full output remain; never fabricate back.
+ * 用户2026-10-29残影修订：普通主页切换保留固定导航及柔和差分；所有主页模式每六次变化且距上次清理至少三秒，使用完整原厂GC清理，包括固定导航。首次进入、解锁及手动全刷保留，不得伪造back。
+ * Ghosting revision2026-10-29: ordinary root transitions retain fixed navigation and soft differences; every mode uses full vendor GC including navigation after six changed frames and at least three seconds since cleanup. Retain entry/unlock/manual cleanup and never fabricate back.
  * 用户修订：所有推屏及欠载恢复与 OTA 擦写共用递归锁；无升级任务时保持原波形、范围和节奏。
  * User revision: serialize all display output and underrun recovery with OTA flash operations; keep existing waveforms, bounds and cadence outside updates.
  * 用户要求加快主页水波纹：复用阅读的一拍一带调度，以8带37相共44拍、11090us完成；保留主页原灰阶序列、底栏边界、OTA锁及失败恢复。
@@ -32,6 +32,8 @@
  * 用户2026-10-25另授权书架16灰GL37本地实验：封面/书夹/外围同轮缩短，跨主页保留两相擦白；其他场景及完整清理不改。
  * User authorizes a separate shelf16-gray GL37 experiment on2026-10-25: shorten art/chrome together, keep two root-switch white drives; retain other scenes/full cleanup.
 
+ * 用户2026-10-29反馈主页和阅读残影：普通/黑白主页共享周期原厂整屏GC清理，替代跳过黑白与仅内容区柔和整理；局部反馈仍不计数。
+ * User reports Home/reader ghosting on2026-10-29: all root modes share periodic full-panel vendor GC, replacing BW exclusion and soft body-only cleanup; local feedback remains uncounted.
  */
 
 #include "display.h"
@@ -372,6 +374,16 @@ static enum EpdDrawError main_recover(EpdiyHighlevelState* hl, enum EpdDrawError
     return result;
 }
 
+static enum EpdDrawError update_display_full_unlocked(EpdiyHighlevelState* hl);
+
+// 清理必须绕过柔和/黑白差分，包含固定导航；失败保留计数供下次重试。
+// Cleanup bypasses soft/BW differences and includes fixed navigation; failures retain the count for retry.
+static bool main_periodic_cleanup(EpdiyHighlevelState* hl, bool changed, enum EpdDrawError* result) {
+    if (!ui_page_cleanup_due(changed)) return false;
+    *result = update_display_full_unlocked(hl);
+    return true;
+}
+
 static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     const int64_t total_start = esp_timer_get_time();
     const void* owner = s_main_armed;
@@ -407,6 +419,7 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
         *result = EPD_DRAW_SUCCESS;
         return true;
     }
+    if (main_periodic_cleanup(hl, changed, result)) return true;
     uint8_t *cache = fast && changed && s_main_band_count
         ? heap_caps_aligned_alloc(16, main_band_bytes(), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
     const bool gray_fallback = water || (fast && changed && s_main_band_count && !cache);
@@ -425,11 +438,7 @@ static bool main_begin(EpdiyHighlevelState* hl, enum EpdDrawError* result) {
     enum EpdDrawMode body_mode = normal || gray_fallback ? MODE_GL16 : MODE_DU;
     bool body_full = false;
     bool cleanup_applied = false;
-    // 变化页面共享24次/60秒清理；完整中灰相位不缩短，底栏边界保留。
-    // Changed UI pages share the 24-update/60-second gate; keep full midgray phases and footer bounds.
-    if(!monochrome&&ui_page_cleanup_due(changed)){
-        body_wave=&E0470_FULL_WAVEFORM;body_mode=MODE_GC16;body_full=true;
-    }
+    // 周期整屏清理已在上面统一处理；这里仅处理普通目标帧。/ Periodic full-panel cleaning is handled above; this path presents an ordinary target frame.
     cleanup_applied=body_full;
     // 普通整理也把底栏横条合入同轮；无封面页以整个内容区作强灰阶区，白底只向白推动。
     // Ordinary cleanup also fuses the marker; roots without art use the content region for full grays, driving white targets only white.
@@ -614,7 +623,7 @@ static enum EpdDrawError hl_update(
     enum EpdDrawError intercepted;
     if (main_before_update(hl, &intercepted)) return intercepted;
     const bool whole_page=waveform!=&E0470_FOLLOW_WAVEFORM&&area==NULL;
-    if(!s_system_binary&&whole_page&&(mode&0xF)!=MODE_GC16&&ui_page_cleanup_due(ui_page_changed(hl))){
+    if(whole_page&&(mode&0xF)!=MODE_GC16&&ui_page_cleanup_due(ui_page_changed(hl))){
         mode=(enum EpdDrawMode)((mode&~0xF)|MODE_GC16);full=true;waveform=&E0470_FULL_WAVEFORM;
     }
     if(!protected_area&&waveform==display_reader_text_waveform()&&(mode&0xF)==MODE_GL16)allow_gl16_diff=false;

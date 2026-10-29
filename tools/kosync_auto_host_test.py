@@ -10,6 +10,7 @@ prefix=r'''
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#define CPU_STATE_RAM
 #define BOOK_STORE_PATH_MAX 288
 #define KIIKO_BOARD_METALIO47 1
 #define portMUX_INITIALIZER_UNLOCKED 0

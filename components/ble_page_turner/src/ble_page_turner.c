@@ -16,6 +16,13 @@
  * Frozen: no drawing, no page-turn policy, no storage outside this module's NVS namespace.
  */
 
+#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#include "esp_attr.h"
+// 仅普通任务访问的CPU数据；锁和ISR数据保留内部RAM。/ Task-only CPU data; locks and ISR data stay internal.
+#define CPU_STATE_RAM EXT_RAM_BSS_ATTR
+#else
+#define CPU_STATE_RAM
+#endif
 #include "ble_page_turner.h"
 
 #include <stdatomic.h>
@@ -149,9 +156,9 @@ static portMUX_TYPE s_ring_lock = portMUX_INITIALIZER_UNLOCKED;
 
 /* ---- 模块状态 / Module state ---- */
 
-static ble_pt_device_t s_devices[BLE_PT_MAX_DEVICES];
+static CPU_STATE_RAM ble_pt_device_t s_devices[BLE_PT_MAX_DEVICES];
 static uint8_t s_device_count;
-static ble_pt_bond_t s_bonds[BLE_PT_MAX_BONDS];
+static CPU_STATE_RAM ble_pt_bond_t s_bonds[BLE_PT_MAX_BONDS];
 static uint8_t s_bond_count;
 static char s_conn_addr[18];
 static char s_conn_name[32];

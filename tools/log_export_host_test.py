@@ -27,6 +27,8 @@ typedef int (*vprintf_like_t)(const char *,va_list);
 static char s_log_buf[LOG_BUF_SIZE];
 static size_t s_log_head,s_log_total_written;
 static bool s_in_vprintf;
+static bool cache_ready=true;
+static bool log_ring_accessible(void){return cache_ready;}
 static int depth,s_log_lock,failure,allocated,freed;
 static bool allocation_fail,sd_missing,inject;
 static vprintf_like_t s_prev_vprintf;
@@ -84,6 +86,8 @@ static void emit(const char *fmt,...){va_list a;va_start(a,fmt);log_export_vprin
 int main(void){
  s_prev_vprintf=sink;
  char path[64],error[128];
+ cache_ready=false;emit("CACHE_OFF");assert(s_log_total_written==0);
+ log_export_clear();char scratch[LOG_BUF_SIZE];assert(log_snapshot(scratch)==0);cache_ready=true;
  emit("BEFORE_SD\n");inject=true;
  assert(log_export_to_sd(path,sizeof(path),error,sizeof(error))==ESP_OK);
  assert(strstr(saved,"BEFORE_SD")&&!strstr(saved,"DURING_SD"));

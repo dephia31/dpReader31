@@ -5,6 +5,13 @@
  * 冻结：TXT 保留源字节偏移，EPUB 采用累计 spine HTML 字节；兼容纯文本加载，不写文件。
  * Frozen: TXT retains source offsets; EPUB uses cumulative spine HTML bytes; retain plain-text loading and never write files.
  */
+#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#include "esp_attr.h"
+// 仅普通任务访问的CPU数据；锁和ISR数据保留内部RAM。/ Task-only CPU data; locks and ISR data stay internal.
+#define CPU_STATE_RAM EXT_RAM_BSS_ATTR
+#else
+#define CPU_STATE_RAM
+#endif
 #include "book_source_internal.h"
 #include "book_epub.h"
 #include <stdlib.h>
@@ -17,7 +24,7 @@
 static book_txt_t s_book;
 static book_epub_t *s_epub;
 #if KIIKO_BOARD_METALIO47
-static char s_io_path[512];
+static CPU_STATE_RAM char s_io_path[512];
 static bool s_io_suspended;
 static struct stat s_io_stat;
 #else

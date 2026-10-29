@@ -33,7 +33,17 @@
 
 #define LOG_BUF_SIZE (32 * 1024)
 
+#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#include "esp_attr.h"
+#include "esp_private/cache_utils.h"
+// PSRAM在app_main前初始化；cache关闭时不捕获/读取外部环形缓冲。
+// PSRAM is ready before app_main; do not capture/read the external ring with cache suspended.
+static EXT_RAM_BSS_ATTR char s_log_buf[LOG_BUF_SIZE];
+static bool log_ring_accessible(void) { return spi_flash_cache_enabled(); }
+#else
 static char s_log_buf[LOG_BUF_SIZE];
+static bool log_ring_accessible(void) { return true; }
+#endif
 static size_t s_log_head = 0;
 static size_t s_log_total_written = 0;
 static portMUX_TYPE s_log_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -54,7 +64,7 @@ static int log_export_vprintf(const char *fmt, va_list args) {
     }
 
     // Guard against recursive calls
-    if (s_in_vprintf) {
+    if (s_in_vprintf || !log_ring_accessible()) {
         va_end(args_copy);
         return ret;
     }
@@ -89,6 +99,7 @@ void log_export_init(void) {
 
 int log_export_get_recent(char *out, size_t max_len) {
     if (!out || max_len == 0) return 0;
+    if(!log_ring_accessible()){out[0]=0;return 0;}
     out[0] = 0;
 
     portENTER_CRITICAL(&s_log_lock);
@@ -113,6 +124,7 @@ int log_export_get_recent(char *out, size_t max_len) {
 }
 
 void log_export_clear(void) {
+    if(!log_ring_accessible())return;
     portENTER_CRITICAL(&s_log_lock);
     s_log_head = 0;
     s_log_total_written = 0;
@@ -122,6 +134,7 @@ void log_export_clear(void) {
 
 // 锁内只复制固定大小快照，不执行SD/日志调用。/ Copy a bounded snapshot under the lock, without SD or logging calls.
 static size_t log_snapshot(char *out) {
+    if(!log_ring_accessible())return 0;
     portENTER_CRITICAL(&s_log_lock);
     size_t count=s_log_total_written<LOG_BUF_SIZE?s_log_total_written:LOG_BUF_SIZE;
     size_t start=(s_log_head+LOG_BUF_SIZE-count)%LOG_BUF_SIZE;

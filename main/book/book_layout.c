@@ -10,6 +10,13 @@
  * 用户2026-10-29要求利用页底余白：末行按真实墨迹高度判定，行间距不变，页脚外不画阅读线。
  * User revision 2026-10-29: fit a final line by its ink height, retain inter-line spacing, and keep reading guides inside the body.
  */
+#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#include "esp_attr.h"
+// 仅普通任务访问的CPU数据；锁和ISR数据保留内部RAM。/ Task-only CPU data; locks and ISR data stay internal.
+#define CPU_STATE_RAM EXT_RAM_BSS_ATTR
+#else
+#define CPU_STATE_RAM
+#endif
 #include "book_layout.h"
 #include <limits.h>
 #include <stdlib.h>
@@ -107,7 +114,7 @@ static size_t s_run_count;
 // How many face spans one line may carry: a line holds a dozen glyphs and spans only come
 // from inline tags.
 #define LINE_RUN_MAX 64u
-static ttf_run_t s_line_runs[LINE_RUN_MAX];
+static CPU_STATE_RAM ttf_run_t s_line_runs[LINE_RUN_MAX];
 static size_t s_line_run_count;
 
 void book_layout_set_runs(const html_run_t* runs, size_t count) {
