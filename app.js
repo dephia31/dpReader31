@@ -145,7 +145,22 @@ async function disconnect() {
 // Tự động kiểm tra và đồng bộ phiên bản mới nhất từ máy chủ
 let currentReleaseInfo = null;
 
+// 中文：只允许已归档版本入口，保持当前版与上一版可独立安装。
+// English: Allow only archived versions so current and previous firmware install independently.
+function selectedReleaseFolder() {
+  const version = document.getElementById("release-version")?.value || "";
+  return version === "1.1.6-vn" ? `releases/${version}` : "releases";
+}
+const releaseVersionSelect = document.getElementById("release-version");
+releaseVersionSelect?.addEventListener("change", () => {
+  const folder = selectedReleaseFolder();
+  document.getElementById("release-tf-download").href = `./${folder}/dpReader_metalio47_firmware.bin`;
+  document.getElementById("release-usb-download").href = `./${folder}/dpReader_metalio47_full.bin`;
+  fetchLatestRelease();
+});
+
 async function fetchLatestRelease() {
+  const requestedFolder = selectedReleaseFolder();
   const latestVerName = document.getElementById("latest-version-name");
   const latestVerSize = document.getElementById("latest-version-size");
   const latestVerNotes = document.getElementById("latest-version-notes");
@@ -154,13 +169,13 @@ async function fetchLatestRelease() {
   try {
     let data = null;
     try {
-      const res = await fetch(`./metalio-s31-update.json?t=${Date.now()}`);
+      const res = await fetch(`./${requestedFolder}/metalio-s31-update.json?t=${Date.now()}`);
       if (res.ok) data = await res.json();
     } catch (_) {}
 
     if (!data || !data.version) {
       try {
-        const ghRes = await fetch("https://api.github.com/repos/dephia31/dpReader31/releases/latest");
+        const ghRes = await fetch(`https://api.github.com/repos/dephia31/dpReader31/releases/${selectedReleaseFolder() === "releases" ? "latest" : "tags/v1.1.6-vn"}`);
         if (ghRes.ok) {
           const ghData = await ghRes.json();
           data = {
@@ -172,6 +187,7 @@ async function fetchLatestRelease() {
       } catch (_) {}
     }
 
+    if (requestedFolder !== selectedReleaseFolder()) return;
     if (data && data.version) {
       currentReleaseInfo = data;
       if (latestVerName) latestVerName.textContent = `v${data.version}`;
@@ -293,6 +309,7 @@ flashBtn.addEventListener("click", async () => {
 
   try {
     isFlashing = true;
+    if (releaseVersionSelect) releaseVersionSelect.disabled = true;
     flashBtn.disabled = true;
     disconnectBtn.disabled = true;
     progressContainer.style.display = "block";
@@ -319,16 +336,16 @@ flashBtn.addEventListener("click", async () => {
       clearOtadata = true;
       progressStatus.textContent = "Đang tải firmware ứng dụng mới nhất...";
       binaryData = await fetchBinary(
-        `./releases/${fileName}?t=${timestamp}`,
-        `https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/${fileName}?t=${timestamp}`
+        `./${selectedReleaseFolder()}/${fileName}?t=${timestamp}`,
+        `https://raw.githubusercontent.com/dephia31/dpReader31/main/${selectedReleaseFolder()}/${fileName}?t=${timestamp}`
       );
     } else if (radioFull.checked) {
       fileName = "dpReader_metalio47_full.bin";
       offset = 0x0;
       progressStatus.textContent = "Đang tải firmware toàn diện (Full Flash)...";
       binaryData = await fetchBinary(
-        `./releases/${fileName}?t=${timestamp}`,
-        `https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/${fileName}?t=${timestamp}`
+        `./${selectedReleaseFolder()}/${fileName}?t=${timestamp}`,
+        `https://raw.githubusercontent.com/dephia31/dpReader31/main/${selectedReleaseFolder()}/${fileName}?t=${timestamp}`
       );
     } else if (radioCustom.checked) {
       const file = customFileInput.files[0];
@@ -341,6 +358,9 @@ flashBtn.addEventListener("click", async () => {
       }
       fileName = file.name;
       offset = parseInt(customOffsetInput.value, 16) || 0x10000;
+      // 自选应用与默认应用共用启动槽处理；其他偏移不改OTA选择。
+      // Custom apps share the default app's boot-slot handling; other offsets retain OTA selection.
+      clearOtadata = offset === 0x10000;
       progressStatus.textContent = `Đang đọc tệp ${fileName}...`;
       binaryData = await file.arrayBuffer();
     }
@@ -414,6 +434,7 @@ flashBtn.addEventListener("click", async () => {
     alert(`Nạp thất bại: ${err.message || err}`);
   } finally {
     isFlashing = false;
+    if (releaseVersionSelect) releaseVersionSelect.disabled = false;
     // Sau khi nạp thành công cổng đã được nhả; chỉ bật lại nút khi còn kết nối.
     // After a successful flash the port is released; only re-enable the button while still connected.
     if (esploader) {
