@@ -227,6 +227,9 @@ Sau khi hoàn thành các bước trên, AI Agent thực hiện kiểm tra các 
 
 ## Quy trình kiểm tra hiện tại
 
+GitHub Pages của repository hiện dùng nguồn legacy `gh-pages`. Workflow Pages sao chép tệp web và gói đã kiểm tra sang đúng nhánh đó, giữ lịch sử, rồi yêu cầu Pages build. Không deploy môi trường `github-pages` từ `main` hoặc thay chính sách bảo vệ môi trường.
+
+
 - Chạy `tools/archive_current_release.py releases --source-commit <commit-bản-cũ>` trước khi thay gói chính thức; giữ nguyên bytes và checksum của phiên bản trước.
 - `python3 tools/publish_release.py --dry-run` kiểm tra descriptor S31/version, hash/size app, ảnh full với bootloader0x2000, USB/TF ZIP và bản trước.
 - Tag phải trùng HEAD và manifest. Workflow release dùng `tools/publish_release.py`: tạo draft, tải đủ app/full/USB ZIP/TF ZIP/manifest/verification/checksum, kiểm tra digest GitHub từng tệp rồi mới công khai. Lỗi tải không được báo thành công hoặc ghi đè tài sản đã công khai.

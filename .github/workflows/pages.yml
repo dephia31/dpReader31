@@ -1,59 +1,54 @@
 name: Publish web flasher
-
 on:
   push:
     branches: [main]
-    paths:
-      - web/**
-      - releases/**
-      - metalio-s31-update.json
-      - .github/workflows/pages.yml
+    paths: [web/**, releases/**, metalio-s31-update.json, .github/workflows/pages.yml]
   release:
     types: [published]
   workflow_dispatch:
-
 permissions:
-  contents: read
+  contents: write
   pages: write
-  id-token: write
-
 concurrency:
   group: pages
   cancel-in-progress: false
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Validate and stage public flashing files
-        run: |
-          mkdir -p _site
-          if [ -d web ]; then
-            cp -r web/* _site/
-          fi
-          if [ -d releases ]; then
-            cp -r releases _site/
-            if [ -f releases/metalio-s31-update.json ]; then
-              cp releases/metalio-s31-update.json _site/
-            fi
-            if [ -f releases/dpReader_metalio47_firmware.bin ]; then
-              cp releases/dpReader_metalio47_firmware.bin _site/
-            fi
-            if [ -f releases/dpReader_metalio47_full.bin ]; then
-              cp releases/dpReader_metalio47_full.bin _site/
-            fi
-          fi
-          if [ -f metalio-s31-update.json ]; then
-            cp metalio-s31-update.json _site/
-          fi
-          touch _site/.nojekyll
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
         with:
-          path: _site
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          path: source
+      - name: Verify published inputs
+        run: python3 source/tools/verify_metalio_release.py
+      - name: Check out the configured Pages source branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: public
+      - name: Publish the allowlisted files, retaining historical releases
+        shell: bash
+        run: |
+          cp -R source/web/. public/
+          mkdir -p public/releases
+          cp -R source/releases/. public/releases/
+          for name in dpReader_metalio47_firmware.bin dpReader_metalio47_full.bin metalio-s31-update.json SHA256SUMS.txt; do
+            cp "source/releases/$name" "public/$name"
+          done
+          touch public/.nojekyll
+          cd public
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "pages: publish verified firmware from ${GITHUB_SHA}"
+            git push origin HEAD:gh-pages
+          fi
+      - name: Build the existing legacy Pages site
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.request('POST /repos/{owner}/{repo}/pages/builds', {
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
