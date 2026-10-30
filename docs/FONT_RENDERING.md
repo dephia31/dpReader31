@@ -1,3 +1,20 @@
+# Thử nghiệm KOReader render — 1.2.1RC1-vn
+
+Nhánh `codex/Test-koreader-render` thử chính sách raster của KOReader/CREngine trên engine FreeType hiện có của S31. Đây không phải bản port KOReader hay CREngine, không tích hợp Lua/HarfBuzz hoặc thay bộ phân trang.
+
+Nguồn tham khảo cố định: [CREngine f335f7a](https://github.com/koreader/crengine/blob/f335f7a97e240f505bb8a0dfb721fcb7912a7824/crengine/src/lvfntman.cpp) (`getGlyph`, `newItem`) và [KOReader-base 007ac6a](https://github.com/koreader/koreader-base/blob/007ac6a81e2de4822c8df7ce57b8dbb06aa3b8ea/cre.cpp) (`PROP_FONT_HINTING`). Mã tích hợp được viết riêng bằng API FreeType; không chép mã hoặc bảng gamma CREngine vào dự án.
+
+- TrueType đọc sách và outline font giao diện dùng auto-hinting; AA dùng `FT_LOAD_TARGET_LIGHT`/`FT_RENDER_MODE_LIGHT`, reader mono dùng `FT_LOAD_TARGET_MONO`/`FT_RENDER_MODE_MONO`.
+- AA giữ độ phủ 8 bit với gamma 1.0 đến lúc trộn vào framebuffer 4 bpp, thay ngưỡng bốn mức và gamma nâng viền cũ trên S31. Nền độ phủ 0 vẫn trắng tuyệt đối. Mask chữ dùng cùng chính sách.
+- Giữ nguyên advance/phân trang, mức điều chỉnh nét người dùng, cache, giới hạn bộ nhớ FreeType và sửa stack. UI giữ ngưỡng đen trắng/tựa sách đang dùng; bitmap Han bổ sung vẫn là bitmap, không thể hint lại như outline. Font không hỗ trợ/thiếu RAM dùng fallback cũ với cùng độ phủ tuyến tính.
+- Waveform, VCOM2000 hiện tại, nguồn, nhịp quét, chu kỳ full refresh và dữ liệu người dùng giữ nguyên để tách riêng ảnh hưởng của raster. Không khẳng định sửa hết nền xám trước thử máy thật.
+
+Kiểm tra: `python3 tools/font_koreader_ui_host_test.py`, `python3 tools/font_aa_host_test.py`, `python3 tools/font_mono_cache_host_test.py`, `python3 tools/font_autofit_stack_host_test.py`. Dùng cùng font/cỡ/trang/ánh sáng; full refresh một lần trước mỗi phép so sánh, theo dõi chữ và nền qua nhiều trang. Bản thử nằm ở `Test Build/1.2.1RC1-vn/`, không thay bản OTA/web chính thức.
+
+Phần dưới ghi hành vi của các phiên bản trước để đối chiếu; chính sách thử nghiệm trên thay thế mô tả bốn mức/gamma cũ trên nhánh này.
+
+---
+
 # Hiển thị phông chữ TTF
 
 Đường mức xám và fallback của firmware raster hóa đường viền bằng `stb_truetype` thành độ phủ 8 bit, lưu glyph trong cache PSRAM, áp dụng điều chỉnh nét nếu đã chọn, rồi đổi sang 16 mức xám của framebuffer. Gamma độ phủ hiện giữ ở `TTF_COVER_GAMMA = 0.5`; đây là tăng độ phủ viền, không phải hinting hoặc hiệu chuẩn độ sáng quang học của tấm nền.

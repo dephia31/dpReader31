@@ -20,6 +20,7 @@ unit = r'''
 #include <math.h>
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
+#include "ttf_aa_tone.h"
 static uint8_t s_cover[256];
 static bool s_antialias = true;
 '''

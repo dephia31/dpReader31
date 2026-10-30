@@ -1,0 +1,22 @@
+name: KOReader render experiment
+on:
+  push:
+    branches: [codex/Test-koreader-render]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Real FreeType and UI raster regressions
+        run: |
+          python3 tools/font_koreader_ui_host_test.py
+          python3 tools/font_aa_host_test.py
+          python3 tools/font_mono_host_test.py
+          python3 tools/font_mono_cache_host_test.py
+          python3 tools/font_autofit_stack_host_test.py
+          python3 tools/font_output_host_test.py
+          python3 tools/board_source_view.py --board metalio47 --tests --output build/koreader-host-view
+          python3 build/koreader-host-view/tools/font_ink_host_test.py

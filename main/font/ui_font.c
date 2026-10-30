@@ -8,10 +8,16 @@
  * User-reported jagged titles: interpolate supplemental bitmap coverage, retaining font sources, advances and cache bounds; final fast output remains monochrome.
  * 用户最新修订：书名及章节标题禁止放大补充位图；整行采用其原生24px，轮廓字形直接生成，并统一标题笔画黑度。
  * Latest user revision: book/chapter titles never enlarge supplemental bitmaps; use their native 24px for the entire line, rasterize outlines directly and keep title strokes equally black.
+ * User test2026-10-30: S31 UI outlines share the reader's light auto-hinter and
+ * continuous coverage; preserve title thresholds, bitmap supplements and layout.
  */
 #include "ui_font.h"
 #include "ui_hanzi.h"
 #include "ui_hanzi_scale.h"
+#if KIIKO_BOARD_METALIO47
+#include "ttf_mono.h"
+#include "ttf_aa_tone.h"
+#endif
 
 #include <math.h>
 #include <stdlib.h>
@@ -40,6 +46,16 @@ typedef struct {
 extern const uint8_t builtin_ttf_start[] asm("_binary_builtin_ttf_start");
 static stbtt_fontinfo s_font;
 static bool s_ready, s_attempted;
+#if KIIKO_BOARD_METALIO47
+extern const uint8_t builtin_ttf_end[] asm("_binary_builtin_ttf_end");
+static ttf_mono_face_t *s_hint_face;
+static bool ui_font_read(void *context,uint32_t offset,void *buffer,size_t bytes) {
+    (void)context;
+    size_t length=(size_t)(builtin_ttf_end-builtin_ttf_start);
+    if(offset>length||bytes>length-offset)return false;
+    memcpy(buffer,builtin_ttf_start+offset,bytes);return true;
+}
+#endif
 // 字形缓存放 PSRAM。每次取字形都会读一遍，但渲染本来就逐行读 PSRAM 里的
 // framebuffer，多这一处不改变量级。
 // The glyph cache lives in PSRAM. Every lookup walks it, but rendering already streams the
@@ -61,8 +77,13 @@ static bool ready(void) {
     s_attempted = true;
     int offset = stbtt_GetFontOffsetForIndex(builtin_ttf_start, 0);
     s_ready = offset >= 0 && stbtt_InitFont(&s_font, builtin_ttf_start, offset);
-    for (int i = 0; i < 256; ++i)
+    for (int i = 0; i < 256; ++i) {
+#if KIIKO_BOARD_METALIO47
+        s_cover[i] = ttf_aa_coverage((uint8_t)i);
+#else
         s_cover[i] = (uint8_t)lroundf(255.f * powf((float)i / 255.f, 0.4f));
+#endif
+    }
     return s_ready;
 }
 
@@ -165,6 +186,15 @@ static ui_glyph_t *glyph(uint32_t cp, int px) {
         y1 = y0 + (extra[3] * px + UI_HANZI_BASE_PX - 1) / UI_HANZI_BASE_PX;
         fallback_advance = (extra[4] * px + UI_HANZI_BASE_PX / 2) / UI_HANZI_BASE_PX;
     }
+#if KIIKO_BOARD_METALIO47
+    ttf_mono_bitmap_t hinted={0};
+    bool use_hint=false;
+    if(!supplemental) {
+        if(!s_hint_face)s_hint_face=ttf_mono_open(ui_font_read,NULL,(uint32_t)(builtin_ttf_end-builtin_ttf_start));
+        use_hint=s_hint_face&&ttf_gray_render_stroke(s_hint_face,cp,scale,-1,0,&hinted);
+        if(use_hint){x0=hinted.left;y0=-hinted.top;x1=x0+hinted.width;y1=y0+hinted.height;}
+    }
+#endif
     *g = (ui_glyph_t){.cp = cp, .px = px, .age = ++s_age, .used = true,
         .x0 = x0, .y0 = y0, .width = x1 - x0, .height = y1 - y0,
         .advance = (int16_t)(supplemental ? fallback_advance : lroundf(advance * scale))};
@@ -182,6 +212,10 @@ static ui_glyph_t *glyph(uint32_t cp, int px) {
         if (supplemental) for (int y = 0; y < g->height; ++y) for (int x = 0; x < g->width; ++x) {
             g->bitmap[y * g->width + x] = ui_hanzi_coverage(extra, g->width, g->height, x, y);
         }
+#if KIIKO_BOARD_METALIO47
+        else if(use_hint) for(int y=0;y<g->height;++y)
+            memcpy(g->bitmap+(size_t)y*g->width,hinted.pixels+(size_t)y*hinted.pitch,(size_t)g->width);
+#endif
         else stbtt_MakeCodepointBitmap(&s_font, g->bitmap, g->width, g->height, g->width,
                                       scale, scale, (int)cp);
         s_bytes += g->bytes;

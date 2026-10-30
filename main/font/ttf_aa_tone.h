@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #pragma once
 #include <stdint.h>
-/* Four coverage levels: drop faint haze and keep a solid black core.
- * No spatial dithering; the native gray waveform still drives the panel. */
+/* KOReader/CREngine-style gamma 1.0 experiment: retain raw coverage until
+ * compositing into the panel framebuffer. Never lift zero coverage/background.
+ * Independently implemented; no CREngine source or tables are incorporated. */
 static inline uint8_t ttf_aa_coverage(uint8_t alpha) {
-    return alpha<32?0:alpha<104?85:alpha<176?170:255;
+    return alpha;
 }

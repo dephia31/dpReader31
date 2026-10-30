@@ -29,7 +29,7 @@ unit += function('draw_text_px', root/'main/font/ui_font.c') + '\n'
 unit += function('display_system_binary_set', root/'boards/metalio47/src/main/display.c') + '\n'
 unit += r'''
 int main(void){
-    for(int a=0;a<256;++a)s_cover[a]=lroundf(255.f*powf(a/255.f,0.4f));
+    for(int a=0;a<256;++a)s_cover[a]=a;
     for(int fg=0;fg<16;++fg)for(int bg=0;bg<16;++bg)for(int a=0;a<256;++a){
         pixel=a;uint8_t fb=bg;
         draw_text_px(&fb,0,0,24,"a",EPD_DRAW_ALIGN_LEFT,fg,bg,0);

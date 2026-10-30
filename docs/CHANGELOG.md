@@ -1,5 +1,10 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.1RC1-vn · Test KOReader render · 2026-10-30
+
+- Nhánh thử nghiệm render chữ theo hướng KOReader/CREngine: light auto-hinting cho AA, mono auto-hinting cho đen trắng; giữ độ phủ liên tục với gamma 1.0 ở chữ sách và giao diện S31.
+- Giữ bố cục, cỡ chữ, các lựa chọn người dùng và đường refresh hiện tại. Chưa xác nhận cải thiện nền xám trên máy thật.
+
 ## dpReader 1.2.0-vn · 2026-10-30
 
 - Chữ TTF có hinting cho cả đen trắng và khử răng cưa; khử răng cưa dùng bốn mức xám, giữ lõi chữ đen và chỉnh độ đậm trên đường nét.

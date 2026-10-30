@@ -86,11 +86,8 @@ ttf_mono_face_t *ttf_mono_open(ttf_mono_read_t read,void *context,uint32_t lengt
         for(unsigned i=0;i<f->axes;++i){f->coordinates[i]=variation->axis[i].def;if(variation->axis[i].tag==FT_MAKE_TAG('w','g','h','t'))f->weight_axis=(int)i;}
         FT_Done_MM_Var(library,variation);
     }
-    // Fonts without native hint programs use the monochrome auto-hinter.
-    FT_ULong prep=0,fpgm=0;
-    (void)FT_Load_Sfnt_Table(f->face,FT_MAKE_TAG('p','r','e','p'),0,NULL,&prep);
-    (void)FT_Load_Sfnt_Table(f->face,FT_MAKE_TAG('f','p','g','m'),0,NULL,&fpgm);
-    f->force_auto=!prep&&!fpgm;
+    // Test branch: use CREngine-style auto-hinting consistently for UI and reader.
+    f->force_auto=true;
     ++faces;return f;
 fail:
     if(f->face)FT_Done_Face(f->face);
@@ -113,7 +110,7 @@ static bool render_stroke(ttf_mono_face_t *f,uint32_t cp,float scale,int weight,
     }
     FT_UInt glyph=FT_Get_Char_Index(f->face,cp);
     if(!glyph)return false;
-    FT_Int32 flags=FT_LOAD_NO_BITMAP|(gray?FT_LOAD_TARGET_NORMAL:FT_LOAD_TARGET_MONO)|(f->force_auto?FT_LOAD_FORCE_AUTOHINT:0);
+    FT_Int32 flags=FT_LOAD_NO_BITMAP|(gray?FT_LOAD_TARGET_LIGHT:FT_LOAD_TARGET_MONO)|(f->force_auto?FT_LOAD_FORCE_AUTOHINT:0);
     if(FT_Load_Glyph(f->face,glyph,flags))return false;
     if(steps < -32)steps=-32;
     if(steps > 32)steps=32;
@@ -123,7 +120,7 @@ static bool render_stroke(ttf_mono_face_t *f,uint32_t cp,float scale,int weight,
         if(FT_Outline_EmboldenXY(&f->face->glyph->outline,strength,strength))return false;
         FT_Outline_Translate(&f->face->glyph->outline,-strength/2,-strength/2);
     }
-    if(FT_Render_Glyph(f->face->glyph,gray?FT_RENDER_MODE_NORMAL:FT_RENDER_MODE_MONO))return false;
+    if(FT_Render_Glyph(f->face->glyph,gray?FT_RENDER_MODE_LIGHT:FT_RENDER_MODE_MONO))return false;
     FT_GlyphSlot slot=f->face->glyph;
     if(slot->bitmap.pixel_mode!=(gray?FT_PIXEL_MODE_GRAY:FT_PIXEL_MODE_MONO) || slot->bitmap.pitch<0 || slot->bitmap.width>1024 || slot->bitmap.rows>1024)return false;
     *out=(ttf_mono_bitmap_t){slot->bitmap.buffer,(int)slot->bitmap.width,(int)slot->bitmap.rows,slot->bitmap_left,slot->bitmap_top,slot->bitmap.pitch};

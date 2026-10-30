@@ -8,7 +8,7 @@
  * Variable TTF: sector I/O from the card; glyf/gvar map into PSRAM when
  * they fit. Glyphs are cached by codepoint, size and weight. The built-in
  * font is a Noto Sans SC Medium subset.
- * Revision2026-10-30: TrueType uses bounded hinting: packed mono with AA off, four-tone gray with AA on; keep advances/layout and native unsupported fallback.
+ * Revision2026-10-30: Test branch uses CREngine-style light auto-hinting and continuous gray coverage; retain packed mono, layout advances and unsupported fallback.
  * User revision: five reader stroke levels apply to static/variable/embedded faces,
  * preserving advances and proportions; normal is unchanged, with one bounded glyph scratch buffer.
  * 用户修订：标题复用当前字体的轮廓与缓存；覆盖检查只读现有 cmap，不切字体或另加载字库。
@@ -3098,7 +3098,11 @@ static void ttf_cover_lut_init(void) {
         int v = (int)(255.f * powf(t, TTF_COVER_GAMMA) + 0.5f);
         if (v < 0) v = 0;
         if (v > 255) v = 255;
+#if KIIKO_BOARD_METALIO47
+        s_cover[i] = ttf_aa_coverage((uint8_t)i);
+#else
         s_cover[i] = (uint8_t)v;
+#endif
     }
     ready = true;
 }
