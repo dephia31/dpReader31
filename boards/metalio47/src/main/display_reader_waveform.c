@@ -1,12 +1,15 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：用户要求避免频繁全刷；AA正文对字迹像素复用原GC48，等白保持现有GL补白。
- * English: AA text trial rebuilds ink pixels with native GC48, retaining the
- *         existing GL white maintenance for unchanged white (no black background flash).
+ * User trial2026-10-30: AA reader turns use native-derived GL42 (erase11,
+ * sat_cut0, white_sat_cut0, tail3), retaining full black saturation and gray tails.
+ * Equal ink holds; unchanged white retains the existing maintenance pulse count.
+ * Full/periodic/recovery cleaning remains GC48; invalid derivation falls back
+ * to the preceding selective GC48 reader path. No optical acceptance claimed.
  * Revision2026-10-30: reader AA overrides Fast BW on subsequent turns, matching
  * initial rendering; only an explicit AA-off choice permits target binarization.
  */
 #include "display_reader_waveform.h"
 #include "e0470_epaper_waveform.h"
+#include "e0470_waveform_trim.h"
 #include "settings.h"
 #include <stddef.h>
 #ifdef ESP_PLATFORM
@@ -20,7 +23,7 @@
 #define PANEL_LUT_ATTR
 #endif
 #endif
-const EpdWaveform* display_reader_text_waveform(void) {
+static const EpdWaveform* reader_native_text_waveform(void) {
     if(!app_settings_book_antialias())return &E0470_TEXTTURN_WAVEFORM;
     /* User revision: avoid frequent global clears. Rebuild only ink footprints
      * with the original GC sequence; unchanged white keeps existing GL pulses.
@@ -48,6 +51,49 @@ const EpdWaveform* display_reader_text_waveform(void) {
         phase=(EpdWaveformPhases){.phases=gc->phases,.luts=(const uint8_t*)pixels,.phase_times=NULL};
         ranges[0]=&phase;
         mode=(EpdWaveformMode){.type=MODE_GL16,.temp_ranges=1,.range_data=ranges};
+        modes[0]=&mode;waveform=E0470_TEXTTURN_WAVEFORM;waveform.mode_data=modes;
+        ready=true;
+    }
+    return &waveform;
+}
+
+
+const EpdWaveform* display_reader_text_waveform(void) {
+    if(!app_settings_book_antialias())return &E0470_TEXTTURN_WAVEFORM;
+#ifdef ESP_PLATFORM
+    static EXT_RAM_BSS_ATTR uint8_t pixels[E0470_FULL_GL16_FRAMES][16][4];
+#else
+    static uint8_t pixels[E0470_FULL_GL16_FRAMES][16][4];
+#endif
+    static bool ready,failed;
+    static EpdWaveformPhases phase;
+    static const EpdWaveformPhases* ranges[1];
+    static EpdWaveformMode mode;
+    static const EpdWaveformMode* modes[1];
+    static EpdWaveform waveform;
+    if(failed)return reader_native_text_waveform();
+    if(!ready) {
+        extern const EpdWaveformPhases my_gl_25_0;
+        const EpdWaveformPhases *white=e0470_waveform_phases(&E0470_TEXTTURN_WAVEFORM,MODE_GL16);
+        const e0470_trim_t trim={.erase_max=11,.sat_cut=0,.white_sat_cut=0,.hold=3};
+        if(!my_gl_25_0.luts||my_gl_25_0.phases!=48||my_gl_25_0.phase_times||
+           !white||!white->luts||white->phase_times||white->phases!=48||
+           e0470_waveform_trim(&my_gl_25_0,&trim,pixels)!=42) {
+            failed=true;return reader_native_text_waveform();
+        }
+        unsigned maintenance=0;
+        for(int f=0;f<white->phases;++f) {
+            int action=e0470_phase_action(white,f,15,15);
+            if(action!=0&&action!=2){failed=true;return reader_native_text_waveform();}
+            maintenance+=action==2;
+        }
+        if(!maintenance||maintenance>18){failed=true;return reader_native_text_waveform();}
+        for(int f=0;f<42;++f)for(int v=0;v<16;++v)
+            pixels[f][v][v/4]&=(uint8_t)~(3u<<(6-2*(v%4)));
+        // Preserve the white maintenance budget before the three final holds.
+        for(unsigned n=0;n<maintenance;++n)pixels[38-n][15][3]|=2;
+        phase=(EpdWaveformPhases){.phases=42,.luts=(const uint8_t*)pixels,.phase_times=NULL};
+        ranges[0]=&phase;mode=(EpdWaveformMode){.type=MODE_GL16,.temp_ranges=1,.range_data=ranges};
         modes[0]=&mode;waveform=E0470_TEXTTURN_WAVEFORM;waveform.mode_data=modes;
         ready=true;
     }

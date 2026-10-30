@@ -1,5 +1,10 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.1RC2-vn · Test AA42 · 2026-10-30
+
+- Thử AA đọc sách với GL42 dẫn xuất từ bảng S31: giữ đoạn đẩy đen và đuôi mức xám, rút phần xóa, giữ ba pha cuối và số xung bảo trì trắng. Toàn refresh/phục hồi giữ GC48; giữ render KOReader của RC1.
+- Chưa xác nhận tốc độ hoặc mức xám nền trên thiết bị; VCOM, nhịp quét và chu kỳ làm sạch giữ nguyên để đối chiếu.
+
 ## dpReader 1.2.1RC1-vn · Test KOReader render · 2026-10-30
 
 - Nhánh thử nghiệm render chữ theo hướng KOReader/CREngine: light auto-hinting cho AA, mono auto-hinting cho đen trắng; giữ độ phủ liên tục với gamma 1.0 ở chữ sách và giao diện S31.

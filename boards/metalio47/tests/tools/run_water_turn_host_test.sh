@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/book-tests
-for phases in 20 28 37 48; do
+for phases in 20 28 37 42 48; do
 cc -DTEST_PHASES="$phases" -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
     -Itools/water_turn_stubs -Icomponents/e0470_page_turn/include \
     tools/water_turn_host_test.c components/e0470_page_turn/e0470_page_turn.c \

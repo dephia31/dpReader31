@@ -1,3 +1,13 @@
+# Thử nghiệm AA42 — 1.2.1RC2-vn
+
+AA khi lật trang đọc dùng GL42 dẫn xuất từ **bảng GL48 gốc S31** với erase_max11/sat_cut0/white_sat_cut0/hold3. Giữ đoạn bão hòa đen và các đuôi mức xám; thay đổi phần xóa nên vẫn cần kiểm tra bóng mờ trên máy thật. Không dùng bảng Pico/Kindle. Các cặp mực không đổi giữ nguyên; trắng→trắng giữ số xung bảo trì của đường chữ cũ, đặt trước ba pha giữ cuối. Không lượng tử hoặc sửa giả lịch sử framebuffer.
+
+Giữ GC48 cho full refresh, làm sạch định kỳ và phục hồi lỗi. Nếu bảng không hợp lệ hoặc không ra đúng42pha, dùng lại đường selectiveGC48 của RC1. AA tắt giữ đường cũ, FastBW vẫn DU20. Font/gamma của RC1, VCOM2000, nguồn, quét và chu kỳ làm sạch giữ nguyên. Ngân sách42×12ms=504ms so với48×12ms=576ms, chưa gồm cấp nguồn/render và không phải đo quang học.
+
+Gói `Test Build/1.2.1RC2-vn/` có bộ cài USB và SHA256; giữ RC1 để so sánh cùng trang/font/cỡ/ánh sáng. Sau một lần full refresh đầu phép thử, theo dõi10+trang và kiểm tra cả nền lẫn độ đen. Kiểm tra LUT/fallback bằng `python3 tools/reader_aa42_waveform_host_test.py`.
+
+---
+
 # Thử nghiệm KOReader render — 1.2.1RC1-vn
 
 Nhánh `codex/Test-koreader-render` thử chính sách raster của KOReader/CREngine trên engine FreeType hiện có của S31. Đây không phải bản port KOReader hay CREngine, không tích hợp Lua/HarfBuzz hoặc thay bộ phân trang.

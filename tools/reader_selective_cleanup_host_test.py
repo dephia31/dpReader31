@@ -15,15 +15,15 @@ unit=r'''
 #include "e0470_epaper_waveform.h"
 static bool aa;
 static bool app_settings_book_antialias(void){return aa;}
-'''+function('display_reader_text_waveform',R/'boards/metalio47/src/main/display_reader_waveform.c')+r'''
+'''+function('reader_native_text_waveform',R/'boards/metalio47/src/main/display_reader_waveform.c')+r'''
 int main(void){
  e0470_waveform_init();
  const EpdWaveformPhases *gc=e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_GC16);
  const EpdWaveformPhases *gl=e0470_waveform_phases(&E0470_TEXTTURN_WAVEFORM,MODE_GL16);
  assert(gc&&gl&&gc->phases==48&&gl->phases==48);
  uint8_t before_gc[48*64],before_gl[48*64];memcpy(before_gc,gc->luts,sizeof(before_gc));memcpy(before_gl,gl->luts,sizeof(before_gl));
- aa=false;assert(display_reader_text_waveform()==&E0470_TEXTTURN_WAVEFORM);
- aa=true;const EpdWaveform *wave=display_reader_text_waveform();assert(wave!=&E0470_TEXTTURN_WAVEFORM);
+ aa=false;assert(reader_native_text_waveform()==&E0470_TEXTTURN_WAVEFORM);
+ aa=true;const EpdWaveform *wave=reader_native_text_waveform();assert(wave!=&E0470_TEXTTURN_WAVEFORM);
  const EpdWaveformPhases *p=e0470_waveform_phases(wave,MODE_GL16);assert(p&&p->phases==48&&!p->phase_times);
  unsigned maintenance=0;
  for(int f=0;f<48;++f)for(int to=0;to<16;++to)for(int from=0;from<16;++from){
@@ -32,7 +32,7 @@ int main(void){
   if(to==15&&from==15){assert(action!=1&&action!=3);maintenance+=action==2;}
  }
  assert(maintenance>0);
- for(int i=0;i<100;++i){aa=false;assert(display_reader_text_waveform()==&E0470_TEXTTURN_WAVEFORM);aa=true;assert(display_reader_text_waveform()==wave);}
+ for(int i=0;i<100;++i){aa=false;assert(reader_native_text_waveform()==&E0470_TEXTTURN_WAVEFORM);aa=true;assert(reader_native_text_waveform()==wave);}
  assert(!memcmp(before_gc,gc->luts,sizeof(before_gc))&&!memcmp(before_gl,gl->luts,sizeof(before_gl)));
  puts("PASS actual selective reader: 255 ink transitions byte-exact nativeGC48, white-white exactexistingGL/no black pulse, fixed48phases, cached3KiB, AAofforiginal, sourcesunchanged");
 }
