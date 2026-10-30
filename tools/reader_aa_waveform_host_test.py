@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the actual AA42 LUT, native pulses, immutable sources and fallback."""
+"""Check the actual AA37 LUT, native pulses, immutable sources and fallback."""
 from pathlib import Path
 import subprocess, tempfile
 from home_cover_cache_host_test import function
@@ -40,29 +40,33 @@ int main(int argc,char **argv){
  const EpdWaveformPhases *p=e0470_waveform_phases(wave,MODE_GL16);
  if(fail){assert(wave==reader_native_text_waveform()&&p->phases==48);}
  else{
-  assert(p&&p->phases==42&&!p->phase_times);
+  assert(p&&p->phases==37&&!p->phase_times);
   assert(!e0470_waveform_phases(wave,MODE_GC16)&&!e0470_waveform_phases(wave,MODE_DU));
   for(int to=0;to<16;++to)for(int old=0;old<16;++old){
    int original[48],expected[48]={0},a=0,z=48;
    for(int f=0;f<48;++f)original[f]=e0470_phase_action(&my_gl_25_0,f,to,old);
-   while(a<z&&!original[a])++a;while(z>a&&!original[z-1])--z;
+   while(a<z&&!original[a]){++a;}
+   while(z>a&&!original[z-1]){--z;}
    int erase=to==15?1:2,e=0;while(a+e<z&&original[a+e]==erase)++e;
-   int retained=e<11?e:11,n=retained+z-a-e,start=39-n;
+   int sat=to==15?2:1,run=0;
+   while(a+e+run<z&&original[a+e+run]==sat)++run;
+   int cut=to==15?0:(run>5?5:run>0?run-1:0);
+   int retained=e<11?e:11,n=retained+z-a-e-cut,start=34-n;
    assert(start>=0);
    for(int i=0;i<retained;++i)expected[start+i]=erase;
-   for(int i=a+e;i<z;++i)expected[start+retained+i-a-e]=original[i];
+   for(int i=a+e+cut;i<z;++i)expected[start+retained+i-a-e-cut]=original[i];
    if(to==old)memset(expected,0,sizeof(expected));
-   if(to==15&&old==15)for(int i=0;i<count(white,15,15,2);++i)expected[38-i]=2;
-   for(int f=0;f<42;++f){int action=e0470_phase_action(p,f,to,old);assert(action==expected[f]);if(f>=39)assert(!action);}
-   if(to!=old){int sat=to==15?2:1;assert(count(p,to,old,sat)==count(&my_gl_25_0,to,old,sat));}
+   if(to==15&&old==15)for(int i=0;i<count(white,15,15,2);++i)expected[33-i]=2;
+   for(int f=0;f<37;++f){int action=e0470_phase_action(p,f,to,old);assert(action==expected[f]);if(f>=34)assert(!action);}
+   if(to!=old)assert(count(p,to,old,sat)==count(&my_gl_25_0,to,old,sat)-cut);
   }
-  assert(count(p,0,15,1)==18&&count(p,15,0,2)==18);
+  assert(count(p,0,15,1)==13&&count(p,15,0,2)==18);
   assert(count(p,15,15,1)==0&&count(p,15,15,2)==count(white,15,15,2));
  }
  for(int n=0;n<100;++n){aa=false;assert(display_reader_text_waveform()==&E0470_TEXTTURN_WAVEFORM);aa=true;assert(display_reader_text_waveform()==wave);}
  assert(calls==1);
  assert(!memcmp(raw,my_gl_25_0.luts,sizeof(raw))&&!memcmp(full,gc->luts,sizeof(full))&&!memcmp(previous,white->luts,sizeof(previous)));
- puts(fail?"PASS AA42 failed derivation: cached native48 fallback, no source mutation":"PASS actual AA42: all256pairs, native saturation/tails, endpoints18, white maintenance,3finalholds, AAofforiginal, immutableGC48/GL48");
+ puts(fail?"PASS AA37 failed derivation: cached native48 fallback, no source mutation":"PASS actual AA37: all256pairs, gray tails, black13/white18, white maintenance,3finalholds, AAofforiginal, immutableGC48/GL48");
 }
 '''
 with tempfile.TemporaryDirectory() as d:

@@ -20,7 +20,9 @@ jobs:
           python3 tools/font_output_host_test.py
           python3 tools/board_source_view.py --board metalio47 --tests --output build/koreader-host-view
           python3 build/koreader-host-view/tools/font_ink_host_test.py
-          python3 tools/reader_aa42_waveform_host_test.py
+      - name: Reader AA waveform and display regressions
+        run: |
+          python3 tools/reader_aa_waveform_host_test.py
           python3 tools/reader_selective_cleanup_host_test.py
           python3 tools/reader_turn_antialias_host_test.py
           python3 build/koreader-host-view/tools/reader_refresh_release_host_test.py

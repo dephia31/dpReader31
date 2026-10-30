@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0
- * User trial2026-10-30: AA reader turns use native-derived GL42 (erase11,
- * sat_cut0, white_sat_cut0, tail3), retaining full black saturation and gray tails.
+ * User trial2026-10-30: AA reader turns use native-derived GL37 (erase11,
+ * sat_cut5, white_sat_cut0, tail3), retaining white saturation and gray tails.
  * Equal ink holds; unchanged white retains the existing maintenance pulse count.
  * Full/periodic/recovery cleaning remains GC48; invalid derivation falls back
  * to the preceding selective GC48 reader path. No optical acceptance claimed.
@@ -75,10 +75,10 @@ const EpdWaveform* display_reader_text_waveform(void) {
     if(!ready) {
         extern const EpdWaveformPhases my_gl_25_0;
         const EpdWaveformPhases *white=e0470_waveform_phases(&E0470_TEXTTURN_WAVEFORM,MODE_GL16);
-        const e0470_trim_t trim={.erase_max=11,.sat_cut=0,.white_sat_cut=0,.hold=3};
+        const e0470_trim_t trim={.erase_max=11,.sat_cut=5,.white_sat_cut=0,.hold=3};
         if(!my_gl_25_0.luts||my_gl_25_0.phases!=48||my_gl_25_0.phase_times||
            !white||!white->luts||white->phase_times||white->phases!=48||
-           e0470_waveform_trim(&my_gl_25_0,&trim,pixels)!=42) {
+           e0470_waveform_trim(&my_gl_25_0,&trim,pixels)!=37) {
             failed=true;return reader_native_text_waveform();
         }
         unsigned maintenance=0;
@@ -88,11 +88,11 @@ const EpdWaveform* display_reader_text_waveform(void) {
             maintenance+=action==2;
         }
         if(!maintenance||maintenance>18){failed=true;return reader_native_text_waveform();}
-        for(int f=0;f<42;++f)for(int v=0;v<16;++v)
+        for(int f=0;f<37;++f)for(int v=0;v<16;++v)
             pixels[f][v][v/4]&=(uint8_t)~(3u<<(6-2*(v%4)));
         // Preserve the white maintenance budget before the three final holds.
-        for(unsigned n=0;n<maintenance;++n)pixels[38-n][15][3]|=2;
-        phase=(EpdWaveformPhases){.phases=42,.luts=(const uint8_t*)pixels,.phase_times=NULL};
+        for(unsigned n=0;n<maintenance;++n)pixels[33-n][15][3]|=2;
+        phase=(EpdWaveformPhases){.phases=37,.luts=(const uint8_t*)pixels,.phase_times=NULL};
         ranges[0]=&phase;mode=(EpdWaveformMode){.type=MODE_GL16,.temp_ranges=1,.range_data=ranges};
         modes[0]=&mode;waveform=E0470_TEXTTURN_WAVEFORM;waveform.mode_data=modes;
         ready=true;

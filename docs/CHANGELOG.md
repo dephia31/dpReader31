@@ -1,5 +1,10 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.1RC3-vn · Test AA37 · 2026-10-30
+
+- Theo phản hồi AA42 khá ổn, thử giảm AA đọc sách xuống37pha bằng cắt tối đa5xung bão hòa đen; giữ đuôi mức xám, xung trắng và ba pha cuối.
+- Giữ font, VCOM, nhịp quét và full refresh/phục hồi; cần đối chiếu độ đen/nền với RC2 trên thiết bị.
+
 ## dpReader 1.2.1RC2-vn · Test AA42 · 2026-10-30
 
 - Thử AA đọc sách với GL42 dẫn xuất từ bảng S31: giữ đoạn đẩy đen và đuôi mức xám, rút phần xóa, giữ ba pha cuối và số xung bảo trì trắng. Toàn refresh/phục hồi giữ GC48; giữ render KOReader của RC1.
