@@ -11,7 +11,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 
 class Element {
   constructor() {
-    this.children = []; this.dataset = {}; this.value = ''; this.files = []; this.history = [];
+    this.children = []; this.dataset = {}; this.value = ''; this.files = []; this.history = []; this.attributes = {}; this.disabled=false;
     this.classList = {toggle() {}};
   }
   set textContent(text) { this.text = String(text); this.children = []; this.history.push(this.text); }
@@ -21,7 +21,9 @@ class Element {
   replaceChildren(...children) { this.children = children; }
   showModal() { this.open = true; }
   close() { this.open = false; }
-  focus() {}
+  setAttribute(key,value) { this.attributes[key]=String(value); }
+  getAttribute(key) { return this.attributes[key] ?? null; }
+  focus() { this.focused=true; }
   getContext() { return {setTransform() {}, fillRect() {}, drawImage() {}, fillText() {}}; }
   getBoundingClientRect() { return {width: 260}; }
   setPointerCapture() {}
@@ -41,10 +43,16 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
   const document = {
     getElementById(id) { if (!nodes.has(id)) nodes.set(id, new Element()); return nodes.get(id); },
     createElement() { return new Element(); },
-    querySelectorAll(selector) { return selector === '.upload' ? sections : [...nodes.values(), ...sections.flatMap(s => [s.input, s.send])]; },
+    querySelectorAll(selector) { return selector === '[role="tab"]' ? tabs : selector === '.upload' ? sections : [...nodes.values(), ...sections.flatMap(s => [s.input, s.send])]; },
   };
+  for(const match of html.matchAll(/\bid="([^"]+)"/g))document.getElementById(match[1]);
+  const tabs=Array.from(html.matchAll(/<button type="button" role="tab" id="([^"]+)" aria-controls="([^"]+)" aria-selected="([^"]+)" tabindex="([^"]+)">/g),match=>{
+    const tab=document.getElementById(match[1]);tab.setAttribute('aria-controls',match[2]);tab.setAttribute('aria-selected',match[3]);tab.tabIndex=Number(match[4]);
+    document.getElementById(match[2]).hidden=match[3]!=='true';return tab;
+  });
   const state = {gets: [], mutations: [], sent: [], signature: '慢慢阅读', signatures: [], clock: 0, timers: new Map()};
   const fetch = async (url, options = {}) => {
+    if(url === '/sync-config')return {status:200,json:async()=>({kosync_url:'https://sync.example.test',kosync_user:'',kosync_auto:0,opds_url:'https://books.example.test/opds',opds_user:''})};
     if(url === '/signature') { if(options.method === 'POST') {state.signature=options.body;state.signatures.push(options.body);}return {status:200,json:async()=>({signature:state.signature,ok:true})}; }
     if (url === '/info') return {status: 200, json: async () => ({
       mode, is_flash: false, free_bytes: 100000000, file_limit: 0,
@@ -94,14 +102,29 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
   context.URL = {createObjectURL: () => 'blob:test', revokeObjectURL() {}};
   vm.runInContext(source, context);
   await flush(); await flush();
-  return {nodes, sections, state, context};
+  return {nodes, sections, state, context, tabs};
 }
 
 (async () => {
-  assert.match(html, /浏览 TF 卡/);
+  const grouped=await setup();
+  assert.equal(grouped.tabs.length,6);
+  const selected=()=>grouped.tabs.filter(tab=>tab.getAttribute('aria-selected')==='true');
+  const visible=()=>grouped.tabs.filter(tab=>!grouped.nodes.get(tab.getAttribute('aria-controls')).hidden);
+  assert.equal(selected()[0],grouped.tabs[0]);assert.equal(visible().length,1);
+  grouped.sections[0].input.files=[{name:'draft.epub',size:10}];
+  grouped.nodes.get('kosyncUser').value='Bản nháp chưa lưu';
+  for(const tab of grouped.tabs){tab.onclick();assert.equal(selected()[0],tab);assert.equal(visible()[0],tab);assert.equal(visible().length,1);}
+  grouped.tabs[5].onkeydown({key:'ArrowRight',preventDefault(){}});assert.equal(selected()[0],grouped.tabs[0]);
+  grouped.tabs[0].onkeydown({key:'End',preventDefault(){}});assert.equal(selected()[0],grouped.tabs[5]);
+  grouped.tabs[5].onkeydown({key:'Home',preventDefault(){}});assert.equal(selected()[0],grouped.tabs[0]);
+  assert.equal(grouped.sections[0].input.files[0].name,'draft.epub');assert.equal(grouped.nodes.get('kosyncUser').value,'Bản nháp chưa lưu');
+  vm.runInContext('lock(true)',grouped.context);grouped.tabs[3].onclick();assert.equal(selected()[0],grouped.tabs[0]);
+  vm.runInContext('lock(false)',grouped.context);grouped.tabs[3].onclick();assert.equal(selected()[0],grouped.tabs[3]);
+
+  assert.match(html, /Duyệt thẻ nhớ TF/);
   assert.doesNotMatch(html, /图片对比|编辑书架名称/);
   let t = await setup();
-  assert.match(t.nodes.get('storage').textContent, /TF 卡已就绪/);
+  assert.match(t.nodes.get('storage').textContent, /Thẻ nhớ TF sẵn sàng/);
   assert.equal(t.nodes.get('entries').children.length, 2);
   const folder = t.nodes.get('entries').children[0];
   folder.children[0].children[0].onclick();
@@ -134,13 +157,13 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     section.input.files = [{name, size: 1200000}];
     await section.send.onclick();
     assert.match(t.state.sent.at(-1).url, new RegExp('^' + endpoint));
-    assert.match(section.result.textContent, /已保存/);
-    assert.match(section.result.textContent, /400 KB\/s · 已用 3.0 秒/);
-    const sent=section.result.history.findIndex(text=>text.startsWith('等待设备确认'));
-    const saved=section.result.history.findIndex(text=>text.startsWith('已保存'));
+    assert.match(section.result.textContent, /Đã lưu/);
+    assert.match(section.result.textContent, /400 KB\/s · 3.0 giây/);
+    const sent=section.result.history.findIndex(text=>text.startsWith('Đang chờ thiết bị lưu'));
+    const saved=section.result.history.findIndex(text=>text.startsWith('Đã lưu'));
     assert(sent>=0&&saved>sent);
-    assert.match(section.result.history[sent], /600 KB\/s · 已用 2.0 秒/);
-    assert(section.result.history.some(text=>text.startsWith('等待设备确认')&&text.endsWith('400 KB/s · 已用 3.0 秒')));
+    assert.match(section.result.history[sent], /600 KB\/s · 2.0 giây/);
+    assert(section.result.history.some(text=>text.startsWith('Đang chờ thiết bị lưu')&&text.endsWith('400 KB/s · 3.0 giây')));
     assert.equal(t.state.timers.size,0);
   }
   for(const response of [{failure:'error'},{failure:'abort'},{status:200,raw:'invalid JSON'}]){
@@ -149,7 +172,7 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     section.input.files=[{name:'test.ttf',size:1200000}];
     await section.send.onclick();
     assert.equal(t.state.timers.size,0);
-    assert(!section.result.textContent.startsWith('已保存'));
+    assert(!section.result.textContent.startsWith('Đã lưu'));
     assert(!section.send.disabled&&!section.input.disabled);
   }
   t = await setup({responses: [{status: 409, body: {error: '同名文件已存在'}}, {status: 200, body: {ok: true}}]});
@@ -170,13 +193,13 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     await generic.send.onclick();
     assert.equal(t.state.sent.length, 3);
     assert.deepEqual(t.state.sent.map(s => new URL('http://pico' + s.url).searchParams.get('path')), ['README', '升级 包%+#.bin', '.env']);
-    assert.match(generic.result.textContent, /已保存 3 个文件到 \/$/);
+    assert.match(generic.result.textContent, /Đã lưu 3 tệp vào \/$/);
     t.nodes.get('entries').children[0].children[0].children[0].onclick();
     await flush(); await flush();
     generic.input.files = [{name: '文件 没有扩展名', size: 100}];
     await generic.send.onclick();
     assert.equal(new URL('http://pico' + t.state.sent.at(-1).url).searchParams.get('path'), 'books/文件 没有扩展名');
-    assert.match(generic.result.textContent, /已保存 \/books\/文件 没有扩展名/);
+    assert.match(generic.result.textContent, /Đã lưu \/books\/文件 没有扩展名/);
   }
   for(const response of [{failure:'error'},{failure:'abort'},{status:200,raw:'invalid JSON'}]){
     t=await setup({responses:[response]});
@@ -184,7 +207,7 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     section.input.files=[{name:'test.ttf',size:1200000}];
     await section.send.onclick();
     assert.equal(t.state.timers.size,0);
-    assert(!section.result.textContent.startsWith('已保存'));
+    assert(!section.result.textContent.startsWith('Đã lưu'));
     assert(!section.send.disabled&&!section.input.disabled);
   }
   t = await setup({responses: [{status: 409, body: {error: '同名文件已存在'}}, {status: 200, body: {ok: true}}]});
@@ -211,7 +234,7 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
   const afterDrag = vm.runInContext('[cropX,cropY]', t.context);
   assert.notDeepEqual(afterDrag, beforeDrag);
   await t.nodes.get('wallpaperSend').onclick();
-  assert.match(t.state.sent.at(-1).url, /^\/image-upload\?name=pico-wallpaper-.+&wallpaper=1$/);
-  assert.match(t.nodes.get('wallpaperResult').textContent, /已设为壁纸锁屏/);
+  assert.match(t.state.sent.at(-1).url, /^\/image-upload\?name=dpreader-wallpaper-.+&wallpaper=1$/);
+  assert.match(t.nodes.get('wallpaperResult').textContent, /Đã đặt làm hình nền màn hình khóa/);
   console.log('transfer web interaction tests passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

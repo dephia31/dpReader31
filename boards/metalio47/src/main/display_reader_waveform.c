@@ -2,9 +2,12 @@
  * 中文：阅读采用默认灰阶表相序（厂家 2.0.76 起完整 GL48），等值保持由派生表保证。
  * English: Reading uses the default gray-table order (full GL48 since vendor 2.0.76)
  *         with equal pairs held by the derived table.
+ * Revision2026-10-30: reader AA overrides Fast BW on subsequent turns, matching
+ * initial rendering; only an explicit AA-off choice permits target binarization.
  */
 #include "display_reader_waveform.h"
 #include "e0470_epaper_waveform.h"
+#include "settings.h"
 #include <stddef.h>
 #if KIIKO_S31_FAST_READER_PANELS
 #ifdef ESP_PLATFORM
@@ -66,6 +69,9 @@ static bool prepare_target(uint8_t* target,EpdRect area,bool four_gray) {
 }
 
 bool display_reader_fast_text_prepare(EpdiyHighlevelState* hl,EpdRect area) {
+    // A fast waveform cannot reproduce gray glyph edges. Leave both buffers
+    // untouched so the caller retains its native grayscale waveform.
+    if(app_settings_book_antialias())return false;
     if(!hl||!hl->front_fb||!hl->back_fb||hl->front_fb==hl->back_fb||!display_reader_fast_text_waveform())return false;
     return prepare_target(hl->front_fb,area,false);
 }

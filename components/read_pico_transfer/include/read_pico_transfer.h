@@ -16,7 +16,8 @@
 #include "esp_err.h"
 #include "read_pico_transfer_network.h"
 
-#define READ_PICO_TRANSFER_PASSWORD "dpreader"
+#define READ_PICO_TRANSFER_SSID "dpReader31"
+#define READ_PICO_TRANSFER_PASSWORD ""
 #define READ_PICO_TRANSFER_URL "http://192.168.4.1"
 
 typedef enum {

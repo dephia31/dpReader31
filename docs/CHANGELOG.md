@@ -1,5 +1,14 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.1.9-vn · 2026-10-30
+
+- Cải thiện hiển thị TTF và làm tròn mức xám; giữ khử răng cưa khi lật trang, kể cả khi chọn Đen trắng nhanh. Tắt khử răng cưa dùng TrueType hinting với cache 1 bit và chỉnh độ đậm trên đường nét trước khi vẽ; giữ độ rộng ký tự. Giới hạn bộ nhớ raster để tránh khởi động lại khi mở sách.
+- Home: hiển thị ba sách gần đây trên kệ đen; Cài đặt gom thành năm nhóm cha và mở từng nhóm để chỉnh.
+- Tệp: rút gọn nhãn truyền file, sửa chữ đè viền/nút QR; hotspot dpReader31 không mật khẩu. Web truyền file local gom thành sáu tab.
+- Phím cứng & Cử chỉ: chọn tác vụ nhấn ngắn/nhấn giữ riêng cho từng phím, giữ độc lập các lựa chọn và tránh kích hoạt nhấn ngắn sau nhấn giữ.
+- Khôi phục đầy đủ trạng thái chân SD chuyên dụng trước khi khởi tạo lại thẻ sau ngủ/reset; áp dụng cả đường USB, không format thẻ.
+- Khử răng cưa vẫn phụ thuộc chế độ làm mới và có thể còn bóng hình khi lật trang; bản này chưa bổ sung bộ vẽ khử răng cưa có hinting hay thay waveform.
+
 ## dpReader 1.1.8-vn · 2026-10-29
 
 - Tối ưu hóa bộ nhớ: Giảm 60 KiB dữ liệu tĩnh SRAM, chuyển bộ đệm log, metadata font, bảng hiển thị, trạng thái KoSync, danh sách Bluetooth, CPU buffer đọc sách và cấu trúc ZIP sang PSRAM; bảo toàn DMA/ISR và vòng quét phím trong SRAM.

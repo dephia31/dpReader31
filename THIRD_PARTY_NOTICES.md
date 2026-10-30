@@ -57,3 +57,7 @@ their own fonts on a TF card. The repository and flashing site do not provide
 additional font packages.
 
 BLE 蓝牙翻页器的报告解析与按键映射参考 CrossMux 的 BleKeyboardHost，保留组件头部来源说明与 CrossMux MIT 许可。JPEGDEC 使用 BitBank Apache-2.0，具体适配与修正见 `components/jpegdec/FORK.md`。
+
+## FreeType monochrome TrueType engine
+
+This software uses the FreeType library, copyright © the FreeType Project (www.freetype.org). FreeType2.14.3 is included under the FreeType License in `components/kiiko_freetype/vendor/docs/FTL.TXT`; upstream sources remain unmodified. Source archive identity and selected modules are recorded in `components/kiiko_freetype/UPSTREAM.md`. No Bookerly font is bundled or redistributed.

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "version": "1.1.8-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "3816184a5454e1e2bea8205c705bba6cc9774b6ff0b3ea578728c35c64109ff9",
+  "size": 3947808,
+  "notes": "dpReader 1.1.8: Tối ưu bộ nhớ PSRAM/RAM, loại bỏ bóng mờ GC16, tự động đồng bộ KoSync nền, tùy chỉnh giao diện cỡ chữ lớn và hoàn thiện phím tắt.",
+  "previous_version": "1.1.7-vn"
+}

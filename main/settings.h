@@ -208,6 +208,10 @@ bool app_settings_set_reader_key_action(unsigned key, app_reader_key_action_t ac
 /// Phím âm lượng bên hông: 0 là Vol-, 1 là Vol+
 app_reader_key_action_t app_settings_volume_key_action(unsigned key);
 bool app_settings_set_volume_key_action(unsigned key, app_reader_key_action_t action);
+#define APP_CONTROL_HOLD_DEFAULT 255
+/// IDs match the physical-key settings list: AI, Vol+, Vol-, Power, Middle, Left, Right.
+uint8_t app_settings_control_hold(unsigned key);
+bool app_settings_set_control_hold(unsigned key, uint8_t action);
 /// Cử chỉ khi đọc sách: vuốt lên mở menu đọc sách, vuốt đáy lên về Home
 bool app_settings_reader_swipe_up_tools(void);
 void app_settings_set_reader_swipe_up_tools(bool on);

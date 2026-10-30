@@ -8724,6 +8724,13 @@ static app_redraw_t on_key_long(app_ctx_t* ctx, int key) {
 #endif
     reader_indent_hold_cancel();
     s_reader_tap.pending = false;
+#if KIIKO_BOARD_METALIO47
+    if(s_view==READING && (key==UI_KEY_1||key==UI_KEY_2||key==UI_KEY_3)) {
+        unsigned slot=key==UI_KEY_1?5:key==UI_KEY_2?4:6;
+        uint8_t action=app_settings_control_hold(slot);
+        return action==APP_CONTROL_HOLD_DEFAULT?APP_REDRAW_NONE:reader_key_action(ctx,action);
+    }
+#endif
     if (key != UI_KEY_2) return APP_REDRAW_NONE;
     if (s_view == TOC && s_toc_jump_open) {
         s_toc_jump_open = s_toc_jump_drag = false;

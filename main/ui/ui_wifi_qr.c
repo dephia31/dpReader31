@@ -54,7 +54,7 @@ bool ui_wifi_qr_prepare(const char* ssid, const char* password) {
     ui_wifi_qr_clear();
     if (!ssid || !password || !*ssid || strlen(ssid) > 32 || strlen(password) > 64) return false;
     char payload[224];
-    strcpy(payload, "WIFI:T:WPA;S:");
+    strcpy(payload, *password ? "WIFI:T:WPA;S:" : "WIFI:T:nopass;S:");
     char* end = escape_field(payload + strlen(payload), ssid);
     memcpy(end, ";P:", 3); end += 3;
     end = escape_field(end, password);

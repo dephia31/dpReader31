@@ -676,16 +676,14 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             if (capacity.width > 0) ui_fill_round_rect(fb, capacity, 3, 0x68);
         }
         ui_text(fb, 42, 308, 21, "Truyền tệp", EPD_DRAW_ALIGN_LEFT, false);
-        static const char *const methods[] = {"Wifi cùng mạng", "Tạo điểm phát sóng", "Cable USB drive"};
-        static const char *const details[] = {"Cùng mạng Wi-Fi", "Máy phát Wi-Fi Hotspot", "Kết nối cáp máy tính"};
+        static const char *const methods[] = {"WiFi", "Điểm phát", "USB"};
+        static const char *const details[] = {"Cùng mạng", "Không cần mạng", "Cáp máy tính"};
         for (int i = 0; i < 3; ++i) {
             EpdRect card = home_transfer_rect(i);
             ui_fill_round_rect(fb, card, 20, UI_GRAY_WHITE);
             ui_draw_control_frame(fb, card, 20, UI_GRAY_BLACK);
-            ui_text_vc(fb, card.x + card.width / 2, card.y + 35, 19, methods[i],
-                       EPD_DRAW_ALIGN_CENTER, false);
-            ui_text_vc(fb, card.x + card.width / 2, card.y + 75, 17, details[i],
-                       EPD_DRAW_ALIGN_CENTER, false);
+            ui_text_box(fb,(EpdRect){card.x+12,card.y+12,card.width-24,40},19,methods[i],EPD_DRAW_ALIGN_CENTER,false);
+            ui_text_box(fb,(EpdRect){card.x+12,card.y+60,card.width-24,34},17,details[i],EPD_DRAW_ALIGN_CENTER,false);
         }
         char summary[48]; snprintf(summary, sizeof(summary), "Thư mục gốc · %d mục", s_count);
         ui_text(fb, 36, 482, 21, summary, EPD_DRAW_ALIGN_LEFT, false);

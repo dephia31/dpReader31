@@ -17,8 +17,9 @@ enum{SETTINGS_MAIN,SETTINGS_TEXT_EDIT,SETTINGS_SYSTEM_FONT};
 #define UI_GRAY_WHITE 255
 #define SETTINGS_UNLOCK_ICON 18
 #define UI_ICON_CHEVRON_RIGHT 1
-static int scale=100,wide,tall,s_page,s_main_scroll;
+static int scale=100,wide,tall,s_page,s_main_scroll,s_settings_group;
 static bool s_system_ttf;
+static char s_notice[96];
 static unsigned app_settings_system_font_size(void){return scale;}
 static unsigned app_settings_wake_presses(void){return 2;}
 static int ui_text_effective_px(int px){return px*scale/100;}
@@ -58,6 +59,18 @@ for name in ['settings_stacked','settings_detail_row_height','settings_main_row_
  if name=='setting_group':unit+='#define SETTINGS_ROW_H settings_main_row_height()\n'
  unit+=select_source(function(name,src),'metalio47')+'\n'
 unit+=function('ui_draw_button',kit)+'\n'
+# Execute the root parent cards from the maintained renderer as well as child rows.
+source_text=src.read_text()
+start=source_text.index('    if (s_settings_group < 0) {',source_text.index('static void render_content('))
+at=source_text.index('{',start)+1;depth=1;end=at
+while depth:
+ depth+=(source_text[end]=='{')-(source_text[end]=='}');end+=1
+unit+=function('settings_profile_height',src)+'\n'
+unit+='#define SETTINGS_PARENT_Y (180+settings_profile_height()+28)\n#define SETTINGS_PARENT_ROW_H 136\n'
+import re
+unit+=re.search(r'static const char \*const settings_group_titles\[\] = \{[\s\S]*?\};',source_text)[0]+'\n'
+unit+='static void parent_cards(uint8_t*fb){'+source_text[start:end]+'}\n'
+
 unit+=r'''
 static char s_kosync_notice[96],s_opds_notice[96];
 static const char*app_settings_kosync_url(void){return "https://sync.example.test/path";}
@@ -93,7 +106,10 @@ int main(void){uint8_t fb=0;
    if(s_page==SETTINGS_SYSTEM_FONT)assert(boxes[0].x+boxes[0].width<488);
    if(s_page==SETTINGS_TEXT_EDIT)assert(boxes[0].x+boxes[0].width<542);
   }
-  used=0;setting_group(&fb,200,"Kết nối",260,icons,labels,values,3);check_distinct();
+  s_settings_group=-1;used=0;parent_cards(&fb);assert(used==10);check_distinct();
+  for(int i=0;i<used;++i)assert(boxes[i].y>=SETTINGS_PARENT_Y&&boxes[i].y+boxes[i].height<=1088);
+  s_settings_group=1;used=0;setting_group(&fb,0,200,"Kết nối",260,icons,labels,values,3);assert(used==0);
+  s_settings_group=0;used=0;setting_group(&fb,0,200,"Kết nối",260,icons,labels,values,3);check_distinct();
   assert(settings_main_row_height()==(scale>=150?128:82));
   for(int i=1;i<used;i++)assert(boxes[i].x>=100&&boxes[i].x+boxes[i].width<=598);
   used=0;row(&fb,296,"Kết nối WiFi, truyền sách & cấu hình KOSync/OPDS","Mở Truyền dữ liệu  ›");row(&fb,408,"Chỉnh giờ thủ công","Chỉnh sửa  ›");check_distinct();

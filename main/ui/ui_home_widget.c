@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0
  * 中文：原比例封面、局部磨砂书夹与曲面短底座时钟；不保存整页或浮点画布。
- * English: Proportional covers, locally frosted folder and curved short-pedestal clock; never retain full pages or float canvases.
+ * English: Proportional covers on a dark shelf and curved short-pedestal clock; never retain full pages or float canvases.
  */
 #include "ui_home_widget.h"
 #include "ui_home_shapes.h"
@@ -19,7 +19,7 @@ static float maximum(float a,float b) { return a>b?a:b; }
 static float clamp(float x,float a,float b) { return minimum(b,maximum(a,x)); }
 static void cover(uint8_t *canvas,const ui_home_cover_t *c,float cx,float cy,float height,float angle) {
     if (!c->pixels||!c->width||!c->height) return;
-    float scale=minimum(height/c->height,150.0f/c->width),wide=c->width*scale,tall=c->height*scale;
+    float scale=minimum(height/c->height,90.0f/c->width),wide=c->width*scale,tall=c->height*scale;
     float co=cosf(angle),si=sinf(angle),rx=(fabsf(co)*wide+fabsf(si)*tall)/2+3,ry=(fabsf(si)*wide+fabsf(co)*tall)/2+3;
     int xmin=maximum(0,floorf(cx-rx-24)),xmax=minimum(W-1,ceilf(cx+rx-24));
     int ymin=maximum(0,floorf(cy-ry-604)),ymax=minimum(H-1,ceilf(cy+ry-604));
@@ -50,34 +50,18 @@ static float edge_distance(const uint16_t spans[][2],int count,int row,float x) 
 }
 bool ui_home_folder_compose(uint8_t *out,uint8_t *scratch,const ui_home_cover_t covers[3],unsigned count,bool binary) {
     if (!out||!scratch||!covers||count>3) return false;
-    uint8_t *canvas=scratch,*backdrop=scratch+W*H;
+    uint8_t *canvas=scratch;
     memset(canvas,255,W*H);
-    if (count) cover(canvas,&covers[0],122,796,204,-.13f);
-    if (count>1) cover(canvas,&covers[1],183,781,220,-.02f);
-    if (count>2) cover(canvas,&covers[2],244,796,202,.13f);
-    memcpy(backdrop,canvas,W*H);
-    for (int row=0;row<217;++row) {
-        float lo=home_folder_spans[row][0]/128.f,hi=home_folder_spans[row][1]/128.f;
-        if (hi<=lo) continue;
-        int y=row+722-604;
-        for (int x=maximum(0,floorf(lo-24));x<minimum(W,ceilf(hi-24));++x) {
-            unsigned sum=0,weight=0;
-            for (int by=-3;by<=3;++by) for (int bx=-3;bx<=3;++bx) {
-                int sx=x+bx,sy=y+by;
-                if (sx<0||sx>=W||sy<0||sy>=H) continue;
-                unsigned w=4-maximum(abs(bx),abs(by));sum+=backdrop[sy*W+sx]*w;weight+=w;
-            }
-            float opacity=.44f+.10f*clamp((y+604.f-760)/178,0,1);
-            float gray=(float)sum/weight*(1-opacity)+246*opacity;
-            float edge=edge_distance(home_folder_spans,217,row,x+24.5f);
-            // 缓存仅保留材质高光，三像素轮廓缩放后单独画一次，与续读邮票一致。
-            // Cache only the material highlight; draw one three-pixel contour after scaling, matching the resume stamp.
-            if (edge<4.5f) gray+=(255-gray)*(.35f*clamp(4.5f-edge,0,1));
-            float coverage=clamp(minimum(x+25.f,hi)-maximum(x+24.f,lo),0,1);
-            uint8_t final=lroundf(canvas[y*W+x]+(gray-canvas[y*W+x])*coverage);
-            canvas[y*W+x]=binary?ui_image_dither_acrylic_bw(final,x+24,y+604):final;
-        }
+    for(unsigned i=0;i<count;++i) {
+        const ui_home_cover_t *c=&covers[i];
+        if(!c->pixels||!c->width||!c->height)continue;
+        float scale=minimum(210.f/c->height,90.f/c->width);
+        float height=c->height*scale;
+        cover(canvas,c,24+54+106*i,604+280-height/2,height,0);
     }
+    // Match the dark shelf's top highlight, solid fascia and lower edge.
+    for(int y=280;y<292;++y)for(int x=12;x<W-12;++x)
+        canvas[y*W+x]=binary?0:y==280?0x58:y==291?0x10:0x30;
     memset(out,0,binary?UI_HOME_FOLDER_BW_BYTES:UI_HOME_FOLDER_GRAY_BYTES);
     for (int y=0;y<H;++y) for (int x=0;x<W;++x) {
         uint8_t g=binary?ui_image_dither_bw(canvas[y*W+x],x+24,y+604):ui_image_dither_gray(canvas[y*W+x],x+24,y+604);
@@ -93,23 +77,8 @@ void ui_home_folder_draw(uint8_t *fb,const uint8_t *pixels,bool binary,EpdRect b
         uint8_t g=binary?(pixels[sy*(W/8)+sx/8]&(1u<<(sx&7))?255:0):((pixels[sy*(W/2)+sx/2]>>((sx&1)*4))&15)*17;
         if(g<255) epd_draw_pixel(bounds.x+x,bounds.y+y,g,fb);
     }
-    // 缩放缓存后再连成闭合轮廓，避免抽样跳过凹口/圆角的一像素边缘。
-    // Connect the closed contour after cache scaling so sampling cannot skip one-pixel notches or rounded edges.
-    int lx=0,rx=0,py=0;bool started=false;
-    const uint8_t ink=binary?0:0x30;
-    for(int row=0;row<217;++row){
-        if(home_folder_spans[row][0]==home_folder_spans[row][1])continue;
-        int left=bounds.x+lroundf((home_folder_spans[row][0]/128.f-24)*bounds.width/W);
-        int right=bounds.x+lroundf((home_folder_spans[row][1]/128.f-24)*bounds.width/W);
-        int y=bounds.y+lroundf((row+118)*bounds.height/(float)H);
-        for(int ox=-1;ox<=1;++ox)for(int oy=-1;oy<=1;++oy){
-            if(started){epd_draw_line(lx+ox,py+oy,left+ox,y+oy,ink,fb);epd_draw_line(rx+ox,py+oy,right+ox,y+oy,ink,fb);}
-            else epd_draw_line(left+ox,y+oy,right+ox,y+oy,ink,fb);
-        }
-        lx=left;rx=right;py=y;started=true;
-    }
-    if(started)for(int oy=-1;oy<=1;++oy)epd_draw_line(lx,py+oy,rx,py+oy,ink,fb);
 }
+
 static int tx(EpdRect b,float x) { return b.x+lroundf((x-24)*b.width/W); }
 static int ty(EpdRect b,float y) { return b.y+lroundf((y-640)*b.height/H); }
 static void hand(uint8_t *fb,EpdRect b,float angle,int length,int width) {

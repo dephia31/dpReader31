@@ -171,6 +171,8 @@ static uint8_t s_reader_hold_action = APP_READER_KEY_HOME;
 static uint8_t s_reader_keys[3] = {APP_READER_KEY_PREV, APP_READER_KEY_TOOLS, APP_READER_KEY_NEXT};
 static uint8_t s_reader_turn_mode = 0;
 static uint8_t s_volume_keys[2] = {APP_READER_KEY_PREV, APP_READER_KEY_NEXT};
+static uint8_t s_control_holds[7]={255,APP_READER_KEY_NONE,APP_READER_KEY_NONE,255,255,APP_READER_KEY_NONE,APP_READER_KEY_NONE};
+static const char *const s_control_hold_names[]={"hold_ai","hold_vup","hold_vdown","hold_power","hold_mid","hold_left","hold_right"};
 static bool s_reader_swipe_up_tools = true;
 static bool s_reader_swipe_bottom_home = true;
 static bool s_ble_turner;
@@ -421,6 +423,11 @@ void app_settings_init(void) {
     uint8_t vol_down = APP_READER_KEY_PREV, vol_up = APP_READER_KEY_NEXT;
     if (nvs_get_u8(h, "vol_down", &vol_down) == ESP_OK && vol_down < APP_READER_KEY_COUNT) s_volume_keys[0] = vol_down;
     if (nvs_get_u8(h, "vol_up", &vol_up) == ESP_OK && vol_up < APP_READER_KEY_COUNT) s_volume_keys[1] = vol_up;
+    for(unsigned i=0;i<7;++i) {
+        uint8_t action;
+        if(i!=4 && nvs_get_u8(h,s_control_hold_names[i],&action)==ESP_OK &&
+           (action==APP_CONTROL_HOLD_DEFAULT || (action<APP_READER_KEY_COUNT && action!=APP_READER_KEY_FULLSCREEN)))s_control_holds[i]=action;
+    }
     uint8_t r_swipe_up = 1, r_swipe_bot = 1;
     if (nvs_get_u8(h, "r_swipe_up", &r_swipe_up) == ESP_OK) s_reader_swipe_up_tools = r_swipe_up == 1;
     if (nvs_get_u8(h, "r_swipe_bot", &r_swipe_bot) == ESP_OK) s_reader_swipe_bottom_home = r_swipe_bot == 1;
@@ -955,6 +962,29 @@ bool app_settings_set_volume_key_action(unsigned key, app_reader_key_action_t ac
     nvs_close(h);
     if (err == ESP_OK) s_volume_keys[key] = action;
     return err == ESP_OK;
+}
+uint8_t app_settings_control_hold(unsigned key) {
+#if KIIKO_BOARD_METALIO47
+    if(key>=7)return APP_CONTROL_HOLD_DEFAULT;
+    return key==4?(uint8_t)app_settings_reader_hold_action():s_control_holds[key];
+#else
+    (void)key;return APP_CONTROL_HOLD_DEFAULT;
+#endif
+}
+bool app_settings_set_control_hold(unsigned key,uint8_t action) {
+#if KIIKO_BOARD_METALIO47
+    if(key>=7 || (action!=APP_CONTROL_HOLD_DEFAULT && !app_settings_reader_key_action_allowed(3,action)))return false;
+    if(key==4)return app_settings_set_reader_hold_action(action==APP_CONTROL_HOLD_DEFAULT?APP_READER_KEY_HOME:action);
+    if(s_control_holds[key]==action)return true;
+    nvs_handle_t h;
+    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
+    esp_err_t err=nvs_set_u8(h,s_control_hold_names[key],action);
+    if(err==ESP_OK)err=nvs_commit(h);
+    nvs_close(h);if(err==ESP_OK)s_control_holds[key]=action;
+    return err==ESP_OK;
+#else
+    (void)key;(void)action;return false;
+#endif
 }
 bool app_settings_reader_swipe_up_tools(void) { return s_reader_swipe_up_tools; }
 void app_settings_set_reader_swipe_up_tools(bool on) {

@@ -188,7 +188,7 @@ int ttf_get_stroke_adjust(void);
 /// 1/16像素笔画覆盖率微调，不改变字宽。/ Adjust stroke coverage in 1/16-pixel steps without changing advances.
 void ttf_set_stroke_adjust_fine(int steps);
 int ttf_get_stroke_adjust_fine(void);
-/// 绘制时使用灰阶覆盖或二值边缘，复用同一份字形缓存，不改变字宽。/ Select gray coverage or binary edges while drawing, reusing glyphs without changing advances.
+/// 灰阶与二值共用LRU预算；S31二值使用独立hinting缓存键，不改变排版度量。/ Gray/binary share the LRU budget; S31 binary hinting has separate cache keys and preserves layout metrics.
 void ttf_set_antialias(bool enabled);
 bool ttf_get_antialias(void);
 int ttf_get_weight(void);

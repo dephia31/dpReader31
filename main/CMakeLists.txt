@@ -1,6 +1,7 @@
 include("${CMAKE_CURRENT_LIST_DIR}/../cmake/board.cmake")
 set(main_requires
     kiiko_board
+    kiiko_freetype
     read_pico
     metalio_hw
     read_pico_transfer
@@ -124,6 +125,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "book/kosync_client.c"
         "book/opds_client.c"
         "font/ttf_font.c"
+        "font/ttf_mono.c"
         "font/app_font_context.c"
         "font/online_font.c"
         "font/online_font_store.c"

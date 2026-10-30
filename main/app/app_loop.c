@@ -21,7 +21,7 @@
  * 用户修订：S31上下音量键在主页面复用左右键派发，阅读和二级页仍交给页面。
  * User revision: S31 volume edges share root side-key dispatch; reading and children remain page-owned.
  * 用户修订：AI长按打开玻璃短按映射选择器；正常开合各一次区域推屏，选择不执行动作，锁屏/USB/升级保留保护。
- * User revision: hold AI for a glass tap-action chooser; one bounded output per normal transition, selection never executes, and lock/USB/update guards remain.
+ * Revision2026-10-30: default AI hold opens the glass tap-action chooser; configurable holds execute independently. Reader front keys and volume defer short actions until release and suppress them after a hold. Retain lock/USB/update guards.
  * 用户修订：四个主页面底栏作为统一导航路由在按下时报点即响应，模态和阅读手势保持原归属。
  * User revision: root-tab routing commits on initial contact; modal controls and reader gestures retain their owners.
  * 用户修订：系统页面切换使用 GL16，不再每次 GC16 全刷；锁屏、手动强刷和周期清残影仍可全刷。
@@ -658,10 +658,26 @@ static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *current,int
 }
 
 #if KIIKO_BOARD_METALIO47
+static app_redraw_t control_hold_action(app_ctx_t *ctx,const app_desc_t *current,unsigned key) {
+    uint8_t action=app_settings_control_hold(key);
+    if(action==APP_CONTROL_HOLD_DEFAULT || action==APP_READER_KEY_NONE)return APP_REDRAW_NONE;
+    if(ctx->request_app||ctx->request_menu||ctx->request_return||usb_storage_active()||pico_online_busy())return APP_REDRAW_NONE;
+    if(current->holds_pmu || app_download_active() ||
+       (current->navigation_enabled && !current->navigation_enabled(ctx)))return APP_REDRAW_NONE;
+    read_pico_transfer_status_t transfer;read_pico_transfer_get_status(&transfer);
+    if(transfer.state==READ_PICO_TRANSFER_UPLOADING)return APP_REDRAW_NONE;
+    if(action==APP_READER_KEY_HOME){ui_nav_request(ctx,0);return APP_REDRAW_NONE;}
+    if(action==APP_READER_KEY_REFRESH)return APP_REDRAW_FULL;
+    if(action==APP_READER_KEY_LIGHT){metalio_frontlight_toggle();return APP_REDRAW_NONE;}
+    extern const app_desc_t app_book;
+    if(current==&app_book && app_book_reader_body_visible())return app_book_handle_key_action(ctx,action);
+    return APP_REDRAW_NONE;
+}
 // 同一主键路径保留书架分页模式与导航保护。/ Share root keys, including shelf paging and navigation guards.
 static app_redraw_t volume_key_action(app_ctx_t *ctx,const app_desc_t *current,int volume) {
     if(!volume || ctx->request_app || ctx->request_menu || ctx->request_return ||
        usb_storage_active() || pico_online_busy())return APP_REDRAW_NONE;
+    if(volume==2||volume==-2)return control_hold_action(ctx,current,volume>0?1:2);
     int key=volume<0?UI_KEY_1:UI_KEY_3;
     if(main_page_ready(ctx,current))return main_key_action(ctx,current,key,false);
     app_redraw_t redraw = APP_REDRAW_NONE;
@@ -1144,6 +1160,9 @@ void app_loop_run(const app_loop_config_t* config) {
             if(ai_event && ai_allowed && !touch.touched && !ui_click_feedback_active() && !ui_click_feedback_nav_pending()){
                 held_key=-1;cancel_gesture(&ctx,current,&gesture);last_input_ms=ctx.now_ms;ai_owned=true;
                 if(s_ai.open)ai_dismiss(&ctx,current,true);
+                else if(ai_event==METALIO_AI_LONG && app_settings_control_hold(0)!=APP_CONTROL_HOLD_DEFAULT){
+                    present_page(&ctx,current,&gesture,control_hold_action(&ctx,current,0));
+                }
                 else if(ai_event==METALIO_AI_LONG){
                     int64_t at=esp_timer_get_time();(void)at;
                     if(ui_ai_menu_begin(&s_ai,ctx.fb,app_settings_ai_short(),current==&app_book&&app_book_reader_body_visible())){
@@ -1394,9 +1413,13 @@ void app_loop_run(const app_loop_config_t* config) {
             }
             if (key >= 0 && current->owns_keys && !menu_open) {
                 bool main_keys=main_page_ready(&ctx,current);
+                bool defer_key=key==UI_KEY_2 && current->defer_middle_short;
+#if KIIKO_BOARD_METALIO47
+                defer_key|=current==&app_book && app_book_reader_body_visible();
+#endif
                 app_redraw_t redraw=main_keys
                     ? (key==UI_KEY_2?APP_REDRAW_NONE:main_key_action(&ctx,current,key,false))
-                    : current->on_key && !(key==UI_KEY_2 && current->defer_middle_short)
+                    : current->on_key && !defer_key
                         ? current->on_key(&ctx,key):APP_REDRAW_NONE;
                 present_page(&ctx,current,&gesture,redraw);
                 if(touch.count==1 && ((main_keys && key==UI_KEY_2)||(!main_keys && current->on_key_long))) {
@@ -1502,6 +1525,12 @@ void app_loop_run(const app_loop_config_t* config) {
                 if (quick_was_open) quick_dismiss(&ctx,current,false);
                 if (!quick_lock_requested && ctx.now_ms < s_lock_ignore_until_ms) {
                     ESP_LOGI(TAG, "ignore boot power-key action %d", (int)key_action);
+#if KIIKO_BOARD_METALIO47
+                } else if(key_action==READ_PICO_PMU_KEY_LONG && !menu_open && !power_input_owned &&
+                    !usb_storage_active() && !pico_online_busy() && app_settings_control_hold(3)!=APP_CONTROL_HOLD_DEFAULT){
+                    held_key=-1;cancel_gesture(&ctx,current,&gesture);
+                    present_page(&ctx,current,&gesture,control_hold_action(&ctx,current,3));
+#endif
                 } else if (key_action == READ_PICO_PMU_KEY_LONG) {
                     held_key = -1;
                     cancel_gesture(&ctx, current, &gesture);
@@ -1597,8 +1626,12 @@ void app_loop_run(const app_loop_config_t* config) {
         if(held_key>=0 && held_main_key && !main_page_ready(&ctx,current)) {
             held_key=-1;held_main_key=false;
         }
-        if (!power_dialog_open && released && held_key == UI_KEY_2 && ui_key_hit_test(latest.x, latest.y) == UI_KEY_2 &&
-            (current->defer_middle_short || main_page_ready(&ctx,current)) && !menu_open &&
+        if (!power_dialog_open && released && held_key >= 0 && ui_key_hit_test(latest.x, latest.y) == held_key &&
+            ((held_key==UI_KEY_2 && (current->defer_middle_short || main_page_ready(&ctx,current)))
+#if KIIKO_BOARD_METALIO47
+             || (current==&app_book && app_book_reader_body_visible())
+#endif
+            ) && !menu_open &&
             !ctx.request_app && !ctx.request_menu && !ctx.request_return) {
             int key = held_key;
             held_key = -1;

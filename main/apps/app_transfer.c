@@ -853,16 +853,16 @@ static void render_content(app_ctx_t* ctx, uint8_t* fb) {
     ui_draw_round_rect(fb, connection, 24, 0x98);
     char name[64];
     snprintf(name, sizeof(name), "%s", s_mode == READ_PICO_TRANSFER_MODE_AP ? s_status.ssid : s_status.wifi_ssid);
-    if (!name[0]) snprintf(name, sizeof(name), "%s", s_mode == READ_PICO_TRANSFER_MODE_AP ? "Điểm phát kiikoread" : "WiFi đã lưu");
+    if (!name[0]) snprintf(name, sizeof(name), "%s", s_mode == READ_PICO_TRANSFER_MODE_AP ? READ_PICO_TRANSFER_SSID : "WiFi đã lưu");
     fit_label(name, 26, 420);
-    ui_text(fb, 66, 190, 26, name, EPD_DRAW_ALIGN_LEFT, false);
-    ui_text(fb, 66, 236, 19,
-            s_mode == READ_PICO_TRANSFER_MODE_AP ? "Mật khẩu: " READ_PICO_TRANSFER_PASSWORD :
+    ui_text_box(fb,(EpdRect){66,180,552,40},26,name,EPD_DRAW_ALIGN_LEFT,false);
+    ui_text_box(fb,(EpdRect){66,224,552,28},19,
+            s_mode == READ_PICO_TRANSFER_MODE_AP ? "Mạng mở · Không mật khẩu" :
             s_status.network_ready ? "Máy đã kết nối; điện thoại cần cùng mạng" :
             s_start_pending || s_status.state == READ_PICO_TRANSFER_STARTING ? "Đang kết nối WiFi đã lưu…" :
             s_status.wifi_configured ? "Đã lưu, chưa kết nối" : "Chưa chọn WiFi",
             EPD_DRAW_ALIGN_LEFT, false);
-    ui_text_vc(fb, 605, 234, 20, s_status.network_ready ? "Dịch vụ đã bật" : "Đang chuẩn bị", EPD_DRAW_ALIGN_RIGHT, false);
+    ui_text_box(fb,(EpdRect){66,260,552,26},18,s_status.network_ready?"Dịch vụ đã bật":"Đang chuẩn bị",EPD_DRAW_ALIGN_LEFT,false);
     int url_px = UI_PX_CAPTION;
     while (url_px > 14 && ttf_text_width_px(url_px, s_status.url) > 560) --url_px;
     if (s_status.network_ready && s_qr_ready)
@@ -879,8 +879,8 @@ static void render_content(app_ctx_t* ctx, uint8_t* fb) {
             EpdRect tab = control_rect(i);
             ui_fill_round_rect(fb, tab, 18, (s_qr_url == (i == 1)) ? 0x42 : UI_GRAY_WHITE);
             ui_draw_round_rect(fb, tab, 18, 0x92);
-            ui_text_vc(fb, tab.x + tab.width / 2, tab.y + tab.height / 2, 21,
-                       i ? "Mở trang web truyền sách" : "Kết nối WiFi kiikoread", EPD_DRAW_ALIGN_CENTER, s_qr_url == (i == 1));
+            ui_text_box(fb,(EpdRect){tab.x+12,tab.y+8,tab.width-24,tab.height-16},21,
+                       i ? "Web truyền sách" : "WiFi dpReader31",EPD_DRAW_ALIGN_CENTER,s_qr_url==(i==1));
         }
     } else {
         ui_text_vc(fb, 342, 602, url_px,

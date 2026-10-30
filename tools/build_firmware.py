@@ -197,6 +197,16 @@ def export(build, output, board):
         command.append('--no-stub')
     command.extend(['write-flash', '@flash_args'])
     (output / 'flash-command.txt').write_text(shlex.join(command) + '\n')
+    # FreeType's binary-distribution acknowledgement travels with every bundle.
+    ft_license = ROOT / 'components/kiiko_freetype/vendor/docs/FTL.TXT'
+    if ft_license.is_file():
+        shutil.copyfile(ft_license, output / 'FREETYPE_LICENSE.txt')
+        (output / 'FREETYPE_NOTICE.txt').write_text(
+            "This software uses the FreeType library, copyright © the FreeType Project (www.freetype.org).\n"
+            "FreeType2.14.3; original sources: https://github.com/freetype/freetype/tree/VER-2-14-3\n"
+            "Distributed under the FreeType License; see FREETYPE_LICENSE.txt. No Bookerly font is bundled.\n")
+        for name in ('FREETYPE_LICENSE.txt', 'FREETYPE_NOTICE.txt'):
+            checksums.append(f"{hashlib.sha256((output / name).read_bytes()).hexdigest()}  {name}\n")
     (output / 'SHA256SUMS.txt').write_text(''.join(checksums))
     (output / 'HUONG_DAN_FLASH.txt').write_text(
         f"Firmware dpReader / {info['name']} / {info['idf_target']} / {identity['version']}\n"

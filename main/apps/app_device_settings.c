@@ -4,6 +4,8 @@
  *
  * 中文：分组设置页；网络短时对时后 PMU 持续走时，开机恢复系统时钟。
  * English: Grouped settings; temporary WiFi sync seeds the PMU, whose RTC restores time at boot.
+ * Revision2026-10-30: root shows five parent categories; detail Back retains its
+ * category and scroll, then category Back returns to the root profile/categories.
  * 用户修订：设置列表滑动仅差分刷新内容，滑动过程中不周期插入黑白清屏。
  * User revision: settings lists scroll with content-only differentials and no periodic black/white wipe during swipes.
  * 用户授权新输入法：资料卡和签名共用九宫格/全键盘及离线词语候选，保存仍由设置页负责。
@@ -134,6 +136,12 @@ typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_WIFI_TIMEOUT, SETTINGS_BLE
                SETTINGS_CONTROLS } settings_page_t;
 #endif
 static settings_page_t s_page;
+// Keep the selected parent while visiting its detail pages.
+static int s_settings_group = -1;
+static int s_settings_root_scroll;
+static const char *const settings_group_titles[] = {
+    "Kết nối", "Hiển thị", "Cá nhân hóa", "Điều khiển", "Cập nhật & Khôi phục"
+};
 #if KIIKO_BOARD_METALIO47
 static char s_sd_notice[96];
 static EpdRect sd_recovery_button(void) { return (EpdRect){54,850,576,78}; }
@@ -419,11 +427,32 @@ static int settings_main_row_height(void) {
 #else
 #define SETTINGS_MAINTENANCE_ROWS 6
 #endif
-#define SETTINGS_WIRELESS_Y (180 + settings_profile_height() + 77)
-#define SETTINGS_DISPLAY_Y (SETTINGS_WIRELESS_Y + SETTINGS_WIRELESS_ROWS * SETTINGS_ROW_H + 78)
-#define SETTINGS_PERSONAL_Y (SETTINGS_DISPLAY_Y + SETTINGS_DISPLAY_ROWS * SETTINGS_ROW_H + 78)
-#define SETTINGS_CONTROLS_Y (SETTINGS_PERSONAL_Y + SETTINGS_PERSONAL_ROWS * SETTINGS_ROW_H + 78)
-#define SETTINGS_MAINTENANCE_Y (SETTINGS_CONTROLS_Y + SETTINGS_CONTROLS_ROWS * SETTINGS_ROW_H + 78)
+#define SETTINGS_WIRELESS_Y 240
+#define SETTINGS_DISPLAY_Y 240
+#define SETTINGS_PERSONAL_Y 240
+#define SETTINGS_CONTROLS_Y 240
+#define SETTINGS_MAINTENANCE_Y 240
+#define SETTINGS_PARENT_Y (180 + settings_profile_height() + 28)
+#define SETTINGS_PARENT_ROW_H 136
+static int settings_menu_scroll_max(void) {
+    const int rows[] = {SETTINGS_WIRELESS_ROWS, SETTINGS_DISPLAY_ROWS,
+        SETTINGS_PERSONAL_ROWS, SETTINGS_CONTROLS_ROWS, SETTINGS_MAINTENANCE_ROWS};
+    int bottom = s_settings_group < 0 ? SETTINGS_PARENT_Y + 5 * SETTINGS_PARENT_ROW_H
+        : 240 + rows[s_settings_group] * SETTINGS_ROW_H;
+    int limit = bottom - settings_viewport_end() + 12;
+    return limit > 0 ? limit : 0;
+}
+static bool settings_parent_open(int y) {
+    if(y<SETTINGS_PARENT_Y)return false;
+    int group=(y-SETTINGS_PARENT_Y)/SETTINGS_PARENT_ROW_H;
+    if(group>=5 || (y-SETTINGS_PARENT_Y)%SETTINGS_PARENT_ROW_H>=SETTINGS_PARENT_ROW_H-12)return false;
+    s_settings_root_scroll=s_main_scroll;s_main_scroll=0;s_settings_group=group;
+    return true;
+}
+static bool settings_parent_back(void) {
+    if(s_settings_group<0)return false;
+    s_settings_group=-1;s_main_scroll=s_settings_root_scroll;return true;
+}
 // 设置行图标：32 像素盒，在行高 68 里垂直居中；墨色统一，避免一行一个灰度。
 // Setting row icons: a 32 px box centred in the 68 px row with one shared ink level.
 #define SETTINGS_UNLOCK_ICON 18
@@ -432,8 +461,7 @@ static int settings_main_row_height(void) {
 // 主页面滚动上限：把最后一组的最后一行刚好推到导航栏之上，多留 8px 余量。
 // Main-page scroll limit: just enough to bring the last row of the last group above the nav bar,
 // with 8 px to spare.
-#define SETTINGS_SCROLL_MAX \
-    (SETTINGS_MAINTENANCE_Y + SETTINGS_MAINTENANCE_ROWS * SETTINGS_ROW_H - UI_NAV_REFRESH_END + 12)
+#define SETTINGS_SCROLL_MAX settings_menu_scroll_max()
 static char s_editor[144], s_editor_notice[80];
 static ui_text_edit_t s_editor_input;
 typedef enum {
@@ -780,14 +808,18 @@ static const char *reader_key_action_label(app_reader_key_action_t action) {
 }
 
 #if KIIKO_BOARD_METALIO47
-static int s_control_pick=-1;
+static void back_header(uint8_t *fb,const char *title);
+static int s_control_pick=-1, s_control_key=-1;
+static const char *const controls_key_names[]={"Nút AI","Âm lượng +","Âm lượng −","Nút nguồn","Phím giữa","Phím trái","Phím phải"};
 static int controls_choice_count(int target) {
+    if(target>=9)return APP_READER_KEY_COUNT;
     return target==0?APP_AI_ACTION_COUNT:(target==3||target>=7)?2:APP_READER_KEY_COUNT-1;
 }
 static int controls_choice_action(int index) {
     return index>=APP_READER_KEY_FULLSCREEN?index+1:index;
 }
 static int controls_choice_current(int target) {
+    if(target>=9)return app_settings_control_hold(target-9);
     switch(target) {
         case 0:return app_settings_ai_short();
         case 1:return app_settings_volume_key_action(1);
@@ -802,6 +834,7 @@ static int controls_choice_current(int target) {
     }
 }
 static const char *controls_choice_label(int target,int index) {
+    if(target>=9)return index?reader_key_action_label(controls_choice_action(index-1)):"Mặc định hệ thống";
     if(target==0)return ai_action_label(index);
     if(target==3)return index?"Lật trang khi đọc":"Khóa màn hình";
     if(target==7)return index?"Mở menu đọc sách":"Tắt";
@@ -809,7 +842,8 @@ static const char *controls_choice_label(int target,int index) {
     return reader_key_action_label(controls_choice_action(index));
 }
 static bool controls_choice_save(int target,int index) {
-    if(target<0||target>8||index<0||index>=controls_choice_count(target))return false;
+    if(target<0||target>15||index<0||index>=controls_choice_count(target))return false;
+    if(target>=9)return app_settings_set_control_hold(target-9,index?controls_choice_action(index-1):APP_CONTROL_HOLD_DEFAULT);
     app_reader_key_action_t action=controls_choice_action(index);
     switch(target) {
         case 0:return app_settings_set_ai_short(index)==ESP_OK;
@@ -824,35 +858,33 @@ static bool controls_choice_save(int target,int index) {
         default:return false;
     }
 }
-static EpdRect controls_choice_rect(int index) { return (EpdRect){48,268+index*64,588,56}; }
+static EpdRect controls_choice_rect(int index) { return (EpdRect){48,248+index*58,588,50}; }
 static void controls_row(uint8_t *fb,int y,const char *label,const char *value) {
-    // 标题与选择框上下分区；两者各自在边界内适配字号，200%也不互相覆盖。
-    // Stack the label and selector; each fits within its own bounds even at 200% system size.
-    ui_text_box(fb,(EpdRect){54,y+2,576,34},22,label,EPD_DRAW_ALIGN_LEFT,false);
-    EpdRect choice={54,y+40,576,34};
-    ui_fill_round_rect(fb,choice,6,UI_GRAY_WHITE);
-    ui_draw_control_frame(fb,choice,6,0x88);
-    ui_text_box(fb,(EpdRect){choice.x+12,choice.y+2,choice.width-52,choice.height-4},20,
-                value,EPD_DRAW_ALIGN_LEFT,false);
-    ui_draw_icon(fb,choice.x+choice.width-20,choice.y+choice.height/2,18,UI_ICON_CHEVRON_DOWN,0x38);
+    settings_card(fb,(EpdRect){36,y,612,80},16,UI_GRAY_WHITE,0x70);
+    ui_text_box(fb,(EpdRect){54,y+6,532,32},22,label,EPD_DRAW_ALIGN_LEFT,false);
+    ui_text_box(fb,(EpdRect){54,y+42,532,30},20,value,EPD_DRAW_ALIGN_LEFT,false);
+    ui_draw_icon(fb,625,y+40,24,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
 }
 static void draw_controls_choices(uint8_t *fb) {
+    epd_fill_rect((EpdRect){0,0,684,1088},UI_GRAY_WHITE,fb);
+    back_header(fb,"Chọn tác vụ");
     EpdRect panel={24,176,636,888};
     ui_fill_round_rect(fb,panel,20,UI_GRAY_WHITE);
     ui_draw_control_frame(fb,panel,20,0x50);
-    ui_text_fixed(fb,342,211,27,"Chọn chức năng",EPD_DRAW_ALIGN_CENTER,false);
+    ui_text_box(fb,(EpdRect){48,190,588,44},27,"Chọn chức năng",EPD_DRAW_ALIGN_CENTER,false);
     for(int i=0;i<controls_choice_count(s_control_pick);++i){
-        int value=s_control_pick==0||s_control_pick==3||s_control_pick>=7?i:controls_choice_action(i);
+        int value=s_control_pick>=9?(i?controls_choice_action(i-1):APP_CONTROL_HOLD_DEFAULT):
+            s_control_pick==0||s_control_pick==3||s_control_pick>=7?i:controls_choice_action(i);
         bool selected=controls_choice_current(s_control_pick)==value;
         EpdRect r=controls_choice_rect(i);
         ui_fill_round_rect(fb,r,12,selected?0xd8:UI_GRAY_WHITE);
-        ui_text_box(fb,(EpdRect){r.x+12,r.y+8,r.width-68,40},24,
+        ui_text_box(fb,(EpdRect){r.x+12,r.y+8,r.width-68,34},24,
                     controls_choice_label(s_control_pick,i),EPD_DRAW_ALIGN_LEFT,false);
         epd_draw_circle(610,r.y+r.height/2,10,0x38,fb);
         if(selected)epd_fill_circle(610,r.y+r.height/2,5,UI_GRAY_BLACK,fb);
     }
     ui_draw_button(fb,(EpdRect){48,944,588,60},"Hủy",false);
-    if(s_notice[0])ui_text_fixed(fb,342,1036,18,s_notice,EPD_DRAW_ALIGN_CENTER,false);
+    if(s_notice[0])ui_text_box(fb,(EpdRect){48,1016,588,40},18,s_notice,EPD_DRAW_ALIGN_CENTER,false);
 }
 #endif
 
@@ -1067,9 +1099,10 @@ static void settings_switch(uint8_t *fb, int center_y, bool active) {
     epd_draw_circle(cx, track.y + 19, 16, 0x30, fb);
 }
 
-static void setting_group(uint8_t *fb, int title_y, const char *title,
+static void setting_group(uint8_t *fb, int group, int title_y, const char *title,
                           int card_y, const int icons[], const char *const labels[],
                           const char *const values[], int count) {
+    if (s_settings_group != group) return;
     const int row_height = SETTINGS_ROW_H;
     title_y -= s_main_scroll;
     card_y -= s_main_scroll;
@@ -1077,7 +1110,7 @@ static void setting_group(uint8_t *fb, int title_y, const char *title,
     // Skip off-screen glyph work while preserving card boundaries and scroll coordinates.
     if (card_y + count * row_height <= 160 || title_y >= settings_viewport_end()) return;
     if (title_y + ui_text_effective_px(20) > 160 && title_y < settings_viewport_end())
-        settings_line(fb, 42, title_y, 20, title, EPD_DRAW_ALIGN_LEFT, false);
+        settings_line(fb, 42, title_y, 20, s_notice[0]?s_notice:title, EPD_DRAW_ALIGN_LEFT, false);
     settings_card(fb, (EpdRect){36, card_y, 612, count * row_height}, 22,
                   UI_GRAY_WHITE, 0x70);
     for (int i = 0; i < count; ++i) {
@@ -1164,23 +1197,35 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_navigation(fb); return;
     }
     if(s_page==SETTINGS_CONTROLS) {
-        epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb); back_header(fb,"Điều khiển");
-        section(fb,200,"Phím cứng & Nút bấm");
-        controls_row(fb,230,"Nút AI (Bên hông)",ai_action_label(app_settings_ai_short()));
-        controls_row(fb,310,"Nút Âm lượng (+) bên hông",reader_key_action_label(app_settings_volume_key_action(1)));
-        controls_row(fb,390,"Nút Âm lượng (-) bên hông",reader_key_action_label(app_settings_volume_key_action(0)));
-        controls_row(fb,470,"Nút Nguồn (Nhấn ngắn)",app_settings_reader_power_turn()?"Lật trang khi đọc":"Khóa màn hình");
-        controls_row(fb,550,"Phím tròn (Giữa mặt trước)",reader_key_action_label(app_settings_reader_key_action(1)));
-        controls_row(fb,630,"Phím xám (Trái mặt trước)",reader_key_action_label(app_settings_reader_key_action(0)));
-        controls_row(fb,710,"Phím xám (Phải mặt trước)",reader_key_action_label(app_settings_reader_key_action(2)));
-        section(fb,805,"Cử chỉ khi đọc sách");
-        controls_row(fb,835,"Vuốt lên",app_settings_reader_swipe_up_tools()?"Bật menu đọc sách":"Tắt");
-        controls_row(fb,915,"Vuốt từ cạnh đáy lên",app_settings_reader_swipe_bottom_home()?"Về Trang chủ":"Tắt");
-        ui_text_fixed(fb,54,1020,20,"* Nhấn vào từng mục để thay đổi tác vụ gán cho nút hoặc cử chỉ.",EPD_DRAW_ALIGN_LEFT,false);
+        epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb);
+        back_header(fb,s_control_key<0?"Phím cứng & Cử chỉ":controls_key_names[s_control_key]);
+        if(s_control_key>=0) {
+            int key=s_control_key;
+            // Current choices are rendered directly; action indices omit the retired slot.
+            const char *short_label=key==0?ai_action_label(app_settings_ai_short()):
+                key==3?(app_settings_reader_power_turn()?"Lật trang khi đọc":"Khóa màn hình"):
+                reader_key_action_label(controls_choice_current(key));
+            controls_row(fb,250,"Nhấn ngắn",short_label);
+            uint8_t held=app_settings_control_hold(key);
+            controls_row(fb,390,"Nhấn giữ",held==APP_CONTROL_HOLD_DEFAULT?"Mặc định hệ thống":reader_key_action_label(held));
+            ui_text_box(fb,(EpdRect){54,550,576,120},20,
+                "Giữ 500 ms; nút nguồn 700 ms. Phím mặt trước áp dụng khi đọc sách. Giữ không chạy thêm nhấn ngắn.",EPD_DRAW_ALIGN_LEFT,false);
+        } else {
+            for(int i=0;i<7;++i) {
+                int y=218+i*82;
+                settings_card(fb,(EpdRect){36,y,612,74},16,UI_GRAY_WHITE,0x70);
+                ui_text_box(fb,(EpdRect){60,y+8,528,54},25,controls_key_names[i],EPD_DRAW_ALIGN_LEFT,false);
+                ui_draw_icon(fb,625,y+37,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
+            }
+            section(fb,804,"Cử chỉ khi đọc sách");
+            controls_row(fb,850,"Vuốt lên",app_settings_reader_swipe_up_tools()?"Bật menu đọc sách":"Tắt");
+            controls_row(fb,936,"Vuốt từ cạnh đáy lên",app_settings_reader_swipe_bottom_home()?"Về Trang chủ":"Tắt");
+        }
         settings_navigation(fb);
         if(s_control_pick>=0)draw_controls_choices(fb);
         return;
     }
+
 #else
 #endif
     (void)ctx;
@@ -1896,7 +1941,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.1.8-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.1.9-vn", "ESP32-S31");
         settings_line(fb, 56, 324, 22, v_line, EPD_DRAW_ALIGN_LEFT, false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -2051,7 +2096,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         return;
     }
     const int profile_y=180-s_main_scroll, profile_h=settings_profile_height();
-    if (profile_y+profile_h>160) {
+    if (s_settings_group < 0 && profile_y+profile_h>160) {
         settings_card(fb,(EpdRect){36,profile_y,612,profile_h},24,UI_GRAY_WHITE,0x70);
         int avatar_y=profile_y+(profile_h-82)/2;
         bool avatar_ok=s_avatar_ready;
@@ -2071,6 +2116,25 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_center_line(fb,164,profile_y+53,32,name,EPD_DRAW_ALIGN_LEFT,false);
         settings_center_line(fb,588,profile_y+53,20,"Sửa",EPD_DRAW_ALIGN_RIGHT,false);
         ui_draw_icon(fb,625,profile_y+profile_h/2,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
+    }
+    if (s_settings_group < 0) {
+        const int icons[] = {0, 2, 5, 1, 12};
+        const char *const summaries[] = {
+            "WiFi · Bluetooth · KOSync · OPDS",
+            "Phông chữ · Làm mới · Nguồn & Ngủ",
+            "Tủ sách · Màn hình khóa · Chữ ký",
+            "Phím cứng & Cử chỉ",
+            "Cập nhật · Sao lưu · Chẩn đoán"
+        };
+        for (int i=0; i<5; ++i) {
+            int y=SETTINGS_PARENT_Y+i*SETTINGS_PARENT_ROW_H-s_main_scroll;
+            if(y+SETTINGS_PARENT_ROW_H<=160 || y>=settings_viewport_end())continue;
+            settings_card(fb,(EpdRect){36,y,612,SETTINGS_PARENT_ROW_H-12},22,UI_GRAY_WHITE,0x70);
+            setting_icon(fb,icons[i],67,y+56);
+            ui_text_box(fb,(EpdRect){100,y+8,488,54},27,settings_group_titles[i],EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_box(fb,(EpdRect){100,y+66,488,46},19,summaries[i],EPD_DRAW_ALIGN_LEFT,false);
+            ui_draw_icon(fb,625,y+56,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
+        }
     }
     char wifi[56];snprintf(wifi,sizeof(wifi),"%s",s_main_wifi_saved?s_main_wifi:"Chưa cấu hình");
     char wifi_tout[32];
@@ -2104,7 +2168,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         "Cài đặt"
     };
     const int connection_icons[]={0,14,1,14,11,4,6};
-    setting_group(fb,SETTINGS_WIRELESS_Y-49,"Kết nối",SETTINGS_WIRELESS_Y,
+    setting_group(fb,0,SETTINGS_WIRELESS_Y-49,"Kết nối",SETTINGS_WIRELESS_Y,
                   connection_icons,connection_labels,connection_values,SETTINGS_WIRELESS_ROWS);
     char font_name[96],contrast[24],idle[24],signature[96];
     snprintf(font_name,sizeof(font_name),"%s · %u%%",system_font_label(app_settings_system_font_path()),app_settings_system_font_size());
@@ -2125,7 +2189,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         app_settings_home_full_refresh()?"Bật":"Tắt",idle,"",app_settings_staged_shutdown()?"Ngủ nhẹ rồi sâu":"Ngắt nguồn hoàn toàn"};
     const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9};
 #endif
-    setting_group(fb,SETTINGS_DISPLAY_Y-49,"Hiển thị",SETTINGS_DISPLAY_Y,
+    setting_group(fb,1,SETTINGS_DISPLAY_Y-49,"Hiển thị",SETTINGS_DISPLAY_Y,
                   display_icons,display_labels,display_values,SETTINGS_DISPLAY_ROWS);
     snprintf(signature,sizeof(signature),"%s",app_settings_status_signature()[0]?app_settings_status_signature():"Chưa đặt");
     const char *personal_labels[]={"Kiểu hiển thị Tủ sách","Kiểu màn hình khóa","Mật khẩu màn hình khóa","Chữ ký thanh trạng thái"};
@@ -2133,12 +2197,12 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         app_settings_lock_style()==3?"Khung PNG trong suốt":app_settings_lock_style()==2?"Ghép bìa Tủ sách":app_settings_lock_style()==1?"Hình nền":"Thẻ đọc sách",
         lock_pin_enabled()?"Đã bật":"Đã tắt",signature};
     const int personal_icons[]={4,5,16,10};
-    setting_group(fb,SETTINGS_PERSONAL_Y-49,"Cá nhân hóa",SETTINGS_PERSONAL_Y,
+    setting_group(fb,2,SETTINGS_PERSONAL_Y-49,"Cá nhân hóa",SETTINGS_PERSONAL_Y,
                   personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
     const char *controls_labels[]={"Phím cứng & Cử chỉ"};
     const char *controls_values[]={"Cài đặt"};
     const int controls_icons[]={1};
-    setting_group(fb,SETTINGS_CONTROLS_Y-49,"Điều khiển",SETTINGS_CONTROLS_Y,
+    setting_group(fb,3,SETTINGS_CONTROLS_Y-49,"Điều khiển",SETTINGS_CONTROLS_Y,
                   controls_icons,controls_labels,controls_values,SETTINGS_CONTROLS_ROWS);
 #if KIIKO_BOARD_METALIO47
     const char *maintenance_labels[]={"Cập nhật hệ thống","Khôi phục thẻ nhớ","Sao lưu & Khôi phục","Nhật ký & Chẩn đoán","Khử bóng mờ màn hình","Nạp ROM (BOOT)","Khôi phục cài đặt gốc"};
@@ -2149,15 +2213,17 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const char *maintenance_values[]={"OTA / Thẻ nhớ","Cấu hình","Xuất log ra thẻ nhớ","Làm sạch vệt mờ","Nạp ROM qua máy tính","Đặt lại hệ thống"};
     const int maintenance_icons[]={12,8,10,17,13,11};
 #endif
-    setting_group(fb,SETTINGS_MAINTENANCE_Y-49,"Cập nhật & Khôi phục",SETTINGS_MAINTENANCE_Y,
+    setting_group(fb,4,SETTINGS_MAINTENANCE_Y-49,"Cập nhật & Khôi phục",SETTINGS_MAINTENANCE_Y,
                   maintenance_icons,maintenance_labels,maintenance_values,SETTINGS_MAINTENANCE_ROWS);
     // 主列表也要有一行提示位：确认、修复结果都写在这里，不然点了没有任何回音。
     // The main list needs a notice line too: confirmation and the repair result land here, or a tap
     // would have no answer at all.
     ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,160},UI_GRAY_WHITE,fb);
     ui_nav_status(fb);
-    ui_text_box(fb,(EpdRect){36,78,240,76},52,"Cài đặt",EPD_DRAW_ALIGN_LEFT,false);
-    if(s_notice[0])ui_text_box(fb,(EpdRect){300,86,348,64},20,s_notice,EPD_DRAW_ALIGN_LEFT,false);
+    if(s_settings_group < 0)
+        ui_text_box(fb,(EpdRect){36,78,240,76},52,"Cài đặt",EPD_DRAW_ALIGN_LEFT,false);
+    else back_header(fb,settings_group_titles[s_settings_group]);
+    if(s_notice[0] && s_settings_group<0)ui_text_box(fb,(EpdRect){300,86,348,64},20,s_notice,EPD_DRAW_ALIGN_LEFT,false);
     settings_navigation(fb);
 #if KIIKO_BOARD_METALIO47
     if(app_settings_main_refresh_mode()==APP_MAIN_REFRESH_NORMAL){
@@ -2207,13 +2273,14 @@ static void settings_prepare_profile(void) {
 }
 static void on_enter(app_ctx_t *ctx) {
 #if KIIKO_BOARD_METALIO47
-    s_control_pick=-1;
+    s_control_pick=s_control_key=-1;
 #endif
     (void)ctx;
     pin_setup_close();
     s_notice[0] = 0;
     s_ble_feedback[0] = 0;
     s_page = SETTINGS_MAIN;
+    s_settings_group=-1; s_settings_root_scroll=0;
     s_style_scroll = s_main_scroll = s_font_page = s_wallpaper_page = 0;
     s_collage_prepare_pending = false;
     s_scroll_drag_consumed = s_scroll_present_pending = false;
@@ -2229,7 +2296,7 @@ static void on_enter(app_ctx_t *ctx) {
     (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved);
     settings_prepare_profile();
 #if KIIKO_BOARD_METALIO47
-    if(settings_take_lock_style_return())s_page=SETTINGS_LOCK_STYLE;
+    if(settings_take_lock_style_return()){s_page=SETTINGS_LOCK_STYLE;s_settings_group=2;}
 #endif
 }
 
@@ -2307,7 +2374,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
         return APP_REDRAW_DONE;
     }
 
-    if (s_page==SETTINGS_MAIN && s_avatar_pending && !(ctx->touch && ctx->touch->touched)) {
+    if (s_page==SETTINGS_MAIN && s_settings_group<0 && s_avatar_pending && !(ctx->touch && ctx->touch->touched)) {
         ui_avatar_state_t state=ui_avatar_poll(s_avatar_path,82,s_avatar_pixels);
         s_avatar_pending=state==UI_AVATAR_PENDING;
         s_avatar_ready=state==UI_AVATAR_READY;
@@ -2843,12 +2910,21 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
                 }
             return APP_REDRAW_NONE;
         }
-        if(y<190 && ev->x0<170) { s_page=SETTINGS_MAIN; return APP_REDRAW_PAGE; }
+        if(y<190 && ev->x0<170) {
+            if(s_control_key>=0)s_control_key=-1;else s_page=SETTINGS_MAIN;
+            return APP_REDRAW_PAGE;
+        }
         int tab=settings_nav_hit(ev->x0,y);
         if(tab>=0) { ui_nav_request(ctx,tab); return APP_REDRAW_NONE; }
-        const int ys[]={230,310,390,470,550,630,710,835,915};
-        for(unsigned i=0;i<sizeof(ys)/sizeof(ys[0]);++i)
-            if(y>=ys[i]&&y<ys[i]+80){s_control_pick=(int)i;s_notice[0]=0;return APP_REDRAW_PAGE;}
+        if(s_control_key>=0) {
+            if(y>=250&&y<330)s_control_pick=s_control_key;
+            else if(y>=390&&y<470)s_control_pick=9+s_control_key;
+        } else {
+            for(int i=0;i<7;++i)if(y>=218+i*82&&y<292+i*82){s_control_key=i;s_notice[0]=0;return APP_REDRAW_PAGE;}
+            if(y>=850&&y<930)s_control_pick=7;
+            else if(y>=936&&y<1016)s_control_pick=8;
+        }
+        if(s_control_pick>=0){s_notice[0]=0;return APP_REDRAW_PAGE;}
         return APP_REDRAW_NONE;
     }
 
@@ -2898,6 +2974,9 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
     if (s_page == SETTINGS_BLE_SCAN && y < 190) {
         ble_pt_scan_stop(); s_page = SETTINGS_BLUETOOTH; s_ble_scroll = 0; return APP_REDRAW_PAGE;
+    }
+    if(s_page==SETTINGS_MAIN && s_settings_group>=0 && y<190 && ev->x0<170) {
+        (void)settings_parent_back();return APP_REDRAW_PAGE;
     }
     if (s_page != SETTINGS_MAIN && y < 190) { s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
     if (s_page == SETTINGS_LOCK_PIN) return APP_REDRAW_NONE;
@@ -3341,9 +3420,13 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
     if (y<160 || y>=UI_NAV_TOP || ev->x0<36 || ev->x0>=648) return APP_REDRAW_NONE;
     y+=s_main_scroll;
-    if (y>=180 && y<180+settings_profile_height()) { s_page=SETTINGS_PROFILE;return APP_REDRAW_PAGE; }
+    if (s_settings_group < 0) {
+        if (y>=180 && y<180+settings_profile_height()) { s_page=SETTINGS_PROFILE;return APP_REDRAW_PAGE; }
+        if(settings_parent_open(y))return APP_REDRAW_PAGE;
+        return APP_REDRAW_NONE;
+    }
     int row;
-    if (y>=SETTINGS_WIRELESS_Y && y<SETTINGS_WIRELESS_Y+SETTINGS_WIRELESS_ROWS*SETTINGS_ROW_H) {
+    if (s_settings_group==0 && y>=SETTINGS_WIRELESS_Y && y<SETTINGS_WIRELESS_Y+SETTINGS_WIRELESS_ROWS*SETTINGS_ROW_H) {
         row=(y-SETTINGS_WIRELESS_Y)/SETTINGS_ROW_H;
         if(row==0) {
             extern const app_desc_t app_transfer;app_transfer_request_wifi_setup();ctx->request_app=&app_transfer;return APP_REDRAW_NONE;
@@ -3366,7 +3449,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         }
         s_page=SETTINGS_TIME;return APP_REDRAW_PAGE;
     }
-    if(y>=SETTINGS_DISPLAY_Y && y<SETTINGS_DISPLAY_Y+SETTINGS_DISPLAY_ROWS*SETTINGS_ROW_H) {
+    if(s_settings_group==1 && y>=SETTINGS_DISPLAY_Y && y<SETTINGS_DISPLAY_Y+SETTINGS_DISPLAY_ROWS*SETTINGS_ROW_H) {
         row=(y-SETTINGS_DISPLAY_Y)/SETTINGS_ROW_H;
         if(row==0) { ttf_font_scan();s_font_page=0;s_notice[0]=0;s_page=SETTINGS_SYSTEM_FONT; }
         else if(row==1)s_page=SETTINGS_SYSTEM_CONTRAST;
@@ -3382,7 +3465,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 #endif
         return APP_REDRAW_PAGE;
     }
-    if(y>=SETTINGS_PERSONAL_Y && y<SETTINGS_PERSONAL_Y+SETTINGS_PERSONAL_ROWS*SETTINGS_ROW_H) {
+    if(s_settings_group==2 && y>=SETTINGS_PERSONAL_Y && y<SETTINGS_PERSONAL_Y+SETTINGS_PERSONAL_ROWS*SETTINGS_ROW_H) {
         row=(y-SETTINGS_PERSONAL_Y)/SETTINGS_ROW_H;
         if(row==0) {s_page=SETTINGS_SHELF_STYLE;s_style_scroll=0;}
         else if(row==1)s_page=SETTINGS_LOCK_STYLE;
@@ -3390,11 +3473,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else profile_editor_open(true);
         return APP_REDRAW_PAGE;
     }
-    if(y>=SETTINGS_CONTROLS_Y && y<SETTINGS_CONTROLS_Y+SETTINGS_CONTROLS_ROWS*SETTINGS_ROW_H) {
-        s_page=SETTINGS_CONTROLS;
+    if(s_settings_group==3 && y>=SETTINGS_CONTROLS_Y && y<SETTINGS_CONTROLS_Y+SETTINGS_CONTROLS_ROWS*SETTINGS_ROW_H) {
+        s_page=SETTINGS_CONTROLS;s_control_key=s_control_pick=-1;
         return APP_REDRAW_PAGE;
     }
-    if(y>=SETTINGS_MAINTENANCE_Y && y<SETTINGS_MAINTENANCE_Y+SETTINGS_MAINTENANCE_ROWS*SETTINGS_ROW_H) {
+    if(s_settings_group==4 && y>=SETTINGS_MAINTENANCE_Y && y<SETTINGS_MAINTENANCE_Y+SETTINGS_MAINTENANCE_ROWS*SETTINGS_ROW_H) {
         row=(y-SETTINGS_MAINTENANCE_Y)/SETTINGS_ROW_H;
 #if KIIKO_BOARD_METALIO47
         if(row==1){s_page=SETTINGS_SD_RECOVERY;s_sd_notice[0]=0;return APP_REDRAW_PAGE;}
@@ -3428,6 +3511,7 @@ static app_redraw_t on_key(app_ctx_t *ctx, int key) {
 #if KIIKO_BOARD_METALIO47
     if(app_sd_recovery_busy())return APP_REDRAW_NONE;
     if(s_page==SETTINGS_CONTROLS&&s_control_pick>=0){s_control_pick=-1;s_notice[0]=0;return APP_REDRAW_PAGE;}
+    if(s_page==SETTINGS_CONTROLS&&s_control_key>=0){s_control_key=-1;return APP_REDRAW_PAGE;}
     if(s_page==SETTINGS_ONLINE_FONTS){
         ui_online_fonts_close(&s_online_fonts);ttf_font_scan();s_font_page=0;s_page=SETTINGS_SYSTEM_FONT;
         return APP_REDRAW_PAGE;
@@ -3473,6 +3557,7 @@ static app_redraw_t on_key(app_ctx_t *ctx, int key) {
     if (s_page == SETTINGS_PROFILE) { s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
     if (s_page == SETTINGS_TIME_EDIT) { s_page = SETTINGS_TIME; return APP_REDRAW_PAGE; }
     if (s_page != SETTINGS_MAIN) { s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
+    if(s_settings_group>=0){(void)settings_parent_back();return APP_REDRAW_PAGE;}
     ui_nav_request(ctx, 0);
     return APP_REDRAW_NONE;
 }
@@ -3521,14 +3606,14 @@ static bool settings_edge_back(app_ctx_t *ctx) {
 #if KIIKO_BOARD_METALIO47
     if(app_sd_recovery_busy())return false;
 #endif
-    return s_page != SETTINGS_MAIN && !s_reset_pending && !s_local_pending &&
+    return (s_page != SETTINGS_MAIN || s_settings_group>=0) && !s_reset_pending && !s_local_pending &&
         !s_upgrade_restart && !s_pin_pending && !s_font_sync_confirm;
 }
 static bool settings_back_swipe_area(app_ctx_t *ctx,const ui_gesture_event_t *event) {
     (void)ctx;
     return s_page!=SETTINGS_TEXT_EDIT || event->y0<UI_SYSTEM_KEYBOARD_TOP;
 }
-static bool main_page_visible(app_ctx_t *ctx) { (void)ctx; return s_page == SETTINGS_MAIN; }
+static bool main_page_visible(app_ctx_t *ctx) { (void)ctx; return s_page == SETTINGS_MAIN && s_settings_group<0; }
 static bool settings_navigation_enabled(app_ctx_t *ctx) {
     (void)ctx;
 #if KIIKO_BOARD_METALIO47

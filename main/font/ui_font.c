@@ -214,7 +214,7 @@ static void draw_text_px(uint8_t *fb, int x, int baseline, int px,
                 uint8_t alpha = g->bitmap[y * g->width + xx];
                 if (!alpha) continue;
                 uint8_t shade = threshold ? (alpha >= threshold ? fg : bg) :
-                    (uint8_t)(bg + s_cover[alpha] * ((int)fg - (int)bg) / 255);
+                    (uint8_t)((bg * (255u - s_cover[alpha]) + fg * s_cover[alpha] + 127u) / 255u);
                 if (shade != bg) epd_draw_pixel(cursor + g->x0 + xx, baseline + g->y0 + y,
                                                  shade << 4, fb);
             }

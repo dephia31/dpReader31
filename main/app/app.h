@@ -110,7 +110,7 @@ struct app_desc_s {
     /// true = 进页走 APP_REDRAW_FULL（均衡配置下整屏 GC16）。内容和上一页差别大的页面用，避免差分刷留边。
     /// / true = enter with APP_REDRAW_FULL so a differential update does not leave a seam.
     bool enter_full;
-    /// 系统内容采用快刷差分，根页底栏保留灰阶；Pico设置头像也保留灰阶。/ System content uses fast differences, retaining gray root navigation and Pico settings avatars.
+    /// 系统快刷标志；S31仅显式Fast模式二值化，普通/水波纹保留字体灰阶。/ System fast-output hint; S31 binarizes only in explicit Fast mode, retaining glyph gray in normal/water modes.
     bool binary_ui;
     /// 二级系统页也保留底栏；阅读正文不继承。/ Retain navigation in system children without changing reader-body chrome.
     bool persistent_navigation;

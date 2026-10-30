@@ -211,18 +211,29 @@ bool metalio_confirm_power_key(void) {
     return metalio_io_read(&again)==ESP_OK && !(again&(1u<<15));
 }
 bool metalio_boot_power_key(void) { return boot_power_key; }
+static struct {uint16_t stable,candidate;int64_t since,down_at[2];bool armed[2],long_sent[2];} volume_keys={.stable=0xffff,.candidate=0xffff};
 void metalio_volume_sample(uint16_t inputs,int64_t now_ms) {
-    static uint16_t stable=0xffff,candidate=0xffff;
-    static int64_t since;
     inputs|=~((1u<<8)|(1u<<9));
     portENTER_CRITICAL(&volume_lock);
-    if (inputs!=candidate) { candidate=inputs; since=now_ms; }
-    volume_sampling_pending=inputs!=0xffff || stable!=0xffff || candidate!=stable;
-    if (candidate==stable || now_ms-since<25) { portEXIT_CRITICAL(&volume_lock); return; }
-    uint16_t down=stable&~candidate; stable=candidate;
-    volume_sampling_pending=stable!=0xffff;
-    int event=down&(1u<<8)?-1:down&(1u<<9)?1:0;
-    if (event && volume_count<8) { volume_events[(volume_head+volume_count)%8]=event; ++volume_count; }
+    if(inputs!=volume_keys.candidate){volume_keys.candidate=inputs;volume_keys.since=now_ms;}
+    if(now_ms<volume_keys.since){volume_keys.since=now_ms;volume_keys.armed[0]=volume_keys.armed[1]=false;}
+    if(now_ms-volume_keys.since>=25) {
+        uint16_t old=volume_keys.stable;volume_keys.stable=volume_keys.candidate;
+        bool chord=(volume_keys.stable&((1u<<8)|(1u<<9)))==0;
+        for(int i=0;i<2;++i){
+            unsigned bit=1u<<(8+i);bool down=!(volume_keys.stable&bit),was=!(old&bit);
+            int event=0,sign=i?1:-1;
+            if(chord){volume_keys.armed[i]=false;volume_keys.long_sent[i]=true;}
+            else if(down&&!was){volume_keys.down_at[i]=now_ms;volume_keys.long_sent[i]=false;}
+            else if(!down&&was){
+                if(volume_keys.armed[i]&&!volume_keys.long_sent[i])event=sign;
+                volume_keys.armed[i]=true;
+            } else if(!down)volume_keys.armed[i]=true;
+            if(down&&volume_keys.armed[i]&&!volume_keys.long_sent[i]&&now_ms-volume_keys.down_at[i]>=500){event=sign*2;volume_keys.long_sent[i]=true;}
+            if(event&&volume_count<8){volume_events[(volume_head+volume_count)%8]=event;++volume_count;}
+        }
+    }
+    volume_sampling_pending=inputs!=0xffff||volume_keys.stable!=0xffff||volume_keys.candidate!=volume_keys.stable;
     portEXIT_CRITICAL(&volume_lock);
 }
 bool metalio_volume_sampling_pending(void) {
@@ -241,6 +252,8 @@ int metalio_take_volume(void) {
 void metalio_volume_clear(void) {
     portENTER_CRITICAL(&volume_lock);
     volume_head=volume_count=0;
+    volume_keys.armed[0]=volume_keys.armed[1]=false;
+    volume_keys.long_sent[0]=volume_keys.long_sent[1]=true;
     portEXIT_CRITICAL(&volume_lock);
 }
 void metalio_tps_off(void) {
@@ -570,7 +583,17 @@ esp_err_t metalio_haptic_click(void) {
     if(accepted) xTaskNotifyGive(haptic_task);
     return ESP_OK;
 }
-void metalio_sd_release_hold(void) { for (int pin=20;pin<=25;pin++) gpio_hold_dis(pin); }
+void metalio_sd_release_hold(void) {
+    for (int pin=20;pin<=25;pin++) gpio_hold_dis(pin);
+    /* Sleep changes CNNT pads; GPIO pull-ups in the SDK only change IO_MUX.
+     * Restore the native SD idle pulls before the host selects dedicated pads. */
+    CNNT_PAD_CTRL.sdio_clk.sdio_clk_fun_wpd=0; CNNT_PAD_CTRL.sdio_clk.sdio_clk_fun_wpu=0;
+    CNNT_PAD_CTRL.sdio_cmd.sdio_cmd_fun_wpd=0; CNNT_PAD_CTRL.sdio_cmd.sdio_cmd_fun_wpu=1;
+    CNNT_PAD_CTRL.sdio_data0.sdio_data0_fun_wpd=0; CNNT_PAD_CTRL.sdio_data0.sdio_data0_fun_wpu=1;
+    CNNT_PAD_CTRL.sdio_data1.sdio_data1_fun_wpd=0; CNNT_PAD_CTRL.sdio_data1.sdio_data1_fun_wpu=1;
+    CNNT_PAD_CTRL.sdio_data2.sdio_data2_fun_wpd=0; CNNT_PAD_CTRL.sdio_data2.sdio_data2_fun_wpu=1;
+    CNNT_PAD_CTRL.sdio_data3.sdio_data3_fun_wpd=0; CNNT_PAD_CTRL.sdio_data3.sdio_data3_fun_wpu=1;
+}
 esp_err_t metalio_sd_single_line_idle(void) {
     // S31休眠曾把这些脚保持低；单线SDK不会重新配置未使用的D1～D3。
     // S31 sleep held these pins low; single-line SDK setup does not reconfigure unusedD1–D3.

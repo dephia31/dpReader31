@@ -8,7 +8,7 @@ dpReader · Truyền dữ liệu Wi-Fi, quản lý thẻ nhớ, cấu hình KOSy
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>dpReader · Truyền dữ liệu & Đồng bộ</title>
 <style>
-:root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;color:#202221;background:#ededeb}
+:root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;color:#202221;background:#fff}
 *{box-sizing:border-box}body{max-width:760px;margin:0 auto;padding:26px 20px 68px;font-size:16px;line-height:1.55}
 header{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:8px 0 22px}
 h1{font-size:36px;line-height:1.15;letter-spacing:-.03em;margin:0}h2{font-size:23px;line-height:1.25;margin:0 0 9px}
@@ -36,15 +36,45 @@ dialog::backdrop{background:#20222175}dialog h2{margin-bottom:10px}dialog p{marg
 .dialog-actions{display:flex;justify-content:end;gap:8px;margin-top:18px}section[hidden]{display:none}
 .crop-layout{display:flex;align-items:start;gap:22px;flex-wrap:wrap}.crop-preview{display:block;width:min(100%,260px);height:auto;aspect-ratio:684/1216;border:2px solid #626662;border-radius:14px;background:#e2e3e0;touch-action:none;cursor:grab}.crop-preview:active{cursor:grabbing}
 .crop-controls{flex:1;min-width:220px}.crop-controls label{display:block;margin:14px 0 5px;font-weight:600}.crop-controls input[type=range]{width:100%;accent-color:#303331}.crop-controls .primary{margin-top:16px}
+[hidden]{display:none!important}
+.portal-tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;padding:7px;border:1px solid #d2d4d0;border-radius:18px;background:#fff;position:sticky;top:8px;z-index:2;margin:18px 0}
+.portal-tabs button{min-width:0;min-height:46px;padding:8px 4px;border:0;background:transparent;font-size:14px;font-weight:600;white-space:nowrap}
+.portal-tabs button[aria-selected=true]{background:#303331;color:#fff}
+.portal-tabs button:focus-visible{outline:3px solid #737d73;outline-offset:2px}
+.storage-summary{padding:14px 20px;border-radius:16px}.storage-summary p{margin:0}.storage-summary .hint{font-size:13px;margin-top:4px}
+[role=tabpanel]:focus-visible{outline:2px solid #737d73;outline-offset:4px;border-radius:18px}
+@media(max-width:540px){.portal-tabs{grid-template-columns:repeat(3,minmax(0,1fr));top:6px}.portal-tabs button{min-height:42px}.storage-summary{padding:12px 16px}}
 @media(max-width:540px){body{padding:18px 12px 48px;font-size:15px}header{align-items:start}h1{font-size:31px}section{padding:17px;border-radius:19px}.entry-actions{width:100%;justify-content:start}li{flex-wrap:wrap}.form-grid{grid-template-columns:1fr}}
 </style>
 <header><div><p class="eyebrow">dpReader / TRUYỀN DỮ LIỆU</p><h1>Quản lý & Truyền sách</h1></div><span class="muted">Metalio E-ink 4.7"</span></header>
-<section><h2>Trạng thái lưu trữ</h2><p id="storage" role="status">Đang đọc trạng thái thiết bị…</p><p class="hint">Giữ dpReader ở màn hình truyền dữ liệu. Tệp tải lên sẽ được lưu vào thư mục tương ứng.</p></section>
+<section class="storage-summary" aria-label="Trạng thái lưu trữ"><p id="storage" role="status">Đang đọc trạng thái thiết bị…</p><p class="hint">Giữ dpReader ở màn hình truyền dữ liệu. Tệp tải lên sẽ được lưu vào thư mục tương ứng.</p></section>
+<nav class="portal-tabs" role="tablist" aria-label="Chức năng truyền dữ liệu">
+<button type="button" role="tab" id="tab-books" aria-controls="panel-books" aria-selected="true" tabindex="0">Sách</button>
+<button type="button" role="tab" id="tab-files" aria-controls="panel-files" aria-selected="false" tabindex="-1">Thẻ nhớ</button>
+<button type="button" role="tab" id="tab-fonts" aria-controls="panel-fonts" aria-selected="false" tabindex="-1">Phông chữ</button>
+<button type="button" role="tab" id="tab-images" aria-controls="panel-images" aria-selected="false" tabindex="-1">Hình ảnh</button>
+<button type="button" role="tab" id="tab-sync" aria-controls="panel-sync" aria-selected="false" tabindex="-1">Đồng bộ</button>
+<button type="button" role="tab" id="tab-personal" aria-controls="panel-personal" aria-selected="false" tabindex="-1">Cá nhân</button>
+</nav>
+<main>
+<div id="panel-books" role="tabpanel" aria-labelledby="tab-books" tabindex="0">
+<section class="upload" data-kind="book"><h2>Tải sách lên</h2><p class="hint">EPUB, TXT → thư mục books. Sẽ hỏi xác nhận nếu trùng tên.</p><input type="file" accept=".epub,.txt" multiple aria-label="Chọn sách"><button class="primary send" type="button">Tải lên thư mục books</button><p class="result" role="status"></p></section>
+</div>
+<div id="panel-files" role="tabpanel" aria-labelledby="tab-files" tabindex="0" hidden>
 <section id="browser"><div class="line"><h2>Duyệt thẻ nhớ TF</h2><button id="refresh" class="tiny" type="button">Làm mới</button></div>
 <div class="toolbar"><button id="up" class="tiny" type="button">Thư mục cha</button><span id="path">/</span><button id="newFolder" class="tiny" type="button">Tạo thư mục mới</button></div>
 <div class="upload" data-kind="file"><p class="hint">Mở thư mục đích trước rồi chọn tệp để tải lên. Hỗ trợ mọi định dạng và giữ nguyên tên gốc.</p><input type="file" multiple aria-label="Chọn tệp bất kỳ"><button class="primary send" type="button">Tải tệp vào thư mục hiện tại</button><p class="result" role="status"></p></div>
 <p id="listState" class="hint" role="status"></p><ul id="entries"></ul>
 <div class="pages"><button id="previous" class="tiny" type="button">Trang trước</button><span id="pageState" class="muted"></span><button id="next" class="tiny" type="button">Trang sau</button></div></section>
+</div>
+<div id="panel-fonts" role="tabpanel" aria-labelledby="tab-fonts" tabindex="0" hidden>
+<section class="upload" data-kind="font"><h2>Tải phông chữ</h2><p class="hint">TTF, OTF → thư mục fonts. Sau khi tải lên có thể chọn trong cài đặt phông chữ khi đọc.</p><input type="file" accept=".ttf,.otf" multiple aria-label="Chọn phông chữ"><button class="primary send" type="button">Tải lên thư mục fonts</button><p class="result" role="status"></p></section>
+</div>
+<div id="panel-images" role="tabpanel" aria-labelledby="tab-images" tabindex="0" hidden>
+<section class="upload" data-kind="picture"><h2>Tải hình ảnh</h2><p class="hint">JPG, JPEG, PNG → thư mục pictures. Có thể chọn làm hình nền khóa trên thiết bị.</p><input type="file" accept=".jpg,.jpeg,.png" multiple aria-label="Chọn hình ảnh"><button class="primary send" type="button">Tải lên thư mục pictures</button><p class="result" role="status"></p></section>
+<section id="wallpaper"><h2>Cài hình nền màn hình khóa</h2><p class="hint">Chọn ảnh từ điện thoại/máy tính, kéo khung cắt và chỉnh thu phóng. Tự động đặt làm màn hình khóa sau khi tải lên.</p><div class="crop-layout"><canvas id="cropPreview" class="crop-preview" width="342" height="608" aria-label="Xem trước cắt ảnh 684 × 1216"></canvas><div class="crop-controls"><input id="wallpaperFile" type="file" accept="image/*" aria-label="Chọn ảnh màn hình khóa"><label for="cropZoom">Thu phóng ảnh</label><input id="cropZoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="Thu phóng ảnh"><p class="muted">Độ phân giải chuẩn: 684 × 1216 px. Kéo trong khung để căn chỉnh.</p><button id="cropReset" type="button">Căn giữa lại</button><button id="wallpaperSend" class="primary" type="button" disabled>Cắt & Đặt làm màn hình khóa</button><p id="wallpaperResult" class="result" role="status">Vui lòng chọn ảnh trước</p></div></div></section>
+</div>
+<div id="panel-sync" role="tabpanel" aria-labelledby="tab-sync" tabindex="0" hidden>
 <section id="syncSettings"><h2>Đồng bộ KOSync & Thư viện OPDS</h2><p class="hint">Cấu hình máy chủ đồng bộ tiến độ đọc KOReader (KOSync) và kho sách trực tuyến OPDS (Calibre-Web).</p>
 <label class="muted">Máy chủ KOSync (mặc định: https://sync.vreader.cloud)</label>
 <input id="kosyncUrl" type="text" maxlength="127" placeholder="https://sync.vreader.cloud">
@@ -61,15 +91,33 @@ dialog::backdrop{background:#20222175}dialog h2{margin-bottom:10px}dialog p{marg
 </div>
 <button id="syncSave" class="primary" type="button">Lưu cấu hình KOSync & OPDS</button>
 <p id="syncResult" class="result" role="status">Đang tải cấu hình đồng bộ…</p></section>
+</div>
+<div id="panel-personal" role="tabpanel" aria-labelledby="tab-personal" tabindex="0" hidden>
 <section id="signatureSettings"><h2>Chữ ký thanh trạng thái</h2><p class="hint">Hiển thị ở chính giữa phía trên màn hình E-ink. Để trống và lưu nếu muốn ẩn.</p><input id="signatureText" type="text" maxlength="95" aria-label="Chữ ký thanh trạng thái" placeholder="Nhập chữ ký của bạn"><button id="signatureSave" class="primary" type="button">Lưu chữ ký</button><p id="signatureResult" class="result" role="status">Đang đọc chữ ký…</p></section>
-<section class="upload" data-kind="book"><h2>Tải sách lên</h2><p class="hint">EPUB, TXT → thư mục books. Sẽ hỏi xác nhận nếu trùng tên.</p><input type="file" accept=".epub,.txt" multiple aria-label="Chọn sách"><button class="primary send" type="button">Tải lên thư mục books</button><p class="result" role="status"></p></section>
-<section class="upload" data-kind="font"><h2>Tải phông chữ</h2><p class="hint">TTF, OTF → thư mục fonts. Sau khi tải lên có thể chọn trong cài đặt phông chữ khi đọc.</p><input type="file" accept=".ttf,.otf" multiple aria-label="Chọn phông chữ"><button class="primary send" type="button">Tải lên thư mục fonts</button><p class="result" role="status"></p></section>
-<section id="wallpaper"><h2>Cài hình nền màn hình khóa</h2><p class="hint">Chọn ảnh từ điện thoại/máy tính, kéo khung cắt và chỉnh thu phóng. Tự động đặt làm màn hình khóa sau khi tải lên.</p><div class="crop-layout"><canvas id="cropPreview" class="crop-preview" width="342" height="608" aria-label="Xem trước cắt ảnh 684 × 1216"></canvas><div class="crop-controls"><input id="wallpaperFile" type="file" accept="image/*" aria-label="Chọn ảnh màn hình khóa"><label for="cropZoom">Thu phóng ảnh</label><input id="cropZoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="Thu phóng ảnh"><p class="muted">Độ phân giải chuẩn: 684 × 1216 px. Kéo trong khung để căn chỉnh.</p><button id="cropReset" type="button">Căn giữa lại</button><button id="wallpaperSend" class="primary" type="button" disabled>Cắt & Đặt làm màn hình khóa</button><p id="wallpaperResult" class="result" role="status">Vui lòng chọn ảnh trước</p></div></div></section>
-<section class="upload" data-kind="picture"><h2>Tải hình ảnh</h2><p class="hint">JPG, JPEG, PNG → thư mục pictures. Có thể chọn làm hình nền khóa trên thiết bị.</p><input type="file" accept=".jpg,.jpeg,.png" multiple aria-label="Chọn hình ảnh"><button class="primary send" type="button">Tải lên thư mục pictures</button><p class="result" role="status"></p></section>
+</div>
+</main>
 <dialog id="editor"><h2 id="editorTitle"></h2><p id="editorDescription"></p><input id="editorName" type="text" maxlength="238" aria-label="Tên mới"><div class="dialog-actions"><button id="editorCancel" type="button">Hủy</button><button id="editorConfirm" class="primary" type="button">Xác nhận</button></div></dialog>
 <script>
 const $=id=>document.getElementById(id);
 let policy=null,busy=false,path='',page=0,pages=0,editorAction=null;
+const portalTabs=Array.from(document.querySelectorAll('[role="tab"]'));
+function selectPortalTab(tab,focus=false){
+ if(busy||!portalTabs.includes(tab))return;
+ for(const item of portalTabs){const active=item===tab;item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;$(item.getAttribute('aria-controls')).hidden=!active}
+ if(focus)tab.focus();
+}
+portalTabs.forEach((tab,index)=>{
+ tab.onclick=()=>selectPortalTab(tab);
+ tab.onkeydown=event=>{
+  let next;
+  if(event.key==='ArrowRight')next=(index+1)%portalTabs.length;
+  else if(event.key==='ArrowLeft')next=(index+portalTabs.length-1)%portalTabs.length;
+  else if(event.key==='Home')next=0;
+  else if(event.key==='End')next=portalTabs.length-1;
+  else return;
+  event.preventDefault();selectPortalTab(portalTabs[next],true);
+ };
+});
 const size=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':n>=1024?Math.ceil(n/1024)+' KB':n+' B';
 const join=(dir,name)=>dir?dir+'/'+name:name;
 async function request(url,options){const response=await fetch(url,{cache:'no-store',...options});let body;try{body=await response.json()}catch{throw Error('Phản hồi từ thiết bị không hợp lệ, vui lòng thử lại')}return {status:response.status,body}}

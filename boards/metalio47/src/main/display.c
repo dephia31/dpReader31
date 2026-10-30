@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * S31用户最新修订：系统页面及子页黑白输出，只有侧滑返回调用既有水波纹；点按和左上角返回不播放。
- * Latest S31 revision: system pages/children use BW output; only edge returns call existing water, never taps or top-left back.
+ * Revision2026-10-30: reported rough glyph edges require native grayscale in normal/water system pages; explicit Fast retains BW. Edge returns retain existing water, never taps or top-left back.
  * 刷屏出口：按模式推屏、HV 轨空闲下电、pclk 欠载回退。
  *
  * 普通子页返回沿用柔和端点；用户反馈残影后，周期清理改为原厂整屏GC，不再保留导航/白底。
@@ -71,7 +71,10 @@ bool display_system_navigation_set(bool visible) {
     bool previous=s_system_navigation;s_system_navigation=visible;return previous;
 }
 bool display_system_binary_set(bool enabled) {
-    bool previous=s_system_binary;s_system_binary=enabled;return previous;
+    // Preserve rasterized edge coverage unless the user explicitly selected Fast.
+    bool previous=s_system_binary;
+    s_system_binary=enabled && app_settings_main_fast_refresh();
+    return previous;
 }
 static bool s_full_refresh_requested;
 bool display_pipeline_enabled(void) { return epd_pipeline_enabled(); }

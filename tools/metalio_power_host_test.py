@@ -1,6 +1,6 @@
 """Exercise actual S31 gauge/charger and volume queue functions with I2C faults."""
 from pathlib import Path
-import re, subprocess, tempfile
+import os, re, subprocess, tempfile
 root = Path(__file__).resolve().parents[1]
 
 def function(path, name):
@@ -49,9 +49,12 @@ static esp_err_t metalio_read(unsigned a,unsigned r,void *out,size_t n){
 }
 static int volume_lock,volume_events[8];
 static unsigned volume_head,volume_count;
+static bool volume_sampling_pending;
 '''
 for name in ('charger_update','charger_init','battery'):
     unit+=function('components/read_pico_pmu/metalio_power_adapter.c',name)
+hardware=(root/'components/metalio_hw/metalio_hw.c').read_text()
+unit+=hardware[hardware.index('static struct {uint16_t stable,candidate;'):hardware.index('void metalio_volume_sample(')]
 for name in ('metalio_volume_sample','metalio_take_volume','metalio_volume_clear'):
     unit+=function('components/metalio_hw/metalio_hw.c',name)
 unit+=r'''
@@ -106,13 +109,13 @@ int main(void){
  sample();assert(!state.status_ok&&!(state.flags&PMU_STATUS_CHARGING_ACTIVE));
  all_fault=false;fail_address=0;raw=8;sample();assert(state.flags&PMU_STATUS_CHARGING_ACTIVE);
  raw=0;sample();assert(!(state.flags&PMU_STATUS_CHARGING_ACTIVE));
- metalio_volume_sample(0xffff,0);metalio_volume_sample(0xfeff,10);metalio_volume_sample(0xfeff,34);assert(!metalio_take_volume());
- metalio_volume_sample(0xfeff,35);assert(metalio_take_volume()==-1&&!metalio_take_volume());
- metalio_volume_sample(0xffff,50);metalio_volume_sample(0xffff,75);
- metalio_volume_sample(0xfdff,80);metalio_volume_sample(0xfdff,105);assert(metalio_take_volume()==1);
+ metalio_volume_sample(0xffff,0);metalio_volume_sample(0xffff,30);metalio_volume_sample(0xfeff,40);metalio_volume_sample(0xfeff,64);assert(!metalio_take_volume());
+ metalio_volume_sample(0xfeff,65);assert(!metalio_take_volume());
+ metalio_volume_sample(0xffff,100);metalio_volume_sample(0xffff,125);assert(metalio_take_volume()==-1&&!metalio_take_volume());
+ metalio_volume_sample(0xfdff,130);metalio_volume_sample(0xfdff,155);assert(!metalio_take_volume());metalio_volume_sample(0xffff,180);metalio_volume_sample(0xffff,205);assert(metalio_take_volume()==1);
  for(int i=0;i<20;i++){
-  metalio_volume_sample(0xffff,200+i*100);metalio_volume_sample(0xffff,225+i*100);
-  metalio_volume_sample(0xfdff,250+i*100);metalio_volume_sample(0xfdff,275+i*100);
+  metalio_volume_sample(0xffff,300+i*100);metalio_volume_sample(0xffff,325+i*100);
+  metalio_volume_sample(0xfdff,350+i*100);metalio_volume_sample(0xfdff,375+i*100);metalio_volume_sample(0xffff,380+i*100);metalio_volume_sample(0xffff,405+i*100);
  }
  assert(volume_count==8);metalio_volume_clear();assert(!volume_count&&!metalio_take_volume());
  puts("PASS: actual S31 battery cadence, all charger stages, enable/OTG, read faults, valid SOC, debounced/bounded volume queue and sleep drain, CX25601N public control initialization with all 256 bit-preservation cases and read/write/readback faults, bounded retry");
@@ -120,6 +123,6 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as d:
     p=Path(d);(p/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
+    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g',*(['-fsanitize=address,undefined'] if os.environ.get('HOST_TEST_SANITIZERS','1')!='0' else []),
         '-I'+str(root/'components/read_pico_pmu/include'),str(p/'test.c'),'-o',str(p/'test')],check=True)
     subprocess.run([str(p/'test')],check=True)

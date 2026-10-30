@@ -1,10 +1,13 @@
-## dpReader 1.1.8-vn — Metalio E-ink 4 Plus (ESP32-S31)
+## dpReader 1.1.9-vn — Metalio E-ink 4 Plus (ESP32-S31)
 
-- **Tối ưu hóa bộ nhớ:** Giảm hơn 60 KiB dữ liệu tĩnh SRAM, chuyển bộ đệm log, metadata font, bảng hiển thị, trạng thái KoSync, danh sách Bluetooth, CPU buffer đọc sách và cấu trúc ZIP sang PSRAM; bảo toàn DMA/ISR và vòng quét phím trong SRAM nội bộ.
-- **Đồng bộ KoSync:** Hiển thị trạng thái "Đang đồng bộ" tức thì trên màn hình trước khi bật Wi-Fi; quản lý vòng đời HTTP/TLS/buffer chặt chẽ, tự động giải phóng tài nguyên sau khi hoàn tất hoặc gặp sự cố mạng.
-- **Xóa bóng mờ E-Paper:** Sửa lỗi màn hình Home và trang đen trắng bỏ qua GC16 định kỳ; tự động dọn toàn màn hình bằng waveform đầy đủ sau 6 khung thay đổi và tối thiểu 3 giây từ lần dọn trước; giữ nguyên làm mới cục bộ siêu tốc khi đọc sách.
-- **Giao diện chữ lớn 100–200%:** Cải thiện hiển thị ở mọi tỷ lệ chữ hệ thống; tiêu đề chừa chỗ cho nút Back/nút phụ, danh sách cài đặt tách nhãn–giá trị từ 150%, giới hạn độ rộng chữ tránh chồng lấn và tràn viền icon.
+- **Chữ TTF:** cải thiện mức xám, giữ khử răng cưa qua các lần lật trang. Khi tắt khử răng cưa, dùng TrueType hinting và cache 1 bit; tăng/giảm độ đậm trực tiếp trên đường nét trước khi vẽ, giữ độ rộng ký tự. Khắc phục bộ nhớ raster gây khởi động lại lúc mở sách trong các bản thử.
+- **Home và Cài đặt:** kệ sách đen cho ba cuốn gần đây; Cài đặt có năm nhóm cha để dễ tìm mục cần chỉnh.
+- **Truyền file:** nhãn gọn, sửa chữ tràn khung; hotspot `dpReader31` không mật khẩu; trang web local có sáu tab Sách, Thẻ nhớ, Phông chữ, Hình ảnh, Đồng bộ, Cá nhân.
+- **Phím cứng & Cử chỉ:** mở từng phím để chọn riêng tác vụ nhấn ngắn và nhấn giữ; tránh tác vụ nhấn ngắn chạy thêm sau nhấn giữ.
+- **Thẻ SD:** khôi phục đầy đủ trạng thái chân SD trước khi khởi tạo lại sau ngủ/reset và trong đường USB.
 
-Gói ứng dụng dùng cho OTA/TF; gói USB chứa cả ảnh đầy đủ và các tệp thành phần từ cùng một lần build. `FLASH_USB.command` (macOS) / `.bat` (Windows) cập nhật ứng dụng và chọn slot mới, giữ dữ liệu, không backup. Ảnh `full.bin` dành cho nạp đầy đủ qua web flasher/esptool.
+Khử răng cưa vẫn có thể còn bóng hình tùy chế độ làm mới. Bản này không thay waveform và chưa bổ sung hinting cho đường khử răng cưa. Bản sửa phục hồi SD đã qua kiểm tra mô phỏng; cần tiếp tục theo dõi sau flash/ngủ–thức trên thiết bị.
 
-Web flasher: https://dephia31.github.io/dpReader31/ — giữ lựa chọn tải/nạp bản 1.1.7-vn trước đó.
+Gói ứng dụng dùng cho OTA/TF. Gói USB chứa ứng dụng, ảnh đầy đủ và các thành phần từ cùng một lần build; `FLASH_USB.command` (macOS) / `FLASH_USB.bat` (Windows) cập nhật ứng dụng với lựa chọn OTA tương ứng, giữ sách/cài đặt, không backup. `full.bin` dành cho cài đầy đủ. Kèm giấy phép FreeType; không kèm font Bookerly.
+
+Web flasher: https://dephia31.github.io/dpReader31/ — giữ bản chính thức trước 1.1.8-vn để tải/nạp lại.
