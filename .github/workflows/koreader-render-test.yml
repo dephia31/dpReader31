@@ -1,7 +1,7 @@
-name: KOReader render experiment
+name: Font and AA display regressions
 on:
   push:
-    branches: [codex/Test-koreader-render]
+    branches: [main, codex/Test-koreader-render]
   workflow_dispatch:
 permissions:
   contents: read

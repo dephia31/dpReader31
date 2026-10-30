@@ -1,19 +1,11 @@
 # Nhật ký thay đổi / Changelog
 
-## dpReader 1.2.1RC3-vn · Test AA37 · 2026-10-30
+## dpReader 1.2.1-vn · 2026-10-30
 
-- Theo phản hồi AA42 khá ổn, thử giảm AA đọc sách xuống37pha bằng cắt tối đa5xung bão hòa đen; giữ đuôi mức xám, xung trắng và ba pha cuối.
-- Giữ font, VCOM, nhịp quét và full refresh/phục hồi; cần đối chiếu độ đen/nền với RC2 trên thiết bị.
-
-## dpReader 1.2.1RC2-vn · Test AA42 · 2026-10-30
-
-- Thử AA đọc sách với GL42 dẫn xuất từ bảng S31: giữ đoạn đẩy đen và đuôi mức xám, rút phần xóa, giữ ba pha cuối và số xung bảo trì trắng. Toàn refresh/phục hồi giữ GC48; giữ render KOReader của RC1.
-- Chưa xác nhận tốc độ hoặc mức xám nền trên thiết bị; VCOM, nhịp quét và chu kỳ làm sạch giữ nguyên để đối chiếu.
-
-## dpReader 1.2.1RC1-vn · Test KOReader render · 2026-10-30
-
-- Nhánh thử nghiệm render chữ theo hướng KOReader/CREngine: light auto-hinting cho AA, mono auto-hinting cho đen trắng; giữ độ phủ liên tục với gamma 1.0 ở chữ sách và giao diện S31.
-- Giữ bố cục, cỡ chữ, các lựa chọn người dùng và đường refresh hiện tại. Chưa xác nhận cải thiện nền xám trên máy thật.
+- Cải thiện độ nét chữ khi tắt khử răng cưa (AA), dùng tự căn nét cho phông TrueType.
+- Cải thiện chữ có AA và chữ giao diện với light hinting, giữ độ phủ liên tục và gamma 1.0.
+- Tối ưu lật trang khi bật AA bằng waveform37pha; giữ làm sạch toàn màn hình và phục hồi lỗi bằng GC48.
+- Giữ bố cục, font đã chọn, VCOM và các thiết lập đọc hiện có.
 
 ## dpReader 1.2.0-vn · 2026-10-30
 
