@@ -1136,6 +1136,12 @@ static void setting_group(uint8_t *fb, int group, int title_y, const char *title
     }
 }
 
+static void controls_edge_toggle(uint8_t *fb,int y,const char *title,bool on) {
+    settings_card(fb,(EpdRect){36,y,612,80},16,UI_GRAY_WHITE,0x70);
+    ui_text_box(fb,(EpdRect){54,y+8,490,64},22,title,EPD_DRAW_ALIGN_LEFT,false);
+    settings_switch(fb,y+40,on);
+}
+
 static void setting_toggle(uint8_t *fb, int y, const char *title, const char *detail, bool active) {
     settings_card(fb, (EpdRect){36, y, 612, 126}, 22, UI_GRAY_WHITE, 0x70);
     ui_text_box(fb,(EpdRect){59,y+10,480,48},27,title,EPD_DRAW_ALIGN_LEFT,false);
@@ -1212,14 +1218,16 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
                 "Giữ 500 ms; nút nguồn 700 ms. Phím mặt trước áp dụng khi đọc sách. Giữ không chạy thêm nhấn ngắn.",EPD_DRAW_ALIGN_LEFT,false);
         } else {
             for(int i=0;i<7;++i) {
-                int y=218+i*82;
-                settings_card(fb,(EpdRect){36,y,612,74},16,UI_GRAY_WHITE,0x70);
-                ui_text_box(fb,(EpdRect){60,y+8,528,54},25,controls_key_names[i],EPD_DRAW_ALIGN_LEFT,false);
-                ui_draw_icon(fb,625,y+37,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
+                int y=218+i*70;
+                settings_card(fb,(EpdRect){36,y,612,64},16,UI_GRAY_WHITE,0x70);
+                ui_text_box(fb,(EpdRect){60,y+6,528,52},25,controls_key_names[i],EPD_DRAW_ALIGN_LEFT,false);
+                ui_draw_icon(fb,625,y+32,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
             }
-            section(fb,804,"Cử chỉ khi đọc sách");
-            controls_row(fb,850,"Vuốt lên",app_settings_reader_swipe_up_tools()?"Bật menu đọc sách":"Tắt");
-            controls_row(fb,936,"Vuốt từ cạnh đáy lên",app_settings_reader_swipe_bottom_home()?"Về Trang chủ":"Tắt");
+            section(fb,726,"Cử chỉ khi đọc sách");
+            controls_row(fb,770,"Vuốt lên",app_settings_reader_swipe_up_tools()?"Bật menu đọc sách":"Tắt");
+            controls_row(fb,856,"Vuốt từ cạnh đáy lên",app_settings_reader_swipe_bottom_home()?"Về Trang chủ":"Tắt");
+            controls_edge_toggle(fb,942,"Cạnh trái: tăng/giảm độ sáng",app_settings_reader_edge_brightness());
+            controls_edge_toggle(fb,1028,"Cạnh phải: tăng/giảm đèn vàng",app_settings_reader_edge_warmth());
         }
         settings_navigation(fb);
         if(s_control_pick>=0)draw_controls_choices(fb);
@@ -1941,7 +1949,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.1.9-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.0-vn", "ESP32-S31");
         settings_line(fb, 56, 324, 22, v_line, EPD_DRAW_ALIGN_LEFT, false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -2895,7 +2903,8 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else if(y>=750 && y<818) { metalio_frontlight_toggle(); return APP_REDRAW_PAGE; }
         else if(y>=850 && y<918) { metalio_haptic_set_enabled(!metalio_haptic_enabled()); return APP_REDRAW_PAGE; }
         else return APP_REDRAW_NONE;
-        metalio_frontlight_save(brightness,warmth); return APP_REDRAW_PAGE;
+        metalio_frontlight_adjust_position(y>=620,(y>=620?warmth:brightness)*METALIO_FRONTLIGHT_RANGE/100);
+        metalio_frontlight_commit(); return APP_REDRAW_PAGE;
     }
     if(s_page==SETTINGS_CONTROLS) {
         if(s_control_pick>=0){
@@ -2920,9 +2929,16 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             if(y>=250&&y<330)s_control_pick=s_control_key;
             else if(y>=390&&y<470)s_control_pick=9+s_control_key;
         } else {
-            for(int i=0;i<7;++i)if(y>=218+i*82&&y<292+i*82){s_control_key=i;s_notice[0]=0;return APP_REDRAW_PAGE;}
-            if(y>=850&&y<930)s_control_pick=7;
-            else if(y>=936&&y<1016)s_control_pick=8;
+            for(int i=0;i<7;++i)if(y>=218+i*70&&y<282+i*70){s_control_key=i;s_notice[0]=0;return APP_REDRAW_PAGE;}
+            if(y>=770&&y<850)s_control_pick=7;
+            else if(y>=856&&y<936)s_control_pick=8;
+            else if(y>=942&&y<1022) {
+                if(!app_settings_set_reader_edge_brightness(!app_settings_reader_edge_brightness()))snprintf(s_notice,sizeof(s_notice),"Lưu thất bại");
+                return APP_REDRAW_PAGE;
+            } else if(y>=1028&&y<1108) {
+                if(!app_settings_set_reader_edge_warmth(!app_settings_reader_edge_warmth()))snprintf(s_notice,sizeof(s_notice),"Lưu thất bại");
+                return APP_REDRAW_PAGE;
+            }
         }
         if(s_control_pick>=0){s_notice[0]=0;return APP_REDRAW_PAGE;}
         return APP_REDRAW_NONE;

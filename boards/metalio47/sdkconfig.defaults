@@ -17,7 +17,7 @@ CONFIG_SPIRAM_USE_MALLOC=y
 # The vendor firmware hit a stack-protection fault on the first screen plus first
 # full refresh and raised this to 16384. Boot here also chains white clear, splash,
 # font load and a bounded SD wait before the loop starts, so keep the vendor value.
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=24576
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 # 1ms tick：EPD 上电流程里按毫秒轮询 PGOOD，100Hz 的 tick 会把每次等待放大到 10ms

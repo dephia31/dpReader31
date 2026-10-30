@@ -1,6 +1,6 @@
 """Run actual frontlight PWM/settings functions for off-slider, migration and wake faults."""
 from pathlib import Path
-import re, subprocess, tempfile
+import re, subprocess, tempfile, os
 root=Path(__file__).resolve().parents[1]
 src=(root/'components/metalio_hw/metalio_hw.c').read_text()
 def function(name):
@@ -48,6 +48,7 @@ static int nvs_set_u16(nvs_handle_t h,const char *key,uint16_t v){assert(h==1);+
 static int nvs_commit(nvs_handle_t h){assert(h==1);++commits;if(fail_commit)return -1;store=pending;return ESP_OK;}
 static void nvs_close(nvs_handle_t h){assert(h==1);}
 static int ledc_set_duty(int mode,int channel,unsigned duty){assert(mode==0&&channel>=0&&channel<2&&duty<=511);duties[channel]=duty;return ESP_OK;}
+static int ledc_stop(int mode,int channel,int idle){assert(mode==0&&channel>=0&&channel<2&&idle==0);duties[channel]=0;return ESP_OK;}
 static int ledc_update_duty(int mode,int channel){assert(mode==0&&channel>=0&&channel<2);++updates;return ESP_OK;}
 void metalio_frontlight_preview(unsigned,unsigned);
 void metalio_frontlight_preview_position(unsigned,unsigned);
@@ -56,7 +57,7 @@ void metalio_frontlight_commit(void);
 for name in ('metalio_frontlight','metalio_brightness','metalio_warmth','metalio_frontlight_enabled',
              'metalio_frontlight_position','frontlight_apply_position','metalio_frontlight_restore','frontlight_load','metalio_frontlight_save',
              'metalio_frontlight_preview_position',
-             'metalio_frontlight_preview','metalio_frontlight_toggle','metalio_frontlight_commit'):
+             'metalio_frontlight_preview','metalio_frontlight_adjust_position','metalio_frontlight_toggle','metalio_frontlight_commit'):
     unit+=function(name)
 unit+=r'''
 static void reboot(void){saved_brightness=last_on_brightness=30;saved_warmth=50;light_enabled=true;light_dirty=false;duties[0]=duties[1]=999;frontlight_load();metalio_frontlight_restore();}
@@ -92,10 +93,18 @@ int main(void){
  metalio_frontlight_toggle();assert(light_enabled);metalio_frontlight_preview_position(1,120);assert(saved_brightness==0&&duties[0]==1&&duties[1]==1);metalio_frontlight_commit();reboot();assert(light_enabled&&brightness_position==1);
  metalio_frontlight_toggle();dark();metalio_frontlight_toggle();assert(brightness_position==1);
  metalio_frontlight_preview_position(0,0);metalio_frontlight_toggle();metalio_frontlight_toggle();assert(brightness_position==1);
+ if(light_enabled)metalio_frontlight_toggle();dark();
+ metalio_frontlight_adjust_position(true,200);assert(!light_enabled);dark();
+ metalio_frontlight_adjust_position(false,0);assert(!light_enabled);dark();
+ metalio_frontlight_adjust_position(false,50);assert(light_enabled&&brightness_position==50&&warmth_position==200&&duties[0]+duties[1]>0);
+ metalio_frontlight_commit();reboot();assert(light_enabled&&brightness_position==50);
+ metalio_frontlight_toggle();assert(!light_enabled);metalio_frontlight_adjust_position(false,50);assert(light_enabled);
+ metalio_frontlight_adjust_position(true,999);assert(light_enabled&&warmth_position==240);
+ puts("PASS user adjustments: brightness re-enables off light even at same value, zero stays off, warmth preserves switch, persistence and clamps");
  puts("PASS: actual PWM off for all slider values, independent switch, legacy settings migration, persistence/reboot/wake, half-scale limit and NVS fault retry");
 }
 '''
 with tempfile.TemporaryDirectory() as d:
     p=Path(d);(p/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g',*(['-fsanitize=address,undefined'] if os.environ.get('HOST_TEST_SANITIZERS','1')!='0' else ['-fsanitize=undefined']),str(p/'test.c'),'-o',str(p/'test')],check=True)
     subprocess.run([str(p/'test')],check=True)

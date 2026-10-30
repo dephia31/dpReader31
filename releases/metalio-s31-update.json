@@ -1,13 +1,13 @@
 {
   "schema": 1,
-  "version": "1.1.9-vn",
+  "version": "1.2.0-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "a09d323ef34b9ffa93b6483b4093a973d8ff56dc67228a264bacdac76e2ae781",
-  "size": 4194768,
-  "notes": "dpReader 1.1.9: Cải thiện TTF/độ đậm, Home và Cài đặt, phím nhấn giữ, web truyền file theo tab; phục hồi SD sau ngủ/reset.",
-  "previous_version": "1.1.8-vn"
+  "sha256": "33659e946058c84bac31259a3c9c311bd8a94a158d998546fd969b2d29620ed2",
+  "size": 4203920,
+  "notes": "dpReader 1.2.0: TTF có hinting, sửa tràn stack và phím giữ, vuốt cạnh chỉnh đèn, tự đồng bộ giờ; giữ VCOM 2000 mV.",
+  "previous_version": "1.1.9-vn"
 }

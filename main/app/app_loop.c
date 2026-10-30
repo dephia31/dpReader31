@@ -1267,9 +1267,8 @@ void app_loop_run(const app_loop_config_t* config) {
                     const bool warm=action==UI_QUICK_WARMTH;
                     unsigned value=warm?(unsigned)s_quick.slider_position:ui_quick_brightness_value(s_quick.slider_position);
                     unsigned old=metalio_frontlight_position(warm);
-                    if(old!=value)
-                        metalio_frontlight_preview_position(warm?metalio_frontlight_position(false):value,
-                                                  warm?value:metalio_frontlight_position(true));
+                    if(old!=value || (!warm&&!metalio_frontlight_enabled()))
+                        metalio_frontlight_adjust_position(warm,value);
                     s_quick_slider_dirty|=warm?2u:1u;
                 } else if(action==UI_QUICK_LIGHT_COMMIT) {
                     metalio_frontlight_commit();

@@ -159,7 +159,8 @@ static void key_feed(void *arg) {
         portENTER_CRITICAL(&key_lock);
         settle=held||candidate||action!=READ_PICO_PMU_KEY_NONE;
         portEXIT_CRITICAL(&key_lock);
-        if (gpio_get_level(METALIO_AI_KEY_GPIO)==0 || metalio_volume_sampling_pending()) settle=true;
+        // A high AI pin still needs25ms release confirmation before its next hold can rearm.
+        if (gpio_get_level(METALIO_AI_KEY_GPIO)==0 || metalio_ai_sampling_pending() || metalio_volume_sampling_pending()) settle=true;
         const TickType_t wait=(!s_key_irq||settle)?pdMS_TO_TICKS(10):portMAX_DELAY;
         ulTaskNotifyTake(pdTRUE,wait);
     }

@@ -511,6 +511,12 @@ void metalio_frontlight_preview_position(unsigned brightness,unsigned warmth) {
     // 滑块只改参数；关闭时两个PWM通道保持零。/ Sliders never enable an off light.
     metalio_frontlight_restore();
 }
+void metalio_frontlight_adjust_position(bool warmth,unsigned position) {
+    if(position>METALIO_FRONTLIGHT_RANGE)position=METALIO_FRONTLIGHT_RANGE;
+    if(!warmth && position)light_enabled=true;
+    metalio_frontlight_preview_position(warmth?brightness_position:position,
+                                       warmth?position:warmth_position);
+}
 void metalio_frontlight_toggle(void) {
     light_enabled=!light_enabled;
     if(light_enabled && !brightness_position) {

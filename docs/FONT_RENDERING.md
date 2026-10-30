@@ -50,3 +50,45 @@ RC7 có lỗi: bộ raster mono dùng mảng pool16KiB cục bộ trên stack, n
 ### Monochrome stroke adjustment (RC9)
 
 Hinted TrueType glyphs apply the signed stroke setting to the loaded outline before mono rasterization, with centered FreeType outline emboldening/erosion. Applying the coverage filter to an already binary bitmap discarded small adjustments at the final threshold. One setting unit is a 1/16-pixel contour offset; the monochrome pixel grid can still make adjacent units look identical on some glyphs. Advances remain unchanged. Gray and unsupported-font fallback paths retain the coverage filter. The actual cache host test checks lighter/default/heavier ink counts at fine and coarse levels, binary pixels and stable advances.
+
+### Hinted gray trial (1.2.0RC1)
+
+On S31 supported TrueType faces, AA on now uses FT_LOAD_TARGET_NORMAL and the upstream smooth raster. Signed stroke offsets precede rasterization, as in mono. Gray cache entries carry raw 8-bit coverage and a hinted-gray flag; drawing maps coverage to four tones (0/85/170/255) with thresholds32/104/176, bypassing the legacy gamma lift for this path. The mask and horizontal/rotated/spaced/fitted drawing paths use the same mapping. Existing native layout metadata/advances and AA/mono cache separation remain. Unsupported or unavailable faces use the existing coverage path.
+
+This is a local optical trial, not a measured ghosting fix. Native GL48/GC48/DU20 waveforms, refresh cadence and power sequencing remain unchanged. Per the subsequent user request, 1.2.0RC1 applies1200mV at boot while preserving saved NVS calibration for rollback. Faint coverage is removed and the black core strengthened; screen-history residue still requires a correct refresh path and actual-device comparison. Roll back using the official1.1.9 USB application package.
+
+### S31 VCOM reference limits
+
+The vendor [Plus config](https://github.com/CloudZao/Metalio-E-INK4-Plus/blob/2f55cb1234baae4968982feb23e7a9001dac16f0/main/boards/metalio-e-ink4-plus/config.h#L22) sets EPD_VCOM_MV to1200; [metalio_epd.c](https://github.com/CloudZao/Metalio-E-INK4-Plus/blob/2f55cb1234baae4968982feb23e7a9001dac16f0/main/boards/metalio-e-ink4-plus/display/metalio_epd.c#L38) applies it, and the board API takes positive magnitude for a negative voltage. The inspected barkure2970d347,Marspacecraftb400605e andAndluo123d9fe9ab8 forks retain1200 too. These inherited defaults are not independent optical calibration results. Current dpReader S31 default is1700mV; a captured RC9 device log also reported1700mV register readback. Do not infer that increasing magnitude reduces ghosting, or overwrite a device calibration from a repository default. The3.97-inch Metalio E-Ink4 uses a different S3/SPI controller and its parameters are not applicable. The subsequent user-authorized1.2.0RC1 trial applies1200mV at runtime; it does not rewrite saved NVS calibration or TPS OTP.
+
+### Selective ink cleanup trial (1.2.0RC2)
+
+The user rejected shortening the global-cleanup interval. For S31 AA text turns, the reader now derives a3KiB table: all255 source/target pairs involving ink reuse the exact native GC48 sequence; unchanged white (15→15) retains the existing text GL48 white-maintenance sequence. Native tables are unmodified. No framebuffer history is falsified, no phases are trimmed, and no second display pass is added. The normal white background receives no black pulse from this derived table; old/new glyph footprints can visibly pulse during reconstruction. The existing batch crop/masks keep updates inside the reader region. AA off retains the original path. Unsupported source tables fall back to the original reader waveform.
+
+This is an optical test of local reconstruction, not a guarantee against uniform background darkening or a speed improvement.48phases remain; measured RC1 turns were approximately848ms with AA versus421ms without AA. Keep the user-selected full-refresh interval and1200mV trial unchanged. Begin an optical comparison from a clean screen once, then compare several turns under identical light; assess both background and glyph flicker. The host regression verifies every transition and absence of a black pulse for unchanged white; only device testing can establish visible benefit.
+
+### Tone-mode handoff (1.2.0RC3)
+
+Changing the persistent AA setting invalidates prepared pages and, after a successful save, requests one S31 full redraw/optical cleanup and resets the page-cleanup counter. Failed saves keep the active mode and counter unchanged. This reset occurs only when the user changes tone mode; it does not shorten the saved periodic-refresh interval. A binary target bitmap does not prove optical black saturation when switching from a gray optical state. If black still appears gray immediately after this cleanup, the remaining cause needs separate waveform/panel calibration; do not claim a mode-handoff fix addresses all ghosting or voltage effects.
+
+### VCOM comparison (1.2.0RC4)
+
+Per the user request, RC4 initializes and applies a1400mV runtime magnitude (approximately−1.40V) instead of RC3's1200mV. Existing saved calibration and the vendor-reference fallback remain unchanged; only the trial override and pre-resolution board initial value change. Rendering, selective ink cleanup, mode-switch reset and periodic-cleanup settings remain the same as RC3. No TPS OTP write is added. Optical darkening/saturation still require device comparison; this voltage is a trial, not a validated calibration.
+
+### VCOM comparison (1.2.0RC5)
+
+Per the user request after RC4 feedback, RC5 initializes and applies an1800mV runtime magnitude (approximately−1.80V) instead of1400mV. Saved calibration, vendor-reference fallback1200mV, rendering, waveforms and refresh cadence remain unchanged. This remains a local optical trial, not a validated calibration; no TPS OTP is programmed.
+
+### VCOM comparison (1.2.0RC6)
+
+After the user reports darkening at1800mV and requests2000mV, RC6 initializes and applies a2000mV runtime magnitude (approximately−2.00V). Saved calibration and vendor fallback1200mV are preserved. All rendering, waveform and refresh-cadence behavior stays as RC5. This is a local comparison, not a validated calibration; no TPS OTP is programmed.
+
+### Auto-hinter stack repair (1.2.0RC7)
+
+A real RC6 panic identified `af_latin_metrics_init_widths` during glyph loading, with the stack pointer below the main task's hardware stack bounds. The nested autofit loader and metrics functions used approximately14.7KiB before callers, exceeding the16KiB task stack. Raster-pool limiting alone did not cover these separate inline hint buffers.
+
+The build now generates a reduced-inline-capacity header outside the original vendor tree. Existing FreeType dynamic growth handles larger outlines using the bounded PSRAM allocator. Original algorithms, source font streams and the512KiB engine budget remain. Native target stack frames reduce to about1.4KiB(loader) and2.3KiB(Latin metrics). Host regressions force auto-hinting for built-in and supplied fonts and compare original/fixed mono+gray pixels; native cache tests retain coverage of AA mode separation and cleanup. Bluetooth and reader exit still require device acceptance; the captured panic itself was in glyph loading, not a BLE callback.
+
+### S31 task headroom (1.2.0RC10)
+
+The S31 main task now reserves24KiB and book prefetch16KiB (previously16/12KiB); Pico prefetch remains12KiB. This adds12KiB of task-stack allocation while prefetch is alive, independently of the512KiB FreeType PSRAM budget. Cached S31 build configurations migrate to the same24KiB main stack. Existing chapter-load logs report main-task minimum remaining stack; prefetch teardown logs its minimum remaining stack. These runtime figures require device acceptance with Bluetooth and representative books; the reduced-inline-buffer autofit fix remains necessary.

@@ -335,3 +335,8 @@ const char *app_settings_opds_user(void);
 bool app_settings_set_opds_user(const char *user);
 const char *app_settings_opds_pass(void);
 bool app_settings_set_opds_pass(const char *pass);
+
+bool app_settings_reader_edge_brightness(void);
+bool app_settings_set_reader_edge_brightness(bool on);
+bool app_settings_reader_edge_warmth(void);
+bool app_settings_set_reader_edge_warmth(bool on);

@@ -3,6 +3,7 @@
 """真实普通翻页引擎/renderer入口/逐相LUT，硬件扫描替身验证提交、相序、像素和失败基准。
 Run the real text engine/renderer entry/phase LUT; a scan sink checks batching, phases, pixels and failure history.
 """
+import os
 from pathlib import Path
 import re,subprocess,tempfile
 from home_cover_cache_host_test import function as extract
@@ -51,6 +52,7 @@ static RenderContext_t render_context={.conversion_lut_size=1024,.conversion_lut
 static const uint8_t*const*s_phase_luts;static const int8_t*s_line_phase;
 static const int*s_col_band_x0,*s_col_band_x1;static const int8_t*s_col_band_phase;static int s_col_band_n;
 static bool s_scan_active,s_leading_skip_enabled;static int s_last_leading_skip;static const uint8_t*s_present_for;
+bool app_settings_book_antialias(void){return false;}
 static enum EpdRotation rotation;static int calls,scans,fail_at,mask_calls,first_seen,auto_skip;
 static unsigned phase_hits[64];static int64_t now;
 static bool expect_staged;static const uint8_t*staged_test_luts[1];static int8_t staged_test_lines[H];
@@ -268,7 +270,7 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='s31-text-batch-') as folder:
  temp=Path(folder);c=temp/'test.c';c.write_text(unit);binary=temp/'test'
  (temp/'esp_log.h').write_text('#pragma once\n#include <stdio.h>\n#undef ESP_LOGI\n#define ESP_LOGI(tag,fmt,...) do{char msg[256];(void)(tag);(void)snprintf(msg,sizeof(msg),fmt,__VA_ARGS__);}while(0)\n')
- subprocess.run(['cc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-Wno-unknown-attributes','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47=1','-DKIIKO_S31_TEXT_RIPPLE=1','-DKIIKO_S31_FAST_READER_PANELS=1','-I'+str(temp),
+ subprocess.run(['cc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-Wno-unknown-attributes',*(['-fsanitize=address,undefined'] if os.environ.get('HOST_TEST_SANITIZERS','1')!='0' else ['-fsanitize=undefined']),'-DKIIKO_BOARD_METALIO47=1','-DKIIKO_S31_TEXT_RIPPLE=1','-DKIIKO_S31_FAST_READER_PANELS=1','-I'+str(temp),
  '-I'+str(root/'boards/metalio47/src/main'),'-I'+str(root/'main'),'-I'+str(root/'components/epdiy/src'),'-I'+str(root/'components/epdiy/include'),'-I'+str(root/'components/e0470_epaper_waveform/include'),'-I'+str(root/'components/e0470_epaper_waveform/metalio'),'-I'+str(root/'components/e0470_page_turn/include'),'-I'+str(root/'tools/water_turn_stubs'),'-I'+str(root/'tools/metalio_stubs'),
  str(c),str(root/'boards/metalio47/src/main/metalio_text_ripple.c'),str(root/'boards/metalio47/src/main/display_reader_waveform.c'),str(root/'boards/metalio47/src/components/e0470_page_turn/e0470_page_turn.c'),str(root/'boards/metalio47/src/components/e0470_epaper_waveform/e0470_epaper_waveform.c'),str(root/'components/e0470_epaper_waveform/e0470_waveform_trim.c'),'-o',str(binary)],check=True)
  subprocess.run([str(binary)],check=True,timeout=90)

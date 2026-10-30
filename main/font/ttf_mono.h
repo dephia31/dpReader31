@@ -13,5 +13,7 @@ void ttf_mono_close(ttf_mono_face_t *face);
 bool ttf_mono_render(ttf_mono_face_t *face,uint32_t cp,float scale,int weight,ttf_mono_bitmap_t *bitmap);
 /// Signed contour offset in 1/16-pixel steps, before monochrome rasterization.
 bool ttf_mono_render_stroke(ttf_mono_face_t *face,uint32_t cp,float scale,int weight,int steps,ttf_mono_bitmap_t *bitmap);
+/// Gray pixels are 8-bit coverage, borrowed until the next render/close.
+bool ttf_gray_render_stroke(ttf_mono_face_t *face,uint32_t cp,float scale,int weight,int steps,ttf_mono_bitmap_t *bitmap);
 size_t ttf_mono_bytes(void);
 size_t ttf_mono_peak_bytes(void);

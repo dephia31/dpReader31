@@ -15,6 +15,7 @@ unit=r'''
 #include <math.h>
 #include "ttf_mono.h"
 #include "ttf_stroke_filter.h"
+#include "ttf_aa_tone.h"
 #include "vn_diacritics.h"
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -23,6 +24,7 @@ unit=r'''
 #define TTF_CACHE_BUCKETS 256
 #define MALLOC_CAP_SPIRAM 1
 #define MALLOC_CAP_8BIT 2
+static uint8_t s_cover[256];
 static bool s_antialias,admit=true,force_fallback,fail_alloc;
 static int current_weight=400,s_stroke_adjust;
 static stbtt_fontinfo font_info;
@@ -38,7 +40,7 @@ static glyph_entry_t *cache_buckets[256];
 static size_t cache_bytes,s_cache_total,reads;
 static uint8_t *data;static size_t length;static ttf_mono_face_t *face;
 static bool read_font(void*ctx,uint32_t off,void*dst,size_t n){(void)ctx;++reads;if((size_t)off>length||n>length-off)return false;memcpy(dst,data+off,n);return true;}
-static bool mono_bitmap(uint32_t cp,float scale,ttf_mono_bitmap_t*b){return !force_fallback&&ttf_mono_render_stroke(face,cp,scale,-1,s_stroke_adjust,b);}
+static bool mono_bitmap(uint32_t cp,float scale,ttf_mono_bitmap_t*b){return !force_fallback&&(s_antialias?ttf_gray_render_stroke(face,cp,scale,-1,s_stroke_adjust,b):ttf_mono_render_stroke(face,cp,scale,-1,s_stroke_adjust,b));}
 static bool cache_reserve(size_t bytes){(void)bytes;return admit;}
 static void lru_touch(glyph_entry_t *entry){(void)entry;}
 static bool pack_glyph_tree(int glyph){(void)glyph;return true;}
@@ -46,7 +48,7 @@ static void *heap_caps_malloc(size_t n,int caps){(void)caps;return fail_alloc?NU
 static void *heap_caps_calloc(size_t n,size_t size,int caps){(void)caps;return fail_alloc?NULL:calloc(n,size);}
 static void heap_caps_free(void*p){free(p);}
 '''
-for name in ('glyph_alpha','cache_bucket','cache_lookup','rasterize_glyph','clamp_px','decode_utf8','get_glyph','ttf_measure_line_px'):
+for name in ('glyph_alpha','cache_bucket','cache_lookup','rasterize_glyph','clamp_px','decode_utf8','get_glyph','ttf_measure_line_px','mix_ink','mix_glyph_ink'):
  unit+=function(name,source)+'\n'
 unit+=r'''
 static void clean(void){for(int i=0;i<256;++i){glyph_entry_t *g=cache_buckets[i];while(g){glyph_entry_t*n=g->hash_next;free(g->bitmap);free(g);g=n;}cache_buckets[i]=NULL;}cache_bytes=s_cache_total=0;}
@@ -57,6 +59,8 @@ int main(int argc,char**argv){assert(argc==2);FILE*f=fopen(argv[1],"rb");assert(
  glyph_entry_t *mono=rasterize_glyph('m',73);check_binary(mono);
  size_t before=reads,used=s_cache_total;assert(cache_lookup('m',73)==mono);assert(reads==before&&s_cache_total==used);
  s_antialias=true;assert(!cache_lookup('m',73));glyph_entry_t*gray=rasterize_glyph('m',73);assert(gray&&!gray->mono_mode&&!gray->packed_mono&&gray->advance_x==mono->advance_x);
+ assert(gray->hinted_gray);
+ for(int y=0;y<gray->height;++y)for(int x=0;x<gray->width;++x){uint8_t a=glyph_alpha(gray,x,y),v=mix_glyph_ink(gray,a,0,15);assert(v==0||v==5||v==10||v==15);assert(v+mix_glyph_ink(gray,a,15,0)==15);}
  bool intermediate=false;for(int y=0;y<gray->height;++y)for(int x=0;x<gray->width;++x){uint8_t a=glyph_alpha(gray,x,y);intermediate|=a>0&&a<255;}assert(intermediate);
  assert(mono->layout_top==gray->layout_top&&mono->layout_height==gray->layout_height&&mono->layout_left==gray->layout_left);
  s_antialias=false;assert(cache_lookup('m',73)==mono);

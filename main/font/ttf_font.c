@@ -8,7 +8,7 @@
  * Variable TTF: sector I/O from the card; glyf/gvar map into PSRAM when
  * they fit. Glyphs are cached by codepoint, size and weight. The built-in
  * font is a Noto Sans SC Medium subset.
- * Revision2026-10-30: AA-off TrueType uses bounded monochrome hinting with packed glyphs; keep advances/layout and the native gray/unsupported fallback.
+ * Revision2026-10-30: TrueType uses bounded hinting: packed mono with AA off, four-tone gray with AA on; keep advances/layout and native unsupported fallback.
  * User revision: five reader stroke levels apply to static/variable/embedded faces,
  * preserving advances and proportions; normal is unchanged, with one bounded glyph scratch buffer.
  * 用户修订：标题复用当前字体的轮廓与缓存；覆盖检查只读现有 cmap，不切字体或另加载字库。
@@ -21,6 +21,7 @@
 #define KIIKO_BOARD_METALIO47 TEST_METALIO
 #endif
 #include "ttf_stroke_filter.h"
+#include "ttf_aa_tone.h"
 #include "vn_diacritics.h"
 
 #include <dirent.h>
@@ -156,7 +157,7 @@ typedef struct glyph_entry {
     size_t bitmap_bytes;
 #if KIIKO_BOARD_METALIO47
     uint64_t cache_tick;
-    bool mono_mode,packed_mono;
+    bool mono_mode,packed_mono,hinted_gray;
     int16_t layout_left,layout_top,layout_height;
 #else
 #endif
@@ -2142,7 +2143,9 @@ static bool mono_bitmap(uint32_t cp,float scale,ttf_mono_bitmap_t *bitmap) {
         if(!s_cur->f_mono)ESP_LOGW(TAG,"mono hinting unavailable; keep native binary fallback");
         else ESP_LOGI(TAG,"TrueType mono hinting ready; engine PSRAM=%u",(unsigned)ttf_mono_bytes());
     }
-    return ttf_mono_render_stroke(s_cur->f_mono,cp,scale,gvar_ready?current_weight:-1,s_stroke_adjust,bitmap);
+    return s_antialias
+        ? ttf_gray_render_stroke(s_cur->f_mono,cp,scale,gvar_ready?current_weight:-1,s_stroke_adjust,bitmap)
+        : ttf_mono_render_stroke(s_cur->f_mono,cp,scale,gvar_ready?current_weight:-1,s_stroke_adjust,bitmap);
 }
 #endif
 
@@ -2176,7 +2179,7 @@ static glyph_entry_t* rasterize_glyph(uint32_t codepoint, int pixel_height) {
         layout_left-=pad;layout_top+=pad;layout_height+=2*pad;
     }
     ttf_mono_bitmap_t mono={0};
-    bool hinted=!s_antialias && mono_bitmap(codepoint,scale,&mono);
+    bool hinted=mono_bitmap(codepoint,scale,&mono);
     if(hinted){x0=mono.left;y0=-mono.top;x1=x0+mono.width;y1=y0+mono.height;}
 #endif
 
@@ -2188,7 +2191,7 @@ static glyph_entry_t* rasterize_glyph(uint32_t codepoint, int pixel_height) {
     if (width > 1024 || height > 1024 || (size_t)width * height > TTF_CACHE_LIMIT / 2) return NULL;
     size_t bitmap_bytes = (size_t)width * (size_t)height;
 #if KIIKO_BOARD_METALIO47
-    bool direct_packed=hinted;
+    bool direct_packed=hinted&&!s_antialias;
     if(direct_packed)bitmap_bytes=(((unsigned)width+7u)/8u)*(size_t)height;
     if(!cache_reserve(bitmap_bytes + sizeof(glyph_entry_t)))return NULL;
 #else
@@ -2214,8 +2217,8 @@ static glyph_entry_t* rasterize_glyph(uint32_t codepoint, int pixel_height) {
             for(int y=0;y<height;++y)memcpy(entry->bitmap+(size_t)y*stride,mono.pixels+(size_t)y*mono.pitch,stride);
             entry->packed_mono=true;
         } else if(hinted) {
-            for(int y=0;y<height;++y)for(int x=0;x<width;++x)
-                entry->bitmap[(size_t)y*width+x]=(mono.pixels[(size_t)y*mono.pitch+(unsigned)x/8]&(0x80u>>(x&7)))?255:0;
+            for(int y=0;y<height;++y)
+                memcpy(entry->bitmap+(size_t)y*width,mono.pixels+(size_t)y*mono.pitch,width);
         } else
 #endif
         stbtt_MakeGlyphBitmap(
@@ -2250,7 +2253,7 @@ static glyph_entry_t* rasterize_glyph(uint32_t codepoint, int pixel_height) {
 #endif
     }
 #if KIIKO_BOARD_METALIO47
-    entry->mono_mode=!s_antialias;
+    entry->mono_mode=!s_antialias;entry->hinted_gray=hinted&&s_antialias;
     entry->layout_left=layout_left;entry->layout_top=layout_top;entry->layout_height=layout_height;
     if(entry->mono_mode && bitmap_bytes && !entry->packed_mono) {
         size_t stride=((unsigned)width+7u)/8u,bytes=stride*(size_t)height;
@@ -3108,6 +3111,18 @@ static uint8_t mix_ink(uint8_t alpha, uint8_t fg, uint8_t bg) {
     return (uint8_t)((bg * (255u - coverage) + fg * coverage + 127u) / 255u);
 }
 
+static uint8_t mix_glyph_ink(const glyph_entry_t *glyph,uint8_t alpha,uint8_t fg,uint8_t bg) {
+#if KIIKO_BOARD_METALIO47
+    if(glyph->hinted_gray) {
+        unsigned coverage=ttf_aa_coverage(alpha);
+        return (uint8_t)((bg*(255u-coverage)+fg*coverage+127u)/255u);
+    }
+#else
+    (void)glyph;
+#endif
+    return mix_ink(alpha,fg,bg);
+}
+
 void ttf_draw_text(
     uint8_t* framebuffer, int x, int y, int size, const char* text,
     enum EpdFontFlags align, uint8_t fg, uint8_t bg
@@ -3145,7 +3160,7 @@ void ttf_draw_text_px(
                     uint8_t alpha = glyph_alpha(glyph,gx,gy);
                     if (alpha == 0) continue;
                     epd_draw_pixel(
-                        cursor_x + glyph->left + gx, yy, mix_ink(alpha, fg, bg) << 4, framebuffer
+                        cursor_x + glyph->left + gx, yy, mix_glyph_ink(glyph,alpha, fg, bg) << 4, framebuffer
                     );
                 }
             }
@@ -3171,7 +3186,12 @@ bool ttf_text_mask_px(uint8_t *mask, unsigned width, unsigned height, int x,
             for (int gx = 0; gx < glyph->width; ++gx) {
                 int xx = x + glyph->left + gx;
                 if (xx < 0 || (unsigned)xx >= width) continue;
-                uint8_t alpha = s_cover[glyph_alpha(glyph,gx,gy)];
+                uint8_t raw = glyph_alpha(glyph,gx,gy);
+#if KIIKO_BOARD_METALIO47
+                uint8_t alpha = glyph->hinted_gray ? ttf_aa_coverage(raw) : s_cover[raw];
+#else
+                uint8_t alpha = s_cover[raw];
+#endif
                 uint8_t *pixel = &mask[(size_t)yy * width + (unsigned)xx];
                 if (alpha > *pixel) *pixel = alpha;
             }
@@ -3207,7 +3227,7 @@ void ttf_draw_text_px_spaced(
                     uint8_t alpha = glyph_alpha(glyph,gx,gy);
                     if (alpha == 0) continue;
                     epd_draw_pixel(cursor_x + glyph->left + gx, yy,
-                                   mix_ink(alpha, fg, bg) << 4, framebuffer);
+                                   mix_glyph_ink(glyph,alpha, fg, bg) << 4, framebuffer);
                 }
             }
         }
@@ -3345,7 +3365,7 @@ static void blit_upright(uint8_t* framebuffer, int pen_x, int baseline,
         for (int gx = 0; gx < glyph->width; gx++) {
             uint8_t alpha = glyph_alpha(glyph,gx,gy);
             if (alpha == 0) continue;
-            epd_draw_pixel(pen_x + glyph->left + gx, yy, mix_ink(alpha, fg, bg) << 4, framebuffer);
+            epd_draw_pixel(pen_x + glyph->left + gx, yy, mix_glyph_ink(glyph,alpha, fg, bg) << 4, framebuffer);
         }
     }
 }
@@ -3367,7 +3387,7 @@ static void blit_rotated(uint8_t* framebuffer, int x, int y, int cell, int pixel
             if (alpha == 0) continue;
             int u = glyph->left + gx;
             if (u < 0 || u >= pixel_height) continue;
-            epd_draw_pixel(x + rx, y + cell + u, mix_ink(alpha, fg, bg) << 4, framebuffer);
+            epd_draw_pixel(x + rx, y + cell + u, mix_glyph_ink(glyph,alpha, fg, bg) << 4, framebuffer);
         }
     }
 }
@@ -3539,7 +3559,7 @@ void ttf_draw_text_px_fitted(
                 for (int gx = 0; gx < glyph->width; ++gx) {
                     uint8_t alpha = glyph_alpha(glyph,gx,gy);
                     if (alpha) epd_draw_pixel(cursor_x + glyph->left + gx, yy,
-                                              mix_ink(alpha, fg, bg) << 4, framebuffer);
+                                              mix_glyph_ink(glyph,alpha, fg, bg) << 4, framebuffer);
                 }
             }
         }

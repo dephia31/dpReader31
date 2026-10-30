@@ -32,6 +32,7 @@ static bool held,candidate,s_key_irq=true;
 static int action,last_wait;
 static jmp_buf end;
 static void keys(void){}
+static bool metalio_ai_sampling_pending(void){return false;}
 static int gpio_get_level(int pin){assert(pin==61);return 1;}
 static void ulTaskNotifyTake(int clear,int wait){assert(clear==1);last_wait=wait;longjmp(end,1);}
 '''+function('key_feed',root/'components/read_pico_pmu/metalio_power_adapter.c')+r'''

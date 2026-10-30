@@ -10,9 +10,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
-// VCOM mặc định 1700mV an toàn tối ưu cho màn hình ED047TC1 trên Metalio V1.5 (S31).
+// User trial: initialize at the requested 2000mV magnitude before boot resolution.
 // Chỉ ghi thanh ghi TPS65185 runtime, không ghi OTP vĩnh viễn.
-static int vcom=1700;
+static int vcom=2000;
 static read_pico_i2c_census_t census;
 void read_pico_epd_restore_lcd(void) {
     const int pins[]={18,19,35,37};

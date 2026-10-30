@@ -83,9 +83,16 @@ extern const uint8_t lock_4bpp_bin_end[] asm("_binary_lock_4bpp_bin_end");
 // 1200 mV, so there is no "unset" state to gate on the way Pico had to. V1.5 has
 // no Pico PMU, so the calibrated value lives in local NVS only.
 static void resolve_vcom_at_boot(void) {
-    const int mv = vcom_setup_load_mv();
+    const int saved_mv = vcom_setup_load_mv();
+#ifdef KIIKO_BOARD_VCOM_TRIAL_MV
+    // User-requested reversible trial: apply the reference without changing NVS.
+    const int mv = KIIKO_BOARD_VCOM_TRIAL_MV;
+    ESP_LOGI(TAG,"VCOM trial=%dmV; saved/default=%dmV retained for rollback",mv,saved_mv);
+#else
+    const int mv = saved_mv;
+#endif
     epd_set_vcom((uint16_t)mv);
-    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=%dmV (NVS, default %dmV)", mv, KIIKO_BOARD_VCOM_DEFAULT_MV);
+    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=%dmV (default %dmV)", mv, KIIKO_BOARD_VCOM_DEFAULT_MV);
 }
 
 // 开机按住音量键进 VCOM 校准页；V1.5 音量键在 FCA9555 P1.0/P1.1，低有效。

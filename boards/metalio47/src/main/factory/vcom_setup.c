@@ -35,9 +35,9 @@
 
 #define VCOM_MIN_MV 900
 #define VCOM_MAX_MV 2200
-// Điện áp VCOM chuẩn tối ưu an toàn cho màng vi nang ED047TC1 trên Metalio 4.7" là 1700 mV (-1.7V).
+// Vendor reference default; existing saved calibration remains in NVS.
 // Giá trị này mang lại độ đen đậm, triệt tiêu ghosting và đảm bảo tuổi thọ màn hình lâu dài.
-#define VCOM_DEFAULT_MV 1700
+#define VCOM_DEFAULT_MV 1200
 #define VCOM_NVS_NAMESPACE "metalio_hw"
 #define VCOM_NVS_KEY "vcom_mv"
 #define VCOM_PAD_ROWS 4

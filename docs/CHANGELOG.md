@@ -1,5 +1,56 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.0-vn · 2026-10-30
+
+- Chữ TTF có hinting cho cả đen trắng và khử răng cưa; khử răng cưa dùng bốn mức xám, giữ lõi chữ đen và chỉnh độ đậm trên đường nét.
+- Làm sạch chọn lọc tại chữ khi bật khử răng cưa, giữ nền trắng không đổi; giữ chu kỳ toàn làm mới người dùng đã chọn. VCOM chạy ở 2000 mV theo cấu hình đã thử, không ghi đè hiệu chuẩn đã lưu hoặc OTP.
+- Sửa tràn stack trong bộ tự căn nét FreeType; tăng stack chính S31 lên 24 KiB và vẽ trước trang lên 16 KiB, giữ giới hạn bộ nhớ PSRAM.
+- Sửa thanh độ sáng không bật lại đèn đang tắt và phím AI không nhận các lần nhấn giữ tiếp theo.
+- Thêm vuốt cạnh trái/phải trang đọc để chỉnh độ sáng/đèn vàng, có hai công tắc riêng trong Điều khiển và cử chỉ.
+- Tự đồng bộ giờ khi rảnh qua Wi-Fi đã lưu, lưu RTC và hiển thị giờ Việt Nam UTC+7.
+
+## dpReader 1.2.0RC10-vn · 2026-10-30
+
+- Tăng stack tác vụ chính S31 từ 16 lên 24 KiB và tác vụ vẽ trước trang từ 12 lên 16 KiB; giữ bản sửa FreeType, thêm log dung lượng stack còn lại khi đóng tác vụ vẽ trước.
+
+## dpReader 1.2.0RC9-vn · 2026-10-30
+
+- Sửa phím AI chỉ nhấn giữ được lần đầu: tiếp tục lấy mẫu sau khi thả để hoàn tất chống dội, cho phép các lần giữ tiếp theo bật/tắt đèn đúng; không chạy thêm nhấn ngắn sau nhấn giữ.
+
+## dpReader 1.2.0RC8-vn · 2026-10-30
+
+- Tăng độ sáng bằng thanh chỉnh sẽ bật lại đèn đang tắt; chỉnh độ vàng riêng giữ trạng thái công tắc đèn.
+- Thêm vuốt dọc cạnh trái để chỉnh độ sáng, cạnh phải để chỉnh đèn vàng khi đọc; hai công tắc riêng trong Phím cứng & Cử chỉ, lưu thiết lập độc lập.
+- Tự lấy giờ qua Wi-Fi đã lưu khi rảnh và lưu vào RTC, hiển thị UTC+7; không cần mở màn Đồng bộ.
+
+## dpReader 1.2.0RC7-vn · 2026-10-30
+
+- Sửa tràn stack trong nhánh tự căn nét FreeType: giảm bộ đệm nhúng và dùng cơ chế cấp phát PSRAM có giới hạn sẵn có khi cần, giữ thuật toán hinting; tránh reboot khi tải/đổi font. Giữ VCOM 2000 mV và phần làm mới của RC6.
+
+## dpReader 1.2.0RC6-vn · 2026-10-30
+
+- Theo yêu cầu người dùng, thử VCOM 2000 mV thay 1800 mV; giữ hiệu chuẩn đã lưu và các đường vẽ/làm mới của RC5 để đối chiếu riêng điện áp.
+
+## dpReader 1.2.0RC5-vn · 2026-10-30
+
+- Theo yêu cầu người dùng, thử VCOM 1800 mV thay 1400 mV; giữ hiệu chuẩn đã lưu và các đường vẽ/làm mới của RC4 để đối chiếu riêng điện áp.
+
+## dpReader 1.2.0RC4-vn · 2026-10-30
+
+- Theo yêu cầu người dùng, thử VCOM 1400 mV thay 1200 mV; giữ hiệu chuẩn đã lưu, phần vẽ chữ, waveform và chu kỳ làm mới của RC3 để đối chiếu riêng điện áp.
+
+## dpReader 1.2.0RC3-vn · 2026-10-30
+
+- Làm sạch màn một lần khi đổi bật/tắt khử răng cưa, tránh mang trạng thái xám cũ sang đường đen trắng nhanh; giữ chu kỳ toàn làm mới người dùng đã chọn và VCOM 1200 mV. Cần kiểm tra độ đen sau chuyển chế độ trên thiết bị.
+
+## dpReader 1.2.0RC2-vn · 2026-10-30
+
+- Thử làm sạch chọn lọc điểm ảnh chữ khi bật khử răng cưa: dùng nguyên chuỗi GC48 tại chữ cũ/mới, giữ GL cho nền trắng không đổi; không thêm lượt toàn làm mới, không rút ngắn chu kỳ đã chọn. Giữ VCOM 1200 mV. Cần đánh giá bóng và nhấp chữ trên thiết bị; chưa rút ngắn 48 pha.
+
+## dpReader 1.2.0RC1-vn · 2026-10-30
+
+- Thử khử răng cưa TrueType bằng FreeType có hinting, viền bốn mức xám và lõi đen; chỉnh độ đậm trước khi vẽ, giữ độ rộng ký tự và fallback cũ. VCOM thử ở 1200 mV theo yêu cầu người dùng, giữ nguyên giá trị đã lưu để quay lại; không đổi waveform hay thêm lần nháy làm sạch.
+
 ## dpReader 1.1.9-vn · 2026-10-30
 
 - Cải thiện hiển thị TTF và làm tròn mức xám; giữ khử răng cưa khi lật trang, kể cả khi chọn Đen trắng nhanh. Tắt khử răng cưa dùng TrueType hinting với cache 1 bit và chỉnh độ đậm trên đường nét trước khi vẽ; giữ độ rộng ký tự. Giới hạn bộ nhớ raster để tránh khởi động lại khi mở sách.

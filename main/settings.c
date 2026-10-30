@@ -174,6 +174,7 @@ static uint8_t s_volume_keys[2] = {APP_READER_KEY_PREV, APP_READER_KEY_NEXT};
 static uint8_t s_control_holds[7]={255,APP_READER_KEY_NONE,APP_READER_KEY_NONE,255,255,APP_READER_KEY_NONE,APP_READER_KEY_NONE};
 static const char *const s_control_hold_names[]={"hold_ai","hold_vup","hold_vdown","hold_power","hold_mid","hold_left","hold_right"};
 static bool s_reader_swipe_up_tools = true;
+static bool s_reader_edge_brightness=true,s_reader_edge_warmth=true;
 static bool s_reader_swipe_bottom_home = true;
 static bool s_ble_turner;
 #if KIIKO_BOARD_METALIO47
@@ -428,6 +429,9 @@ void app_settings_init(void) {
         if(i!=4 && nvs_get_u8(h,s_control_hold_names[i],&action)==ESP_OK &&
            (action==APP_CONTROL_HOLD_DEFAULT || (action<APP_READER_KEY_COUNT && action!=APP_READER_KEY_FULLSCREEN)))s_control_holds[i]=action;
     }
+    uint8_t edge;
+    if(nvs_get_u8(h,"r_edge_light",&edge)==ESP_OK&&edge<=1)s_reader_edge_brightness=edge!=0;
+    if(nvs_get_u8(h,"r_edge_warm",&edge)==ESP_OK&&edge<=1)s_reader_edge_warmth=edge!=0;
     uint8_t r_swipe_up = 1, r_swipe_bot = 1;
     if (nvs_get_u8(h, "r_swipe_up", &r_swipe_up) == ESP_OK) s_reader_swipe_up_tools = r_swipe_up == 1;
     if (nvs_get_u8(h, "r_swipe_bot", &r_swipe_bot) == ESP_OK) s_reader_swipe_bottom_home = r_swipe_bot == 1;
@@ -1802,3 +1806,17 @@ esp_err_t app_settings_backup_restore(void) {
     }
     return ESP_OK;
 }
+
+static bool reader_edge_setting(bool *value,const char *key,bool on) {
+    if(*value==on)return true;
+    nvs_handle_t h;
+    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
+    esp_err_t err=nvs_set_u8(h,key,on?1:0);
+    if(err==ESP_OK)err=nvs_commit(h);
+    nvs_close(h);if(err==ESP_OK)*value=on;
+    return err==ESP_OK;
+}
+bool app_settings_reader_edge_brightness(void){return s_reader_edge_brightness;}
+bool app_settings_set_reader_edge_brightness(bool on){return reader_edge_setting(&s_reader_edge_brightness,"r_edge_light",on);}
+bool app_settings_reader_edge_warmth(void){return s_reader_edge_warmth;}
+bool app_settings_set_reader_edge_warmth(bool on){return reader_edge_setting(&s_reader_edge_warmth,"r_edge_warm",on);}

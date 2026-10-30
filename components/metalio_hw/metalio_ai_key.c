@@ -34,3 +34,10 @@ int metalio_take_ai(void) {
 void metalio_ai_clear(void) {
     portENTER_CRITICAL(&ai_lock);ai.head=ai.count=0;ai.armed=false;ai.long_sent=true;portEXIT_CRITICAL(&ai_lock);
 }
+
+bool metalio_ai_sampling_pending(void) {
+    portENTER_CRITICAL(&ai_lock);
+    bool pending=ai.candidate||ai.stable;
+    portEXIT_CRITICAL(&ai_lock);
+    return pending;
+}

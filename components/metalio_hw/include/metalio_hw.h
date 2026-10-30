@@ -44,6 +44,8 @@ int metalio_take_volume(void);
 enum { METALIO_AI_NONE, METALIO_AI_SHORT, METALIO_AI_LONG };
 void metalio_ai_sample(bool down,int64_t now_ms);
 int metalio_take_ai(void);
+/// Continue polling through press and release debounce, even after the physical pin rises.
+bool metalio_ai_sampling_pending(void);
 /// 丢弃跨锁屏/休眠输入；重新稳定释放后才接收。/ Discard cross-lock/sleep input until a stable release.
 void metalio_ai_clear(void);
 void metalio_volume_clear(void);
@@ -114,3 +116,6 @@ bool metalio_download_connected(void);
 /// Read-only USB snapshot for TF diagnostics when CDC is unavailable; not proof of ROM handshake.
 void metalio_usb_describe(char *out,size_t size);
 void metalio_poweroff(void);
+
+/// User adjustment: positive brightness enables the light; warmth alone preserves its switch.
+void metalio_frontlight_adjust_position(bool warmth,unsigned position);

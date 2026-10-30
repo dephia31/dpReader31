@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：阅读采用默认灰阶表相序（厂家 2.0.76 起完整 GL48），等值保持由派生表保证。
- * English: Reading uses the default gray-table order (full GL48 since vendor 2.0.76)
- *         with equal pairs held by the derived table.
+ * 中文：用户要求避免频繁全刷；AA正文对字迹像素复用原GC48，等白保持现有GL补白。
+ * English: AA text trial rebuilds ink pixels with native GC48, retaining the
+ *         existing GL white maintenance for unchanged white (no black background flash).
  * Revision2026-10-30: reader AA overrides Fast BW on subsequent turns, matching
  * initial rendering; only an explicit AA-off choice permits target binarization.
  */
@@ -9,6 +9,9 @@
 #include "e0470_epaper_waveform.h"
 #include "settings.h"
 #include <stddef.h>
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+#endif
 #if KIIKO_S31_FAST_READER_PANELS
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
@@ -17,7 +20,39 @@
 #define PANEL_LUT_ATTR
 #endif
 #endif
-const EpdWaveform* display_reader_text_waveform(void) { return &E0470_TEXTTURN_WAVEFORM; }
+const EpdWaveform* display_reader_text_waveform(void) {
+    if(!app_settings_book_antialias())return &E0470_TEXTTURN_WAVEFORM;
+    /* User revision: avoid frequent global clears. Rebuild only ink footprints
+     * with the original GC sequence; unchanged white keeps existing GL pulses.
+     * No phase trimming, fabricated history or additional refresh pass. */
+#ifdef ESP_PLATFORM
+    static EXT_RAM_BSS_ATTR uint8_t pixels[E0470_FULL_GC16_FRAMES][16][4];
+#else
+    static uint8_t pixels[E0470_FULL_GC16_FRAMES][16][4];
+#endif
+    static bool ready;
+    static EpdWaveformPhases phase;
+    static const EpdWaveformPhases* ranges[1];
+    static EpdWaveformMode mode;
+    static const EpdWaveformMode* modes[1];
+    static EpdWaveform waveform;
+    if(!ready) {
+        const EpdWaveformPhases *gc=e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_GC16);
+        const EpdWaveformPhases *gl=e0470_waveform_phases(&E0470_TEXTTURN_WAVEFORM,MODE_GL16);
+        if(!gc||!gl||!gc->luts||!gl->luts||gc->phase_times||gl->phase_times||
+           gc->phases!=E0470_FULL_GC16_FRAMES||gl->phases!=gc->phases)return &E0470_TEXTTURN_WAVEFORM;
+        for(int f=0;f<gc->phases;++f)for(int to=0;to<16;++to)for(int group=0;group<4;++group)
+            pixels[f][to][group]=gc->luts[f*64+to*4+group];
+        for(int f=0;f<gc->phases;++f)
+            pixels[f][15][3]=(uint8_t)((pixels[f][15][3]&0xfc)|(gl->luts[f*64+63]&3));
+        phase=(EpdWaveformPhases){.phases=gc->phases,.luts=(const uint8_t*)pixels,.phase_times=NULL};
+        ranges[0]=&phase;
+        mode=(EpdWaveformMode){.type=MODE_GL16,.temp_ranges=1,.range_data=ranges};
+        modes[0]=&mode;waveform=E0470_TEXTTURN_WAVEFORM;waveform.mode_data=modes;
+        ready=true;
+    }
+    return &waveform;
+}
 
 const EpdWaveform* display_reader_fast_text_waveform(void) {
     static const EpdWaveformPhases* ranges[1];
