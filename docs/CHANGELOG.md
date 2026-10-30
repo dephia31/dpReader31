@@ -1,5 +1,10 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.2RC1-vn · 2026-10-30
+
+- Bước đầu cho tính năng đọc thành tiếng: mở WAV từ mục Tệp để thử loa BH1098G/I2S, có Phát/Dừng và tự dừng khi rời trang, khóa màn hình hoặc mất thẻ.
+- Hỗ trợ WAV PCM16-bit/16kHz mono hoặc stereo; âm lượng thử15%. Chưa tích hợp TTS online hoặc tổng hợp giọng offline.
+
 ## dpReader 1.2.1-vn · 2026-10-30
 
 - Cải thiện độ nét chữ khi tắt khử răng cưa (AA), dùng tự căn nét cho phông TrueType.

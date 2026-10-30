@@ -27,3 +27,9 @@ jobs:
           python3 tools/reader_turn_antialias_host_test.py
           python3 build/koreader-host-view/tools/reader_refresh_release_host_test.py
           bash build/koreader-host-view/tools/run_water_turn_host_test.sh
+      - name: Local audio groundwork regressions
+        run: |
+          python3 tools/audio_wav_host_test.py
+          python3 tools/audio_lifecycle_host_test.py
+          python3 tools/audio_page_host_test.py
+          python3 tools/audio_driver_host_test.py

@@ -40,3 +40,7 @@ void app_book_cover_mode_changed(void);
 void app_home_cover_mode_changed(void);
 /// 开书前释放可重建的表盘底图，让解析器使用这部分 PSRAM。/ Release rebuildable clock bases before opening a book so parsing can use that PSRAM.
 void app_home_release_clock_cache(void);
+
+#if KIIKO_BOARD_METALIO47
+bool app_audio_request_open(const char *path);
+#endif

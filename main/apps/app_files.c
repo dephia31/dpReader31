@@ -848,6 +848,11 @@ static void open_selected(app_ctx_t *ctx) {
 #else
         if (app_book_request_open(s_selected.path)) ctx->request_app = &app_book;
 #endif
+#if KIIKO_BOARD_METALIO47
+    } else if (!strcasecmp(ext, ".wav")) {
+        extern const app_desc_t app_audio;
+        if(app_audio_request_open(s_selected.path))ctx->request_app=&app_audio;
+#endif
     } else if (!strcasecmp(ext, ".jpg") || !strcasecmp(ext, ".jpeg") || !strcasecmp(ext, ".png")) {
         extern const app_desc_t app_image;
         if (app_image_request_open(s_selected.path)) ctx->request_app = &app_image;
