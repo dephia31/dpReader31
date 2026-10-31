@@ -130,10 +130,10 @@ typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_WIFI_TIMEOUT, SETTINGS_BLE
                SETTINGS_BLUETOOTH, SETTINGS_BLE_SCAN,
 #if KIIKO_BOARD_METALIO47
                SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT, SETTINGS_FRONTLIGHT,
-               SETTINGS_CONTROLS } settings_page_t;
+               SETTINGS_CONTROLS, SETTINGS_ACTION_MENU } settings_page_t;
 #else
                SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT,
-               SETTINGS_CONTROLS } settings_page_t;
+               SETTINGS_CONTROLS, SETTINGS_ACTION_MENU } settings_page_t;
 #endif
 static settings_page_t s_page;
 // Keep the selected parent while visiting its detail pages.
@@ -421,7 +421,7 @@ static int settings_main_row_height(void) {
 #define SETTINGS_DISPLAY_ROWS 7
 #endif
 #define SETTINGS_PERSONAL_ROWS 4
-#define SETTINGS_CONTROLS_ROWS 1
+#define SETTINGS_CONTROLS_ROWS 2
 #if KIIKO_BOARD_METALIO47
 #define SETTINGS_MAINTENANCE_ROWS 7
 #else
@@ -780,6 +780,8 @@ static const char *ai_action_label(app_ai_action_t action) {
         case APP_AI_BOOKMARK: return "Đánh dấu trang";
         case APP_AI_FRONTLIGHT: return "Tắt / Mở đèn nền";
         case APP_AI_HOME: return "Về Trang chủ";
+        case APP_AI_TOOLS:return "Menu đọc sách";
+        case APP_AI_ACTION_MENU:return "Menu thao tác nhanh";
         case APP_AI_KOSYNC: return "Đồng bộ KOSync";
         case APP_AI_PREV_PAGE: return "Trang trước";
         case APP_AI_NEXT_PAGE: return "Trang sau";
@@ -801,6 +803,7 @@ static const char *reader_key_action_label(app_reader_key_action_t action) {
         case APP_READER_KEY_PREV_CHAPTER: return "Chương trước";
         case APP_READER_KEY_NEXT_CHAPTER: return "Chương sau";
         case APP_READER_KEY_LIGHT: return "Tắt / Mở đèn nền";
+        case APP_READER_KEY_ACTION_MENU:return "Menu thao tác nhanh";
         case APP_READER_KEY_KOSYNC: return "Đồng bộ KOSync";
         case APP_READER_KEY_NONE:
         default: return "Không dùng";
@@ -813,7 +816,7 @@ static int s_control_pick=-1, s_control_key=-1;
 static const char *const controls_key_names[]={"Nút AI","Âm lượng +","Âm lượng −","Nút nguồn","Phím giữa","Phím trái","Phím phải"};
 static int controls_choice_count(int target) {
     if(target>=9)return APP_READER_KEY_COUNT;
-    return target==0?APP_AI_ACTION_COUNT:(target==3||target>=7)?2:APP_READER_KEY_COUNT-1;
+    return target==0?APP_AI_ACTION_COUNT:target==3?3:target>=7?2:APP_READER_KEY_COUNT-1;
 }
 static int controls_choice_action(int index) {
     return index>=APP_READER_KEY_FULLSCREEN?index+1:index;
@@ -824,7 +827,7 @@ static int controls_choice_current(int target) {
         case 0:return app_settings_ai_short();
         case 1:return app_settings_volume_key_action(1);
         case 2:return app_settings_volume_key_action(0);
-        case 3:return app_settings_reader_power_turn();
+        case 3:return app_settings_power_action_menu()?2:app_settings_reader_power_turn();
         case 4:return app_settings_reader_key_action(1);
         case 5:return app_settings_reader_key_action(0);
         case 6:return app_settings_reader_key_action(2);
@@ -836,7 +839,7 @@ static int controls_choice_current(int target) {
 static const char *controls_choice_label(int target,int index) {
     if(target>=9)return index?reader_key_action_label(controls_choice_action(index-1)):"Mặc định hệ thống";
     if(target==0)return ai_action_label(index);
-    if(target==3)return index?"Lật trang khi đọc":"Khóa màn hình";
+    if(target==3)return index==2?"Menu thao tác nhanh":index?"Lật trang khi đọc":"Khóa màn hình";
     if(target==7)return index?"Mở menu đọc sách":"Tắt";
     if(target==8)return index?"Về Trang chủ":"Tắt";
     return reader_key_action_label(controls_choice_action(index));
@@ -849,7 +852,7 @@ static bool controls_choice_save(int target,int index) {
         case 0:return app_settings_set_ai_short(index)==ESP_OK;
         case 1:return app_settings_set_volume_key_action(1,action);
         case 2:return app_settings_set_volume_key_action(0,action);
-        case 3:app_settings_set_reader_power_turn(index!=0);return true;
+        case 3:if(app_settings_set_power_action_menu(index==2)!=ESP_OK)return false;app_settings_set_reader_power_turn(index==1);return true;
         case 4:return app_settings_set_reader_key_action(1,action);
         case 5:return app_settings_set_reader_key_action(0,action);
         case 6:return app_settings_set_reader_key_action(2,action);
@@ -858,7 +861,7 @@ static bool controls_choice_save(int target,int index) {
         default:return false;
     }
 }
-static EpdRect controls_choice_rect(int index) { return (EpdRect){48,248+index*58,588,50}; }
+static EpdRect controls_choice_rect(int index) { return (EpdRect){48,238+index*50,588,46}; }
 static void controls_row(uint8_t *fb,int y,const char *label,const char *value) {
     settings_card(fb,(EpdRect){36,y,612,80},16,UI_GRAY_WHITE,0x70);
     ui_text_box(fb,(EpdRect){54,y+6,532,32},22,label,EPD_DRAW_ALIGN_LEFT,false);
@@ -1202,6 +1205,21 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         row(fb,850,"Rung phản hồi chạm",metalio_haptic_enabled()?"Bật":"Tắt");
         settings_navigation(fb); return;
     }
+    if(s_page==SETTINGS_ACTION_MENU) {
+        ui_clear_page(fb);
+        ui_nav_status(fb);
+        back_header(fb,"Menu thao tác nhanh");
+        ui_text_box(fb,(EpdRect){48,180,588,60},21,"Chọn các tác vụ muốn hiện. Gán mở menu trong Phím cứng & Cử chỉ.",EPD_DRAW_ALIGN_LEFT,false);
+        uint32_t mask=app_settings_action_menu();int row=0;
+        for(int action=0;action<APP_AI_ACTION_COUNT;++action)if(APP_ACTION_MENU_ALLOWED&(1u<<action)) {
+            EpdRect r={36,258+row++*72,612,64};bool enabled=(mask&(1u<<action))!=0;
+            settings_card(fb,r,16,enabled?0xd0:UI_GRAY_WHITE,0x60);
+            ui_text_box(fb,(EpdRect){56,r.y+8,530,48},25,ai_action_label(action),EPD_DRAW_ALIGN_LEFT,false);
+            if(enabled)epd_fill_circle(610,r.y+32,7,UI_GRAY_BLACK,fb);
+        }
+        if(s_notice[0])settings_line(fb,48,1020,20,s_notice,EPD_DRAW_ALIGN_LEFT,false);
+        settings_navigation(fb);return;
+    }
     if(s_page==SETTINGS_CONTROLS) {
         epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb);
         back_header(fb,s_control_key<0?"Phím cứng & Cử chỉ":controls_key_names[s_control_key]);
@@ -1209,7 +1227,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             int key=s_control_key;
             // Current choices are rendered directly; action indices omit the retired slot.
             const char *short_label=key==0?ai_action_label(app_settings_ai_short()):
-                key==3?(app_settings_reader_power_turn()?"Lật trang khi đọc":"Khóa màn hình"):
+                key==3?(app_settings_power_action_menu()?"Menu thao tác nhanh":app_settings_reader_power_turn()?"Lật trang khi đọc":"Khóa màn hình"):
                 reader_key_action_label(controls_choice_current(key));
             controls_row(fb,250,"Nhấn ngắn",short_label);
             uint8_t held=app_settings_control_hold(key);
@@ -1806,29 +1824,31 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #if KIIKO_BOARD_METALIO47
     if (s_page == SETTINGS_POWER_SLEEP) {
         back_header(fb, "Chế độ tắt nguồn / ngủ");
-        section(fb, 248, "Hành vi khi chọn Tắt nguồn");
-        const char *labels[] = {"Ngủ nhẹ rồi tắt nguồn", "Ngắt nguồn hoàn toàn"};
-        const char *details[] = {"Ngủ nhẹ bật lên ngay; tắt nguồn sẽ khởi động lại từ đầu",
-                                 "Nhấn giữ nút nguồn để bật máy"};
-        for (int i = 0; i < 2; ++i) {
-            EpdRect box = {36, 300 + i * 154, 612, 132};
-            bool active = app_settings_staged_shutdown() == (i == 0);
-            settings_card(fb, box, 22, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
-            ui_text_box(fb,(EpdRect){64,box.y+10,510,54},24,labels[i],EPD_DRAW_ALIGN_LEFT,false);
-            ui_text_box(fb,(EpdRect){64,box.y+72,552,46},20,details[i],EPD_DRAW_ALIGN_LEFT,false);
-            if (active) epd_fill_circle(609, box.y + 66, 8, UI_GRAY_BLACK, fb);
-        }
-        ui_text_fixed_vc(fb, 36, 650, 26, "Tự tắt sau khi ngủ nhẹ (1–24 giờ)", EPD_DRAW_ALIGN_LEFT, false);
+        section(fb,248,"Sleep ngay sau khi khóa màn hình");
         const unsigned hours=app_settings_sleep_off_hours();
-        char duration[48];snprintf(duration,sizeof(duration),"%u giờ",hours);
-        settings_card(fb,(EpdRect){36,690,80,72},18,UI_GRAY_WHITE,0x70);
-        settings_card(fb,(EpdRect){568,690,80,72},18,UI_GRAY_WHITE,0x70);
-        ui_text_fixed_vc(fb,76,726,40,"−",EPD_DRAW_ALIGN_CENTER,false);
-        ui_text_fixed_vc(fb,608,726,40,"+",EPD_DRAW_ALIGN_CENTER,false);
-        ui_text_fixed_vc(fb,342,726,36,duration,EPD_DRAW_ALIGN_CENTER,false);
-        settings_line(fb, 54, 822, 18, "Khóa thủ công hoặc tự khóa: vào ngủ nhẹ ngay", EPD_DRAW_ALIGN_LEFT, false);
-        settings_line(fb, 54, 866, 18, "Đủ thời gian đã chọn mới tự tắt nguồn", EPD_DRAW_ALIGN_LEFT, false);
-        settings_line(fb, 54, 910, 18, "Tạm hoãn ngủ khi cắm USB hoặc có tác vụ đang bận", EPD_DRAW_ALIGN_LEFT, false);
+        const char *labels[]={"Chỉ Sleep","Sleep và tắt nguồn"};
+        const char *details[]={"Sleep ngay khi khóa, không tự tắt nguồn",
+                               "Sleep ngay khi khóa, tự tắt sau số giờ bên dưới"};
+        for(int i=0;i<2;++i) {
+            EpdRect box={36,300+i*154,612,132};
+            bool active=(hours>0)==(i==1);
+            settings_card(fb,box,22,active?0xd0:UI_GRAY_WHITE,0x70);
+            ui_text_box(fb,(EpdRect){64,box.y+10,510,54},28,labels[i],EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_box(fb,(EpdRect){64,box.y+72,552,46},20,details[i],EPD_DRAW_ALIGN_LEFT,false);
+            if(active)epd_fill_circle(609,box.y+66,8,UI_GRAY_BLACK,fb);
+        }
+        if(hours) {
+            ui_text_fixed_vc(fb,36,650,26,"Tự tắt nguồn sau khi khóa (1–24 giờ)",EPD_DRAW_ALIGN_LEFT,false);
+            char duration[48];snprintf(duration,sizeof(duration),"%u giờ",hours);
+            settings_card(fb,(EpdRect){36,690,80,72},18,UI_GRAY_WHITE,0x70);
+            settings_card(fb,(EpdRect){568,690,80,72},18,UI_GRAY_WHITE,0x70);
+            ui_text_fixed_vc(fb,76,726,40,"−",EPD_DRAW_ALIGN_CENTER,false);
+            ui_text_fixed_vc(fb,608,726,40,"+",EPD_DRAW_ALIGN_CENTER,false);
+            ui_text_fixed_vc(fb,342,726,36,duration,EPD_DRAW_ALIGN_CENTER,false);
+        }
+        settings_line(fb,54,822,20,"Thời gian tự khóa được đặt riêng ở mục Khóa màn hình",EPD_DRAW_ALIGN_LEFT,false);
+        settings_line(fb,54,874,20,"Chỉ đặt lại Chỉ Sleep khi cài phiên bản mới",EPD_DRAW_ALIGN_LEFT,false);
+        settings_line(fb,54,926,18,"USB hoặc tác vụ đang bận sẽ tạm hoãn Sleep",EPD_DRAW_ALIGN_LEFT,false);
         settings_navigation(fb);
         return;
     }
@@ -1950,7 +1970,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.2-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.3-vn", "ESP32-S31");
         settings_line(fb, 56, 324, 22, v_line, EPD_DRAW_ALIGN_LEFT, false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -2192,7 +2212,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const char *display_values[]={font_name,contrast,
         app_settings_main_refresh_mode()==APP_MAIN_REFRESH_FAST?"Làm mới nhanh":app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER?"Sóng nước":"Thường",
 #if KIIKO_BOARD_METALIO47
-        app_settings_home_full_refresh()?"Bật":"Tắt",idle,"",app_settings_staged_shutdown()?"Ngủ nhẹ rồi tắt":"Ngắt nguồn hoàn toàn","Độ sáng & Nhiệt màu"};
+        app_settings_home_full_refresh()?"Bật":"Tắt",idle,"",app_settings_sleep_off_hours()?"Sleep và tắt nguồn":"Chỉ Sleep","Độ sáng & Nhiệt màu"};
     const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9,7};
 #else
         app_settings_home_full_refresh()?"Bật":"Tắt",idle,"",app_settings_staged_shutdown()?"Ngủ nhẹ rồi sâu":"Ngắt nguồn hoàn toàn"};
@@ -2208,9 +2228,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const int personal_icons[]={4,5,16,10};
     setting_group(fb,2,SETTINGS_PERSONAL_Y-49,"Cá nhân hóa",SETTINGS_PERSONAL_Y,
                   personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
-    const char *controls_labels[]={"Phím cứng & Cử chỉ"};
-    const char *controls_values[]={"Cài đặt"};
-    const int controls_icons[]={1};
+    const char *controls_labels[]={"Phím cứng & Cử chỉ","Menu thao tác nhanh"};
+    const char *controls_values[]={"Gán tác vụ cho nút","Thêm / Bớt tác vụ"};
+    const int controls_icons[]={1,4};
     setting_group(fb,3,SETTINGS_CONTROLS_Y-49,"Điều khiển",SETTINGS_CONTROLS_Y,
                   controls_icons,controls_labels,controls_values,SETTINGS_CONTROLS_ROWS);
 #if KIIKO_BOARD_METALIO47
@@ -2907,6 +2927,18 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         metalio_frontlight_adjust_position(y>=620,(y>=620?warmth:brightness)*METALIO_FRONTLIGHT_RANGE/100);
         metalio_frontlight_commit(); return APP_REDRAW_PAGE;
     }
+    if(s_page==SETTINGS_ACTION_MENU) {
+        int row=0;
+        for(int action=0;action<APP_AI_ACTION_COUNT;++action)if(APP_ACTION_MENU_ALLOWED&(1u<<action)) {
+            EpdRect r={36,258+row++*72,612,64};
+            if(ui_rect_hit(r,ev->x0,y)) {
+                if(app_settings_set_action_menu(app_settings_action_menu()^(1u<<action))!=ESP_OK)snprintf(s_notice,sizeof(s_notice),"Không thể lưu, hãy thử lại");
+                else s_notice[0]=0;
+                return APP_REDRAW_PAGE;
+            }
+        }
+        return APP_REDRAW_NONE;
+    }
     if(s_page==SETTINGS_CONTROLS) {
         if(s_control_pick>=0){
             if(ui_rect_hit((EpdRect){48,944,588,60},ev->x0,y)||y<176||y>=1064){
@@ -3232,19 +3264,20 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
 #if KIIKO_BOARD_METALIO47
     if (s_page == SETTINGS_POWER_SLEEP) {
-        for (int i = 0; i < 2; ++i) {
-            if (ui_rect_hit((EpdRect){36, 300 + i * 154, 612, 132}, ev->x0, ev->y0)) {
-                app_settings_set_staged_shutdown(i == 0);
-                return APP_REDRAW_PAGE;
+        for(int i=0;i<2;++i) {
+            if(ui_rect_hit((EpdRect){36,300+i*154,612,132},ev->x0,ev->y0)) {
+                uint8_t hours=i?(app_settings_sleep_off_hours()?app_settings_sleep_off_hours():1):0;
+                return app_settings_set_sleep_off_hours(hours)==ESP_OK?APP_REDRAW_PAGE:APP_REDRAW_NONE;
             }
         }
-        int delta=ui_rect_hit((EpdRect){36,690,80,72},ev->x0,ev->y0)?-1:
-                  ui_rect_hit((EpdRect){568,690,80,72},ev->x0,ev->y0)?1:0;
-        if(delta){
-            int hours=app_settings_sleep_off_hours()+delta;
-            if(hours<APP_SLEEP_OFF_HOURS_MIN||hours>APP_SLEEP_OFF_HOURS_MAX)return APP_REDRAW_NONE;
-            (void)app_settings_set_sleep_off_hours((uint8_t)hours);
-            return APP_REDRAW_PAGE;
+        if(app_settings_sleep_off_hours()) {
+            int delta=ui_rect_hit((EpdRect){36,690,80,72},ev->x0,ev->y0)?-1:
+                      ui_rect_hit((EpdRect){568,690,80,72},ev->x0,ev->y0)?1:0;
+            if(delta) {
+                int hours=app_settings_sleep_off_hours()+delta;
+                if(hours<1||hours>APP_SLEEP_OFF_HOURS_MAX)return APP_REDRAW_NONE;
+                return app_settings_set_sleep_off_hours((uint8_t)hours)==ESP_OK?APP_REDRAW_PAGE:APP_REDRAW_NONE;
+            }
         }
         return APP_REDRAW_NONE;
     }
@@ -3491,7 +3524,8 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         return APP_REDRAW_PAGE;
     }
     if(s_settings_group==3 && y>=SETTINGS_CONTROLS_Y && y<SETTINGS_CONTROLS_Y+SETTINGS_CONTROLS_ROWS*SETTINGS_ROW_H) {
-        s_page=SETTINGS_CONTROLS;s_control_key=s_control_pick=-1;
+        s_page=(y-SETTINGS_CONTROLS_Y)/SETTINGS_ROW_H==1?SETTINGS_ACTION_MENU:SETTINGS_CONTROLS;
+        s_control_key=s_control_pick=-1;s_notice[0]=0;
         return APP_REDRAW_PAGE;
     }
     if(s_settings_group==4 && y>=SETTINGS_MAINTENANCE_Y && y<SETTINGS_MAINTENANCE_Y+SETTINGS_MAINTENANCE_ROWS*SETTINGS_ROW_H) {

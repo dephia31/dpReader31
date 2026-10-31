@@ -22,7 +22,8 @@ typedef struct {int x_mg,y_mg,z_mg;unsigned status;} sc7a20h_sample_t;
 static const char *esp_err_to_name(int e){(void)e;return "error";}
 #define APP_SLEEP_OFF 1
 static void *s_lock_sleep_touch;
-static bool s_lock_deep_ready,s_lock_frame_cached,s_lock_io_pending;
+static bool s_lock_deep_ready,s_lock_frame_cached,s_lock_io_pending,s_lock_keys_restore_pending;
+static void lock_restore_key_wake(void){s_lock_keys_restore_pending=false;}
 static struct {int64_t pending_at,until;} s_lock_hint;
 static bool hint_window;
 static int64_t esp_timer_get_time(void);
@@ -75,7 +76,7 @@ unit+='static void lock_resume_service(void){}\n'
 unit+=function('app_light_sleep_wait_timed',root/'main/sleep.c')
 unit+=function('lock_wait_for_unlock',root/'boards/metalio47/src/main/sleep.c')+'\n'
 unit+=r'''
-static void reset(void){hours=1;quiesce_failures=0;hint_window=false;s_lock_hint.pending_at=s_lock_hint.until=0;clock_us=0;recover_at=key_at=plug_at=-1;frontlight_calls=motion_reads=sensor_on=sensor_off=reconnects=scheduler_yields=0;pickup=usb=powered=stale_motion=false;light_calls=deep_calls=cached_marks=0;light_step=0;deep_success=false;cached_error=0;pin=s_lock_frame_cached=s_lock_io_pending=false;light_key=light_fail=s_lock_deep_ready=false;s_lock_sleep_touch=NULL;}
+static void reset(void){hours=1;quiesce_failures=0;hint_window=false;s_lock_hint.pending_at=s_lock_hint.until=0;clock_us=0;recover_at=key_at=plug_at=-1;frontlight_calls=motion_reads=sensor_on=sensor_off=reconnects=scheduler_yields=0;pickup=usb=powered=stale_motion=false;light_calls=deep_calls=cached_marks=0;light_step=0;deep_success=false;cached_error=0;pin=s_lock_frame_cached=s_lock_io_pending=false;light_key=light_fail=s_lock_deep_ready=false;s_lock_sleep_touch=NULL;s_lock_keys_restore_pending=false;}
 static void settled(void){assert(frontlight_calls==(last_wake==APP_WAKE_NONE?1:2));}
 int main(void){
  reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;quiesce_failures=1;key_at=100000;
@@ -122,6 +123,8 @@ int main(void){
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&light_calls==6);settled();
  reset();s_lock_sleep_touch=(void*)1;s_lock_io_pending=true;key_at=500000;
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!light_calls);settled();
+ reset();hours=0;s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;light_step=60000000;key_at=3LL*60*60*1000000;
+ assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&!deep_calls&&clock_us>=key_at);
  puts("PASS: production S31 configured-hour actual wait handoff model, no early power-off, PIN/art checkpoint boundaries, key priority, USB exclusion, power-off refusal then bounded retry, transient light recovery");
 }
 '''

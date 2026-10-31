@@ -176,6 +176,7 @@ static ui_online_fonts_t s_online_fonts;
 #include "book_excerpt.h"
 #include "book_toc.h"
 #include "kosync_client.h"
+#include "app_loop.h"
 #include "read_pico_transfer.h"
 #include "opds_client.h"
 #include "app_font_context.h"
@@ -3072,7 +3073,7 @@ static const char *reader_key_label(app_reader_key_action_t action) {
     static const char *const labels[] = {
         "Trang trước", "Trang sau", "Thanh công cụ", "Thanh công cụ",
         "Về Trang chủ", "Làm mới trang", "Không dùng",
-        "Chương trước", "Chương sau", "Bật/Tắt đèn", "Đồng bộ KOSync"
+        "Chương trước", "Chương sau", "Bật/Tắt đèn", "Đồng bộ KOSync", "Menu thao tác nhanh"
     };
     return labels[action >= 0 && action < APP_READER_KEY_COUNT ? action : APP_READER_KEY_NONE];
 }
@@ -8727,6 +8728,7 @@ static app_redraw_t reader_key_action(app_ctx_t *ctx, app_reader_key_action_t ac
     if(book_notes_active()){book_notes_cancel();return APP_REDRAW_PAGE;}
     s_reader_tap.pending = false;
     switch (action) {
+        case APP_READER_KEY_ACTION_MENU:app_action_menu_request();return APP_REDRAW_NONE;
         case APP_READER_KEY_PREV: case APP_READER_KEY_NEXT:
             s_stats_activity_ms = ctx->now_ms;
             return turn_page(ctx, action == APP_READER_KEY_PREV ? -1 : 1);

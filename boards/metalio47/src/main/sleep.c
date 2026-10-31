@@ -10,8 +10,8 @@
  * User revision: tickets use the system face from every page; light wake restores the previous reader face, while deep wake uses the startup checkpoint.
  * 用户修订：单击锁屏提示复用Pico布局；双击/PIN和S31外设休眠顺序保持。
  * User revision: use Pico's single-click hint layout, retaining double-click/PIN and S31 peripheral sleep sequencing.
- * 用户2026-10-29修订：手动/自动锁屏立即浅睡，用户选择1..24小时后关机；PIN与无PIN共用计时。
- * User revision 2026-10-29: manual/idle locks light-sleep immediately, powering off after user-selected1..24 hours with one PIN/non-PIN deadline.
+ * 用户2026-10-31修订：锁屏浅睡；0小时不关机，其余1..24小时后关机；每分钟恢复输入，失败重试。
+ * User revision 2026-10-31: manual/idle locks light-sleep immediately; 0 hours means sleep only, otherwise selected1..24 hours then off. Restore input between60s slices and retry failed input restoration.
  */
 
 #include "kosync_client.h"
@@ -126,6 +126,8 @@ static bool s_lock_feedback_started;
 static bool s_lock_deep_ready;
 static bool s_lock_frame_cached;
 static cst836u_handle_t s_lock_sleep_touch;
+static bool s_lock_keys_restore_pending;
+static void lock_restore_key_wake(void);
 static bool s_boot_from_deep, s_boot_power_wake, s_boot_power_on;
 void app_lock_capture_boot_wakeup(void) {
     s_boot_power_on=esp_reset_reason()==ESP_RST_POWERON;
@@ -339,15 +341,19 @@ app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc,uint32_t timeo
     metalio_frontlight(0,50);
     app_wake_source_t wake=APP_WAKE_NONE;
     bool usb_was_blocked=metalio_usb_blocks_sleep();
-    const int64_t off_at=s_lock_sleep_touch&&!timeout_ms ? start+(int64_t)app_settings_sleep_off_hours()*INT64_C(3600000000) : 0;
+    const int64_t off_at=s_lock_sleep_touch&&!timeout_ms&&app_settings_sleep_off_hours()>0 ? start+(int64_t)app_settings_sleep_off_hours()*INT64_C(3600000000) : 0;
     int64_t off_retry_at=off_at;
     bool frame_marked=false;
     unsigned light_failures=0;
-    int64_t light_retry_at=0;
+    int64_t light_retry_at=0,key_restore_retry_at=0;
     ESP_LOGI(TAG,"S31 lock wait: light then configured hardware off; hours=%u usb=%u pickup=%u checkpoint=%u",
         (unsigned)app_settings_sleep_off_hours(),(unsigned)usb_was_blocked,(unsigned)pickup,(unsigned)s_lock_deep_ready);
     for(;;) {
         if(lock_take_key_wakeup()) { wake=APP_WAKE_KEY; break; }
+        if(s_lock_keys_restore_pending&&esp_timer_get_time()>=key_restore_retry_at) {
+            lock_restore_key_wake();
+            key_restore_retry_at=esp_timer_get_time()+INT64_C(1000000);
+        }
         lock_resume_io_service();
         lock_resume_service();
         lock_hint_service();
@@ -362,7 +368,7 @@ app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc,uint32_t timeo
                 off_retry_at=esp_timer_get_time()+INT64_C(30000000);
                 ESP_LOGW(TAG,"S31 lock power-off deferred: %s; retry_ms=30000",esp_err_to_name(err));
             }
-            if(!s_lock_io_pending && esp_timer_get_time()>=light_retry_at) {
+            if(!s_lock_keys_restore_pending&&!s_lock_io_pending && esp_timer_get_time()>=light_retry_at) {
                 bool key=false;
                 int64_t wake_by=deadline;
                 if(off_at && s_lock_deep_ready && (!wake_by || off_retry_at<wake_by)) wake_by=off_retry_at;
@@ -416,9 +422,15 @@ app_wake_source_t app_light_sleep_wait(sc7a20h_handle_t acc) {
 
 static void lock_restore_key_wake(void) {
     (void)esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
-    esp_err_t err=metalio_restore_key_io();
-    read_pico_pmu_keys_resume();
-    if(err!=ESP_OK) ESP_LOGE(TAG,"S31 sleep input restore: %s",esp_err_to_name(err));
+    esp_err_t err=ESP_ERR_INVALID_STATE;
+    for(unsigned attempt=0;attempt<3;++attempt) {
+        err=metalio_restore_key_io();
+        if(err==ESP_OK)break;
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    s_lock_keys_restore_pending=err!=ESP_OK;
+    if(!s_lock_keys_restore_pending)read_pico_pmu_keys_resume();
+    else ESP_LOGE(TAG,"S31 sleep input restore pending: %s",esp_err_to_name(err));
 }
 
 static bool lock_prepare_key_wake(void) {
@@ -511,14 +523,11 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
             if(key_irq)power_confirmed=metalio_confirm_power_key();
             if(key_irq || !(causes & (1u<<ESP_SLEEP_WAKEUP_TIMER)) ||
                 (wake_by && esp_timer_get_time()>=wake_by)) break;
-            // 定时切片仅检查USB和共享唤醒线；保持TF/字体/LCD和电源轨关闭。
-            // Timer slices check USB and the shared wake line with media/LCD/rails still suspended.
+            /* Return to the retained lock loop after every timer slice. Restore
+             * the key sampler and peripheral directions at least once a minute;
+             * never leave input paused across an unbounded chain of sleeps. */
             ++maintenance;
-            if(metalio_usb_blocks_sleep() || read_pico_ioe_int_level()==0) break;
-            vTaskDelay(pdMS_TO_TICKS(30));
-            if(read_pico_ioe_int_level()==0) break;
-            err=esp_sleep_enable_timer_wakeup(lock_light_sleep_slice_us(wake_by));
-            if(err!=ESP_OK) break;
+            break;
         }
         ESP_LOGI(TAG,"S31 light wake: maintenance=%u ext1=%u power_confirmed=%u result=%s",
             maintenance,(unsigned)key_irq,(unsigned)power_confirmed,esp_err_to_name(err));
@@ -534,7 +543,7 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
         lock_restore_key_wake();
         // 只补记已确认且在恢复期间松开的真实按键；共享IRQ本身不提供解锁授权。
         // Retain only a confirmed press released during restoration; a shared IRQ alone cannot authorize unlock.
-        if(power_confirmed) read_pico_pmu_latch_power_wakeup();
+        if(power_confirmed&&!s_lock_keys_restore_pending) read_pico_pmu_latch_power_wakeup();
     }
     const int64_t restore_at=esp_timer_get_time();
     if(sd_closed) (void)read_pico_sd_remount();

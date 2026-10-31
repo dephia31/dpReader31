@@ -34,6 +34,7 @@ static int ioe=1,mutex,io_calls,io_fail_at,io_taken,delay_ms,irq_low,key_low;
 static uint8_t outputs[2]={0x20,0x14},latches[2],config[2];
 static bool paused,usb,transfer_busy,ble_failed,deep_success;
 static void *s_lock_sleep_touch;
+static bool s_lock_keys_restore_pending;
 static bool s_lock_io_pending,s_lock_io_no_media,deep_pins,deep_rails,deep_touch;
 static int hardware_error;static bool late_usb;
 #define CST836U_MODE_DEEPSLEEP 3
@@ -90,7 +91,7 @@ static void metalio_poweroff(void){++off_calls;}
 static void epd_lcd_deinit(void){++lcd_deinit;}
 static void metalio_hold_for_deep_sleep(void){++hold_calls;}
 static void esp_deep_sleep_start(void){++sleep_calls;assert(wake_source&&paused&&font_closed&&sd_closed&&hold_calls&&lcd_deinit&&deep_pins&&deep_rails);deep_success=true;longjmp(deep,1);}
-static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc&&ms==10u*60u*1000u);return ++waits<=wait_timeouts?APP_WAKE_TIMEOUT:APP_WAKE_KEY;}
+static int app_light_sleep_wait_timed(void *acc,unsigned ms){assert(!acc&&ms==0);return ++waits<=wait_timeouts?APP_WAKE_TIMEOUT:APP_WAKE_KEY;}
 '''
 for name in ('metalio_io_read','metalio_prepare_key_wake','metalio_restore_key_io'):
     unit+=function(name,root/'components/metalio_hw/metalio_hw.c')+'\n'
@@ -126,9 +127,9 @@ int main(void){
   assert(app_enter_host_sleep(APP_SLEEP_DEEP)==-3);intact();
  }
  reset();late_usb=true;assert(app_enter_host_sleep(APP_SLEEP_DEEP)==ESP_ERR_INVALID_STATE);intact();
- // A timeout handoff that returns never unlocks; the S31 wait transaction owns the ten-minute
- // handoff, so production waits once and then falls to power-off/deep sleep rather than looping.
- reset();usb=true;wait_timeouts=2;lock_wait_for_unlock((void*)1);assert(waits==1&&!sleep_calls);intact();
+ // Preparation timeouts retry the retained lock wait; only a physical key exits it.
+ // The configured-hour/off policy belongs inside that wait, not a ten-minute outer handoff.
+ reset();usb=true;wait_timeouts=2;lock_wait_for_unlock((void*)1);assert(waits==3&&!sleep_calls);intact();
  puts("PASS: production reference TCA mask/P17-only wake, all 8 I2C faults, stuck IRQ/held key/USB/radio deferral before TF closure, SD-failure font restore, deep rail/touch/bus transaction and rollback, late USB deferral, and timeout cannot unlock");
 }
 '''

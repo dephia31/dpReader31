@@ -10,6 +10,8 @@
 #pragma once
 
 #include "app.h"
+/// Queue the configurable action menu on the UI loop; guarded against overlays/IO.
+void app_action_menu_request(void);
 
 #ifdef __cplusplus
 extern "C" {

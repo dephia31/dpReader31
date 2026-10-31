@@ -1,15 +1,13 @@
-# dpReader Metalio 4.7 — v1.2.2-vn
+# dpReader Metalio 4.7 — v1.2.3-vn
 
-- Chọn từ/đoạn bằng nhấn giữ và kéo; lưu highlight, ghi chú và danh sách ghi chú trên thẻ trong `dpReader_note`, giữ dấu khi đọc và đổi cỡ chữ.
-- Tra từ điển offline trực tiếp StarDict `.ifo` + `.idx`/`.idx.gz` + `.dict`/`.dict.dz`, hỗ trợ `.syn`; tăng chữ định nghĩa, tối ưu đọc chỉ mục và thêm mục tải folder từ điển ở trang chuyển file local.
-- Plugin dpReader cho KOReader trao đổi ghi chú hai chiều theo đoạn trích/chương, có kiểm tra vị trí và xung đột; xem giới hạn trong tài liệu.
-- Cải thiện menu ghi chú, viền bảng, chạm ngoài để đóng; Xong tự lưu, Tô sáng tự đóng; bỏ mở mục lục bằng giữ màn hình.
-- Thông báo KoSync chữ lớn có viền; thanh kéo nhanh có phản hồi Wi-Fi/Bluetooth. Sửa vùng refresh và tăng chiều cao bảng thống kê, thêm Danh sách ghi chú.
-- Chuyển stack các worker SD phù hợp sang PSRAM, giữ task flash/OTA/NVS/DMA/ISR trong SRAM; kiểm thử host và build, chưa đo hiệu năng/nghiệm thu thực tế trên thiết bị.
+- Hai chế độ theo khóa màn hình: Chỉ Sleep, hoặc Sleep và tắt nguồn sau 1–24 giờ. Cài phiên bản mới đặt về Chỉ Sleep một lần; sau đó lưu và giữ lựa chọn người dùng qua khởi động lại cùng phiên bản. Thời gian tự khóa chỉnh riêng.
+- Gia cố khôi phục phím sau Sleep: thử lại khi cấu hình đầu vào lỗi, tạm hoãn Sleep tiếp cho tới khi phục hồi; khôi phục phím/ngoại vi sau mỗi lát Sleep tối đa 60 giây. Đang điều tra phản ánh khó đánh thức trên 1.2.1, chưa xác nhận khắc phục trên máy thật.
+- Menu thao tác nhanh có mục cài đặt riêng để bật/tắt 10 tác vụ, gồm KoSync. Có thể gán mở menu cho AI, âm lượng, nguồn và phím mặt trước; chọn mục sẽ thực thi, không đổi gán nhấn ngắn AI.
+- Sửa AI lật trang/chương bị chặn khi công cụ đọc đang mở; sửa chữ/khung trang cũ chồng lên cài đặt menu nhanh.
 
 
-Cập nhật bằng ứng dụng Bin qua thẻ nhớ/OTA hoặc gói USB đi kèm. Giữ nguyên phân vùng hiện có; không cần xóa dữ liệu.
+Cập nhật bằng OTA, thẻ nhớ hoặc gói USB đi kèm. Lần đầu chạy phiên bản này sẽ đặt Chỉ Sleep; sau đó người dùng chọn lại chế độ nào thì lưu chế độ đó. Không xóa sách hoặc các cài đặt khác.
 
-Từ điển và ghi chú: xem [hướng dẫn](https://github.com/dephia31/dpReader31/blob/main/docs/HIGHLIGHT_DICTIONARY.md). Plugin KOReader ở `integrations/koreader/dpreader-sync.koplugin`. Chọn chữ hiện giới hạn văn bản ngang trong một trang; tra từ vẫn quét tuần tự; trao đổi KOReader cần sách/chương/đoạn trích phù hợp.
+Đã build S31 và kiểm thử host về nâng phiên bản/NVS, Sleep/khôi phục phím, menu nhanh, gán nút và AI. Chưa nghiệm thu bản này trên máy thật; chưa tái hiện hay xác nhận sửa dứt điểm phản ánh khó đánh thức ở1.2.1. Khôi phục ngoại vi mỗi phút có thể ảnh hưởng pin và cần đo thực tế.
 
-Đã build S31 và kiểm thử host. Chưa flash/nghiệm thu bản này trên thiết bị hoặc KOReader thật; không công bố số đo tốc độ/SRAM trên máy thật.
+Tính năng từ điển/ghi chú của1.2.2 được giữ nguyên. Bản1.2.2 vẫn có đường tải lưu trữ để quay lại.

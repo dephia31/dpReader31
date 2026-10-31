@@ -15,6 +15,7 @@
  */
 
 #include "settings.h"
+#include "esp_app_desc.h"
 #include "kiiko_board_config.h"
 #define READER_TURN_EFFECT_MAX KIIKO_BOARD_READER_TURN_EFFECT_MAX
 static bool reader_full_pages_valid(uint8_t pages) {
@@ -179,6 +180,8 @@ static bool s_reader_swipe_bottom_home = true;
 static bool s_ble_turner;
 #if KIIKO_BOARD_METALIO47
 static app_ai_action_t s_ai_short=APP_AI_REFRESH;
+static uint32_t s_action_menu=APP_ACTION_MENU_DEFAULT;
+static bool s_power_action_menu;
 #endif
 static bool s_shelf_recent_sort;
 // 书内自带字体默认开启：多数带字体的书排版就是靠它才对得上版。
@@ -257,6 +260,26 @@ static uint8_t valid_book_px(uint8_t px) {
     return px >= BOOK_READER_PX_MIN && px <= BOOK_READER_PX_MAX ? px : 48;
 }
 
+/* Reset Sleep once per firmware version, then retain the user's choices.
+ * Marker and policy share a commit; failures keep the safe live default. */
+static void sleep_policy_load(void) {
+    s_sleep_off_hours=APP_SLEEP_OFF_HOURS_DEFAULT;
+    nvs_handle_t h;
+    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
+    const char *version=esp_app_get_description()->version;
+    char previous[32]={0};size_t size=sizeof(previous);
+    if(nvs_get_str(h,"sleep_fw",previous,&size)==ESP_OK&&!strcmp(previous,version)) {
+        uint8_t hours=0;
+        if(nvs_get_u8(h,NVS_KEY_SLEEP_OFF_HOURS,&hours)==ESP_OK&&hours<=APP_SLEEP_OFF_HOURS_MAX)s_sleep_off_hours=hours;
+    }else {
+        esp_err_t err=nvs_set_u8(h,NVS_KEY_SLEEP_OFF_HOURS,APP_SLEEP_OFF_HOURS_DEFAULT);
+        if(err==ESP_OK)err=nvs_set_str(h,"sleep_fw",version);
+        if(err==ESP_OK)err=nvs_commit(h);
+        if(err!=ESP_OK)ESP_LOGW(TAG,"Sleep policy upgrade reset deferred: %s",esp_err_to_name(err));
+    }
+    nvs_close(h);
+}
+
 void app_settings_init(void) {
     esp_err_t err = nvs_flash_init();
     // 设置分区异常时保留原数据供恢复，绝不因空间不足自动擦除用户资料。
@@ -266,6 +289,7 @@ void app_settings_init(void) {
         return;
     }
 
+    sleep_policy_load();
     nvs_handle_t h;
     if (nvs_open(NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
     uint8_t raw = APP_SLEEP_DEEP;
@@ -279,9 +303,6 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_SHUTDOWN_MODE, &raw) == ESP_OK)
 #endif
         s_staged_shutdown = raw == 1;
-    raw=APP_SLEEP_OFF_HOURS_DEFAULT;
-    if(nvs_get_u8(h,NVS_KEY_SLEEP_OFF_HOURS,&raw)==ESP_OK&&raw>=APP_SLEEP_OFF_HOURS_MIN&&raw<=APP_SLEEP_OFF_HOURS_MAX)
-        s_sleep_off_hours=raw;
     raw = 1;
     if (nvs_get_u8(h, NVS_KEY_WAKE_PRESSES, &raw) != ESP_OK || (raw != 1 && raw != 2)) raw = 1;
     s_wake_presses = raw;
@@ -419,6 +440,10 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_HIDE_IMAGES, &hide_images) == ESP_OK) s_reader_hide_images = hide_images == 1;
     if (nvs_get_u8(h, NVS_KEY_BLE_TURNER, &ble_turner) == ESP_OK) s_ble_turner = ble_turner == 1;
 #if KIIKO_BOARD_METALIO47
+    uint32_t menu_mask;
+    if(nvs_get_u32(h,"action_menu",&menu_mask)==ESP_OK&&(menu_mask&~APP_ACTION_MENU_ALLOWED)==0)s_action_menu=menu_mask;
+    uint8_t power_menu=0;
+    s_power_action_menu=nvs_get_u8(h,"power_menu",&power_menu)==ESP_OK&&power_menu==1;
     uint8_t ai_short=APP_AI_REFRESH;
     s_ai_short=nvs_get_u8(h,"ai_short",&ai_short)==ESP_OK&&ai_short<APP_AI_ACTION_COUNT?(app_ai_action_t)ai_short:APP_AI_REFRESH;
     uint8_t vol_down = APP_READER_KEY_PREV, vol_up = APP_READER_KEY_NEXT;
@@ -535,12 +560,12 @@ void app_settings_set_sleep_mode(app_sleep_mode_t mode) {
 
 uint8_t app_settings_sleep_off_hours(void) { return s_sleep_off_hours; }
 esp_err_t app_settings_set_sleep_off_hours(uint8_t hours) {
-    if(hours<APP_SLEEP_OFF_HOURS_MIN||hours>APP_SLEEP_OFF_HOURS_MAX)return ESP_ERR_INVALID_ARG;
-    if(hours==s_sleep_off_hours)return ESP_OK;
+    if(hours>APP_SLEEP_OFF_HOURS_MAX)return ESP_ERR_INVALID_ARG;
     nvs_handle_t h;
     esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
     if(err!=ESP_OK)return err;
     err=nvs_set_u8(h,NVS_KEY_SLEEP_OFF_HOURS,hours);
+    if(err==ESP_OK)err=nvs_set_str(h,"sleep_fw",esp_app_get_description()->version);
     if(err==ESP_OK)err=nvs_commit(h);
     nvs_close(h);
     if(err==ESP_OK)s_sleep_off_hours=hours;
@@ -888,6 +913,25 @@ void app_settings_set_book_vertical(bool on) {
     nvs_put_u8(NVS_KEY_BOOK_VERTICAL, on ? 1 : 0);
 }
 #if KIIKO_BOARD_METALIO47
+uint32_t app_settings_action_menu(void){return s_action_menu;}
+esp_err_t app_settings_set_action_menu(uint32_t mask){
+    if(mask&~APP_ACTION_MENU_ALLOWED)return ESP_ERR_INVALID_ARG;
+    if(mask==s_action_menu)return ESP_OK;
+    nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
+    if(err!=ESP_OK)return err;
+    err=nvs_set_u32(h,"action_menu",mask);if(err==ESP_OK)err=nvs_commit(h);nvs_close(h);
+    if(err==ESP_OK)s_action_menu=mask;
+    return err;
+}
+bool app_settings_power_action_menu(void){return s_power_action_menu;}
+esp_err_t app_settings_set_power_action_menu(bool enabled){
+    if(enabled==s_power_action_menu)return ESP_OK;
+    nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
+    if(err!=ESP_OK)return err;
+    err=nvs_set_u8(h,"power_menu",enabled);if(err==ESP_OK)err=nvs_commit(h);nvs_close(h);
+    if(err==ESP_OK)s_power_action_menu=enabled;
+    return err;
+}
 app_ai_action_t app_settings_ai_short(void){return s_ai_short;}
 esp_err_t app_settings_set_ai_short(app_ai_action_t action){
     if((unsigned)action>=APP_AI_ACTION_COUNT)return ESP_ERR_INVALID_ARG;

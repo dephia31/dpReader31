@@ -8,6 +8,7 @@
  * 时调 on_exit/on_enter、按回调返回值决定怎么刷屏、电源键锁屏、SD 卡上的字体延迟
  * 加载。页面自己的状态和刷新节奏都在 main/apps/ 各自的文件里。
  *
+ * User revision2026-10-31: configurable action menu executes selections, keeps tap bindings, and can be assigned to supported physical keys.
  * Event loop for page-agnostic work: touch debounce, the three keys and
  * the menu handle, on_exit/on_enter, present, lock, delayed SD font load.
  * Page state and refresh cadence stay in main/apps/; gesture recognition is shared.
@@ -123,6 +124,8 @@ extern const app_desc_t app_device_settings;
 
 static const app_desc_t* s_presented_main;
 static ui_quick_menu_t s_quick;
+static bool s_action_menu_requested;
+void app_action_menu_request(void){s_action_menu_requested=true;}
 static unsigned s_quick_status;
 static int s_quick_pressed=-1;
 #if KIIKO_BOARD_METALIO47
@@ -137,6 +140,7 @@ static unsigned s_quick_slider_drawn[2],s_quick_slider_level[2];
 #endif
 static void quick_reset(void) {
 #if KIIKO_BOARD_METALIO47
+    s_action_menu_requested=false;
     s_quick_notice_kind=0;s_quick_notice_text[0]=0;
     ui_ai_menu_end(&s_ai);metalio_ai_clear();
     ui_quick_menu_reset(&s_quick);ui_quick_menu_end();s_quick_pressed=-1;s_quick_slider_dirty=0;
@@ -679,7 +683,17 @@ static bool main_page_ready(app_ctx_t* ctx, const app_desc_t* app) {
 
 // 主页面左右键循环切页；中键短按交给页面，长按统一全刷。阅读及子页继续使用原映射。
 // Main roots cycle with side keys, delegate a middle tap, and share middle-hold full refresh. Reader/subpage mappings stay page-owned.
+static bool front_key_opens_action_menu(int key,bool held) {
+#if KIIKO_BOARD_METALIO47
+    unsigned slot=key==UI_KEY_1?5:key==UI_KEY_2?4:6;
+    return held?app_settings_control_hold(slot)==APP_READER_KEY_ACTION_MENU:
+        app_settings_reader_key_action(key==UI_KEY_1?0:key==UI_KEY_2?1:2)==APP_READER_KEY_ACTION_MENU;
+#else
+    (void)key;(void)held;return false;
+#endif
+}
 static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *current,int key,bool held) {
+    if(front_key_opens_action_menu(key,held)){app_action_menu_request();return APP_REDRAW_NONE;}
     if(held)return key==UI_KEY_2?APP_REDRAW_FULL:APP_REDRAW_NONE;
     app_redraw_t redraw=APP_REDRAW_NONE;
     if(current->on_main_key && current->on_main_key(ctx,key,&redraw))return redraw;
@@ -689,6 +703,12 @@ static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *current,int
     return APP_REDRAW_NONE;
 }
 
+static app_redraw_t front_key_dispatch(app_ctx_t *ctx,const app_desc_t *current,int key,bool held) {
+    if(front_key_opens_action_menu(key,held)){app_action_menu_request();return APP_REDRAW_NONE;}
+    if(main_page_ready(ctx,current))return main_key_action(ctx,current,key,held);
+    return held?(current->on_key_long?current->on_key_long(ctx,key):APP_REDRAW_NONE):
+        (current->on_key?current->on_key(ctx,key):APP_REDRAW_NONE);
+}
 #if KIIKO_BOARD_METALIO47
 static app_redraw_t control_hold_action(app_ctx_t *ctx,const app_desc_t *current,unsigned key) {
     uint8_t action=app_settings_control_hold(key);
@@ -698,6 +718,7 @@ static app_redraw_t control_hold_action(app_ctx_t *ctx,const app_desc_t *current
        (current->navigation_enabled && !current->navigation_enabled(ctx)))return APP_REDRAW_NONE;
     read_pico_transfer_status_t transfer;read_pico_transfer_get_status(&transfer);
     if(transfer.state==READ_PICO_TRANSFER_UPLOADING)return APP_REDRAW_NONE;
+    if(action==APP_READER_KEY_ACTION_MENU){app_action_menu_request();return APP_REDRAW_NONE;}
     if(action==APP_READER_KEY_HOME){ui_nav_request(ctx,0);return APP_REDRAW_NONE;}
     if(action==APP_READER_KEY_REFRESH)return APP_REDRAW_FULL;
     if(action==APP_READER_KEY_LIGHT){metalio_frontlight_toggle();return APP_REDRAW_NONE;}
@@ -711,6 +732,7 @@ static app_redraw_t volume_key_action(app_ctx_t *ctx,const app_desc_t *current,i
        usb_storage_active() || pico_online_busy())return APP_REDRAW_NONE;
     if(volume==2||volume==-2)return control_hold_action(ctx,current,volume>0?1:2);
     int key=volume<0?UI_KEY_1:UI_KEY_3;
+    if(app_settings_volume_key_action(volume<0?0:1)==APP_READER_KEY_ACTION_MENU){app_action_menu_request();return APP_REDRAW_NONE;}
     if(main_page_ready(ctx,current))return main_key_action(ctx,current,key,false);
     app_redraw_t redraw = APP_REDRAW_NONE;
     if(current==&app_book && app_book_volume_key(ctx,volume<0?-1:1,&redraw))return redraw;
@@ -741,8 +763,9 @@ static void ai_dismiss(app_ctx_t *ctx,const app_desc_t *current,bool present){
     if(!restored){if(present)app_present(ctx,current,APP_REDRAW_FULL);else if(current->render)current->render(ctx,ctx->fb);}
     else if(present)ai_push(ctx,current,rect);
 }
-static app_redraw_t ai_short_action(app_ctx_t *ctx,const app_desc_t *current){
-    app_ai_action_t action=app_settings_ai_short();
+static app_redraw_t ai_run_action(app_ctx_t *ctx,const app_desc_t *current,app_ai_action_t action){
+    if(action==APP_AI_ACTION_MENU){app_action_menu_request();return APP_REDRAW_NONE;}
+    if(action==APP_AI_TOOLS){return current==&app_book?app_book_handle_key_action(ctx,APP_READER_KEY_TOOLS):APP_REDRAW_NONE;}
     if(action==APP_AI_NONE)return APP_REDRAW_NONE;
     if(action==APP_AI_BOOKMARK){
         if(current!=&app_book || !app_book_reader_body_visible())return APP_REDRAW_NONE;
@@ -758,16 +781,19 @@ static app_redraw_t ai_short_action(app_ctx_t *ctx,const app_desc_t *current){
         return APP_REDRAW_NONE;
     }
     if(action==APP_AI_PREV_PAGE || action==APP_AI_NEXT_PAGE){
-        if(current==&app_book && app_book_reader_body_visible()){
+        if(current==&app_book){
             return app_book_handle_key_action(ctx, action==APP_AI_PREV_PAGE?APP_READER_KEY_PREV:APP_READER_KEY_NEXT);
         }
     }
     if(action==APP_AI_PREV_CHAPTER || action==APP_AI_NEXT_CHAPTER){
-        if(current==&app_book && app_book_reader_body_visible()){
+        if(current==&app_book){
             return app_book_handle_key_action(ctx, action==APP_AI_PREV_CHAPTER?APP_READER_KEY_PREV_CHAPTER:APP_READER_KEY_NEXT_CHAPTER);
         }
     }
     return APP_REDRAW_NONE;
+}
+static app_redraw_t ai_short_action(app_ctx_t *ctx,const app_desc_t *current){
+    return ai_run_action(ctx,current,app_settings_ai_short());
 }
 #endif
 
@@ -1183,12 +1209,19 @@ void app_loop_run(const app_loop_config_t* config) {
         // Route physical AI before page touches; freeze the underlay and consume the closing release.
         bool ai_owned=s_ai.open;
         int ai_event=metalio_take_ai();
-        if(ai_event || s_ai.open){
+        if(ai_event || s_ai.open || s_action_menu_requested){
             read_pico_transfer_status_t ai_transfer;read_pico_transfer_get_status(&ai_transfer);
             bool ai_allowed=!power_input_owned && !menu_open && !s_quick.open && !current->holds_pmu &&
-                current->render && !usb_storage_active() && !app_download_active() && !pico_online_busy() &&
+                current->render && (!current->navigation_enabled||current->navigation_enabled(&ctx)) && !usb_storage_active() && !app_download_active() && !pico_online_busy() &&
                 ai_transfer.state!=READ_PICO_TRANSFER_UPLOADING && !ctx.request_app && !ctx.request_menu && !ctx.request_return;
             if(s_ai.open&&!ai_allowed){ai_dismiss(&ctx,current,true);ai_owned=true;}
+            if(s_action_menu_requested) {
+                s_action_menu_requested=false;
+                if(ai_allowed&&!s_ai.open) {
+                    held_key=-1;cancel_gesture(&ctx,current,&gesture);last_input_ms=ctx.now_ms;ai_owned=true;
+                    if(ui_ai_menu_begin(&s_ai,ctx.fb,app_settings_ai_short(),current==&app_book&&app_book_reader_body_visible()))ai_push(&ctx,current,s_ai.rect);
+                }
+            }
             if(ai_event && ai_allowed && !touch.touched && !ui_click_feedback_active() && !ui_click_feedback_nav_pending()){
                 held_key=-1;cancel_gesture(&ctx,current,&gesture);last_input_ms=ctx.now_ms;ai_owned=true;
                 if(s_ai.open)ai_dismiss(&ctx,current,true);
@@ -1213,9 +1246,8 @@ void app_loop_run(const app_loop_config_t* config) {
                 if(choice==UI_AI_CLOSE)ai_dismiss(&ctx,current,true);
                 else if(choice>=0){
                     last_input_ms=ctx.now_ms;
-                    if(app_settings_set_ai_short((app_ai_action_t)choice)==ESP_OK){
-                        ai_dismiss(&ctx,current,true);
-                    }else ai_push(&ctx,current,ui_ai_menu_save_error(&s_ai,ctx.fb));
+                    ai_dismiss(&ctx,current,true);
+                    present_page(&ctx,current,&gesture,ai_run_action(&ctx,current,(app_ai_action_t)choice));
                 }
             }
         }
@@ -1352,7 +1384,7 @@ void app_loop_run(const app_loop_config_t* config) {
                     if (menu_open) present_menu(&ctx, current, menu_leaf, &feedback);
                     else app_present(&ctx, current, APP_REDRAW_PAGE);
                 } else if (action == UI_POWER_ACTION_SHUTDOWN) {
-                    if (!app_settings_staged_shutdown()) {
+                    if (KIIKO_BOARD_METALIO47 || !app_settings_staged_shutdown()) {
                         power_dialog_open = false;
                         ui_power_dialog_end();
                         ui_power_dialog_reset(&power_dialog, false);
@@ -1451,16 +1483,14 @@ void app_loop_run(const app_loop_config_t* config) {
             }
             if (key >= 0 && current->owns_keys && !menu_open) {
                 bool main_keys=main_page_ready(&ctx,current);
-                bool defer_key=key==UI_KEY_2 && current->defer_middle_short;
+                bool defer_key=front_key_opens_action_menu(key,true) || (key==UI_KEY_2 && current->defer_middle_short);
 #if KIIKO_BOARD_METALIO47
                 defer_key|=current==&app_book && app_book_reader_body_visible();
 #endif
-                app_redraw_t redraw=main_keys
-                    ? (key==UI_KEY_2?APP_REDRAW_NONE:main_key_action(&ctx,current,key,false))
-                    : current->on_key && !defer_key
-                        ? current->on_key(&ctx,key):APP_REDRAW_NONE;
+                app_redraw_t redraw=defer_key||(main_keys&&key==UI_KEY_2)?APP_REDRAW_NONE:
+                    front_key_dispatch(&ctx,current,key,false);
                 present_page(&ctx,current,&gesture,redraw);
-                if(touch.count==1 && ((main_keys && key==UI_KEY_2)||(!main_keys && current->on_key_long))) {
+                if(touch.count==1 && (front_key_opens_action_menu(key,true)||(main_keys&&key==UI_KEY_2)||(!main_keys&&current->on_key_long))) {
                     held_key=key;held_since_ms=ctx.now_ms;held_main_key=main_keys;
                 }
             } else if (key == UI_KEY_2) {
@@ -1569,6 +1599,8 @@ void app_loop_run(const app_loop_config_t* config) {
                     held_key=-1;cancel_gesture(&ctx,current,&gesture);
                     present_page(&ctx,current,&gesture,control_hold_action(&ctx,current,3));
 #endif
+                } else if(key_action==READ_PICO_PMU_KEY_SHORT&&!quick_lock_requested&&app_settings_power_action_menu()&&!menu_open&&!power_input_owned) {
+                    app_action_menu_request();
                 } else if (key_action == READ_PICO_PMU_KEY_LONG) {
                     held_key = -1;
                     cancel_gesture(&ctx, current, &gesture);
@@ -1665,7 +1697,7 @@ void app_loop_run(const app_loop_config_t* config) {
             held_key=-1;held_main_key=false;
         }
         if (!power_dialog_open && released && held_key >= 0 && ui_key_hit_test(latest.x, latest.y) == held_key &&
-            ((held_key==UI_KEY_2 && (current->defer_middle_short || main_page_ready(&ctx,current)))
+            ((held_key==UI_KEY_2 && (current->defer_middle_short || main_page_ready(&ctx,current)))||front_key_opens_action_menu(held_key,true)
 #if KIIKO_BOARD_METALIO47
              || (current==&app_book && app_book_reader_body_visible())
 #endif
@@ -1675,8 +1707,7 @@ void app_loop_run(const app_loop_config_t* config) {
             held_key = -1;
             ctx.consumed = true;
             bool held=ctx.now_ms-held_since_ms>=UI_LONG_PRESS_MS;
-            app_redraw_t redraw=main_page_ready(&ctx,current)?main_key_action(&ctx,current,key,held):
-                held?current->on_key_long(&ctx,key):current->on_key(&ctx,key);
+            app_redraw_t redraw=front_key_dispatch(&ctx,current,key,held);
             present_page(&ctx, current, &gesture, redraw);
         }
         if (!power_dialog_open && held_key >= 0) {
@@ -1688,8 +1719,7 @@ void app_loop_run(const app_loop_config_t* config) {
                 int key = held_key;
                 held_key = -1;
                 ctx.consumed = true;
-                present_page(&ctx,current,&gesture,main_page_ready(&ctx,current)?
-                    main_key_action(&ctx,current,key,true):current->on_key_long(&ctx,key));
+                present_page(&ctx,current,&gesture,front_key_dispatch(&ctx,current,key,true));
             }
         }
 #if KIIKO_BOARD_METALIO47

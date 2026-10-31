@@ -23,6 +23,7 @@ enum {ESP_OK=0,ESP_ERR_NOT_FINISHED=1,ESP_ERR_INVALID_STATE=-1,ESP_SLEEP_WAKEUP_
 #define ESP_LOGI(tag,...) do {if(0)printf(__VA_ARGS__);} while(0)
 #define ESP_LOGW ESP_LOGI
 static const char *esp_err_to_name(int e){(void)e;return "error";}
+static bool s_lock_keys_restore_pending;
 static bool s_lock_io_pending,s_lock_io_no_media,usb,busy,online,queued,allow_key,keys,rails,pins,lcd,touch,media,usb_at_timer,slow_media,confirmed;
 static unsigned sleeps,stop_after,usb_after,timers,cut,restore,closes,mounts,resume,keys_restored,latches;
 static unsigned fail_at,operation;
@@ -55,7 +56,7 @@ static int metalio_light_sleep_start(void){
  clock_us+=(int64_t)timer_us;return fail()?-2:ESP_OK;
 }
 static uint32_t esp_sleep_get_wakeup_causes(void){return 1u<<(sleeps==stop_after?ESP_SLEEP_WAKEUP_EXT1:ESP_SLEEP_WAKEUP_TIMER);}
-static int read_pico_ioe_int_level(void){return 1;}
+
 static bool metalio_confirm_power_key(void){assert(keys&&rails&&pins);return confirmed;}
 static void vTaskDelay(unsigned ms){clock_us+=(int64_t)ms*1000;}
 static void metalio_release_light_sleep_pins(void){pins=false;}
@@ -81,12 +82,14 @@ int main(void){
  bool key;
  reset();assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key&&latches==1);restored();
  reset();slow_media=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key&&s_lock_io_pending);restored();
- // Three hours of timer slices only prepare/close/remount once; none of the timer wakes grants unlock.
- reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key);
- assert(sleeps==180&&closes==1&&mounts==1&&cut==1&&restore==1&&latches==1&&clock_us>=10800000000LL);restored();
+ // Three hours restore input after every timer slice; timer wake never unlocks.
+ reset();stop_after=180;
+ for(unsigned minute=0;minute<180;++minute){assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK);restored();}
+ assert(key&&sleeps==180&&closes==180&&mounts==180&&cut==180&&restore==180&&latches==1&&clock_us>=10800000000LL);
  // Inserting USB exits maintenance and restores the normal serial route's peripherals without unlocking.
- reset();stop_after=180;usb_after=3;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&!key&&!latches);
- assert(sleeps==3&&mounts==1&&closes==1);restored();
+ reset();stop_after=180;usb_after=3;
+ for(unsigned minute=0;minute<3;++minute){assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&!key&&!latches);restored();}
+ assert(sleeps==3&&mounts==3&&closes==3);
  // Double-click remains enforced after a single EXT1: the caller stays locked and retries later.
  reset();allow_key=false;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_ERR_INVALID_STATE&&!key&&latches==1);restored();
  // A shared EXT1 without verified physical P17 is not an unlock in single or double mode.
@@ -108,13 +111,14 @@ int main(void){
  reset();queued=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)!=ESP_OK&&key&&!sleeps);restored();
  reset();usb_at_timer=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)!=ESP_OK&&!key&&!sleeps);restored();
  // A timer session stops at the deep deadline rather than endlessly repeating60s slices.
- reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,600000000)==ESP_OK&&!key);
- assert(clock_us>=600000000&&clock_us<600100000&&sleeps==10&&mounts==1&&!latches);restored();
+ reset();stop_after=180;
+ while(clock_us<600000000){assert(lock_light_sleep_once((void*)1,(void*)2,&key,600000000)==ESP_OK&&!key);restored();}
+ assert(sleeps==10&&mounts==10&&!latches);
  // Short final slices and already-expired deadlines cannot oversleep by another minute.
  reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,1500000)==ESP_OK&&!key);
  assert(clock_us==1500000&&sleeps==1);restored();
  reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,1)==ESP_OK&&!key&&!sleeps);restored();
- puts("PASS: actual S31 light transaction, 3h timer retention and exact10min/short/expired deadlines with one TF cycle, USB insertion/no unlock, single IRQ/double gate and all operation faults/rollback");
+ puts("PASS: actual S31 light transaction, 3h timer slices restore input each minute, exact10min/short/expired deadlines, USB insertion/no unlock, single IRQ/double gate and all operation faults/rollback");
 }
 '''
 with tempfile.TemporaryDirectory() as folder:

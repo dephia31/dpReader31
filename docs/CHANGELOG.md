@@ -1,5 +1,12 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.3-vn · 2026-10-31
+
+- Hai chế độ theo khóa màn hình: Chỉ Sleep, hoặc Sleep và tắt nguồn sau 1–24 giờ. Cài phiên bản mới đặt về Chỉ Sleep một lần; sau đó lưu và giữ lựa chọn người dùng qua khởi động lại cùng phiên bản. Thời gian tự khóa chỉnh riêng.
+- Gia cố khôi phục phím sau Sleep: thử lại khi cấu hình đầu vào lỗi, tạm hoãn Sleep tiếp cho tới khi phục hồi; khôi phục phím/ngoại vi sau mỗi lát Sleep tối đa 60 giây. Đang điều tra phản ánh khó đánh thức trên 1.2.1, chưa xác nhận khắc phục trên máy thật.
+- Menu thao tác nhanh có mục cài đặt riêng để bật/tắt 10 tác vụ, gồm KoSync. Có thể gán mở menu cho AI, âm lượng, nguồn và phím mặt trước; chọn mục sẽ thực thi, không đổi gán nhấn ngắn AI.
+- Sửa AI lật trang/chương bị chặn khi công cụ đọc đang mở; sửa chữ/khung trang cũ chồng lên cài đặt menu nhanh.
+
 ## dpReader 1.2.2-vn · 2026-10-31
 
 - Chọn từ/đoạn bằng nhấn giữ và kéo; lưu highlight, ghi chú và danh sách ghi chú trên thẻ trong `dpReader_note`, giữ dấu khi đọc và đổi cỡ chữ.

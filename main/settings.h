@@ -36,9 +36,17 @@ typedef enum {
     APP_AI_NEXT_PAGE,
     APP_AI_PREV_CHAPTER,
     APP_AI_NEXT_CHAPTER,
+    APP_AI_TOOLS,
+    APP_AI_ACTION_MENU,
     APP_AI_ACTION_COUNT
 } app_ai_action_t;
-#define APP_AI_MENU_COUNT 5
+#define APP_AI_MENU_COUNT 10
+#define APP_ACTION_MENU_ALLOWED (((1u<<APP_AI_ACTION_COUNT)-1u)&~(1u<<APP_AI_NONE)&~(1u<<APP_AI_ACTION_MENU))
+#define APP_ACTION_MENU_DEFAULT ((1u<<APP_AI_REFRESH)|(1u<<APP_AI_BOOKMARK)|(1u<<APP_AI_FRONTLIGHT)|(1u<<APP_AI_HOME)|(1u<<APP_AI_KOSYNC)|(1u<<APP_AI_TOOLS))
+uint32_t app_settings_action_menu(void);
+esp_err_t app_settings_set_action_menu(uint32_t mask);
+bool app_settings_power_action_menu(void);
+esp_err_t app_settings_set_power_action_menu(bool enabled);
 /// AI键短按独立保存在S31设置；仅成功提交才改变当前映射。/ Persist S31 AI taps, changing the live mapping only after a successful commit.
 app_ai_action_t app_settings_ai_short(void);
 esp_err_t app_settings_set_ai_short(app_ai_action_t action);
@@ -52,12 +60,12 @@ const char* app_sleep_mode_name(app_sleep_mode_t mode);
 /// 电源菜单“关机”：false 为彻底断电，true 为先浅睡 10 分钟再由 PMU 软睡断电。
 /// Power-menu shutdown: false powers fully off; true light-sleeps for10 minutes before PMU soft sleep.
 #endif
-#define APP_SLEEP_OFF_HOURS_MIN 1
+#define APP_SLEEP_OFF_HOURS_MIN 0
 #define APP_SLEEP_OFF_HOURS_MAX 24
-#define APP_SLEEP_OFF_HOURS_DEFAULT 1
-/// 锁屏后浅睡的小时数，默认1小时；不改变自动锁屏等待时间。/ Hours in light sleep after locking, default1; independent of the idle-lock delay.
+#define APP_SLEEP_OFF_HOURS_DEFAULT 0
+/// 锁屏后浅睡的小时数，默认1小时；不改变自动锁屏等待时间。/ Hours in light sleep after locking, first boot of each firmware version resets to0; subsequent boots retain the user choice.
 uint8_t app_settings_sleep_off_hours(void);
-/// 仅在NVS提交成功后更新；范围1..24小时。/ Update only after NVS commit; accept1..24 hours.
+/// 仅在NVS提交成功后更新；范围1..24小时。/ Persist0..24 hours and current firmware marker atomically; only update live state after commit.
 esp_err_t app_settings_set_sleep_off_hours(uint8_t hours);
 bool app_settings_staged_shutdown(void);
 void app_settings_set_staged_shutdown(bool staged);
@@ -197,6 +205,7 @@ typedef enum {
     APP_READER_KEY_NEXT_CHAPTER, ///< Chương sau
     APP_READER_KEY_LIGHT, ///< Tắt / Mở đèn nền
     APP_READER_KEY_KOSYNC, ///< Đồng bộ KOSync
+    APP_READER_KEY_ACTION_MENU, ///< Menu thao tác nhanh
     APP_READER_KEY_COUNT
 } app_reader_key_action_t;
 /// 三个短按功能，0/1/2对应左/中/右；长按独立配置。/ Short actions indexed left/middle/right, with a separate hold action.

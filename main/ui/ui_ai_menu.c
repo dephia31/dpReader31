@@ -12,9 +12,10 @@
 // 图标、下方标签和选中点共用横向节拍；列间空隙不可误触。
 // Icons,labels and selection dots share a horizontal rhythm; inter-column gaps remain inert.
 EpdRect ui_ai_menu_option(const ui_ai_menu_t *m,int option){
-    int left=m->rect.x+16+option*(m->rect.width-32)/APP_AI_MENU_COUNT;
-    int right=m->rect.x+16+(option+1)*(m->rect.width-32)/APP_AI_MENU_COUNT;
-    return (EpdRect){left+4,m->rect.y+58,right-left-8,138};
+    int column=option%3,row=option/3;
+    int left=m->rect.x+16+column*(m->rect.width-32)/3;
+    int right=m->rect.x+16+(column+1)*(m->rect.width-32)/3;
+    return (EpdRect){left+4,m->rect.y+58+row*m->row_height,right-left-8,m->row_height-6};
 }
 static void readable_circle(uint8_t *fb,int cx,int cy){
     const int radius=42;
@@ -28,7 +29,7 @@ static void readable_circle(uint8_t *fb,int cx,int cy){
     epd_draw_circle(cx,cy,radius-1,0xf0,fb);
 }
 static int hit(const ui_ai_menu_t*m,int x,int y){
-    for(int i=0;i<APP_AI_MENU_COUNT;++i)if(ui_rect_hit(ui_ai_menu_option(m,i),x,y))return i;
+    for(int i=0;i<m->count;++i)if(ui_rect_hit(ui_ai_menu_option(m,i),x,y))return i;
     return -1;
 }
 void ui_ai_menu_end(ui_ai_menu_t *m){heap_caps_free(m->underlay);memset(m,0,sizeof(*m));}
@@ -45,33 +46,36 @@ bool ui_ai_menu_begin(ui_ai_menu_t *m,uint8_t *fb,app_ai_action_t selected,bool 
     (void)reader;
     if(m->open||!fb||epd_rotated_display_width()<684||epd_rotated_display_height()<368)return false;
     const int w=epd_rotated_display_width();
-    EpdRect r={(w-648)/2,96,648,252};
+    uint32_t mask=app_settings_action_menu();
+    app_ai_action_t actions[APP_AI_MENU_COUNT];int count=0;
+    for(int action=0;action<APP_AI_ACTION_COUNT;++action)
+        if((mask&(1u<<action))&&count<APP_AI_MENU_COUNT)actions[count++]=action;
+    int rows=count?(count+2)/3:1;
+    int row_height=(epd_rotated_display_height()-96-24-84)/rows;
+    if(row_height>144)row_height=144;
+    if(row_height<120)return false;
+    EpdRect r={(w-648)/2,96,648,84+rows*row_height};
     uint8_t *saved=heap_caps_calloc(1,(size_t)r.width*r.height/2,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
     if(!saved)return false;
     for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x){
         size_t i=(size_t)y*r.width+x;saved[i/2]|=ui_read_pixel(fb,r.x+x,r.y+y)<<((i&1)*4);
     }
-    *m=(ui_ai_menu_t){.underlay=saved,.frame=fb,.rect=r,.rotation=epd_get_rotation(),.selected=selected,.pressed=-1,.open=true,.draining=true};
+    *m=(ui_ai_menu_t){.underlay=saved,.frame=fb,.rect=r,.rotation=epd_get_rotation(),.selected=selected,.pressed=-1,.open=true,.draining=true,.count=count,.row_height=row_height};
+    memcpy(m->actions,actions,(size_t)count*sizeof(actions[0]));
     ui_fill_round_rect(fb,r,40,UI_GRAY_WHITE);
     ui_draw_control_frame(fb,r,40,0x60);
     // 最后一项是反白而非加粗；标题与标签必须黑字，且在玻璃处理完成后绘制。
     // The final flag means inverted,not bold. Draw black labels only after glass processing.
-    ui_text_fixed_vc(fb,r.x+r.width/2,r.y+32,28,"Phím tắt nhanh",EPD_DRAW_ALIGN_CENTER,false);
-    static const char*labels[]={"Làm mới","Dấu trang","Đèn nền","Trang chủ","Tắt phím"};
-    static const ui_icon_t icons[]={UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_X};
-    for(int i=0;i<APP_AI_MENU_COUNT;++i){
-        EpdRect option=ui_ai_menu_option(m,i);int cx=option.x+option.width/2,cy=r.y+106;
-        readable_circle(fb,cx,cy);
-        ui_draw_icon(fb,cx,cy,36,icons[i],UI_GRAY_BLACK);
-        // 标签直接叠在玻璃上，不加独立白色底块。
-        // Draw labels directly on the glass, without separate white backing.
-        ui_text_fixed_vc(fb,cx,r.y+174,22,labels[i],EPD_DRAW_ALIGN_CENTER,false);
-        if(i==(int)selected){
-            epd_fill_circle(cx+22,cy-22,6,UI_GRAY_WHITE,fb);
-            epd_fill_circle(cx+22,cy-22,4,UI_GRAY_BLACK,fb);
-        }
+    ui_text_fixed_vc(fb,r.x+r.width/2,r.y+32,28,"Menu thao tác nhanh",EPD_DRAW_ALIGN_CENTER,false);
+    static const char*labels[]={"Làm mới","Dấu trang","Đèn nền","Trang chủ","Không dùng","KoSync","Trang trước","Trang sau","Chương trước","Chương sau","Menu đọc sách"};
+    static const ui_icon_t icons[]={UI_ICON_REFRESH_CW,UI_ICON_BOOKMARK,UI_ICON_LIGHTBULB,UI_ICON_HOUSE,UI_ICON_X,UI_ICON_ROTATE_CW,UI_ICON_CHEVRON_LEFT,UI_ICON_CHEVRON_RIGHT,UI_ICON_CHEVRON_LEFT,UI_ICON_CHEVRON_RIGHT,UI_ICON_LIST};
+    for(int i=0;i<m->count;++i){
+        EpdRect option=ui_ai_menu_option(m,i);int cx=option.x+option.width/2,cy=option.y+48;
+        int action=m->actions[i];readable_circle(fb,cx,cy);
+        ui_draw_icon(fb,cx,cy,36,icons[action],UI_GRAY_BLACK);
+        ui_text_fixed_vc(fb,cx,option.y+116,22,labels[action],EPD_DRAW_ALIGN_CENTER,false);
     }
-    ui_text_fixed_vc(fb,r.x+r.width/2,r.y+224,18,"Chọn tác vụ nhấn ngắn · Dấu trang chỉ hoạt động khi đọc sách",EPD_DRAW_ALIGN_CENTER,false);
+    if(!count)ui_text_fixed_vc(fb,r.x+r.width/2,r.y+110,22,"Thêm tác vụ trong Cài đặt → Menu thao tác nhanh",EPD_DRAW_ALIGN_CENTER,false);
     return true;
 }
 int ui_ai_menu_feed(ui_ai_menu_t *m,const app_ctx_t *ctx,bool valid){
@@ -81,7 +85,7 @@ int ui_ai_menu_feed(ui_ai_menu_t *m,const app_ctx_t *ctx,bool valid){
     if(m->draining){if(!t->touched)m->draining=false;return UI_AI_NO_ACTION;}
     if(ctx->pressed){m->pressed=hit(m,t->x,t->y);m->x0=t->x;m->y0=t->y;m->armed=true;}
     if(m->armed&&t->touched&&(hit(m,t->x,t->y)!=m->pressed||abs((int)t->x-m->x0)>20||abs((int)t->y-m->y0)>20))m->armed=false;
-    if(ctx->released&&m->armed){m->armed=false;return m->pressed<0?UI_AI_CLOSE:m->pressed;}
+    if(ctx->released&&m->armed){m->armed=false;return m->pressed<0?UI_AI_CLOSE:m->actions[m->pressed];}
     return UI_AI_NO_ACTION;
 }
 EpdRect ui_ai_menu_save_error(ui_ai_menu_t*m,uint8_t*fb){

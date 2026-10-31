@@ -11,13 +11,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Dependencies for annotation transport and Lua bridge tests
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y libcjson-dev zlib1g-dev
-          python3 -m pip install lupa Pillow
+          python3 -m pip install lupa Pillow==13.0.0
       - name: Selection geometry, annotation recovery and StarDict
         run: |
+          python3 tools/action_menu_host_test.py
+          python3 tools/sleep_only_settings_host_test.py
           python3 tools/dict_sd_folder_host_test.py
           python3 tools/quick_radio_notice_host_test.py
           python3 tools/metalio_psram_task_host_test.py
