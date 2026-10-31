@@ -14,7 +14,7 @@ from lupa import LuaRuntime
 from notes_test_support import ROOT,cjson_flags
 out=ROOT/'build/notes-roundtrip';out.mkdir(parents=True,exist_ok=True)
 libpath=out/('exchange.dylib' if sys.platform=='darwin' else 'exchange.so')
-subprocess.run(['cc','-std=c11','-D_DARWIN_C_SOURCE','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror', '-dynamiclib' if sys.platform=='darwin' else '-shared','-fPIC','-I'+str(ROOT/'main/book'),str(ROOT/'main/book/book_annotations.c'),str(ROOT/'main/book/book_annotation_exchange.c'),*cjson_flags(),'-o',str(libpath)],check=True)
+subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-D_DARWIN_C_SOURCE','-D_DEFAULT_SOURCE','-Wall','-Wextra','-Werror', '-dynamiclib' if sys.platform=='darwin' else '-shared','-fPIC','-I'+str(ROOT/'main/book'),str(ROOT/'main/book/book_annotations.c'),str(ROOT/'main/book/book_annotation_exchange.c'),*cjson_flags(),'-o',str(libpath)],check=True)
 class Item(C.Structure):_fields_=[('start',C.c_uint32),('end',C.c_uint32),('note',C.c_char*128),('quote',C.c_char*256)]
 class Notes(C.Structure):_fields_=[('text_hash',C.c_uint64),('path_hash',C.c_uint64),('chapter',C.c_uint32),('length',C.c_uint32),('count',C.c_uint32),('sequence',C.c_uint32),('items',Item*32)]
 lib=C.CDLL(str(libpath))

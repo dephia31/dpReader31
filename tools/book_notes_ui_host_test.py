@@ -193,5 +193,5 @@ int main(void){
 }
 '''
 (out/'test.c').write_text(unit)
-subprocess.run(['cc','-std=c11','-D_DARWIN_C_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=undefined','-DNOTES_ROOT="notes"','-DDICT_ROOT="dict"','-I'+str(out),'-I'+str(root/'main/book'),'-I'+str(root/'main/ui'),str(out/'test.c'),str(root/'main/book/book_annotations.c'),str(root/'main/book/book_dictionary.c'),str(root/'main/book/book_dict_file.c'),'-lz',str(root/'main/book/book_annotation_exchange.c'),*cjson_flags(),str(root/'main/ui/ui_text_edit.c'),'-o',str(out/'test')],check=True)
+subprocess.run(['cc','-std=c11','-D_DEFAULT_SOURCE','-D_DARWIN_C_SOURCE','-Wall','-Wextra','-Werror','-fsanitize=undefined','-DNOTES_ROOT="notes"','-DDICT_ROOT="dict"','-I'+str(out),'-I'+str(root/'main/book'),'-I'+str(root/'main/ui'),str(out/'test.c'),str(root/'main/book/book_annotations.c'),str(root/'main/book/book_dictionary.c'),str(root/'main/book/book_dict_file.c'),'-lz',str(root/'main/book/book_annotation_exchange.c'),*cjson_flags(),str(root/'main/ui/ui_text_edit.c'),'-o',str(out/'test')],check=True)
 subprocess.run([str(out/'test')],check=True)
