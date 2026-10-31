@@ -23,6 +23,9 @@ unit=r'''
 #define portEXIT_CRITICAL(lock) ((void)(lock))
 #define pdMS_TO_TICKS(x) (x)
 #define pdPASS 1
+#define metalio_task_create xTaskCreate
+#define metalio_task_create_internal xTaskCreate
+#define metalio_task_exit() vTaskDelete(NULL)
 typedef int portMUX_TYPE;
 static int64_t mono;
 static bool media_ready_for_jobs=true;
@@ -38,7 +41,8 @@ static void release(void *p){if(!p)return;for(unsigned i=0;i<64;++i)if(memory[i]
 #define free release
 static jmp_buf done;
 static void (*task_fn)(void *);
-static int xTaskCreate(void(*fn)(void *),const char *name,int stack,void *arg,int priority,void *handle){(void)name;(void)arg;(void)handle;assert(stack==12288&&priority==1);task_fn=fn;if(task_ok)++jobs;return task_ok;}
+static void *task_arg;
+static int xTaskCreate(void(*fn)(void *),const char *name,int stack,void *arg,int priority,void *handle){(void)name;(void)arg;(void)handle;assert(stack==12288&&priority==1);task_fn=fn;task_arg=arg;if(task_ok)++jobs;return task_ok;}
 static void vTaskDelete(void *arg){(void)arg;longjmp(done,1);}
 static void vTaskDelay(int ms){mono+=ms*1000;}
 static int64_t esp_timer_get_time(void){return mono;}
@@ -61,7 +65,7 @@ int book_cover_load_io(const char*p,const char*t,const char*a,uint8_t*out,bool l
  return *p=='N'?0:1;
 }
 static bool book_auto_cover_render(const char*p,const char*t,const char*a,unsigned w,unsigned h,uint8_t*out){(void)p;(void)t;(void)a;assert(!worker_context&&w==176&&h==240);++fonts;memset(out,33,w*h);return true;}
-static void run(void){worker_context=1;if(!setjmp(done))task_fn(NULL);worker_context=0;}
+static void run(void){worker_context=1;if(!setjmp(done))task_fn(task_arg);worker_context=0;}
 int main(void){
  media_ready_for_jobs=false;book_cover_job_t blocked=request("/sdcard/books/a.epub");assert(!book_cover_jobs_submit(book_cover_jobs_begin(),0,&blocked)&&!jobs&&!reads);media_ready_for_jobs=true;
 
@@ -99,6 +103,11 @@ int main(void){
  generation=book_cover_jobs_begin();assert(book_cover_jobs_submit(generation,0,&q));assert(!book_cover_jobs_quiesce(20));run();assert(book_cover_jobs_quiesce(0));
  generation=book_cover_jobs_begin();for(unsigned slot=0;slot<9;++slot){q=request("A");assert(book_cover_jobs_submit(generation,slot,&q));}run();
  for(unsigned slot=0;slot<9;++slot){assert(book_cover_jobs_take(generation,slot,&result)==1);free(result.pixels);}
+ // An SD worker must hand a later flash job to an internal-stack worker.
+ generation=book_cover_jobs_begin();q=request("/sdcard/book.epub");assert(book_cover_jobs_submit(generation,0,&q));assert(task_arg==NULL);
+ q=request("/flash/books/book.epub");assert(book_cover_jobs_submit(generation,1,&q));before=decodes;run();
+ assert(decodes==before+1&&task_arg!=NULL&&s_running);run();assert(decodes==before+2);
+ for(unsigned slot=0;slot<2;++slot){assert(book_cover_jobs_take(generation,slot,&result)==1);free(result.pixels);}
  assert(book_cover_jobs_quiesce(0));free(s_jobs);s_jobs=NULL;assert(!live);
  puts("PASS: real bounded cover worker has no UI IO on queue/poll, packed hits skip gray/decode, stale generations and media cancellation discard results, UI-only auto glyphs, transient fallback not cached, all9 slots and OOM/task failures release resources");
 }

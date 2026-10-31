@@ -14,6 +14,9 @@
 int test_heap_fail_after = -1;
 size_t test_heap_largest;
 static bool test_zero_width;
+static ttf_geometry_fn visit_fn;
+static void *visit_ctx;
+void ttf_geometry_visit(ttf_geometry_fn fn,void *ctx) {visit_fn=fn;visit_ctx=ctx;}
 static char drawn[20000];
 static bool capture_lines;
 static char captured[128][512];
@@ -93,6 +96,15 @@ void ttf_draw_text_px(uint8_t* fb, int x, int y, int px, const char* text,
                       enum EpdFontFlags align, uint8_t fg, uint8_t bg) {
     (void)fb; (void)align;
     assert(fg <= 15 && bg <= 15);
+    if(visit_fn) {
+        size_t at=0;
+        while(text[at]) {
+            size_t end=at+1;while(text[end]&&((unsigned char)text[end]&0xc0)==0x80)++end;
+            visit_fn(visit_ctx,at,end-at,(EpdRect){x,y-px,px,px});
+            x+=px;at=end;
+        }
+        return;
+    }
     if (!drawn[0]) { first_draw_px = px; first_draw_x = x; first_draw_y = y; }
     last_draw_px = px;
     last_draw_x = x;
@@ -156,7 +168,25 @@ int ttf_vertical_text_height_px(int px, const char* text, int tracking_px) {
     }
     return total;
 }
+static size_t geometry_offsets[128],geometry_count;
+static void geometry_offset(void *ctx,size_t start,size_t end,EpdRect rect) {
+    const char *text=ctx;
+    assert(start<end&&end<=strlen(text)&&rect.width>0);
+    assert(((unsigned char)text[start]&0xc0)!=0x80);
+    assert(geometry_count<128);geometry_offsets[geometry_count++]=start;
+}
 int main(void) {
+    const char *geometry_text="  apple banana\ncarrot";
+    EpdRect geometry_rect={20,60,100,140};
+    book_layout_set_first_line_indent(0);
+    assert(book_layout_build(geometry_text,strlen(geometry_text),geometry_rect,10));
+    for(size_t p=0;p<book_layout_page_count();p++)assert(book_layout_visit_page(p,geometry_rect,10,geometry_offset,(void*)geometry_text));
+    assert(geometry_count&&geometry_offsets[0]==2);
+    for(size_t i=1;i<geometry_count;i++)assert(geometry_offsets[i]>geometry_offsets[i-1]);
+    book_layout_set_vertical(true);
+    assert(!book_layout_visit_page(0,geometry_rect,10,geometry_offset,(void*)geometry_text));
+    book_layout_set_vertical(false);book_layout_free();book_layout_set_first_line_indent(2);
+
     const char *size_text="甲乙丙丁戊己庚辛壬癸。天地玄黄宇宙洪荒。";
     for(int px=18;px<=90;++px){
         assert(book_layout_build(size_text,strlen(size_text),(EpdRect){12,180,660,900},px));

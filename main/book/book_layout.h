@@ -119,3 +119,9 @@ typedef struct {
 /// 每次只画一行或一列，不推屏；返回-1失败、0待续、1完成。只在UI空闲线程调用。
 /// Draw at most one row/column without presenting; -1 failed,0 pending,1 complete. UI idle thread only.
 int book_layout_draw_slice(uint8_t *fb,size_t page,EpdRect rect,int px,book_layout_draw_cursor_t *cursor);
+
+/* Visits horizontal glyph advances in parsed chapter UTF-8 coordinates. No pixels
+ * are written. Caller must serialize fonts and stop/join idle drawing first. */
+typedef void (*book_layout_glyph_fn)(void *ctx, size_t start, size_t end, EpdRect cell);
+bool book_layout_visit_page(size_t page, EpdRect rect, int px,
+                            book_layout_glyph_fn fn, void *ctx);

@@ -3134,6 +3134,17 @@ void ttf_draw_text(
     ttf_draw_text_px(framebuffer, x, y, size_to_px(size), text, align, fg, bg);
 }
 
+static ttf_geometry_fn s_geometry_fn;
+static void *s_geometry_ctx;
+void ttf_geometry_visit(ttf_geometry_fn fn, void *ctx) {
+    s_geometry_fn = fn; s_geometry_ctx = ctx;
+}
+static void geometry_glyph(const char *text, const char *start, const char *end,
+                           int x, int y, int px, int advance) {
+    if (s_geometry_fn) s_geometry_fn(s_geometry_ctx, (size_t)(start-text),
+        (size_t)(end-start), (EpdRect){x,y-ttf_ascender_px(px),advance>0?advance:1,px});
+}
+
 void ttf_draw_text_px(
     uint8_t* framebuffer, int x, int y, int pixel_height, const char* text,
     enum EpdFontFlags align, uint8_t fg, uint8_t bg
@@ -3152,12 +3163,14 @@ void ttf_draw_text_px(
 
     const char* cursor = text;
     while (*cursor != '\0') {
+        const char *glyph_start = cursor;
         run_apply((size_t)(cursor - text));
         uint32_t cp = decode_utf8(&cursor);
         const glyph_entry_t* glyph = get_glyph(cp, pixel_height);
         if (glyph == NULL) continue;
+        geometry_glyph(text,glyph_start,cursor,cursor_x,y,pixel_height,glyph->advance_x);
 
-        if (glyph->bitmap != NULL) {
+        if (!s_geometry_fn && glyph->bitmap != NULL) {
             for (int gy = 0; gy < glyph->height; gy++) {
                 int yy = y - glyph->top + gy;
                 for (int gx = 0; gx < glyph->width; gx++) {
@@ -3220,11 +3233,13 @@ void ttf_draw_text_px_spaced(
     int cursor_x = x;
     const char* cursor = text;
     while (*cursor != '\0') {
+        const char *glyph_start = cursor;
         run_apply((size_t)(cursor - text));
         uint32_t cp = decode_utf8(&cursor);
         const glyph_entry_t* glyph = get_glyph(cp, pixel_height);
         if (glyph == NULL) continue;
-        if (glyph->bitmap != NULL) {
+        geometry_glyph(text,glyph_start,cursor,cursor_x,y,pixel_height,glyph->advance_x);
+        if (!s_geometry_fn && glyph->bitmap != NULL) {
             for (int gy = 0; gy < glyph->height; gy++) {
                 int yy = y - glyph->top + gy;
                 for (int gx = 0; gx < glyph->width; gx++) {
@@ -3554,10 +3569,12 @@ void ttf_draw_text_px_fitted(
     int adjusted = 0, cursor_x = x;
     cursor = text;
     while (*cursor) {
+        const char *glyph_start = cursor;
         run_apply((size_t)(cursor - text));
         uint32_t cp = decode_utf8(&cursor);
         const glyph_entry_t* glyph = get_glyph(cp, pixel_height);
-        if (glyph && glyph->bitmap) {
+        if (glyph) geometry_glyph(text,glyph_start,cursor,cursor_x,y,pixel_height,glyph->advance_x);
+        if (!s_geometry_fn && glyph && glyph->bitmap) {
             for (int gy = 0; gy < glyph->height; ++gy) {
                 int yy = y - glyph->top + gy;
                 for (int gx = 0; gx < glyph->width; ++gx) {

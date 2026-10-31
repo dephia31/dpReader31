@@ -73,8 +73,10 @@ static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t gray){
 }
 static void ui_draw_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t gray){(void)radius;for(int x=0;x<r.width;++x){epd_draw_pixel(r.x+x,r.y,gray,fb);epd_draw_pixel(r.x+x,r.y+r.height-1,gray,fb);}for(int y=0;y<r.height;++y){epd_draw_pixel(r.x,r.y+y,gray,fb);epd_draw_pixel(r.x+r.width-1,r.y+y,gray,fb);}}
 static uint8_t ui_contrast_gray(uint8_t v){return v;}
-enum {EPD_DRAW_ALIGN_LEFT,EPD_DRAW_ALIGN_RIGHT};
+enum {EPD_DRAW_ALIGN_LEFT,EPD_DRAW_ALIGN_RIGHT,EPD_DRAW_ALIGN_CENTER};
 static int texts;
+static void ui_text_box(uint8_t *fb,EpdRect r,int px,const char *text,int align,bool bold){(void)text;(void)align;(void)bold;++texts;assert(px==22&&r.y+r.height<=382);epd_fill_rect((EpdRect){r.x+8,r.y+8,80,4},0,fb);}
+
 static __attribute__((unused)) void ui_text_fixed(uint8_t *fb,int x,int y,int size,const char *text,int align,bool bold){++texts;(void)bold;int width=(int)strlen(text)*size/3;if(align==EPD_DRAW_ALIGN_RIGHT)x-=width;epd_fill_rect((EpdRect){x,y-size,width,size},0,fb);}
 static void ui_nav_status(uint8_t *fb){epd_fill_rect((EpdRect){36,29,52,16},0,fb);}
 static bool app_settings_main_fast_refresh(void){return fast;}
@@ -84,6 +86,8 @@ static void heap_caps_free(void *p){if(p){--live;size_t *base=(size_t*)p-1;live_
 code+='static void ui_fill_rect_fast(EpdRect r,uint8_t gray,uint8_t *fb){epd_fill_rect(r,gray,fb);}\n'
 header=(root/'main/ui/ui_quick_menu.h').read_text()
 code+='\n'.join(re.findall(r'^#define UI_QUICK[^\n]*',header,re.M))+'\n'
+for name in ['ui_quick_center_x','ui_quick_center_y']:code+=function('main/ui/ui_quick_menu.h',name)
+
 for name in ('ui_read_pixel','ui_image_bw_rect','icon_nibble','ui_draw_icon'):
     code+=function('main/ui/ui_kit.c',name)
 for name in ('epd_draw_circle',):code+=function('components/epdiy/src/epdiy.c',name)
@@ -115,39 +119,44 @@ int main(void){
   for(int policy=0;policy<3;++policy){
    patterned();texts=0;ui_quick_menu_draw(frame,true,false,true,30,50,false);
    if(!(rotation&1)){assert(!live&&!memcmp(frame,saved,BYTES));continue;}
-   assert(live==2&&texts==0&&live_bytes==149760);int grays=0;
+   assert(live==2&&texts==0&&live_bytes==UI_LOCK_WIDTH*UI_QUICK_HEIGHT/2+UI_QUICK_BUTTON_COUNT*KEY_BYTES);int grays=0;
    for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x){
     uint8_t p=pixel(frame,x,y);if(y>=UI_QUICK_HEIGHT)assert(p==pixel(saved,x,y));else grays+=p!=0&&p!=255;
    }
    assert(grays>1000);int retained_allocs=allocs;memcpy(again,frame,BYTES);
    // 启用和关闭只改变Pico式小圆点，不能遮盖玻璃、反白图标或影响其他控件。
    // Activation may change only the Pico-style badge, never tint glass, invert the icon or touch other controls.
-   for(unsigned button=0;button<4;++button){
+   for(unsigned button=0;button<UI_QUICK_BUTTON_COUNT;++button){
     EpdRect dirty;int cx=UI_QUICK_CENTER_X(button),cy=UI_QUICK_CENTER_Y(button);
     assert(ui_quick_menu_draw_button(frame,button,false,false,&dirty));memcpy(saved,frame,BYTES);
     assert(ui_quick_menu_draw_button(frame,button,true,false,&dirty));
     for(int y=0;y<1216;++y)for(int x=0;x<684;++x){
-     int dx=x-cx-24,dy=y-cy+24;
+     int dx=x-cx-22,dy=y-cy+22;
      if(dx < -5 || dx > 5 || dy < -5 || dy > 5)assert(pixel(frame,x,y)==pixel(saved,x,y));
     }
-    assert(ui_quick_menu_draw_button(frame,button,button==0||button==3,false,&dirty));
+    assert(ui_quick_menu_draw_button(frame,button,button==0||button==4,false,&dirty));
    }
    assert(allocs==retained_allocs&&!memcmp(frame,again,BYTES));
    for(size_t b=0;b<BYTES;++b)saved[b]=(uint8_t)(b*13u+7u);
-   for(unsigned button=0;button<4;button++){EpdRect dirty;
+   for(unsigned button=0;button<UI_QUICK_BUTTON_COUNT;button++){EpdRect dirty;
     assert(ui_quick_menu_draw_button(frame,button,true,true,&dirty));
     assert(allocs==retained_allocs&&live==2);
     for(int y=0;y<1216;y++)for(int x=0;x<684;x++)if(x<dirty.x||x>=dirty.x+dirty.width||y<dirty.y||y>=dirty.y+dirty.height)assert(pixel(frame,x,y)==pixel(again,x,y));
-    assert(ui_quick_menu_draw_button(frame,button,button==0||button==3,false,&dirty));
+    assert(ui_quick_menu_draw_button(frame,button,button==0||button==4,false,&dirty));
     assert(!memcmp(frame,again,BYTES));
    }
+   memcpy(again,frame,BYTES);int notice_allocs=allocs;
+   EpdRect notice=ui_quick_menu_draw_notice(frame,"Bluetooth đã kết nối");
+   assert(allocs==notice_allocs&&notice.y+notice.height<=UI_QUICK_HEIGHT&&pixel(frame,342,348)==0);
+   for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x)
+    if(x<notice.x||x>=notice.x+notice.width||y<notice.y||y>=notice.y+notice.height)assert(pixel(frame,x,y)==pixel(again,x,y));
    assert(ui_quick_menu_restore(frame)&&!memcmp(frame,saved,BYTES));ui_quick_menu_end();assert(!live);
    for(int fail=0;fail<8;++fail){fail_after=fail;ui_quick_menu_draw(frame,true,false,true,120,120,false);int after_open=allocs;
     for(int n=0;n<40;n++){EpdRect dirty;assert(ui_quick_menu_draw_button(frame,n%4,n&1,n&2,&dirty));}assert(allocs==after_open);
     ui_quick_menu_end();assert(!live);fail_after=-1;memcpy(frame,saved,BYTES);
    }
    oom=true;ui_quick_menu_draw(frame,true,false,false,30,50,false);assert(!live&&!ui_quick_menu_restore(frame));
-   for(unsigned button=0;button<4;button++){EpdRect d;assert(ui_quick_menu_draw_button(frame,button,true,true,&d));}ui_quick_menu_end();oom=false;
+   for(unsigned button=0;button<UI_QUICK_BUTTON_COUNT;button++){EpdRect d;assert(ui_quick_menu_draw_button(frame,button,true,true,&d));}ui_quick_menu_end();oom=false;
   }
   for(int warm=0;warm<2;++warm)for(unsigned v=0;v<=240;v+=120){
    patterned();ui_quick_menu_draw_slider(frame,warm,v);EpdRect a=ui_quick_slider_rect(warm);
@@ -204,7 +213,7 @@ int main(void){
    if(fast)break;
   }
  }
- assert(!live_bytes&&peak_bytes<=320000);printf("S31 quick glass: resident149760B, peak%zuB; all caches freed on close\n",peak_bytes);
+ assert(!live_bytes&&peak_bytes<=320000);printf("S31 quick glass: bounded top/key cache, peak%zuB; all caches freed on close\n",peak_bytes);
  rotation=3;patterned();ui_click_feedback_begin(frame);
  ui_click_feedback_register(frame,(EpdRect){55,1111,60,60},UI_CLICK_NAV,UI_ICON_HOUSE);
  EpdRect r;assert(ui_click_feedback_press(frame,85,1188,&r));

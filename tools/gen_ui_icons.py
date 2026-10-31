@@ -96,6 +96,10 @@ COMMON_ICONS = (
     "pager-chevron-last",  # AnimateIcons / last page
     "animate-circle-chevron-left", # AnimateIcons / shared back
     "animate-bookmark-plus", # 阅读题头已收藏 / saved reader-header favorite
+    "search",
+    "highlighter",
+    "pencil",
+    "save",
     "x",                 # 电源弹窗·取消 / power dialog, cancel
 )
 

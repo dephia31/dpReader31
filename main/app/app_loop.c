@@ -59,6 +59,7 @@
 #include "crash_note.h"
 
 #include <string.h>
+#include <stdio.h>
 
 #include "app_registry.h"
 #include "app_content_open.h"
@@ -127,12 +128,16 @@ static int s_quick_pressed=-1;
 #if KIIKO_BOARD_METALIO47
 static const app_desc_t* s_presented_root;
 static ui_ai_menu_t s_ai;
+static int s_quick_notice_kind; /* 1 Wi-Fi, 2 Bluetooth */
+static esp_err_t s_quick_notice_error;
+static char s_quick_notice_text[96];
 static unsigned s_quick_slider_dirty;
 static unsigned s_quick_slider_drawn[2],s_quick_slider_level[2];
 #else
 #endif
 static void quick_reset(void) {
 #if KIIKO_BOARD_METALIO47
+    s_quick_notice_kind=0;s_quick_notice_text[0]=0;
     ui_ai_menu_end(&s_ai);metalio_ai_clear();
     ui_quick_menu_reset(&s_quick);ui_quick_menu_end();s_quick_pressed=-1;s_quick_slider_dirty=0;
 #else
@@ -277,6 +282,30 @@ static EpdRect quick_join(EpdRect a,EpdRect b) {
     int bottom=a.y+a.height>b.y+b.height?a.y+a.height:b.y+b.height;
     return (EpdRect){x,y,right-x,bottom-y};
 }
+static void quick_notice_begin(int kind,esp_err_t error) {
+    s_quick_notice_kind=kind;s_quick_notice_error=error;s_quick_notice_text[0]=0;
+}
+static EpdRect quick_notice_poll(uint8_t *fb) {
+    if(!s_quick_notice_kind)return (EpdRect){0};
+    const char *text;
+    if(s_quick_notice_error!=ESP_OK) {
+        text=s_quick_notice_kind==2?"Không thể bật/tắt Bluetooth":
+            s_quick_notice_error==ESP_ERR_NOT_FOUND?"Chưa lưu mạng Wi-Fi":
+            s_quick_notice_error==ESP_ERR_INVALID_STATE?"Wi-Fi đang bận truyền tệp":"Không thể bật/tắt Wi-Fi";
+    }else if(s_quick_notice_kind==2) {
+        text=!app_settings_ble_turner()?"Đã tắt Bluetooth":
+            ble_pt_connected()?"Bluetooth đã kết nối":
+            ble_pt_connecting()?"Bluetooth đang kết nối…":"Đã bật Bluetooth · Chờ kết nối";
+    }else {
+        read_pico_transfer_status_t status;read_pico_transfer_get_status(&status);
+        text=status.state==READ_PICO_TRANSFER_STOPPED?"Đã tắt Wi-Fi":
+            status.state==READ_PICO_TRANSFER_ERROR?"Kết nối Wi-Fi thất bại":
+            status.network_ready?"Wi-Fi đã kết nối":"Đã bật Wi-Fi · Đang kết nối…";
+    }
+    if(!strcmp(text,s_quick_notice_text))return (EpdRect){0};
+    snprintf(s_quick_notice_text,sizeof(s_quick_notice_text),"%s",text);
+    return ui_quick_menu_draw_notice(fb,text);
+}
 static void quick_controls_present(app_ctx_t *ctx,const app_desc_t *current) {
 #else
 // 菜单打开期间只改圆键和必要的状态栏；按下不排字、不重画页面或重算玻璃。
@@ -286,7 +315,7 @@ static void quick_buttons_present(app_ctx_t *ctx,const app_desc_t *current) {
     if(!s_quick.open)return;
 #if KIIKO_BOARD_METALIO47
     unsigned status=quick_status(),changed=(status^s_quick_status)&11u;
-    int pressed=ui_quick_menu_pressed(&s_quick);EpdRect dirty={0};
+    int pressed=ui_quick_menu_pressed(&s_quick);EpdRect dirty=quick_notice_poll(ctx->fb);
     static const unsigned bits[]={1u,2u,0u,0u,8u};
     for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i)if((changed&bits[i])||((pressed==(int)i)!=(s_quick_pressed==(int)i))) {
         EpdRect r;if(ui_quick_menu_draw_button(ctx->fb,i,(status&bits[i])!=0,pressed==(int)i,&r))dirty=quick_join(dirty,r);
@@ -350,16 +379,18 @@ static void quick_buttons_present(app_ctx_t *ctx,const app_desc_t *current) {
     s_quick_status=status;s_quick_pressed=pressed;
 }
 
-static void quick_toggle_wifi(void) {
+static esp_err_t quick_toggle_wifi(void) {
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
     if (status.state != READ_PICO_TRANSFER_STOPPED) {
         // 上传期间拒绝断开，复用存储任务已有的原子准入保护。
         // Refuse disconnecting during upload using the storage owner's atomic admission guard.
-        (void)read_pico_transfer_try_stop_if_idle();
+        return read_pico_transfer_try_stop_if_idle()?ESP_OK:ESP_ERR_INVALID_STATE;
     } else {
         char ssid[33] = {0}; bool configured = false;
-        if (read_pico_transfer_get_saved_wifi(ssid, &configured) == ESP_OK && configured) {
+        esp_err_t error=read_pico_transfer_get_saved_wifi(ssid, &configured);
+        if(error!=ESP_OK)return error;
+        if (configured) {
 #if KIIKO_BOARD_METALIO47
             // S31由原生无线共存仲裁，保留翻页器连接。/ Native S31 coexistence retains BLE.
 #else
@@ -368,8 +399,9 @@ static void quick_toggle_wifi(void) {
             ble_pt_sync(false);
 #endif
             const read_pico_transfer_cfg_t cfg = {.mode = READ_PICO_TRANSFER_MODE_STA, .network_only = true};
-            (void)read_pico_transfer_start(&cfg);
+            return read_pico_transfer_start(&cfg);
         }
+        return ESP_ERR_NOT_FOUND;
     }
 }
 static bool main_page_ready(app_ctx_t* ctx, const app_desc_t* app);
@@ -1243,17 +1275,24 @@ void app_loop_run(const app_loop_config_t* config) {
                     ctx.consumed = true;
                 }
 #if KIIKO_BOARD_METALIO47
-                if (action == UI_QUICK_OPEN || action == UI_QUICK_CLOSE) { metalio_frontlight_commit(); quick_present(&ctx, current, false); }
+                if (action == UI_QUICK_OPEN || action == UI_QUICK_CLOSE) { s_quick_notice_kind=0;s_quick_notice_text[0]=0;metalio_frontlight_commit(); quick_present(&ctx, current, false); }
 #else
                 if (action == UI_QUICK_OPEN || action == UI_QUICK_CLOSE) quick_present(&ctx, current, false);
 #endif
                 else if (action == UI_QUICK_WIFI) {
-                    quick_toggle_wifi();
+#if KIIKO_BOARD_METALIO47
+                    quick_notice_begin(1,quick_toggle_wifi());
+#else
+                    (void)quick_toggle_wifi();
+#endif
                 } else if (action == UI_QUICK_BLUETOOTH) {
                     bool enable=!app_settings_ble_turner();
                     app_settings_set_ble_turner(enable);
                     if(enable)ble_pt_reconnect_recent();
                     else {ble_pt_cancel_recent();ble_pt_sync(false);}
+#if KIIKO_BOARD_METALIO47
+                    quick_notice_begin(2,ESP_OK);
+#endif
                 } else if (action == UI_QUICK_FULL) quick_dismiss(&ctx, current, true);
 #if KIIKO_BOARD_METALIO47
                 else if (action == UI_QUICK_KOSYNC) {
@@ -1719,7 +1758,7 @@ void app_loop_run(const app_loop_config_t* config) {
             while (ble_pt_pop_raw(&raw_event)) {}
         }
 #if KIIKO_BOARD_METALIO47
-        if (s_quick.open && quick_status() != s_quick_status) quick_controls_present(&ctx, current);
+        if (s_quick.open) quick_controls_present(&ctx, current);
 #else
         if (s_quick.open && quick_status() != s_quick_status) quick_buttons_present(&ctx,current);
 #endif

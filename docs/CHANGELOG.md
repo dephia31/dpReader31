@@ -1,5 +1,14 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.2-vn · 2026-10-31
+
+- Chọn từ/đoạn bằng nhấn giữ và kéo; lưu highlight, ghi chú và danh sách ghi chú trên thẻ trong `dpReader_note`, giữ dấu khi đọc và đổi cỡ chữ.
+- Tra từ điển offline trực tiếp StarDict `.ifo` + `.idx`/`.idx.gz` + `.dict`/`.dict.dz`, hỗ trợ `.syn`; tăng chữ định nghĩa, tối ưu đọc chỉ mục và thêm mục tải folder từ điển ở trang chuyển file local.
+- Plugin dpReader cho KOReader trao đổi ghi chú hai chiều theo đoạn trích/chương, có kiểm tra vị trí và xung đột; xem giới hạn trong tài liệu.
+- Cải thiện menu ghi chú, viền bảng, chạm ngoài để đóng; Xong tự lưu, Tô sáng tự đóng; bỏ mở mục lục bằng giữ màn hình.
+- Thông báo KoSync chữ lớn có viền; thanh kéo nhanh có phản hồi Wi-Fi/Bluetooth. Sửa vùng refresh và tăng chiều cao bảng thống kê, thêm Danh sách ghi chú.
+- Chuyển stack các worker SD phù hợp sang PSRAM, giữ task flash/OTA/NVS/DMA/ISR trong SRAM; kiểm thử host và build, chưa đo hiệu năng/nghiệm thu thực tế trên thiết bị.
+
 ## dpReader 1.2.1-vn · 2026-10-30
 
 - Cải thiện độ nét chữ khi tắt khử răng cưa (AA), dùng tự căn nét cho phông TrueType.

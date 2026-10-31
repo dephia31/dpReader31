@@ -10,3 +10,9 @@ for name in names:
  address,size=symbols[name];assert 0x50000000<=address<0x51000000,(name,hex(address))
 address,size=symbols['_mscd_epbuf'];assert 0x2f000000<=address<0x2f080000
 print('PASS: %d CPU objects in S31 external BSS (%d bytes); TinyUSB endpoint remains internal'%(len(names),sum(symbols[n][1] for n in names)))
+
+reaper=['s_reaper_stack','s_reaper_tcb','s_queue_storage','s_queue_items','s_ready','s_queue']
+if 's_reaper_stack' in symbols:
+ for name in reaper:
+  address,size=symbols[name];assert 0x2f000000<=address<0x2f080000,(name,hex(address))
+ print('PASS: static task reaper remains internal (%d bytes)'%sum(symbols[n][1] for n in reaper))

@@ -98,6 +98,8 @@ bool ui_quick_menu_draw_button(uint8_t *fb, int button, bool active, bool presse
 void ui_quick_menu_draw_status(uint8_t *fb);
 #if KIIKO_BOARD_METALIO47
 EpdRect ui_quick_button_rect(unsigned index);
+/// Bounded radio feedback inside the saved top underlay; no allocation.
+EpdRect ui_quick_menu_draw_notice(uint8_t *fb,const char *text);
 /// 滑块以0..240像素定位，不按整数百分比分档。/ Slider positions use 0..240 pixels.
 void ui_quick_menu_draw_slider(uint8_t *fb, bool warmth, unsigned value);
 EpdRect ui_quick_slider_rect(bool warmth);

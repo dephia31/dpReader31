@@ -214,3 +214,8 @@ esp_err_t ttf_font_suspend_io(void);
 esp_err_t ttf_font_resume_io(void);
 #else
 #endif
+
+/* Synchronous geometry visit, serialized with font rendering. While installed,
+ * horizontal text functions visit advances without writing framebuffer pixels. */
+typedef void (*ttf_geometry_fn)(void *ctx, size_t byte, size_t bytes, EpdRect cell);
+void ttf_geometry_visit(ttf_geometry_fn fn, void *ctx);

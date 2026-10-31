@@ -13,6 +13,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "metalio_task.h"
 
 static portMUX_TYPE s_avatar_lock=portMUX_INITIALIZER_UNLOCKED;
 static const int s_sides[]={60,82};
@@ -47,7 +48,7 @@ static void avatar_worker(void *arg) {
         // Yield to UI; capture the latest generation before each size/new request.
         vTaskDelay(pdMS_TO_TICKS(1));
     }
-    vTaskDelete(NULL);
+    metalio_task_exit();
 }
 void ui_avatar_invalidate(void) {
     uint8_t *old[2];
@@ -78,7 +79,7 @@ void ui_avatar_request(const char *path,int side) {
     if(s_states[slot]!=UI_AVATAR_READY)s_states[slot]=UI_AVATAR_PENDING;
     if(!s_running&&s_states[slot]==UI_AVATAR_PENDING){s_running=true;start=true;}
     portEXIT_CRITICAL(&s_avatar_lock);
-    if(start&&xTaskCreate(avatar_worker,"avatar",12288,NULL,1,NULL)!=pdPASS){
+    if(start&&metalio_task_create(avatar_worker,"avatar",12288,NULL,1,NULL)!=pdPASS){
         portENTER_CRITICAL(&s_avatar_lock);s_running=false;s_states[slot]=UI_AVATAR_UNAVAILABLE;portEXIT_CRITICAL(&s_avatar_lock);
     }
 }

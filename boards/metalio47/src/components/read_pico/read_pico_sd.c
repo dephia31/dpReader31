@@ -211,6 +211,9 @@ static void fill_info(read_pico_sd_info_t* info, esp_err_t mount_err) {
 }
 
 static void ensure_media_dirs(void) {
+    if (mkdir("/sdcard/dict", 0777) != 0 && errno != EEXIST) {
+        ESP_LOGW(TAG, "mkdir dict: %d", errno);
+    }
     if (mkdir("/sdcard/assets", 0777) != 0 && errno != EEXIST) {
         ESP_LOGW(TAG, "mkdir assets: %d", errno);
     }

@@ -1,10 +1,15 @@
-## dpReader 1.2.1-vn — Metalio E-ink 4 Plus (ESP32-S31)
+# dpReader Metalio 4.7 — v1.2.2-vn
 
-- **Cải thiện độ nét chữ khi không cần bật AA:** tự căn nét cho chữ đen trắng, giúp nét chữ rõ hơn khi tắt khử răng cưa.
-- Cải thiện cách hiển thị chữ có AA và chữ giao diện với light hinting và độ phủ liên tục.
-- Tối ưu lật trang khi bật AA bằng waveform37pha; giữ làm sạch toàn màn hình và phục hồi lỗi bằng GC48.
-- Giữ bố cục, phông đã chọn, VCOM và các thiết lập đọc hiện có.
+- Chọn từ/đoạn bằng nhấn giữ và kéo; lưu highlight, ghi chú và danh sách ghi chú trên thẻ trong `dpReader_note`, giữ dấu khi đọc và đổi cỡ chữ.
+- Tra từ điển offline trực tiếp StarDict `.ifo` + `.idx`/`.idx.gz` + `.dict`/`.dict.dz`, hỗ trợ `.syn`; tăng chữ định nghĩa, tối ưu đọc chỉ mục và thêm mục tải folder từ điển ở trang chuyển file local.
+- Plugin dpReader cho KOReader trao đổi ghi chú hai chiều theo đoạn trích/chương, có kiểm tra vị trí và xung đột; xem giới hạn trong tài liệu.
+- Cải thiện menu ghi chú, viền bảng, chạm ngoài để đóng; Xong tự lưu, Tô sáng tự đóng; bỏ mở mục lục bằng giữ màn hình.
+- Thông báo KoSync chữ lớn có viền; thanh kéo nhanh có phản hồi Wi-Fi/Bluetooth. Sửa vùng refresh và tăng chiều cao bảng thống kê, thêm Danh sách ghi chú.
+- Chuyển stack các worker SD phù hợp sang PSRAM, giữ task flash/OTA/NVS/DMA/ISR trong SRAM; kiểm thử host và build, chưa đo hiệu năng/nghiệm thu thực tế trên thiết bị.
 
-Gói OTA/TF là ứng dụng đầy đủ. Gói USB kèm FLASH_USB.command cho macOS và FLASH_USB.bat cho Windows để cập nhật ứng dụng và lựa chọn OTA, giữ dữ liệu. Các tệp cùng một lần build, kèm SHA-256 và giấy phép FreeType; không kèm font Bookerly.
 
-Web flasher: https://dephia31.github.io/dpReader31/ — giữ bản chính thức trước 1.2.0-vn để tải/nạp lại.
+Cập nhật bằng ứng dụng Bin qua thẻ nhớ/OTA hoặc gói USB đi kèm. Giữ nguyên phân vùng hiện có; không cần xóa dữ liệu.
+
+Từ điển và ghi chú: xem [hướng dẫn](https://github.com/dephia31/dpReader31/blob/main/docs/HIGHLIGHT_DICTIONARY.md). Plugin KOReader ở `integrations/koreader/dpreader-sync.koplugin`. Chọn chữ hiện giới hạn văn bản ngang trong một trang; tra từ vẫn quét tuần tự; trao đổi KOReader cần sách/chương/đoạn trích phù hợp.
+
+Đã build S31 và kiểm thử host. Chưa flash/nghiệm thu bản này trên thiết bị hoặc KOReader thật; không công bố số đo tốc độ/SRAM trên máy thật.

@@ -10,7 +10,10 @@
 #include "ui_kit.h"
 #include <string.h>
 
+static bool s_held_drag;
+void ui_gesture_enable_held_drag(bool enabled) { s_held_drag=enabled; }
 void ui_gesture_reset(ui_gesture_t *g) {
+    s_held_drag=false;
     if (g) memset(g, 0, sizeof(*g));
 }
 
@@ -61,6 +64,6 @@ bool ui_gesture_feed(ui_gesture_t *g, const app_ctx_t *ctx, ui_gesture_event_t *
         g->long_fired = true;
         return emit(g, UI_GESTURE_LONG_PRESS, ctx->now_ms, out);
     }
-    if (g->moved && !g->long_fired) return emit(g, UI_GESTURE_MOVE, ctx->now_ms, out);
+    if (g->moved && (!g->long_fired || s_held_drag)) return emit(g, UI_GESTURE_MOVE, ctx->now_ms, out);
     return false;
 }

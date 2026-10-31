@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "version": "1.2.1-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "20f9d16809434056c7ac4ebc74919ec4121cdf5fee2cc2f4ebddac53ba486b3e",
+  "size": 4205504,
+  "notes": "dpReader 1.2.1: Cải thiện độ nét chữ khi tắt AA, cải thiện chữ giao diện và tối ưu lật trang khi bật AA.",
+  "previous_version": "1.2.0-vn"
+}

@@ -7,6 +7,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "metalio_task.h"
 
 typedef struct {
     FILE *file;
@@ -35,7 +36,7 @@ static void transfer_writer_task(void *opaque) {
     // 发出完成后不再访问调用方资源；不能强删正在写卡的任务。
     // Touch no caller resources after completion; never force-delete a task inside card I/O.
     xSemaphoreGive(w->joined);
-    vTaskDelete(NULL);
+    metalio_task_exit();
 }
 
 static void transfer_writer_destroy(transfer_writer_t *w) {
@@ -50,8 +51,8 @@ static void transfer_writer_destroy(transfer_writer_t *w) {
 }
 
 static transfer_writer_t *transfer_writer_start(FILE *file,char *first,size_t cap,size_t total) {
-    // 小文件直接沿用单缓冲；每次上传最多增加一块PSRAM和一个内部栈。
-    // Small files retain single-buffer I/O; each upload adds at most one PSRAM block and one internal stack.
+    // 小文件直接沿用单缓冲；每次上传最多增加一块PSRAM和一个PSRAM栈。
+    // Small files retain single-buffer I/O; each upload adds at most one PSRAM block and one PSRAM stack.
     if(!cap || total/cap<4)return NULL;
     transfer_writer_t *w=heap_caps_calloc(1,sizeof(*w),MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
     if(!w)return NULL;
@@ -66,7 +67,7 @@ static transfer_writer_t *transfer_writer_start(FILE *file,char *first,size_t ca
     }
     w->joined=xSemaphoreCreateBinary();
     if(!w->joined)goto fail;
-    if(xTaskCreate(transfer_writer_task,"s31_sd_write",4096,w,4,NULL)!=pdPASS)goto fail;
+    if(metalio_task_create(transfer_writer_task,"s31_sd_write",4096,w,4,NULL)!=pdPASS)goto fail;
     return w;
 fail:
     transfer_writer_destroy(w);

@@ -30,7 +30,7 @@ class Element {
   toBlob(resolve) { assert.equal(this.width, 684); assert.equal(this.height, 1216); resolve({size: 120000}); }
 }
 
-async function setup({responses = [], confirmations = [true], mode = 'ap'} = {}) {
+async function setup({responses = [], confirmations = [true], mode = 'ap', mkdirStatus=200, directoryStatus=200} = {}) {
   const nodes = new Map();
   const sections = ['book', 'font', 'picture', 'file'].map(kind => {
     const section = new Element();
@@ -60,13 +60,14 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
     if (url.startsWith('/files?')) {
       state.gets.push(url);
       const path = new URL('http://pico' + url).searchParams.get('path') || '';
+      if(directoryStatus!==200&&path.startsWith('dict'))return {status:directoryStatus,json:async()=>({error:'Không phải thư mục'})};
       const items = path ? [{name: '封面.jpg', directory: false, size: 1200000}]
         : [{name: 'books', directory: true, size: 0}, {name: 'readme.txt', directory: false, size: 12}];
       return {status: 200, json: async () => ({path, total: items.length, pages: 1, items})};
     }
     if (url === '/files' && options.method === 'POST') {
       state.mutations.push(JSON.parse(options.body));
-      return {status: 200, json: async () => ({ok: true})};
+      return {status:JSON.parse(options.body).action==='mkdir'?mkdirStatus:200, json: async () => ({ok: true})};
     }
     throw Error('Unexpected fetch: ' + url);
   };
@@ -107,16 +108,16 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
 
 (async () => {
   const grouped=await setup();
-  assert.equal(grouped.tabs.length,6);
+  assert.equal(grouped.tabs.length,7);
   const selected=()=>grouped.tabs.filter(tab=>tab.getAttribute('aria-selected')==='true');
   const visible=()=>grouped.tabs.filter(tab=>!grouped.nodes.get(tab.getAttribute('aria-controls')).hidden);
   assert.equal(selected()[0],grouped.tabs[0]);assert.equal(visible().length,1);
   grouped.sections[0].input.files=[{name:'draft.epub',size:10}];
   grouped.nodes.get('kosyncUser').value='Bản nháp chưa lưu';
   for(const tab of grouped.tabs){tab.onclick();assert.equal(selected()[0],tab);assert.equal(visible()[0],tab);assert.equal(visible().length,1);}
-  grouped.tabs[5].onkeydown({key:'ArrowRight',preventDefault(){}});assert.equal(selected()[0],grouped.tabs[0]);
-  grouped.tabs[0].onkeydown({key:'End',preventDefault(){}});assert.equal(selected()[0],grouped.tabs[5]);
-  grouped.tabs[5].onkeydown({key:'Home',preventDefault(){}});assert.equal(selected()[0],grouped.tabs[0]);
+  grouped.tabs[6].onkeydown({key:'ArrowRight',preventDefault(){}});assert.equal(selected()[0],grouped.tabs[0]);
+  grouped.tabs[0].onkeydown({key:'End',preventDefault(){}});assert.equal(selected()[0],grouped.tabs[6]);
+  grouped.tabs[6].onkeydown({key:'Home',preventDefault(){}});assert.equal(selected()[0],grouped.tabs[0]);
   assert.equal(grouped.sections[0].input.files[0].name,'draft.epub');assert.equal(grouped.nodes.get('kosyncUser').value,'Bản nháp chưa lưu');
   vm.runInContext('lock(true)',grouped.context);grouped.tabs[3].onclick();assert.equal(selected()[0],grouped.tabs[0]);
   vm.runInContext('lock(false)',grouped.context);grouped.tabs[3].onclick();assert.equal(selected()[0],grouped.tabs[3]);
@@ -236,5 +237,39 @@ async function setup({responses = [], confirmations = [true], mode = 'ap'} = {})
   await t.nodes.get('wallpaperSend').onclick();
   assert.match(t.state.sent.at(-1).url, /^\/image-upload\?name=dpreader-wallpaper-.+&wallpaper=1$/);
   assert.match(t.nodes.get('wallpaperResult').textContent, /Đã đặt làm hình nền màn hình khóa/);
+  // Whole StarDict folder, compressed parts, optional synonyms, metadata last.
+  const dict=await setup();
+  dict.nodes.get('dictionaryFolder').files=['sample.ifo','sample.idx.gz','sample.dict.dz','sample.syn','README.md'].map(name=>({name,size:20,webkitRelativePath:'Anh-Viet/'+name}));
+  await dict.nodes.get('dictionarySend').onclick();
+  assert.deepEqual(dict.state.mutations.map(x=>x.target),['dict','dict/Anh-Viet']);
+  assert.equal(dict.state.sent.length,4);
+  assert.ok(dict.state.sent.every(x=>decodeURIComponent(x.url).startsWith('/file-upload?path=dict/Anh-Viet/')));
+  assert.ok(dict.state.sent.at(-1).url.endsWith('sample.ifo'));
+  assert.match(dict.nodes.get('dictionaryResult').textContent,/Đã lưu 4 tệp/);
+  assert.ok(!dict.nodes.get('dictionarySend').disabled);
+  await dict.nodes.get('dictionaryBrowse').onclick();
+  assert.equal(vm.runInContext('path',dict.context),'dict');
+  assert.equal(dict.nodes.get('tab-files').getAttribute('aria-selected'),'true');
+  // Mobile fallback, preflight missing files/path traversal/deep nesting/space.
+  const flat=await setup();flat.nodes.get('dictionaryName').value='Tiếng Việt';
+  flat.nodes.get('dictionaryFiles').files=['vi.ifo','vi.idx','vi.dict'].map(name=>({name,size:10}));
+  await flat.nodes.get('dictionarySend').onclick();assert.equal(flat.state.sent.length,3);
+  for(const bad of [
+    [{name:'x.ifo',size:1,webkitRelativePath:'English/x.ifo'}],
+    ['x.ifo','x.idx','x.dict'].map(name=>({name,size:1,webkitRelativePath:'../'+name})),
+    ['x.ifo','x.idx','x.dict'].map(name=>({name,size:1,webkitRelativePath:'deep/sub/'+name})),
+    ['x.ifo','x.idx','x.dict'].map(name=>({name,size:50000000,webkitRelativePath:'English/'+name}))
+  ]){const fail=await setup();fail.nodes.get('dictionaryFolder').files=bad;await fail.nodes.get('dictionarySend').onclick();assert.equal(fail.state.sent.length,0);assert.equal(fail.state.mutations.length,0);}
+  const retry=await setup({responses:[{status:409,body:{error:'exists'}},{status:200,body:{ok:true}}]});
+  retry.nodes.get('dictionaryFolder').files=['x.ifo','x.idx','x.dict'].map(name=>({name,size:10,webkitRelativePath:'English/'+name}));
+  await retry.nodes.get('dictionarySend').onclick();assert.ok(retry.state.sent[1].url.endsWith('&overwrite=1'));assert.match(retry.nodes.get('dictionaryResult').textContent,/Đã lưu 3 tệp/);
+  const interrupted=await setup({responses:[{status:507,body:{error:'Thẻ đầy'}}]});
+  interrupted.nodes.get('dictionaryFolder').files=['x.ifo','x.idx','x.dict'].map(name=>({name,size:10,webkitRelativePath:'English/'+name}));
+  await interrupted.nodes.get('dictionarySend').onclick();assert.equal(interrupted.state.sent.length,1);assert.ok(!interrupted.state.sent[0].url.endsWith('.ifo'));assert.ok(!interrupted.nodes.get('dictionarySend').disabled);assert.match(interrupted.nodes.get('dictionaryResult').textContent,/0\/3/);
+  for(const directoryStatus of [200,400]){
+   const existing=await setup({mkdirStatus:409,directoryStatus});
+   existing.nodes.get('dictionaryFolder').files=['x.ifo','x.idx','x.dict'].map(name=>({name,size:10,webkitRelativePath:'English/'+name}));
+   await existing.nodes.get('dictionarySend').onclick();assert.equal(existing.state.sent.length,directoryStatus===200?3:0);
+  }
   console.log('transfer web interaction tests passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

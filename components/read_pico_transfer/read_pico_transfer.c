@@ -324,7 +324,7 @@ static int receive_file(const char *path, const char *part, size_t total, char *
     int64_t receive_us = 0, write_us = 0;
     unsigned writes = 0;
     unsigned write_slot=0;
-    transfer_writer_t *writer=transfer_writer_start(f,buf,cap,total);
+    transfer_writer_t *writer=!strncmp(part,"/sdcard/",8)?transfer_writer_start(f,buf,cap,total):NULL;
     if(writer)buf=transfer_writer_acquire(writer,write_slot);
 #endif
 #else

@@ -60,7 +60,8 @@ static struct{unsigned bytes,elapsed_ms,receive_ms,write_ms,writes,block;int err
 typedef int(*receive_cb_t)(void*,char*,size_t);typedef void(*progress_cb_t)(size_t);
 static int commit_file(const char*part,const char*path){return rename(part,path);}
 '''
-unit+=function('receive_file',root/'components/read_pico_transfer/read_pico_transfer.c')
+unit+=function('receive_file',root/'components/read_pico_transfer/read_pico_transfer.c').replace('!strncmp(part,\"/sdcard/\",8)?transfer_writer_start(f,buf,cap,total):NULL','transfer_writer_start(f,buf,cap,total)')
+unit+=function('receive_file',root/'components/read_pico_transfer/read_pico_transfer.c').replace('static int receive_file(', 'static int receive_file_guarded(')
 unit+=r'''
 #undef fwrite
 #undef fclose
@@ -79,12 +80,17 @@ int main(void){char buf[32768];for(size_t i=0;i<sizeof(input);++i)input[i]=(unsi
   else {assert(!result&&received==total&&progress_bytes==total);f=fopen("target.epub","rb");assert(f&&fread(output,1,sizeof(output),f)==total&&!memcmp(input,output,total));if(!test)assert(overlaps&&threads==1&&s_receive_metrics.writes==10);}
   assert(!fclose(f));assert(access("target.part",F_OK));assert(!remove("target.epub"));
  }
+ reset();close_error=false;
+ int guarded=receive_file_guarded("guard.epub","guard.part",sizeof(input),buf,sizeof(buf),receive_test,NULL,progress_test);
+ assert(!guarded&&!threads&&received==sizeof(input));
+ FILE *check=fopen("guard.epub","rb");assert(check&&fread(output,1,sizeof(output),check)==sizeof(input)&&!memcmp(input,output,sizeof(input)));assert(!fclose(check));assert(!remove("guard.epub"));
  puts("PASS: actual receive/write overlap, byte-exact ordered commit, small/fragmented/large packets, seven allocation faults and task failure fall back, receive overrun/disconnect/write faults join before cleanup and preserve old file");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s31-stream-') as folder:
  p=Path(folder);(p/'freertos').mkdir()
  for h in ['FreeRTOS.h','task.h','semphr.h']:(p/'freertos'/h).write_text('')
+ (p/'metalio_task.h').write_text('#define metalio_task_create xTaskCreate\n#define metalio_task_exit() vTaskDelete(NULL)\n')
  (p/'test.c').write_text(unit)
  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-variable','-Wno-unused-function','-fsanitize=address,undefined','-pthread','-I'+str(p),'-I'+str(root/'components/read_pico_transfer'),str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],cwd=p,check=True,timeout=45)

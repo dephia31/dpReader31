@@ -8,6 +8,10 @@ from home_cover_cache_host_test import function
 ROOT = Path(__file__).resolve().parents[1]
 BOOK = ROOT / 'main/apps/app_book.c'
 source = BOOK.read_text()
+assert 'case READER_PANEL_STATS:prior_top=READER_STATS_TOP;' in source
+assert 's_reader_panel==READER_PANEL_STATS)top=READER_STATS_TOP;' in source
+assert 'top=768' not in source
+
 unit = r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -77,7 +81,22 @@ static void ui_hairline(uint8_t *fb,int y,int x,int w,int gray){ui_fill_rect_fas
 '''
 unit += source[source.index('static size_t s_chapter_jump_page;'):source.index('// 微调长按只更新预览')]
 unit += function('ui_text_box', ROOT/'main/ui/ui_kit.c').replace('void ui_text_box(', 'static void actual_text_box(') + '\n'
-unit += '\n#define READER_STATS_TOP 586\n#define READER_JUMP_TOP 518\n'
+unit+=r"""
+#define UI_ICON_LIST 1
+#define ESP_OK 0
+typedef struct{uint32_t file_size,byte_off;uint16_t chapter;uint8_t px,pct;}book_progress_t;
+static unsigned s_file_size;static int s_px=24;
+static const char *s_path="/sdcard/book.txt";
+static char s_reader_notice[96];static int64_t s_reader_notice_until;
+static bool book_notes_open_list(size_t page){(void)page;return true;}
+static void pause_reader_prep(void){}
+static void reader_show_sync_notice(app_ctx_t *ctx){(void)ctx;}
+static void reader_prepare_network(void){}
+static int64_t esp_timer_get_time(void){return 0;}
+static int kosync_push_book_progress(const char *path,const book_progress_t *p,double ratio,char *out,size_t cap){(void)path;(void)p;(void)ratio;(void)out;(void)cap;return 0;}
+static void ui_draw_icon(uint8_t *fb,int x,int y,int px,int icon,int color){(void)fb;(void)x;(void)y;(void)px;(void)icon;(void)color;}
+"""
+unit += '\n#define READER_STATS_TOP 506\n#define READER_JUMP_TOP 518\n'
 for name in ('reader_page_offset', 'reader_stats_control_rect', 'reader_chapter_key_rect',
              'reader_chapter_undo_rect', 'reader_chapter_undo_visible', 'reader_chapter_jump_hit',
              'draw_reader_stats', 'draw_reader_chapter_jump', 'reader_chapter_jump_begin',

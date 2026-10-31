@@ -25,6 +25,18 @@ static void press(int x, int y, int64_t time) {
     assert(event.type == UI_GESTURE_PRESS && event.hold_ms == 0);
 }
 int main(void) {
+    press(100,200,0);
+    assert(feed(100,200,500,true,false,false,false));
+    assert(event.type==UI_GESTURE_LONG_PRESS);
+    ui_gesture_enable_held_drag(true);
+    assert(feed(200,200,600,true,false,false,false));
+    assert(event.type==UI_GESTURE_MOVE);
+    assert(feed(200,200,700,false,false,true,false));
+    assert(event.type==UI_GESTURE_CANCEL);
+    press(100,200,800);
+    assert(feed(100,200,1300,true,false,false,false));
+    assert(!feed(200,200,1400,true,false,false,false));
+
     press(200, 300, 100);
     assert(!feed(200, 300, 100, true, true, false, false));
     assert(feed(210, 310, 200, false, false, true, false));

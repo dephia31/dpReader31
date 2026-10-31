@@ -5,6 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
 import re,subprocess,tempfile
 root=Path(__file__).resolve().parents[1]
+source=(root/'main/ui/ui_avatar.c').read_text()
 unit=r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -21,10 +22,12 @@ typedef enum {UI_AVATAR_UNAVAILABLE=-1,UI_AVATAR_PENDING,UI_AVATAR_READY} ui_ava
 #define portEXIT_CRITICAL(lock) ((void)(lock))
 #define pdMS_TO_TICKS(x) (x)
 #define pdPASS 1
+#define metalio_task_create xTaskCreate
+#define metalio_task_exit() vTaskDelete(NULL)
 typedef int portMUX_TYPE;
 static int64_t mono;
 static bool media_ready_for_jobs=true;
-static bool read_pico_sd_io_ready(void){return media_ready_for_jobs;}
+static bool __attribute__((unused)) read_pico_sd_io_ready(void){return media_ready_for_jobs;}
 static unsigned book_store_revision(void){return 0;}
 static int jobs,decodes,allocations,fail_alloc,task_ok=1,fail_decode,mode;
 static jmp_buf task_exit;
@@ -40,7 +43,7 @@ static int xTaskCreate(void (*fn)(void *),const char *name,int stack,void *arg,i
 }
 static bool ui_wallpaper_prepare_avatar(const char *path,uint8_t *out,int side);
 '''
-unit+='\n'.join(x for x in (root/'main/ui/ui_avatar.c').read_text().splitlines() if not x.startswith('#include'))
+unit+='\n'.join(x for x in source.splitlines() if not x.startswith('#include'))
 unit+=r'''
 static bool ui_wallpaper_prepare_avatar(const char *path,uint8_t *out,int side){
  ++decodes;assert(side==60||side==82);memset(out,path[0]=='A'?60:82,(size_t)side*side);
@@ -51,7 +54,9 @@ static bool ui_wallpaper_prepare_avatar(const char *path,uint8_t *out,int side){
 }
 static void run(void){if(!setjmp(task_exit))task_fn(NULL);}
 int main(void){
+#if !KIIKO_BOARD_METALIO47
  media_ready_for_jobs=false;ui_avatar_request("/sdcard/pictures/a.png",60);assert(!jobs&&!decodes);media_ready_for_jobs=true;
+#endif
 uint8_t pixels[82*82];
  ui_avatar_request("A",60);assert(jobs==1&&!decodes&&ui_avatar_poll("A",60,pixels)==UI_AVATAR_PENDING);
  ui_avatar_request("A",82);assert(jobs==1&&!decodes);run();assert(decodes==2&&!s_running);
@@ -71,6 +76,6 @@ uint8_t pixels[82*82];
 }
 '''
 with tempfile.TemporaryDirectory(prefix='kiiko-avatar-') as folder:
- c=Path(folder)/'test.c';binary=Path(folder)/'test';c.write_text(unit)
+ c=Path(folder)/'test.c';binary=Path(folder)/'test';c.write_text(('#define KIIKO_BOARD_METALIO47 1\n' if 'read_pico_sd_io_ready()' not in source else '')+unit)
  subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',str(c),'-o',str(binary)],check=True)
  subprocess.run([str(binary)],check=True)

@@ -10,6 +10,9 @@ CONFIG_SPIRAM_MODE_OCT=y
 # S31 uses DIO80 flash and Octal200 PSRAM; no S3 MSPI/HPM overrides.
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y
 CONFIG_SPIRAM_USE_MALLOC=y
+# Audited CPU/SD workers use PSRAM stacks through metalio_task; IRQ/flash tasks stay internal.
+CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y
+CONFIG_FREERTOS_SUPPORT_STATIC_ALLOCATION=y
 # 渲染线程逐行流式读 PSRAM 里的 framebuffer，cache 越大预取越不容易失效
 # 多层 EPUB/PNG 调用留安全余量；大型缓存不得放栈上。/ Reserve nested EPUB/PNG stack headroom; keep large caches off-stack.
 # 厂家固件（CloudZao/Metalio-E-INK4-Plus）在开机首屏 + 首次整屏刷新时撞过栈保护，

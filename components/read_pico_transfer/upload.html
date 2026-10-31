@@ -37,7 +37,7 @@ dialog::backdrop{background:#20222175}dialog h2{margin-bottom:10px}dialog p{marg
 .crop-layout{display:flex;align-items:start;gap:22px;flex-wrap:wrap}.crop-preview{display:block;width:min(100%,260px);height:auto;aspect-ratio:684/1216;border:2px solid #626662;border-radius:14px;background:#e2e3e0;touch-action:none;cursor:grab}.crop-preview:active{cursor:grabbing}
 .crop-controls{flex:1;min-width:220px}.crop-controls label{display:block;margin:14px 0 5px;font-weight:600}.crop-controls input[type=range]{width:100%;accent-color:#303331}.crop-controls .primary{margin-top:16px}
 [hidden]{display:none!important}
-.portal-tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;padding:7px;border:1px solid #d2d4d0;border-radius:18px;background:#fff;position:sticky;top:8px;z-index:2;margin:18px 0}
+.portal-tabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;padding:7px;border:1px solid #d2d4d0;border-radius:18px;background:#fff;position:sticky;top:8px;z-index:2;margin:18px 0}
 .portal-tabs button{min-width:0;min-height:46px;padding:8px 4px;border:0;background:transparent;font-size:14px;font-weight:600;white-space:nowrap}
 .portal-tabs button[aria-selected=true]{background:#303331;color:#fff}
 .portal-tabs button:focus-visible{outline:3px solid #737d73;outline-offset:2px}
@@ -51,6 +51,7 @@ dialog::backdrop{background:#20222175}dialog h2{margin-bottom:10px}dialog p{marg
 <nav class="portal-tabs" role="tablist" aria-label="Chức năng truyền dữ liệu">
 <button type="button" role="tab" id="tab-books" aria-controls="panel-books" aria-selected="true" tabindex="0">Sách</button>
 <button type="button" role="tab" id="tab-files" aria-controls="panel-files" aria-selected="false" tabindex="-1">Thẻ nhớ</button>
+<button type="button" role="tab" id="tab-dictionaries" aria-controls="panel-dictionaries" aria-selected="false" tabindex="-1">Từ điển</button>
 <button type="button" role="tab" id="tab-fonts" aria-controls="panel-fonts" aria-selected="false" tabindex="-1">Phông chữ</button>
 <button type="button" role="tab" id="tab-images" aria-controls="panel-images" aria-selected="false" tabindex="-1">Hình ảnh</button>
 <button type="button" role="tab" id="tab-sync" aria-controls="panel-sync" aria-selected="false" tabindex="-1">Đồng bộ</button>
@@ -66,6 +67,14 @@ dialog::backdrop{background:#20222175}dialog h2{margin-bottom:10px}dialog p{marg
 <div class="upload" data-kind="file"><p class="hint">Mở thư mục đích trước rồi chọn tệp để tải lên. Hỗ trợ mọi định dạng và giữ nguyên tên gốc.</p><input type="file" multiple aria-label="Chọn tệp bất kỳ"><button class="primary send" type="button">Tải tệp vào thư mục hiện tại</button><p class="result" role="status"></p></div>
 <p id="listState" class="hint" role="status"></p><ul id="entries"></ul>
 <div class="pages"><button id="previous" class="tiny" type="button">Trang trước</button><span id="pageState" class="muted"></span><button id="next" class="tiny" type="button">Trang sau</button></div></section>
+</div>
+<div id="panel-dictionaries" role="tabpanel" aria-labelledby="tab-dictionaries" tabindex="0" hidden>
+<section id="dictionaryUpload"><h2>Thêm từ điển offline</h2><p class="hint">Chọn folder bộ StarDict hoặc chọn đủ bộ tệp cùng tên: .ifo + .idx/.idx.gz + .dict/.dict.dz (có thể kèm .syn). Lưu vào /dict/tên bộ/, không cần giải nén trước.</p>
+<label for="dictionaryFolder">Chọn folder từ điển</label><input id="dictionaryFolder" type="file" webkitdirectory multiple aria-label="Chọn folder bộ từ điển">
+<p class="hint">Nếu trình duyệt không chọn được folder, dùng phần chọn tệp bên dưới.</p>
+<label for="dictionaryName">Tên thư mục bộ từ điển</label><input id="dictionaryName" type="text" maxlength="100" placeholder="Ví dụ: Anh-Viet">
+<input id="dictionaryFiles" type="file" accept=".ifo,.idx,.gz,.dict,.dz,.syn" multiple aria-label="Chọn các tệp của bộ từ điển">
+<button id="dictionarySend" class="primary" type="button">Tải từ điển vào thẻ nhớ</button><button id="dictionaryBrowse" type="button">Mở thư mục dict</button><p id="dictionaryResult" class="result" role="status"></p></section>
 </div>
 <div id="panel-fonts" role="tabpanel" aria-labelledby="tab-fonts" tabindex="0" hidden>
 <section class="upload" data-kind="font"><h2>Tải phông chữ</h2><p class="hint">TTF, OTF → thư mục fonts. Sau khi tải lên có thể chọn trong cài đặt phông chữ khi đọc.</p><input type="file" accept=".ttf,.otf" multiple aria-label="Chọn phông chữ"><button class="primary send" type="button">Tải lên thư mục fonts</button><p class="result" role="status"></p></section>
@@ -121,8 +130,8 @@ portalTabs.forEach((tab,index)=>{
 const size=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':n>=1024?Math.ceil(n/1024)+' KB':n+' B';
 const join=(dir,name)=>dir?dir+'/'+name:name;
 async function request(url,options){const response=await fetch(url,{cache:'no-store',...options});let body;try{body=await response.json()}catch{throw Error('Phản hồi từ thiết bị không hợp lệ, vui lòng thử lại')}return {status:response.status,body}}
-function lock(value){busy=value;document.querySelectorAll('button,input[type=file],input[type=range],#signatureText,#kosyncUrl,#kosyncUser,#kosyncPass,#kosyncAuto,#opdsUrl,#opdsUser,#opdsPass').forEach(el=>{if(el.id!=='editorCancel')el.disabled=value});if(!value){$('up').disabled=!path;$('previous').disabled=page<=0;$('next').disabled=page+1>=pages;$('wallpaperSend').disabled=!cropImage}}
-async function info(){const r=await request('/info');if(r.status!==200)throw Error(r.body.error||'Không thể đọc trạng thái lưu trữ');policy=r.body;$('storage').textContent=(policy.is_flash?'Chưa nhận thẻ nhớ TF':'Thẻ nhớ TF sẵn sàng')+' · Còn trống '+size(policy.free_bytes);if(policy.is_flash){$('browser').hidden=true;document.querySelectorAll('.upload').forEach(el=>el.hidden=true);$('storage').textContent='Không phát hiện thẻ nhớ TF, vui lòng lắp thẻ nhớ rồi mở lại trang truyền dữ liệu'}}
+function lock(value){busy=value;document.querySelectorAll('button,input[type=file],input[type=range],#dictionaryName,#signatureText,#kosyncUrl,#kosyncUser,#kosyncPass,#kosyncAuto,#opdsUrl,#opdsUser,#opdsPass').forEach(el=>{if(el.id!=='editorCancel')el.disabled=value});if(!value){$('up').disabled=!path;$('previous').disabled=page<=0;$('next').disabled=page+1>=pages;$('wallpaperSend').disabled=!cropImage}}
+async function info(){const r=await request('/info');if(r.status!==200)throw Error(r.body.error||'Không thể đọc trạng thái lưu trữ');policy=r.body;$('storage').textContent=(policy.is_flash?'Chưa nhận thẻ nhớ TF':'Thẻ nhớ TF sẵn sàng')+' · Còn trống '+size(policy.free_bytes);if(policy.is_flash){$('browser').hidden=true;$('dictionaryUpload').hidden=true;document.querySelectorAll('.upload').forEach(el=>el.hidden=true);$('storage').textContent='Không phát hiện thẻ nhớ TF, vui lòng lắp thẻ nhớ rồi mở lại trang truyền dữ liệu'}}
 async function loadDirectory(){if(policy.is_flash)return;const r=await request('/files?'+(path?'path='+encodeURIComponent(path)+'&':'')+'page='+page);if(r.status!==200)throw Error(r.body.error||'Không thể đọc thư mục');pages=r.body.pages;if(page>=pages&&page){page=0;return loadDirectory()}$('path').textContent='/'+path;$('listState').textContent=r.body.total+' mục';$('pageState').textContent=(pages?page+1:0)+' / '+pages;$('entries').replaceChildren();for(const item of r.body.items){const row=document.createElement('li'),name=document.createElement('div'),actions=document.createElement('div'),detail=document.createElement('small');name.className='entry-name';actions.className='entry-actions';detail.textContent=item.directory?'Thư mục':size(item.size);if(item.directory){const open=document.createElement('button');open.className='folder';open.textContent='▱  '+item.name;open.onclick=()=>{path=join(path,item.name);page=0;loadDirectory().catch(showError)};name.append(open)}else{name.textContent=item.name}name.append(detail);for(const action of ['rename','copy','delete']){const button=document.createElement('button');button.className='tiny'+(action==='delete'?' danger':'');button.textContent={rename:'Đổi tên',copy:'Nhân bản',delete:'Xóa'}[action];button.onclick=()=>openEditor(action,item);actions.append(button)}row.append(name,actions);$('entries').append(row)}$('up').disabled=!path;$('previous').disabled=page<=0;$('next').disabled=page+1>=pages}
 function showError(error){$('listState').textContent=error.message||String(error)}
 function openEditor(action,item){if(busy)return;const source=item?join(path,item.name):path;editorAction={action,source,item};$('editorTitle').textContent={rename:'Đổi tên',copy:'Nhân bản',delete:'Xóa',mkdir:'Tạo thư mục mới'}[action];$('editorDescription').textContent=action==='delete'?source+(item.directory?' (sẽ xóa toàn bộ tệp bên trong)':''):'Vị trí: /'+path;$('editorName').hidden=action==='delete';$('editorName').value=action==='copy'?(item.directory?item.name+' (Bản sao)':item.name.replace(/(\.[^.]+)?$/,' (Bản sao)$1')):item?item.name:'';$('editorConfirm').textContent=action==='delete'?'Xác nhận xóa':'Lưu';$('editorConfirm').classList.toggle('danger',action==='delete');$('editor').showModal();if(action!=='delete')$('editorName').focus()}
@@ -139,6 +148,58 @@ loadSyncConfig().catch(error=>$('syncResult').textContent=error.message);
 async function loadSignature(){const r=await request('/signature');if(r.status!==200)throw Error(r.body.error||'Không thể đọc chữ ký');$('signatureText').value=r.body.signature||'';$('signatureResult').textContent='Có thể chỉnh sửa và lưu chữ ký'}
 $('signatureSave').onclick=async()=>{if(busy)return;const text=$('signatureText').value,result=$('signatureResult');if(new TextEncoder().encode(text).length>95){result.textContent='Chữ ký quá dài (tối đa 95 byte)';return}if(/[\x00-\x1f\x7f\u2028\u2029]/.test(text)){result.textContent='Chữ ký không được chứa ký tự xuống dòng';return}lock(true);try{result.textContent='Đang lưu…';const r=await request('/signature',{method:'POST',headers:{'Content-Type':'text/plain; charset=utf-8'},body:text});if(r.status!==200)throw Error(r.body.error||'Lưu thất bại');result.textContent=text?'Đã lưu chữ ký lên thanh trạng thái dpReader':'Đã xóa chữ ký'}catch(error){result.textContent=error.message}finally{lock(false)}};
 loadSignature().catch(error=>$('signatureResult').textContent=error.message);
+function dictionaryPlan(files,folderName){
+ const planned=[],groups=new Map(),seen=new Set();
+ const validPart=part=>part&&part!=='.'&&part!=='..'&&!/[\\/:*?"<>|\x00-\x1f]/.test(part)&&!/[. ]$/.test(part)&&!part.startsWith('.');
+ for(const file of files){
+  const relative=file.webkitRelativePath||join(folderName,file.name),parts=relative.split('/');
+  if(parts[0]==='dict')parts.shift();
+  if(!/\.(ifo|idx(?:\.gz)?|dict(?:\.dz)?|syn)$/.test(file.name))continue;
+  if(parts.length!==2||parts.some(part=>!validPart(part)))throw Error('Mỗi bộ cần một folder trực tiếp trong dict; tên không được chứa đường dẫn lạ');
+  const target='dict/'+parts.join('/');
+  if(new TextEncoder().encode(target).length>238)throw Error('Đường dẫn bộ từ điển quá dài');
+  if(!file.size)throw Error('Tệp từ điển rỗng: '+file.name);
+  const folded=target.toLowerCase();if(seen.has(folded))throw Error('Tệp bị trùng tên: '+file.name);seen.add(folded);
+  const suffix=file.name.match(/\.(ifo|idx(?:\.gz)?|dict(?:\.dz)?|syn)$/)[1];
+  const base=parts[0]+'/'+file.name.slice(0,-suffix.length-1);
+  if(!groups.has(base))groups.set(base,new Set());groups.get(base).add(suffix.split('.')[0]);
+  planned.push({file,target,folder:'dict/'+parts[0]});
+ }
+ if(!planned.length)throw Error('Vui lòng chọn folder hoặc đủ bộ tệp StarDict');
+ for(const [base,types] of groups)if(!['ifo','idx','dict'].every(type=>types.has(type)))throw Error('Thiếu bộ ba .ifo + .idx/.idx.gz + .dict/.dict.dz: '+base);
+ return planned;
+}
+async function ensureDictionaryFolder(target){
+ const parent=target.includes('/')?target.slice(0,target.lastIndexOf('/')):'';
+ const r=await request('/files',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mkdir',path:parent,target})});
+ if(r.status===200)return;
+ if(r.status===409){const check=await request('/files?path='+encodeURIComponent(target)+'&page=0');if(check.status===200)return;}
+ throw Error(r.body.error||'Không tạo được thư mục '+target);
+}
+$('dictionaryFolder').onchange=()=>{$('dictionaryFiles').value=''};
+$('dictionaryFiles').onchange=()=>{$('dictionaryFolder').value=''};
+$('dictionaryBrowse').onclick=async()=>{if(busy)return;try{await ensureDictionaryFolder('dict');path='dict';page=0;selectPortalTab($('tab-files'));await loadDirectory()}catch(error){$('dictionaryResult').textContent=error.message}};
+$('dictionarySend').onclick=async()=>{
+ if(busy)return;const result=$('dictionaryResult');
+ if(!policy||policy.is_flash){result.textContent='Vui lòng gắn thẻ nhớ TF trước';return}
+ let planned;try{const files=$('dictionaryFolder').files.length?[...$('dictionaryFolder').files]:[...$('dictionaryFiles').files];planned=dictionaryPlan(files,$('dictionaryName').value.trim());if(planned.reduce((sum,item)=>sum+item.file.size,0)>policy.free_bytes)throw Error('Thẻ nhớ TF không đủ dung lượng trống')}catch(error){result.textContent=error.message;return}
+ lock(true);let saved=0;
+ try{
+  await ensureDictionaryFolder('dict');
+  for(const folder of new Set(planned.map(item=>item.folder)))await ensureDictionaryFolder(folder);
+  // Publish metadata last so an interrupted fresh upload is not offered as a complete dictionary.
+  planned.sort((a,b)=>Number(a.target.endsWith('.ifo'))-Number(b.target.endsWith('.ifo')));
+  for(const {file,target} of planned){
+   const url='/file-upload?path='+encodeURIComponent(target);
+   let response=await upload(file,url,(done,total,elapsed)=>result.textContent=uploadProgress('/'+target,done,total,elapsed));
+   if(response.status===409&&confirm('Tệp từ điển đã tồn tại, ghi đè?\n/'+target))response=await upload(file,url+'&overwrite=1',(done,total,elapsed)=>result.textContent=uploadProgress('/'+target,done,total,elapsed));
+   if(response.status!==200)throw Error(response.body.error||'Không tải được '+file.name);
+   ++saved;
+  }
+  result.textContent='Đã lưu '+saved+' tệp trong /dict. Có thể mở sách để tra offline.';
+  await info();if(path==='dict'||path.startsWith('dict/'))await loadDirectory();
+ }catch(error){result.textContent='Đã lưu '+saved+'/'+planned.length+' tệp · '+error.message+' · Chọn lại đủ bộ để thử lại'}finally{lock(false)}
+};
 function transferRate(bytes,elapsed){const seconds=Math.max(elapsed,1)/1000;return (bytes/seconds/1000).toFixed(0)+' KB/s · '+seconds.toFixed(1)+' giây'}
 function uploadProgress(name,done,total,elapsed){return (done>=total?'Đang chờ thiết bị lưu ':'Đang tải lên ')+name+' · '+size(done)+' / '+size(total)+' · '+transferRate(done,elapsed)}
 function upload(file,url,onProgress){return new Promise((resolve,reject)=>{

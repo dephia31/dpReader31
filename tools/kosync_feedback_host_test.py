@@ -14,16 +14,18 @@ typedef struct{void*fb;void*hl;}app_ctx_t;
 static char s_reader_notice[64];static int64_t s_reader_notice_until;static int step;
 #define EPD_DRAW_ALIGN_CENTER 0
 #define MODE_GL16 1
+#define UI_GRAY_BLACK 0
 static int E0470_WAVEFORM;
 static void copy_text(char*d,size_t n,const char*s){snprintf(d,n,"%s",s);}
 static void lock_draw(void){assert(step++==0);}
 static void ui_fill_round_rect(void*f,EpdRect r,int radius,int gray){assert(step++==1);}
-static void ui_text_vc(void*f,int x,int y,int px,const char*t,int align,int bold){assert(step++==2);assert(!strcmp(t,"Đang đồng bộ"));}
-static void unlock_draw(void){assert(step++==3);}
-static int update_display_area_diff_with(void*h,void*w,int mode,EpdRect r){assert(step++==4);assert(r.x==218&&r.y==160&&r.width==248&&r.height==48);return 0;}
-static void guard_draw_result(void*h,int err){assert(step++==5);}
+static void ui_draw_control_frame(void*f,EpdRect r,int radius,int color){assert(step++==2);assert(r.x==42&&r.y==150&&r.width==600&&r.height==132&&radius==24&&color==0);}
+static void ui_text_box(void*f,EpdRect r,int px,const char*t,int align,int bold){assert(step++==3);assert(px==38&&r.x==58&&r.y==160&&r.width==568&&r.height==112);assert(!strcmp(t,"Đang đồng bộ"));}
+static void unlock_draw(void){assert(step++==4);}
+static int update_display_area_diff_with(void*h,void*w,int mode,EpdRect r){assert(step++==5);assert(r.x==42&&r.y==150&&r.width==600&&r.height==132);return 0;}
+static void guard_draw_result(void*h,int err){assert(step++==6);}
 '''+function('reader_show_sync_notice',book)+r'''
-int main(void){app_ctx_t ctx={(void*)1,(void*)2};reader_show_sync_notice(&ctx);assert(step==6&&s_reader_notice_until==INT64_MAX);puts("PASS: exact sync text painted and presented immediately with no heap allocation");}
+int main(void){app_ctx_t ctx={(void*)1,(void*)2};reader_show_sync_notice(&ctx);assert(step==7&&s_reader_notice_until==INT64_MAX);puts("PASS: exact sync text painted and presented immediately with no heap allocation");}
 '''
 request=r'''
 #include <assert.h>

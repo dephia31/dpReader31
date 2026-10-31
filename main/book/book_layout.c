@@ -35,6 +35,13 @@ static size_t s_capacity;
 static book_layout_draw_cursor_t *s_idle_draw;
 static char* s_line;
 static size_t s_line_capacity;
+static size_t s_line_source;
+static book_layout_glyph_fn s_visit;
+static void *s_visit_ctx;
+static void layout_geometry(void *ctx, size_t byte, size_t bytes, EpdRect cell) {
+    (void)ctx;
+    if(s_visit) s_visit(s_visit_ctx,s_line_source+byte,s_line_source+byte+bytes,cell);
+}
 static EpdRect s_rect;
 static int s_px;
 static unsigned s_line_percent = 150, s_paragraph_percent = 50;
@@ -690,6 +697,7 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
         if (!line_append(end - visible_off, glyph, n)) return false;
         end += n;
     }
+    s_line_source = visible_off;
     line_runs_build(block, visible_off, end);
     *line_width = (int)width;
     *next = skip_spaces_after > end ? skip_spaces_after : end;
@@ -958,7 +966,7 @@ static void draw_vertical_column(uint8_t* fb, EpdRect rect, int left, int pitch,
         int slack = available - indent - run_height;
         if (glyph_count > 1 && slack > 0) extra = slack / (glyph_count - 1);
     }
-    if (s_reading_line && line_has_ink(s_line)) {
+    if (!s_visit && s_reading_line && line_has_ink(s_line)) {
         // 阅读线跟着列走，位置在列的右侧：把整页逆时针转 90° 来读这一列，横排的「字下」正落在这里。
         // 原先画在列中线上（cell + px/2），等于穿字而过，看上去就是错乱。
         // 上下位置滑杆在竖排里横着移动这条线；再往里就压字了，所以夹在字格右边。
@@ -1153,7 +1161,7 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
             // The guide inks only the line's glyph span: the first-line indent, trailing blanks and
             // alignment slack stay white. Dashes still count from the page's left edge so every line
             // keeps the same rhythm.
-            if (s_reading_line && line_has_ink(s_line)) {
+            if (!s_visit && s_reading_line && line_has_ink(s_line)) {
                 int guide_y = rect.y + (int)used + line_px + (line_height - line_px) / 2 +
                               s_reading_line_offset;
                 int dash = s_reading_line == 1 ? 19 : 2;
@@ -1207,4 +1215,16 @@ int book_layout_draw_slice(uint8_t *fb,size_t page,EpdRect rect,int px,book_layo
     s_idle_draw=NULL;
     ttf_draw_set_runs(NULL,0);ttf_font_select(TTF_FONT_SLOT_SYSTEM);
     return cursor->failed?-1:cursor->complete?1:0;
+}
+
+bool book_layout_visit_page(size_t page,EpdRect rect,int px,book_layout_glyph_fn fn,void *ctx) {
+    if(!fn||s_vertical||s_idle_draw||s_visit||page>=s_count||px!=s_px||
+       rect.width!=s_rect.width||rect.height!=s_rect.height) return false;
+    uint8_t dummy=0;
+    s_visit=fn; s_visit_ctx=ctx;
+    ttf_geometry_visit(layout_geometry,NULL);
+    book_layout_draw_page(&dummy,page,rect,px);
+    ttf_geometry_visit(NULL,NULL);
+    s_visit=NULL; s_visit_ctx=NULL;
+    return true;
 }

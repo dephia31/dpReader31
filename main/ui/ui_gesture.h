@@ -45,3 +45,6 @@ void ui_gesture_reset(ui_gesture_t *gesture);
 /// 每次最多一个事件；consumed、多点或缺失快照取消活动序列。
 /// Emit at most one event; consumed, multitouch or a missing snapshot cancels an active sequence.
 bool ui_gesture_feed(ui_gesture_t *gesture, const app_ctx_t *ctx, ui_gesture_event_t *out);
+
+/* Opt-in held drag for text selection; reset/release cancels the opt-in. */
+void ui_gesture_enable_held_drag(bool enabled);

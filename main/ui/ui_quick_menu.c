@@ -106,6 +106,13 @@ bool ui_quick_menu_draw_button(uint8_t *fb,int button,bool active,bool pressed,E
     *dirty=r;return true;
 }
 #if KIIKO_BOARD_METALIO47
+EpdRect ui_quick_menu_draw_notice(uint8_t *fb,const char *text) {
+    EpdRect box={24,348,636,34};
+    ui_fill_round_rect(fb,box,10,UI_GRAY_WHITE);
+    ui_draw_control_frame(fb,box,10,UI_GRAY_BLACK);
+    ui_text_box(fb,(EpdRect){34,350,616,30},22,text,EPD_DRAW_ALIGN_CENTER,false);
+    return box;
+}
 void ui_quick_menu_draw_status(uint8_t *fb) { ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,76},UI_GRAY_WHITE,fb);ui_nav_status(fb); }
 EpdRect ui_quick_slider_rect(bool warmth) {
     return (EpdRect){UI_QUICK_SLIDER_X(warmth)-2,UI_QUICK_SLIDER_Y0-2,

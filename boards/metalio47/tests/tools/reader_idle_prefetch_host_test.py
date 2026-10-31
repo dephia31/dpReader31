@@ -8,7 +8,13 @@ from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1];book=root/'main/apps/app_book.c'
 unit=r'''
 #include <assert.h>
+#define metalio_task_create_pinned xTaskCreatePinnedToCore
+#define metalio_task_create_pinned_internal internal_create
+#define metalio_task_delete vTaskDelete
 #include <stdbool.h>
+static const char *s_path="/sdcard/book.epub";
+static bool book_notes_active(void){return false;}
+static bool kosync_busy(void){return false;}
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,7 +50,9 @@ static void xSemaphoreGive(sem_t *s){pthread_mutex_lock(&s->lock);++s->value;pth
 static void vSemaphoreDelete(sem_t *s){pthread_cond_destroy(&s->cond);pthread_mutex_destroy(&s->lock);free(s);}
 static unsigned ulTaskNotifyTake(int clear,int timeout){assert(clear==1&&timeout==portMAX_DELAY);task_t *t=current_task;pthread_mutex_lock(&t->notify.lock);while(!t->notify.value&&!t->quit)pthread_cond_wait(&t->notify.cond,&t->notify.lock);if(t->quit){pthread_mutex_unlock(&t->notify.lock);pthread_exit(NULL);}unsigned n=t->notify.value;t->notify.value=0;pthread_mutex_unlock(&t->notify.lock);return n;}
 static void *task_start(void *p){current_task=p;current_task->run(NULL);return NULL;}
-static int xTaskCreatePinnedToCore(void(*run)(void*),const char *name,int stack,void *arg,int priority,task_t **out,int core){assert(!strcmp(name,"book_prep")&&stack==12288&&!arg&&priority==3&&core==1);if(fail_task)return 0;task_t *t=calloc(1,sizeof(*t));assert(t);sem_init(&t->notify,0);t->run=run;*out=t;assert(!pthread_create(&t->thread,NULL,task_start,t));return pdPASS;}
+static int xTaskCreatePinnedToCore(void(*run)(void*),const char *name,int stack,void *arg,int priority,task_t **out,int core){assert(!strcmp(name,"book_prep")&&stack==16384&&!arg&&priority==3&&core==1);if(fail_task)return 0;task_t *t=calloc(1,sizeof(*t));assert(t);sem_init(&t->notify,0);t->run=run;*out=t;assert(!pthread_create(&t->thread,NULL,task_start,t));return pdPASS;}
+static unsigned internal_creates;
+static int internal_create(void(*run)(void*),const char *name,int stack,void *arg,int priority,task_t **out,int core){++internal_creates;return xTaskCreatePinnedToCore(run,name,stack,arg,priority,out,core);}
 static void xTaskNotifyGive(task_t *task){xSemaphoreGive(&task->notify);}
 static void vTaskDelete(task_t *task){pthread_mutex_lock(&task->notify.lock);task->quit=true;pthread_cond_signal(&task->notify.cond);pthread_mutex_unlock(&task->notify.lock);pthread_join(task->thread,NULL);pthread_mutex_destroy(&task->notify.lock);pthread_cond_destroy(&task->notify.cond);free(task);}
 static int s_view=READING,s_reader_panel=READER_PANEL_NONE;static const char *s_text="text";
@@ -93,6 +101,12 @@ for name in ['lock_draw','unlock_draw','invalidate_prep','reader_prefetch_step',
  unit+=function(name,book)+'\n'
 assert 'reader_prefetch_end(prep);' in function('present',book)
 assert 'reader_prefetch_resume(s_page)' in function('paint_reading',book)
+opening=function('open_book_impl',book)
+retire=opening.index('if(s_prep_task){metalio_task_delete(s_prep_task);s_prep_task=NULL;}')
+assert opening.rfind('atomic_store_explicit(&s_prep_stop,true',0,retire)>=0
+assert opening.rfind('lock_draw();',0,retire)>opening.rfind('unlock_draw();',0,retire)
+assert retire<opening.index('copy_text(s_path,')
+
 unit+=r'''
 static void destroy_worker(void){if(s_prep_task){vTaskDelete(s_prep_task);s_prep_task=NULL;}if(s_prep_done){vSemaphoreDelete(s_prep_done);s_prep_done=NULL;}if(s_draw_lock){vSemaphoreDelete(s_draw_lock);s_draw_lock=NULL;}}
 static void wait_row(unsigned count){pthread_mutex_lock(&row_lock);while(row_entries<count)pthread_cond_wait(&row_cond,&row_lock);pthread_mutex_unlock(&row_lock);}
@@ -131,6 +145,8 @@ int main(void){touch_t touch={0};app_ctx_t ctx={.touch=&touch};
  fail_task=true;assert(!kick_prep());fail_task=false;fail_draw=true;reader_prefetch_idle(&ctx);assert(s_prep_page==-1&&s_next_page==-1);fail_draw=false;
  invalidate_prep();images=true;assert(!kick_prep());images=false;wallpaper=true;assert(!kick_prep());wallpaper=false;
  s_toolbar=true;assert(!kick_prep());s_toolbar=false;s_reader_panel=READER_PANEL_FONT;assert(!kick_prep());s_reader_panel=READER_PANEL_NONE;
+ destroy_worker();invalidate_prep();s_path="/flash/books/book.epub";
+ assert(kick_prep()&&internal_creates==1);reader_prefetch_end(true);
  s_page=499;assert(kick_prep());reader_prefetch_end(true);
  destroy_worker();reader_page_cache_clear();
  puts("PASS: real-thread scan overlap, row-boundary stop instead of whole-page join, partial-page continuation, 40 rapid cache hits, input/navigation priority and generation/OOM/image/background/panel guards");

@@ -7,6 +7,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  notes-host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies for annotation transport and Lua bridge tests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libcjson-dev zlib1g-dev
+          python3 -m pip install lupa Pillow
+      - name: Selection geometry, annotation recovery and StarDict
+        run: |
+          python3 tools/dict_sd_folder_host_test.py
+          python3 tools/quick_radio_notice_host_test.py
+          python3 tools/metalio_psram_task_host_test.py
+          python3 tools/book_dictionary_speed_host_test.py
+          python3 tools/run_book_notes_tests.py
+          python3 tools/koreader_notes_roundtrip_test.py
+          KIIKO_BOARD=metalio47 python3 tools/ui_icon_generator_host_test.py
+
   display-host-tests:
     env:
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1

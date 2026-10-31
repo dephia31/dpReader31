@@ -15,6 +15,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "metalio_task.h"
 
 enum { EMPTY,QUEUED,RUNNING,AUTO,READY,FAILED,TAKEN };
 typedef struct { book_cover_job_t request;book_cover_result_t result;int state;bool auto_cache;uint8_t *automatic; } cover_job_slot_t;
@@ -93,13 +94,19 @@ ready:
     struct stat after;
     if(stat(q->path,&after)||after.st_size!=st.st_size||after.st_mtime!=st.st_mtime){free(job->result.pixels);job->result.pixels=NULL;}
 }
-static void worker(void *unused) {
-    (void)unused;
+static void start_worker(void);
+static void worker(void *opaque) {
+    const bool internal=opaque!=NULL;
     for(;;){
         cover_job_slot_t job={0};int slot=-1;unsigned generation;
         portENTER_CRITICAL(&s_lock);
         if(!s_paused&&s_jobs)for(unsigned i=0;i<BOOK_COVER_JOB_SLOTS;++i)if(s_jobs[i].state==QUEUED){slot=(int)i;break;}
         if(slot<0){s_running=false;portEXIT_CRITICAL(&s_lock);break;}
+        /* A later flash-backed request must never run on the SD-only PSRAM
+         * worker. Handoff before touching its file, retaining queued ownership. */
+        if(!internal&&strncmp(s_jobs[slot].request.path,"/sdcard/",8)) {
+            s_running=false;portEXIT_CRITICAL(&s_lock);start_worker();break;
+        }
         job=s_jobs[slot];s_jobs[slot].automatic=NULL;s_jobs[slot].state=RUNNING;generation=s_generation;
         portEXIT_CRITICAL(&s_lock);
         prepare(&job,generation);
@@ -111,13 +118,16 @@ static void worker(void *unused) {
         portEXIT_CRITICAL(&s_lock);
         free(job.result.pixels);free(job.automatic);vTaskDelay(1);
     }
-    vTaskDelete(NULL);
+    metalio_task_exit();
 }
 static void start_worker(void) {
-    portENTER_CRITICAL(&s_lock);bool queued=false;
-    if(s_jobs)for(unsigned i=0;i<BOOK_COVER_JOB_SLOTS;++i)queued|=s_jobs[i].state==QUEUED;
+    portENTER_CRITICAL(&s_lock);bool queued=false,internal=false;
+    if(s_jobs)for(unsigned i=0;i<BOOK_COVER_JOB_SLOTS;++i)if(s_jobs[i].state==QUEUED) {
+        queued=true;internal|=strncmp(s_jobs[i].request.path,"/sdcard/",8)!=0;
+    }
     bool start=queued&&!s_running&&!s_paused;if(start)s_running=true;portEXIT_CRITICAL(&s_lock);
-    if(start&&xTaskCreate(worker,"covers",12288,NULL,1,NULL)!=pdPASS){
+    if(start&&(internal?metalio_task_create_internal(worker,"covers",12288,(void*)1,1,NULL):
+                       metalio_task_create(worker,"covers",12288,NULL,1,NULL))!=pdPASS){
         uint8_t *old[BOOK_COVER_JOB_SLOTS]={0};
         portENTER_CRITICAL(&s_lock);s_running=false;
         for(unsigned i=0;i<BOOK_COVER_JOB_SLOTS;++i)if(s_jobs[i].state==QUEUED){
