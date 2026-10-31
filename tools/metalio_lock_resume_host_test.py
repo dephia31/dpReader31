@@ -64,20 +64,20 @@ static void reset(void){
  mounted=valid=cached=draw_ok=scan_ok=true;
 }
 int main(void){EpdiyHighlevelState hl={back};
- for(style=0;style<4;++style)for(unsigned password=0;password<1;++password){
-  pin=password;reset();remaining=450;
-  assert(!prepare_startup_frame(&hl,front,true,true));assert(probes==1&&!reads&&!scans&&!fallback&&!clears);
+ for(style=0;style<4;++style){
+  pin=false;reset();remaining=450;
+  assert(!prepare_startup_frame(&hl,front,true));assert(probes==1&&!reads&&!scans&&!fallback&&!clears);
   s_boot_lock_draw=true;
   for(unsigned n=0;n<449;++n){lock_resume_service();assert(!reads&&!scans&&panel[0]==0x10+style&&!s_lock_hint_hl);}
   lock_resume_service();assert(reads==1&&s_boot_lock_known&&s_lock_hint_hl==&hl);
   assert(!memcmp(front,back,BYTES)&&!memcmp(front,panel,BYTES)&&!scans&&!draws&&!saves);
   unsigned done=probes;for(unsigned n=0;n<100;++n)lock_resume_service();assert(probes==done);
-  reset();cached=false;assert(prepare_startup_frame(&hl,front,true,true));assert(scans==1&&saves==1&&marks==1);
-  reset();remaining=500;assert(!prepare_startup_frame(&hl,front,true,true));
+  reset();cached=false;assert(prepare_startup_frame(&hl,front,true));assert(scans==1&&saves==1&&marks==1);
+  reset();remaining=500;assert(!prepare_startup_frame(&hl,front,true));
   (void)app_lock_resume_frame(NULL);unsigned before=probes;lock_resume_service();assert(before==probes&&!s_boot_lock_active&&!s_boot_lock_hl);
  }
  for(style=0;style<4;++style){reset();valid=false;
-  assert(!prepare_startup_frame(&hl,front,true,true));assert(!draws&&!scans&&panel[0]==0x10+style);
+  assert(!prepare_startup_frame(&hl,front,true));assert(!draws&&!scans&&panel[0]==0x10+style);
   s_boot_lock_draw=true;lock_resume_service();
   assert(draws==(style!=3)&&scans==(style!=3)&&saves==(style!=3)&&marks==saves);
   assert(s_boot_lock_known==(style!=3)&&panel[0]==0x10+style&&!fallback);
@@ -87,8 +87,14 @@ int main(void){EpdiyHighlevelState hl={back};
   (void)app_lock_resume_frame(&hl);s_boot_lock_draw=true;lock_resume_service();
   assert(!s_boot_lock_known&&!s_lock_hint_hl&&!saves&&!marks&&!fallback);
  }
- reset();assert(!prepare_startup_frame(&hl,front,false,true));assert(power==1&&clears==1&&censuses==1&&white_push==1&&!reads&&!fallback);
- puts("PASS: four S31 non-PIN deep-lock styles survive slow mounts without panel replacement, trusted cache hits need zero scans; stale/corrupt cache regeneration, transparent physical retention, failures, one-press cancellation and cold splash retain boundaries");
+ for(style=0;style<4;++style){
+  pin=true;reset();remaining=450;
+  assert(!prepare_startup_frame(&hl,front,true));
+  assert(power==1&&clears==1&&white_push==1&&fallback==1&&!probes&&!reads&&!scans&&!s_boot_lock_known);
+  assert(!memcmp(front,back,BYTES)&&!memcmp(front,panel,BYTES));
+ }
+ pin=false;reset();assert(!prepare_startup_frame(&hl,front,false));assert(power==1&&clears==1&&censuses==1&&white_push==1&&!reads&&!fallback);
+ puts("PASS: four S31 deep-lock styles, explicit PIN fallback without bypass, non-PIN styles survive slow mounts without panel replacement, trusted cache hits need zero scans; stale/corrupt cache regeneration, transparent physical retention, failures, one-press cancellation and cold splash retain boundaries");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='kiikoread-deep-lock-') as folder:

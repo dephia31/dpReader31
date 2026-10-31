@@ -7,6 +7,37 @@ on:
   workflow_dispatch:
 
 jobs:
+  sleep-host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select Clang for sanitizer host regressions
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/kiiko-host-cc"
+          ln -s "$(command -v clang)" "$RUNNER_TEMP/kiiko-host-cc/cc"
+          echo "$RUNNER_TEMP/kiiko-host-cc" >> "$GITHUB_PATH"
+      - name: Materialize S31 production sources
+        run: python3 tools/board_source_view.py --board metalio47 --tests --output build/sleep-host
+      - name: Sleep, wake, lock, media recovery and power policy
+        working-directory: build/sleep-host
+        run: |
+          python3 tools/metalio_sleep_host_test.py
+          python3 tools/metalio_light_transaction_host_test.py
+          python3 tools/metalio_deep_sleep_host_test.py
+          python3 tools/metalio_poweroff_host_test.py
+          python3 tools/metalio_boot_wake_host_test.py
+          python3 tools/metalio_lock_key_host_test.py
+          python3 tools/metalio_lock_resume_host_test.py
+          python3 tools/metalio_mount_resume_host_test.py
+          python3 tools/metalio_power_choice_host_test.py
+          python3 tools/sleep_only_settings_host_test.py
+          mkdir -p build/book-tests
+          cc -std=c11 -D_DEFAULT_SOURCE -DKIIKO_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=address,undefined -Itools/settings_backup_stubs -Imain tools/boot_state_host_test.c -o build/book-tests/boot-state
+          build/book-tests/boot-state
   notes-host-tests:
     runs-on: ubuntu-latest
     steps:
@@ -69,27 +100,11 @@ jobs:
           python3 build/host/metalio47/tools/metalio_vcom_host_test.py
           python3 build/host/metalio47/tools/test_glass_geometry.py
           python3 build/host/metalio47/tools/metalio_clock_cache_host_test.py
-      - name: S31 sleep, power-off and unlock boundaries
-        shell: bash
-        working-directory: build/host/metalio47
-        run: |
-          python3 tools/metalio_sleep_host_test.py
-          python3 tools/metalio_light_transaction_host_test.py
-          python3 tools/metalio_deep_sleep_host_test.py
-          python3 tools/metalio_poweroff_host_test.py
-          python3 tools/metalio_boot_wake_host_test.py
-          python3 tools/metalio_lock_key_host_test.py
-          python3 tools/metalio_lock_resume_host_test.py
-          python3 tools/metalio_mount_resume_host_test.py
-          python3 tools/metalio_power_choice_host_test.py
-          python3 tools/settings_layout_font_host_test.py
-          mkdir -p build/book-tests
-          cc -std=c11 -D_DEFAULT_SOURCE -DKIIKO_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=address,undefined -Itools/settings_backup_stubs -Imain tools/boot_state_host_test.c -o build/book-tests/boot-state
-          build/book-tests/boot-state
       - name: Water-turn, display recovery, navigation and waveform regressions
         shell: bash
         working-directory: build/host/metalio47
         run: |
+          python3 tools/settings_layout_font_host_test.py
           bash tools/run_water_turn_host_test.sh
           bash tools/run_display_host_test.sh
           bash tools/run_display_navigation_tests.sh

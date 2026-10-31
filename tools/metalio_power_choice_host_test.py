@@ -35,7 +35,9 @@ enum {SETTINGS_POWER_SLEEP=1,APP_REDRAW_NONE=0,APP_REDRAW_PAGE=2};
 static int s_page=SETTINGS_POWER_SLEEP,cards,dots;
 
 static unsigned hours=1;
-static int save_error;
+static int save_error,choice_opens;
+enum {SET_PICK_HOURS=1};
+static void settings_choice_open(int kind){assert(kind==SET_PICK_HOURS&&hours>=1&&hours<=24);++choice_opens;}
 #define APP_SLEEP_OFF_HOURS_MIN 0
 #define ESP_OK 0
 #define APP_SLEEP_OFF_HOURS_MAX 24
@@ -48,7 +50,7 @@ static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=
 static void back_header(uint8_t*f,const char*t){(void)f;assert(!strcmp(t,"Chế độ tắt nguồn / ngủ"));}
 static void section(uint8_t*f,int y,const char*t){(void)f;(void)y;(void)t;}
 static void settings_card(uint8_t*f,EpdRect r,int radius,int fill,int border){
- (void)f;(void)radius;(void)border;if(r.y==690){assert(r.width==80&&r.height==72);return;}assert(cards<2);boxes[cards]=r;
+ (void)f;(void)radius;(void)border;if(r.y==690){assert(r.width==612&&r.height==72);return;}assert(cards<2);boxes[cards]=r;
  assert(fill==(((hours>0)==(cards==1))?0xd0:255));++cards;
 }
 static void ui_text(uint8_t*f,int x,int y,int px,const char*t,int align,bool bold){
@@ -74,22 +76,21 @@ int main(void){
   for(int y=0;y<1216;y+=3)for(int x=0;x<684;x+=3){
    hours=initial;int target=-1;
    for(int i=0;i<2;i++)if(ui_rect_hit(boxes[i],x,y))target=i;
-   int delta=initial?(ui_rect_hit((EpdRect){36,690,80,72},x,y)?-1:ui_rect_hit((EpdRect){568,690,80,72},x,y)?1:0):0;
-   bool allowed=delta&&((int)initial+delta>=1)&&((int)initial+delta<=24);
-   int result=tap(x,y);
-   assert(result==((target>=0||allowed)?APP_REDRAW_PAGE:APP_REDRAW_NONE));
-   unsigned expected=target==0?0:target==1?(initial?initial:1):allowed?initial+delta:initial;
-   assert(hours==expected);
+   bool picker=initial&&ui_rect_hit((EpdRect){36,690,612,72},x,y);
+   choice_opens=0;int result=tap(x,y);
+   assert(result==((target>=0||picker)?APP_REDRAW_PAGE:APP_REDRAW_NONE));
+   unsigned expected=target==0?0:target==1?(initial?initial:1):initial;
+   assert(hours==expected&&choice_opens==(picker?1:0));
   }
  }
  hours=0;assert(tap(76,726)==APP_REDRAW_NONE&&hours==0);
- hours=1;assert(tap(76,726)==APP_REDRAW_NONE&&hours==1);
- hours=24;assert(tap(608,726)==APP_REDRAW_NONE&&hours==24);
+ hours=1;choice_opens=0;assert(tap(76,726)==APP_REDRAW_PAGE&&hours==1&&choice_opens==1);
+ hours=24;choice_opens=0;assert(tap(608,726)==APP_REDRAW_PAGE&&hours==24&&choice_opens==1);
  hours=0;assert(tap(100,500)==APP_REDRAW_PAGE&&hours==1);
  hours=7;assert(tap(100,500)==APP_REDRAW_PAGE&&hours==7);
  save_error=9;assert(tap(100,350)==APP_REDRAW_NONE&&hours==7);
- assert(tap(608,726)==APP_REDRAW_NONE&&hours==7);
- puts("PASS: actual two sleep policies,0/1/24 selection,1..24 hour bounds/hidden controls, failed saves, no5/10minute timers or auto-lock mutation");
+ assert(tap(608,726)==APP_REDRAW_PAGE&&hours==7);
+ puts("PASS: actual two sleep policies,0/1/24 selection,1..24 hour dialog opens without changing policy, hidden duration controls, failed saves, no5/10minute timers or auto-lock mutation");
 }
 
 '''
