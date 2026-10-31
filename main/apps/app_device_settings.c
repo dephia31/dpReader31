@@ -80,6 +80,7 @@ static ui_online_fonts_t s_online_fonts;
 #endif
 #include "ui_gesture.h"
 #include "ui_kit.h"
+#include "ui_choice.h"
 #include "ui_text_input.h"
 #include "ui_keyboard.h"
 #include "ui_nav.h"
@@ -407,7 +408,7 @@ static void upgrade_open(void) {
 static const char *const TAG = "device_settings";
 // 大字号主列表上下排列标签/值；绘制与点击使用同一行高。
 // Large-text main rows stack labels/values; drawing and hit testing share the same row height.
-static bool settings_stacked(void) { return app_settings_system_font_size() >= 150; }
+static bool settings_stacked(void) { return ui_text_system_percent() >= 150; }
 static int settings_detail_row_height(void) { return settings_stacked()?104:70; }
 static int settings_profile_height(void) { return 106; }
 static int settings_main_row_height(void) {
@@ -476,7 +477,7 @@ typedef enum {
 } settings_editor_mode_t;
 static settings_editor_mode_t s_editor_mode;
 static const char *system_font_label(const char *path) {
-    if (!path || !path[0]) return "Phông mặc định";
+    if (!path || !path[0]) return "Bitter Bold (Mặc định)";
     const char *name = strrchr(path, '/');
     name = name ? name + 1 : path;
     static char stem[TTF_FONT_NAME_MAX];
@@ -502,7 +503,9 @@ static system_font_layout_t system_font_layout(void) {
 #if KIIKO_BOARD_METALIO47
     // 顶部预览保持紧凑，为100%–200%字号统一留四行字体；文字仍按系统字号绘制。
     // Keep previews compact and reserve four font rows at100%–200%, retaining scaled text.
-    system_font_layout_t l = {{36,197,612,118},{36,398,612,154},344,580,640,94,4};
+    system_font_layout_t l = ui_text_system_percent()>200
+        ? (system_font_layout_t){{36,197,612,202},{36,470,612,216},432,720,776,132,2}
+        : (system_font_layout_t){{36,197,612,118},{36,398,612,154},344,580,640,94,4};
 #else
     system_font_layout_t l = settings_stacked()
         ? (system_font_layout_t){{36,197,612,183},{36,471,612,216},413,722,785,142,2}
@@ -702,6 +705,7 @@ static void time_open(void) {
     s_page = SETTINGS_TIME_EDIT;
 }
 
+static void time_adjust(int,int) __attribute__((unused));
 static void time_adjust(int field, int step) {
     if (field == 0) s_year = s_year + step > 2099 ? 2024 : s_year + step < 2024 ? 2099 : s_year + step;
     if (field == 1) s_month = s_month + step > 12 ? 1 : s_month + step < 1 ? 12 : s_month + step;
@@ -1199,9 +1203,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     if(s_page==SETTINGS_FRONTLIGHT) {
         epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb); back_header(fb,"Đèn nền & Rung");
         char value[48]; snprintf(value,sizeof(value),"%u%%",metalio_brightness());
-        row(fb,300,"Độ sáng",value); row(fb,390,"Giảm 10%","Tăng 10%");
+        row(fb,300,"Độ sáng",value); row(fb,390,"Chạm để chọn độ sáng","");
         snprintf(value,sizeof(value),"%u%%",metalio_warmth()); row(fb,530,"Tỷ lệ ánh sáng ấm",value);
-        row(fb,620,"Ánh sáng lạnh","Ánh sáng ấm"); row(fb,750,"Đèn nền",metalio_frontlight_enabled()?"Bật":"Tắt");
+        row(fb,620,"Chạm để chọn độ ấm",""); row(fb,750,"Đèn nền",metalio_frontlight_enabled()?"Bật":"Tắt");
         row(fb,850,"Rung phản hồi chạm",metalio_haptic_enabled()?"Bật":"Tắt");
         settings_navigation(fb); return;
     }
@@ -1434,14 +1438,12 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         for (int i = 0; i < 5; ++i) {
             int x = 36 + i * 122;
             ui_text_box(fb,(EpdRect){x,292,106,48},24,labels[i],EPD_DRAW_ALIGN_CENTER,false);
-            ui_draw_control_frame(fb, (EpdRect){x, 354, 106, 62}, 8, UI_GRAY_BLACK);
-            settings_center_line(fb, x + 53, 385, 30, "+", EPD_DRAW_ALIGN_CENTER, false);
-            char value[8]; snprintf(value, sizeof(value), i == 0 ? "%04d" : "%02d", values[i]);
-            ui_text_box(fb,(EpdRect){x,440,106,72},i==0?34:39,value,EPD_DRAW_ALIGN_CENTER,false);
-            ui_draw_control_frame(fb, (EpdRect){x, 535, 106, 62}, 8, UI_GRAY_BLACK);
-            settings_center_line(fb, x + 53, 566, 30, "−", EPD_DRAW_ALIGN_CENTER, false);
+            settings_card(fb,(EpdRect){x,354,106,243},16,UI_GRAY_WHITE,UI_GRAY_BLACK);
+            char value[8];snprintf(value,sizeof(value),i==0?"%04d":"%02d",values[i]);
+            ui_text_box(fb,(EpdRect){x+4,410,98,100},32,value,EPD_DRAW_ALIGN_CENTER,false);
+            ui_draw_icon(fb,x+53,560,24,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
         }
-        settings_line(fb, 36, 649, 23, "Chạm dấu + phía trên hoặc − phía dưới để chỉnh số", EPD_DRAW_ALIGN_LEFT, false);
+        settings_line(fb, 36, 649, 23, "Chạm giá trị để mở hộp chọn", EPD_DRAW_ALIGN_LEFT, false);
         ui_draw_button(fb, (EpdRect){36, 767, 612, 78}, "Lưu thời gian", false);
         ui_draw_button(fb, (EpdRect){36, 874, 612, 78}, "Hủy", false);
         if (s_notice[0]) settings_line(fb, 36, 996, 22, s_notice, EPD_DRAW_ALIGN_LEFT, false);
@@ -1499,18 +1501,25 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb,l.size,22,UI_GRAY_WHITE,0x70);
         char size[16]; snprintf(size,sizeof(size),"%u%%",app_settings_system_font_size());
 #if KIIKO_BOARD_METALIO47
+        if(ui_text_system_percent()>200) {
+            ui_text_box(fb,(EpdRect){60,207,540,72},27,"Cỡ chữ hệ thống",EPD_DRAW_ALIGN_LEFT,false);
+            ui_text_box(fb,(EpdRect){60,278,510,72},27,size,EPD_DRAW_ALIGN_LEFT,false);
+            settings_center_line(fb,60,365,18,"Chạm để chọn cỡ chữ",EPD_DRAW_ALIGN_LEFT,false);
+            ui_draw_icon(fb,619,314,28,UI_ICON_ROTATE_CW,0x38);
+        }else {
         ui_text_box(fb,(EpdRect){60,207,394,48},27,"Cỡ chữ hệ thống",EPD_DRAW_ALIGN_LEFT,false);
         ui_text_box(fb,(EpdRect){474,207,115,48},27,size,EPD_DRAW_ALIGN_RIGHT,false);
-        settings_center_line(fb,60,285,18,"Chạm để chuyển mức, tối đa 200%",EPD_DRAW_ALIGN_LEFT,false);
+        settings_center_line(fb,60,285,18,"Chạm để chọn cỡ chữ",EPD_DRAW_ALIGN_LEFT,false);
         ui_draw_icon(fb,619,231,28,UI_ICON_ROTATE_CW,0x38);
+        }
 #else
         if (settings_stacked()) {
             settings_center_line(fb,60,247,27,"Cỡ chữ hệ thống",EPD_DRAW_ALIGN_LEFT,false);
             settings_center_line(fb,589,247,27,size,EPD_DRAW_ALIGN_RIGHT,false);
-            settings_center_line(fb,60,328,18,"Chạm để chuyển mức, tối đa 200%",EPD_DRAW_ALIGN_LEFT,false);
+            settings_center_line(fb,60,328,18,"Chạm để chọn cỡ chữ",EPD_DRAW_ALIGN_LEFT,false);
         } else {
             settings_center_line(fb,58,227,25,"Cỡ chữ hệ thống",EPD_DRAW_ALIGN_LEFT,false);
-            settings_center_line(fb,58,269,18,"Chạm để chuyển mức, tối đa 200%",EPD_DRAW_ALIGN_LEFT,false);
+            settings_center_line(fb,58,269,18,"Chạm để chọn cỡ chữ",EPD_DRAW_ALIGN_LEFT,false);
             settings_center_line(fb,589,247,26,size,EPD_DRAW_ALIGN_RIGHT,false);
         }
         ui_draw_icon(fb,619,247,28,UI_ICON_ROTATE_CW,0x38);
@@ -1518,7 +1527,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         section(fb,l.preview_title,"Xem trước hiệu ứng");
         settings_card(fb,l.preview,22,UI_GRAY_WHITE,0x70);
 #if KIIKO_BOARD_METALIO47
-        ui_text_box(fb,(EpdRect){60,l.preview.y+12,564,66},29,"Đọc sách mỗi ngày cùng dpReader",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_box(fb,(EpdRect){60,l.preview.y+12,564,66},29,ui_text_system_percent()>200?"Đọc cùng dpReader":"Đọc sách mỗi ngày cùng dpReader",EPD_DRAW_ALIGN_LEFT,false);
         ui_text_box(fb,(EpdRect){60,l.preview.y+90,564,52},25,"Aa 123",EPD_DRAW_ALIGN_LEFT,false);
 #else
         settings_center_line(fb,60,l.preview.y+(settings_stacked()?68:51),29,"Đọc sách mỗi ngày cùng dpReader",EPD_DRAW_ALIGN_LEFT,false);
@@ -1575,9 +1584,10 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     if (s_page == SETTINGS_SYSTEM_SIZE) {
         back_header(fb, "Cỡ chữ hệ thống");
         section(fb, 248, "Cỡ chữ giao diện hệ thống");
-        for (int i = 0; i < 11; ++i) {
-            int value = 100 + i * 10;
-            EpdRect box = {36 + (i % 2) * 316, 298 + (i / 2) * 122, 296, 102};
+        const uint8_t sizes[]={100,110,120,130,140,144,150,160,170,180,190,200,202};
+        for (int i = 0; i < 13; ++i) {
+            int value = sizes[i];
+            EpdRect box = {36 + (i % 2) * 316, 298 + (i / 2) * 110, 296, 96};
             bool active = app_settings_system_font_size() == value;
             settings_card(fb, box, 20, active ? 0xd0 : UI_GRAY_WHITE, 0x70);
             char label[48]; snprintf(label, sizeof(label), "%d%%", value);
@@ -1840,11 +1850,8 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         if(hours) {
             ui_text_fixed_vc(fb,36,650,26,"Tự tắt nguồn sau khi khóa (1–24 giờ)",EPD_DRAW_ALIGN_LEFT,false);
             char duration[48];snprintf(duration,sizeof(duration),"%u giờ",hours);
-            settings_card(fb,(EpdRect){36,690,80,72},18,UI_GRAY_WHITE,0x70);
-            settings_card(fb,(EpdRect){568,690,80,72},18,UI_GRAY_WHITE,0x70);
-            ui_text_fixed_vc(fb,76,726,40,"−",EPD_DRAW_ALIGN_CENTER,false);
-            ui_text_fixed_vc(fb,608,726,40,"+",EPD_DRAW_ALIGN_CENTER,false);
-            ui_text_fixed_vc(fb,342,726,36,duration,EPD_DRAW_ALIGN_CENTER,false);
+            settings_card(fb,(EpdRect){36,690,612,72},18,UI_GRAY_WHITE,0x70);
+            ui_text_box(fb,(EpdRect){54,698,576,56},27,duration,EPD_DRAW_ALIGN_CENTER,false);
         }
         settings_line(fb,54,822,20,"Thời gian tự khóa được đặt riêng ở mục Khóa màn hình",EPD_DRAW_ALIGN_LEFT,false);
         settings_line(fb,54,874,20,"Chỉ đặt lại Chỉ Sleep khi cài phiên bản mới",EPD_DRAW_ALIGN_LEFT,false);
@@ -1970,7 +1977,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.3-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.4-vn", "ESP32-S31");
         settings_line(fb, 56, 324, 22, v_line, EPD_DRAW_ALIGN_LEFT, false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -2283,7 +2290,68 @@ static bool settings_gray_preview(void) {
     return s_page==SETTINGS_WALLPAPER_PREVIEW||s_page==SETTINGS_SHELF_STYLE;
 }
 #endif
+enum {SET_PICK_SIZE,SET_PICK_WAKE,SET_PICK_GRACE,SET_PICK_HOURS,SET_PICK_YEAR,SET_PICK_MONTH,SET_PICK_DAY,SET_PICK_HOUR,SET_PICK_MINUTE,SET_PICK_BRIGHTNESS,SET_PICK_WARMTH};
+static ui_choice_t s_setting_choice;
+static const uint8_t s_ui_sizes[]={100,110,120,130,140,144,150,160,170,180,190,200,202};
+static void settings_choice_label(int kind,int index,char *out,size_t size) {
+    if(kind==SET_PICK_SIZE)snprintf(out,size,"%u%%",s_ui_sizes[index]);
+    else if(kind==SET_PICK_WAKE)snprintf(out,size,"%d lần nhấn",index+1);
+    else if(kind==SET_PICK_HOURS)snprintf(out,size,"%d giờ",index+1);
+    else if(kind>=SET_PICK_YEAR&&kind<=SET_PICK_MINUTE)snprintf(out,size,"%d",index+(kind==SET_PICK_YEAR?2024:kind==SET_PICK_MONTH||kind==SET_PICK_DAY?1:0));
+#if KIIKO_BOARD_METALIO47
+    else if(kind==SET_PICK_BRIGHTNESS||kind==SET_PICK_WARMTH)snprintf(out,size,"%u%%",index<11?(unsigned)index*10:kind==SET_PICK_BRIGHTNESS?metalio_brightness():metalio_warmth());
+#endif
+    else {static const char *const names[]={"Tắt","5 phút","1 giờ","8 giờ","24 giờ"};snprintf(out,size,"%s",names[index]);}
+}
+static void settings_choice_open(int kind) {
+    int count=0,current=0;const char *title="";
+    if(kind==SET_PICK_SIZE){count=sizeof(s_ui_sizes);title="Cỡ chữ hệ thống";current=-1;for(int i=0;i<count;i++)if(s_ui_sizes[i]==app_settings_system_font_size())current=i;}
+    else if(kind==SET_PICK_WAKE){count=2;current=app_settings_wake_presses()-1;title="Đánh thức bằng nút nguồn";}
+#if KIIKO_BOARD_METALIO47
+    else if(kind==SET_PICK_GRACE){count=5;current=app_settings_pin_grace_code();title="Thời gian miễn nhập PIN";}
+    else if(kind==SET_PICK_HOURS){count=24;current=app_settings_sleep_off_hours()-1;title="Số giờ Sleep trước khi tắt";}
+#endif
+    if(kind>=SET_PICK_YEAR&&kind<=SET_PICK_MINUTE){
+        int values[]={s_year-2024,s_month-1,s_day-1,s_hour,s_minute};
+        int counts[]={76,12,days_in_month(s_year,s_month),24,60};
+        static const char *const titles[]={"Năm","Tháng","Ngày","Giờ","Phút"};
+        int i=kind-SET_PICK_YEAR;current=values[i];count=counts[i];title=titles[i];
+    }
+#if KIIKO_BOARD_METALIO47
+    if(kind==SET_PICK_BRIGHTNESS||kind==SET_PICK_WARMTH){unsigned value=kind==SET_PICK_BRIGHTNESS?metalio_brightness():metalio_warmth();count=11+(value%10?1:0);current=value%10?11:value/10;title=kind==SET_PICK_BRIGHTNESS?"Độ sáng":"Tỷ lệ ánh sáng ấm";}
+#endif
+    ui_choice_begin(&s_setting_choice,kind,title,count,current);
+}
+static app_redraw_t settings_choice_gesture(const ui_gesture_event_t *ev) {
+    if(ev->type==UI_GESTURE_SWIPE_U||ev->type==UI_GESTURE_SWIPE_D)
+        return ui_choice_page(&s_setting_choice,ev->type==UI_GESTURE_SWIPE_U?1:-1)?APP_REDRAW_PAGE:APP_REDRAW_NONE;
+    if(ev->type!=UI_GESTURE_TAP)return APP_REDRAW_NONE;
+    int index=ui_choice_tap(&s_setting_choice,ev->x0,ev->y0);
+    if(index==UI_CHOICE_NONE)return APP_REDRAW_NONE;
+    if(index<0)return APP_REDRAW_PAGE;
+    bool ok=false;
+    if(s_setting_choice.kind==SET_PICK_SIZE){app_settings_set_system_font_size(s_ui_sizes[index]);ok=app_settings_system_font_size()==s_ui_sizes[index];}
+    else if(s_setting_choice.kind==SET_PICK_WAKE){app_settings_set_wake_presses(index+1);ok=app_settings_wake_presses()==index+1;}
+#if KIIKO_BOARD_METALIO47
+    else if(s_setting_choice.kind==SET_PICK_GRACE){app_settings_set_pin_grace_code(index);ok=app_settings_pin_grace_code()==index;}
+    else if(s_setting_choice.kind==SET_PICK_HOURS)ok=app_settings_set_sleep_off_hours(index+1)==ESP_OK;
+#endif
+    if(s_setting_choice.kind>=SET_PICK_YEAR&&s_setting_choice.kind<=SET_PICK_MINUTE){
+        int *values[]={&s_year,&s_month,&s_day,&s_hour,&s_minute};int i=s_setting_choice.kind-SET_PICK_YEAR;
+        *values[i]=index+(i==0?2024:i==1||i==2?1:0);if(s_day>days_in_month(s_year,s_month))s_day=days_in_month(s_year,s_month);ok=true;
+    }
+#if KIIKO_BOARD_METALIO47
+    if(s_setting_choice.kind==SET_PICK_BRIGHTNESS||s_setting_choice.kind==SET_PICK_WARMTH){
+        bool warmth=s_setting_choice.kind==SET_PICK_WARMTH;unsigned value=index<11?(unsigned)index*10:warmth?metalio_warmth():metalio_brightness();
+        metalio_frontlight_adjust_position(warmth,value*METALIO_FRONTLIGHT_RANGE/100);metalio_frontlight_commit();ok=true;
+    }
+#endif
+    if(ok){s_setting_choice.open=false;if(s_setting_choice.kind==SET_PICK_SIZE)s_font_page=0;}
+    else snprintf(s_setting_choice.error,sizeof(s_setting_choice.error),"Lưu thất bại, vui lòng thử lại");
+    return APP_REDRAW_PAGE;
+}
 static void render(app_ctx_t *ctx,uint8_t *fb) {
+    if(s_setting_choice.open){ui_choice_draw(&s_setting_choice,fb,settings_choice_label);return;}
     render_content(ctx,fb);
 #if KIIKO_BOARD_METALIO47
     if(!settings_gray_preview())display_monochrome_content(fb);
@@ -2301,6 +2369,7 @@ static void settings_prepare_profile(void) {
     s_avatar_ready=state==UI_AVATAR_READY;s_avatar_pending=state==UI_AVATAR_PENDING;
 }
 static void on_enter(app_ctx_t *ctx) {
+    s_setting_choice.open=false;
 #if KIIKO_BOARD_METALIO47
     s_control_pick=s_control_key=-1;
 #endif
@@ -2725,6 +2794,7 @@ static app_redraw_t sd_recovery_gesture(app_ctx_t *ctx,const ui_gesture_event_t 
 #endif
 
 static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
+    if(s_setting_choice.open)return settings_choice_gesture(ev);
 #if KIIKO_BOARD_METALIO47
     if(app_sd_recovery_busy())return APP_REDRAW_NONE;
     if(s_page==SETTINGS_SD_RECOVERY)return sd_recovery_gesture(ctx,ev);
@@ -2771,7 +2841,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 #if KIIKO_BOARD_METALIO47
     if(s_page==SETTINGS_LOCK_PIN && ev->type==UI_GESTURE_TAP && lock_pin_available() && lock_pin_enabled() &&
        ui_rect_hit(pin_grace_row(),ev->x0,ev->y0)) {
-        app_settings_set_pin_grace_code((app_settings_pin_grace_code()+1)%5);
+        settings_choice_open(SET_PICK_GRACE);
         return APP_REDRAW_PAGE;
     }
 #endif
@@ -2902,9 +2972,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if (ev->y0 >= 354 && ev->y0 < 597) {
             int field = (ev->x0 - 36) / 122;
             if (ev->x0 >= 36 && field >= 0 && field < 5 && (ev->x0 - 36) % 122 < 106) {
-                if (ev->y0 < 416) time_adjust(field, 1);
-                else if (ev->y0 >= 535) time_adjust(field, -1);
-                else return APP_REDRAW_NONE;
+                settings_choice_open(SET_PICK_YEAR+field);
                 return APP_REDRAW_PAGE;
             }
         }
@@ -2918,14 +2986,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 #if KIIKO_BOARD_METALIO47
     if(s_page==SETTINGS_FRONTLIGHT) {
         if(y<190) { s_page=SETTINGS_MAIN; return APP_REDRAW_PAGE; }
-        unsigned brightness=metalio_brightness(), warmth=metalio_warmth();
-        if(y>=390 && y<458) brightness=ev->x0<342?(brightness>=10?brightness-10:0):(brightness<=90?brightness+10:100);
-        else if(y>=620 && y<688) warmth=ev->x0<342?(warmth>=10?warmth-10:0):(warmth<=90?warmth+10:100);
-        else if(y>=750 && y<818) { metalio_frontlight_toggle(); return APP_REDRAW_PAGE; }
-        else if(y>=850 && y<918) { metalio_haptic_set_enabled(!metalio_haptic_enabled()); return APP_REDRAW_PAGE; }
-        else return APP_REDRAW_NONE;
-        metalio_frontlight_adjust_position(y>=620,(y>=620?warmth:brightness)*METALIO_FRONTLIGHT_RANGE/100);
-        metalio_frontlight_commit(); return APP_REDRAW_PAGE;
+        if(y>=300&&y<458){settings_choice_open(SET_PICK_BRIGHTNESS);return APP_REDRAW_PAGE;}
+        if(y>=530&&y<688){settings_choice_open(SET_PICK_WARMTH);return APP_REDRAW_PAGE;}
+        if(y>=750&&y<818){metalio_frontlight_toggle();return APP_REDRAW_PAGE;}
+        if(y>=850&&y<918){metalio_haptic_set_enabled(!metalio_haptic_enabled());return APP_REDRAW_PAGE;}
+        return APP_REDRAW_NONE;
     }
     if(s_page==SETTINGS_ACTION_MENU) {
         int row=0;
@@ -3065,15 +3130,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     if (s_page == SETTINGS_SYSTEM_FONT) {
         system_font_layout_t l=system_font_layout();
         if (ui_rect_hit(l.size,ev->x0,y)) {
-            unsigned prior=app_settings_system_font_size();
-            unsigned next=prior>=200?100:prior+10;
-            app_settings_set_system_font_size(next);
-            if (app_settings_system_font_size()!=next) {
-                snprintf(s_notice,sizeof(s_notice),"Lưu thất bại, vui lòng thử lại");return APP_REDRAW_PAGE;
-            }
-            s_font_page=0;
-            if (s_main_scroll>SETTINGS_SCROLL_MAX) s_main_scroll=SETTINGS_SCROLL_MAX;
-            ui_text_set_system_scale(true);s_notice[0]=0;return APP_REDRAW_PAGE;
+            settings_choice_open(SET_PICK_SIZE);return APP_REDRAW_PAGE;
         }
 #if KIIKO_BOARD_METALIO47
         for(int next=0;next<2;++next)if(ui_rect_hit(system_font_page_button(next),ev->x0,y)) {
@@ -3121,10 +3178,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         return APP_REDRAW_NONE;
     }
     if (s_page == SETTINGS_SYSTEM_SIZE) {
-        for (int index = 0; index < 11; ++index) {
-            EpdRect box = {36 + (index % 2) * 316, 298 + (index / 2) * 122, 296, 102};
+        const uint8_t sizes[]={100,110,120,130,140,144,150,160,170,180,190,200,202};
+        for (int index = 0; index < 13; ++index) {
+            EpdRect box = {36 + (index % 2) * 316, 298 + (index / 2) * 110, 296, 96};
             if (!ui_rect_hit(box, ev->x0, y)) continue;
-            app_settings_set_system_font_size((uint8_t)(100 + index * 10));
+            app_settings_set_system_font_size(sizes[index]);
             ui_text_set_system_scale(true);
             return APP_REDRAW_PAGE;
         }
@@ -3270,14 +3328,8 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
                 return app_settings_set_sleep_off_hours(hours)==ESP_OK?APP_REDRAW_PAGE:APP_REDRAW_NONE;
             }
         }
-        if(app_settings_sleep_off_hours()) {
-            int delta=ui_rect_hit((EpdRect){36,690,80,72},ev->x0,ev->y0)?-1:
-                      ui_rect_hit((EpdRect){568,690,80,72},ev->x0,ev->y0)?1:0;
-            if(delta) {
-                int hours=app_settings_sleep_off_hours()+delta;
-                if(hours<1||hours>APP_SLEEP_OFF_HOURS_MAX)return APP_REDRAW_NONE;
-                return app_settings_set_sleep_off_hours((uint8_t)hours)==ESP_OK?APP_REDRAW_PAGE:APP_REDRAW_NONE;
-            }
+        if(app_settings_sleep_off_hours()&&ui_rect_hit((EpdRect){36,690,612,72},ev->x0,ev->y0)) {
+            settings_choice_open(SET_PICK_HOURS);return APP_REDRAW_PAGE;
         }
         return APP_REDRAW_NONE;
     }
@@ -3506,7 +3558,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else if(row==2)s_page=SETTINGS_MAIN_REFRESH;
         else if(row==3)app_settings_set_home_full_refresh(!app_settings_home_full_refresh());
         else if(row==4)s_page=SETTINGS_AUTO_LOCK;
-        else if(row==5)app_settings_set_wake_presses(app_settings_wake_presses()==2?1:2);
+        else if(row==5)settings_choice_open(SET_PICK_WAKE);
 #if KIIKO_BOARD_METALIO47
         else if(row==6)s_page=SETTINGS_POWER_SLEEP;
         else s_page=SETTINGS_FRONTLIGHT;
@@ -3559,6 +3611,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 }
 
 static app_redraw_t on_key(app_ctx_t *ctx, int key) {
+    if(s_setting_choice.open){s_setting_choice.open=false;return APP_REDRAW_PAGE;}
 #if KIIKO_BOARD_METALIO47
     if(app_sd_recovery_busy())return APP_REDRAW_NONE;
     if(s_page==SETTINGS_CONTROLS&&s_control_pick>=0){s_control_pick=-1;s_notice[0]=0;return APP_REDRAW_PAGE;}

@@ -36,7 +36,7 @@ static uint8_t glyph_alpha(const glyph_entry_t *g,int x,int y){(void)g;(void)x;(
 static uint8_t mix_glyph_ink(const glyph_entry_t *g,uint8_t a,uint8_t f,uint8_t b){(void)g;(void)a;(void)b;return f;}
 static void epd_draw_pixel(int x,int y,uint8_t color,uint8_t *fb){(void)y;(void)color;(void)fb;assert(count<2048);pixels[count++]=x;}
 '''
-for name in ['ttf_geometry_visit','geometry_glyph','ttf_draw_text_px','ttf_draw_text_px_spaced','cjk_spacing_point','ttf_draw_text_px_fitted']:
+for name in ['ttf_geometry_visit','geometry_glyph','ttf_draw_text_px','word_spacing_extra','ttf_draw_text_px_word_spaced','ttf_draw_text_px_spaced','cjk_spacing_point','ttf_draw_text_px_word_fitted','ttf_draw_text_px_fitted']:
     unit+=function(name,font)+'\n'
 unit+=r'''
 static void visit(void *ctx,size_t start,size_t bytes,EpdRect r){(void)ctx;assert(start==last_end);last_end=start+bytes;assert(visits<count);assert(r.x==pixels[visits++]);assert(r.width>=1);assert(r.y==100-ttf_ascender_px(24));}

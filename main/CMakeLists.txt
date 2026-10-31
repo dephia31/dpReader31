@@ -67,6 +67,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "app/log_export.c"
         "app/app_registry.c"
         "ui/ui_kit.c"
+        "ui/ui_choice.c"
         "ui/ui_text_edit.c"
         "ui/ui_text_input.c"
         "ui/ui_ime.c"
@@ -140,6 +141,9 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "factory/pmu_selftest.c"
         "factory/vcom_setup.c"
         "factory/debug_panel.c")
+if(KIIKO_BOARD STREQUAL "metalio47")
+    list(APPEND kiiko_selected_sources "app/crash_report.c")
+endif()
 idf_component_register(
     LDFRAGMENTS "metalio_crash.lf"
     SRCS ${kiiko_selected_sources}

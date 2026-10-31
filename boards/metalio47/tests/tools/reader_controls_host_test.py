@@ -42,7 +42,7 @@ static char s_reader_notice[64];
 static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s",from);}
 static int64_t esp_timer_get_time(void){return 1000000;}
 '''
-unit+='static unsigned font_scale=100;\nstatic unsigned app_settings_system_font_size(void){return font_scale;}\n'
+unit+='static unsigned font_scale=100;\nstatic unsigned app_settings_system_font_size(void){return font_scale;}\nstatic unsigned ui_text_system_percent(void){return app_settings_system_font_size();}\n'
 unit+=function('reader_ui_extra',book)+'\n'+function('reader_font_card',book)+'\n'
 for name in ['s_font_card','s_weight_card','s_bookfont_card','s_layout_card','s_rule_card','s_antialias_card']:
  unit+=re.search(r'^#define '+name+r' .*',s,re.M)[0]+'\n'

@@ -3218,11 +3218,15 @@ bool ttf_text_mask_px(uint8_t *mask, unsigned width, unsigned height, int x,
     return true;
 }
 
-void ttf_draw_text_px_spaced(
+static int word_spacing_extra(uint32_t cp,int advance,int word_px) {
+    if(cp!=32&&cp!=9&&cp!=0xa0&&cp!=0x202f)return 0;
+    return advance+word_px<0?-advance:word_px;
+}
+void ttf_draw_text_px_word_spaced(
     uint8_t* framebuffer, int x, int y, int pixel_height, const char* text,
-    int tracking_px, uint8_t fg, uint8_t bg
+    int tracking_px, int word_px, uint8_t fg, uint8_t bg
 ) {
-    if (!tracking_px) {
+    if (!tracking_px && !word_px) {
         ttf_draw_text_px(framebuffer, x, y, pixel_height, text, EPD_DRAW_ALIGN_LEFT, fg, bg);
         return;
     }
@@ -3251,8 +3255,13 @@ void ttf_draw_text_px_spaced(
             }
         }
         cursor_x += glyph->advance_x;
+        cursor_x+=word_spacing_extra(cp,glyph?glyph->advance_x:0,word_px);
         if (*cursor) cursor_x += tracking_px;
     }
+}
+
+void ttf_draw_text_px_spaced(uint8_t *fb,int x,int y,int px,const char *text,int tracking,uint8_t fg,uint8_t bg) {
+    ttf_draw_text_px_word_spaced(fb,x,y,px,text,tracking,0,fg,bg);
 }
 
 // 竖排里要转 90° 的字符：拉丁字母数字、括号、横向的破折号与波浪号、弯引号与省略号。
@@ -3432,9 +3441,9 @@ int ttf_draw_text_px_rotated(
     return cell;
 }
 
-int ttf_draw_text_px_vertical(
+int ttf_draw_text_px_word_vertical(
     uint8_t* framebuffer, int x, int y, int pixel_height, const char* text,
-    int tracking_px, uint8_t fg, uint8_t bg
+    int tracking_px, int word_px, uint8_t fg, uint8_t bg
 ) {
     if (!font_ready || framebuffer == NULL || text == NULL) return 0;
     ttf_cover_lut_init();
@@ -3509,10 +3518,13 @@ int ttf_draw_text_px_vertical(
             }
         }
         cell += glyph->advance_x;
+        cell+=word_spacing_extra(cp,glyph->advance_x,word_px);
         if (*cursor != '\0') cell += tracking_px;
     }
     return cell;
 }
+int ttf_draw_text_px_vertical(uint8_t *fb,int x,int y,int px,const char *text,int tracking,uint8_t fg,uint8_t bg){return ttf_draw_text_px_word_vertical(fb,x,y,px,text,tracking,0,fg,bg);}
+
 
 static bool cjk_spacing_point(uint32_t cp) {
     return (cp >= 0x2e80 && cp <= 0xffef) || (cp >= 0x2018 && cp <= 0x201d);
@@ -3521,47 +3533,54 @@ static bool cjk_spacing_point(uint32_t cp) {
 // 竖排列高：与 ttf_draw_text_px_vertical 的推进一致，不落墨，供排版预留位置。
 // Vertical column height: the same advance ttf_draw_text_px_vertical produces, without inking,
 // so a caller can reserve room for it.
-int ttf_vertical_text_height_px(int pixel_height, const char* text, int tracking_px) {
+int ttf_vertical_text_height_word_px(int pixel_height, const char* text, int tracking_px, int word_px) {
     if (text == NULL) return 0;
     pixel_height = clamp_px(pixel_height);
     int total = 0;
     const char* cursor = text;
     while (*cursor != '\0') {
-        const glyph_entry_t* glyph = get_glyph(decode_utf8(&cursor), pixel_height);
+        uint32_t cp=decode_utf8(&cursor);
+        const glyph_entry_t* glyph = get_glyph(cp, pixel_height);
         if (glyph == NULL) continue;
         total += glyph->advance_x;
+        total+=word_spacing_extra(cp,glyph->advance_x,word_px);
         if (*cursor != '\0') total += tracking_px;
     }
     return total;
 }
+int ttf_vertical_text_height_px(int px,const char *text,int tracking){return ttf_vertical_text_height_word_px(px,text,tracking,0);}
 
-void ttf_draw_text_px_fitted(
+
+void ttf_draw_text_px_word_fitted(
     uint8_t* framebuffer, int x, int y, int pixel_height, const char* text,
-    int tracking_px, int target_width, uint8_t fg, uint8_t bg
+    int tracking_px, int word_px, int target_width, uint8_t fg, uint8_t bg
 ) {
     if (!font_ready || !framebuffer || !text || !*text) return;
     ttf_cover_lut_init();
     pixel_height = clamp_px(pixel_height);
     warm_runs(pixel_height, text);
-    int glyph_count = 0, cjk_gaps = 0, spaces = 0;
+    int glyph_count = 0, cjk_gaps = 0, spaces = 0, word_extra = 0;
     const char* cursor = text;
     uint32_t previous = 0;
     while (*cursor) {
+        run_apply((size_t)(cursor-text));
         uint32_t cp = decode_utf8(&cursor);
         if (glyph_count && (cjk_spacing_point(previous) || cjk_spacing_point(cp))) ++cjk_gaps;
         if (cp == ' ' || cp == '\t') ++spaces;
+        const glyph_entry_t *space_glyph=get_glyph(cp,pixel_height);
+        word_extra+=word_spacing_extra(cp,space_glyph?space_glyph->advance_x:0,word_px);
         previous = cp;
         ++glyph_count;
     }
     int gaps = glyph_count - 1;
-    int natural = measure_width(pixel_height, text) + tracking_px * gaps;
+    int natural = measure_width(pixel_height, text) + tracking_px * gaps + word_extra;
     int delta = target_width - natural;
     bool compress = delta < 0;
     bool use_spaces = (!compress && spaces >= 1);
     int adjustable = compress ? gaps : (use_spaces ? spaces : cjk_gaps);
     if (adjustable < (use_spaces ? 1 : 2) || (compress && -delta > adjustable * 3) ||
         (!compress && delta > adjustable * (use_spaces ? 48 : 12))) {
-        ttf_draw_text_px_spaced(framebuffer, x, y, pixel_height, text, tracking_px, fg, bg);
+        ttf_draw_text_px_word_spaced(framebuffer, x, y, pixel_height, text, tracking_px, word_px, fg, bg);
         return;
     }
     int quotient = delta / adjustable;
@@ -3585,6 +3604,7 @@ void ttf_draw_text_px_fitted(
             }
         }
         if (glyph) cursor_x += glyph->advance_x;
+        cursor_x+=word_spacing_extra(cp,glyph?glyph->advance_x:0,word_px);
         if (*cursor) {
             const char* peek = cursor;
             uint32_t next = decode_utf8(&peek);
@@ -3601,6 +3621,10 @@ void ttf_draw_text_px_fitted(
         }
     }
 }
+void ttf_draw_text_px_fitted(uint8_t *fb,int x,int y,int px,const char *text,int tracking,int target,uint8_t fg,uint8_t bg) {
+    ttf_draw_text_px_word_fitted(fb,x,y,px,text,tracking,0,target,fg,bg);
+}
+
 
 void ttf_draw_text_px_bw(
     uint8_t* framebuffer, int x, int y, int pixel_height, const char* text,

@@ -2,8 +2,8 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 中文：内建 Noto Sans SC 子集与独立的 PSRAM 位图缓存。常用汉字以分块压缩位图补齐，其他未知字交给阅读字体回退。
- * English: Built-in Noto Sans SC subset with its own PSRAM bitmap cache; block-compressed common Han glyphs, with other unknown glyphs falling back to the reader face.
+ * 中文：内建 Bitter Bold 子集与独立的 PSRAM 位图缓存。常用汉字以分块压缩位图补齐，其他未知字交给阅读字体回退。
+ * English: Built-in Bitter Bold subset with its own PSRAM bitmap cache; block-compressed common Han glyphs, with other unknown glyphs falling back to the reader face.
  * 用户反馈书名锯齿：补充位图缩放改为覆盖率插值，保留字体来源、字宽及缓存上限；快刷最终仍为黑白。
  * User-reported jagged titles: interpolate supplemental bitmap coverage, retaining font sources, advances and cache bounds; final fast output remains monochrome.
  * 用户最新修订：书名及章节标题禁止放大补充位图；整行采用其原生24px，轮廓字形直接生成，并统一标题笔画黑度。

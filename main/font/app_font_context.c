@@ -5,8 +5,8 @@
  * User revision: recovery starts use the built-in face without retrying faulty resources or overwriting saved font choices.
  * 用户2026-10-29修订：本次手动重选且成功装载/保存后放宽字体门禁，保留其他异常启动保护。
  * User revision 2026-10-29: a successful explicit load/save re-admits fonts for this boot, retaining other abnormal-start protections.
- * 中文：系统默认使用内建思源黑体子集，TF 卡黑体补足缺字；用户选择的字体覆盖默认外观。
- * English: The built-in Source Han Sans face is the default; the SD face fills missing glyphs and explicit choices override it.
+ * 中文：系统默认使用内建Bitter Bold；用户选择的字体覆盖默认外观。
+ * English: Bitter Bold is the built-in default; explicit font choices override it.
  * 用户修订：票根始终借用系统字体，浅睡解锁恢复锁屏前的实际字体和上下文，不覆盖保存的选择。
  * User revision: tickets always borrow the system face; light-sleep wake restores the actual previous face/context without altering saved choices.
  */
@@ -54,13 +54,8 @@ static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
 #endif
     const char* chosen = app_settings_system_font_path();
     if (chosen[0]) return chosen;
-    if (snprintf(fallback, TTF_FONT_PATH_MAX, "%s/Hei.ttf", app_settings_fonts_dir()) >= TTF_FONT_PATH_MAX)
-        return TTF_FONT_BUILTIN;
-    struct stat st;
-    if (stat(fallback, &st) == 0 && S_ISREG(st.st_mode)) return fallback;
-    if (!ttf_font_count()) ttf_font_scan();
-    const ttf_font_item_t *item = ttf_font_item(0);
-    return item && font_file(item->path, &st) ? item->path : TTF_FONT_BUILTIN;
+    (void)fallback;
+    return TTF_FONT_BUILTIN;
 }
 
 static bool activate(const char* path) {
@@ -129,8 +124,8 @@ bool app_font_activate_system(void) {
     char fallback[TTF_FONT_PATH_MAX];
     const char* path = system_path(fallback);
     bool changed = activate(path);
-    // 未选字体时由内建思源黑体绘制界面；TTF 仍保留完整字库供文件名缺字回退。
-    // Built-in Source Han Sans draws default UI; the full TTF remains loaded for missing glyphs.
+    // 未选字体时由内建Bitter Bold绘制界面；TTF仍保留供文件名缺字回退。
+    // Built-in Bitter Bold draws default UI; the full TTF remains available for missing glyphs.
     ui_text_set_system_font(font_allowed() && chosen[0] && ttf_font_ready() &&
                            !strcmp(chosen, ttf_font_path()) && !ttf_font_is_builtin());
     ui_text_set_system_scale(true);

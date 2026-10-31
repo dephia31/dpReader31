@@ -10,6 +10,7 @@ unit=r'''
 #include <stdio.h>
 static int s_settings_group=-1,s_settings_root_scroll,s_main_scroll,scale=100;
 static unsigned app_settings_system_font_size(void){return scale;}
+static unsigned ui_text_system_percent(void){return app_settings_system_font_size();}
 static int settings_viewport_end(void){return 1088;}
 #define SETTINGS_WIRELESS_ROWS 7
 #define SETTINGS_DISPLAY_ROWS 8

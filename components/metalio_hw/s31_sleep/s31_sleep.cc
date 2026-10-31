@@ -3,6 +3,7 @@
 // ESP32-S31 SDK compatibility backport and RTC sleep diagnostics.
 // Keep IRAM/DRAM/RTC placement and low-level register ordering intact.
 #include "s31_sleep.h"
+#include <cstdio>
 #include <esp_log.h>
 #include <esp_sleep.h>
 #include <esp_timer.h>
@@ -181,4 +182,18 @@ extern "C" esp_err_t metalio_light_sleep_start(void) {
 }
 extern "C" void metalio_sleep_report_reset(void) {
     s31_sleep::ReportReset();
+}
+
+extern "C" void metalio_sleep_trace_phase(metalio_sleep_trace_phase_t phase) {
+    s31_sleep::Checkpoint(static_cast<s31_sleep::Phase>(phase), 0);
+}
+
+extern "C" void metalio_sleep_previous_summary(char *out, size_t size) {
+    if (!out || !size) return;
+    snprintf(out, size, "sleep_previous valid=%u cycle=%lu phase=%lu applied=0x%lx raw_cpu0=%d raw_cpu1=%d div=0x%lx ctrl=0x%lx analog=0x%lx bias=0x%lx",
+        s_previous_sleep_valid ? 1u : 0u,
+        static_cast<unsigned long>(s_previous_sleep.cycle), static_cast<unsigned long>(s_previous_sleep.phase),
+        static_cast<unsigned long>(s_previous_sleep.applied), s_reset_raw0, s_reset_raw1,
+        static_cast<unsigned long>(s_previous_sleep.pll_div), static_cast<unsigned long>(s_previous_sleep.pll_ctrl),
+        static_cast<unsigned long>(s_previous_sleep.analog), static_cast<unsigned long>(s_previous_sleep.bias));
 }

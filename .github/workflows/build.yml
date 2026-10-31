@@ -23,6 +23,12 @@ jobs:
         run: |
           python3 tools/action_menu_host_test.py
           python3 tools/sleep_only_settings_host_test.py
+          python3 tools/crash_report_host_test.py
+          python3 tools/system_font_defaults_host_test.py
+          python3 tools/ui_choice_host_test.py
+          python3 tools/word_spacing_host_test.py
+          python3 tools/word_spacing_settings_host_test.py
+          python3 tools/reader_spacing_ranges_host_test.py
           python3 tools/dict_sd_folder_host_test.py
           python3 tools/quick_radio_notice_host_test.py
           python3 tools/metalio_psram_task_host_test.py

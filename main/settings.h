@@ -125,7 +125,7 @@ void app_settings_set_font_path(const char* path);
 /// 系统界面字体；空值使用内建思源黑体并从 TF 卡补字。/ UI font; empty uses built-in Source Han Sans with SD fallback.
 const char* app_settings_system_font_path(void);
 void app_settings_set_system_font_path(const char* path);
-/// 系统字号 100..200%，每档 10%。/ System UI size 100..200%, in 10% steps.
+/// 系统字号100..200%每档10%，另有144%/202%。/ System UI size100..200% in10% steps, plus144%/202%; default100%; the UI base is160% of the original size.
 uint8_t app_settings_system_font_size(void);
 void app_settings_set_system_font_size(uint8_t percent);
 /// 系统界面灰阶对比度，100..140%。/ System UI grayscale contrast, 100..140%.
@@ -255,6 +255,9 @@ void app_settings_set_ble_turner(bool on);
 #define APP_BOOK_TRACK_COUNT (APP_BOOK_TRACK_MAX-APP_BOOK_TRACK_MIN+1)
 /// 字间距索引0..30对应-15..+15px，每档1px。/ Tracking indices 0..30 map to -15..+15px, in 1px steps.
 uint8_t app_settings_book_tracking(void);
+/// Extra spacing at word separators only, -3..20px; default0.
+int8_t app_settings_book_word_spacing(void);
+bool app_settings_set_book_word_spacing(int8_t px);
 void app_settings_set_book_tracking(uint8_t index);
 /// 普通正文首行缩进 0..3 字，默认两字。/ First-line indent: 0..3 em, default 2.
 uint8_t app_settings_book_indent(void);
@@ -302,8 +305,8 @@ void app_settings_set_book_line_spacing(uint8_t percent);
 /// 阅读页左右边距，0..48 像素。/ Reader horizontal margin: 0..48 pixels.
 uint8_t app_settings_book_margin(void);
 void app_settings_set_book_margin(uint8_t px);
-/// 段距11档，25%居中，0..100%。/ Eleven paragraph-gap stops centered on 25%, spanning 0..100%.
-#define APP_BOOK_PARAGRAPH_COUNT 11
+/// Paragraph gaps -10,-5,0..75%; negative values use signed-byte encoding in storage.
+#define APP_BOOK_PARAGRAPH_COUNT 12
 uint8_t app_settings_book_paragraph_value(uint8_t level);
 uint8_t app_settings_book_paragraph_level(uint8_t percent);
 uint8_t app_settings_book_paragraph_spacing(void);

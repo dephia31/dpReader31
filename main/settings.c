@@ -147,7 +147,7 @@ static char s_avatar[288];
 static char s_status_signature[96];
 static char s_font[FONT_PATH_MAX];
 static char s_system_font[FONT_PATH_MAX];
-static uint8_t s_system_size = 120;
+static uint8_t s_system_size = 100;
 static uint8_t s_system_contrast = 100;
 static uint8_t s_lock_style;
 static char s_wallpaper[288];
@@ -192,6 +192,7 @@ static bool s_book_fonts = true;
 // Vertical setting defaults off: only readers who want it turn it on, and horizontal type is
 // untouched.
 static bool s_book_vertical;
+static int8_t s_book_word_spacing;
 static uint8_t s_book_tracking = -APP_BOOK_TRACK_MIN, s_book_reading_line, s_book_rule_offset = 4;
 static uint8_t s_book_indent = 2;
 static uint8_t s_book_indent_adjust = 20;
@@ -280,6 +281,23 @@ static void sleep_policy_load(void) {
     nvs_close(h);
 }
 
+/* Apply the requested larger UI once; later explicit choices remain persistent. */
+static void system_size_load(void) {
+    s_system_size=100;
+    nvs_handle_t h;
+    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
+    uint8_t revision=0,value=100;
+    if(nvs_get_u8(h,"sys_size_rev",&revision)==ESP_OK && revision==2) {
+        if(nvs_get_u8(h,NVS_KEY_SYS_SIZE,&value)==ESP_OK && value>=100 &&
+           value<=202 && (!(value%10) || value==144 || value==202))s_system_size=value;
+    }else {
+        esp_err_t err=nvs_set_u8(h,NVS_KEY_SYS_SIZE,100);
+        if(err==ESP_OK)err=nvs_set_u8(h,"sys_size_rev",2);
+        if(err==ESP_OK)(void)nvs_commit(h);
+    }
+    nvs_close(h);
+}
+
 void app_settings_init(void) {
     esp_err_t err = nvs_flash_init();
     // 设置分区异常时保留原数据供恢复，绝不因空间不足自动擦除用户资料。
@@ -290,6 +308,7 @@ void app_settings_init(void) {
     }
 
     sleep_policy_load();
+    system_size_load();
     nvs_handle_t h;
     if (nvs_open(NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
     uint8_t raw = APP_SLEEP_DEEP;
@@ -373,10 +392,6 @@ void app_settings_init(void) {
     font_len = sizeof(s_system_font);
     if (nvs_get_str(h, NVS_KEY_SYS_FONT, s_system_font, &font_len) != ESP_OK)
         s_system_font[0] = 0;
-    uint8_t system_size = 120;
-    if (nvs_get_u8(h, NVS_KEY_SYS_SIZE, &system_size) == ESP_OK &&
-        system_size >= 100 && system_size <= 200 && system_size % 10 == 0)
-        s_system_size = system_size;
     uint8_t system_contrast = 100;
     if (nvs_get_u8(h, NVS_KEY_SYS_CONTRAST, &system_contrast) == ESP_OK &&
         system_contrast >= 100 && system_contrast <= 140 && system_contrast % 10 == 0)
@@ -464,6 +479,8 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_SHELF_RECENT, &recent_sort) == ESP_OK) s_shelf_recent_sort = recent_sort == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_FONTS, &book_fonts) == ESP_OK) s_book_fonts = book_fonts == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_VERTICAL, &book_vertical) == ESP_OK) s_book_vertical = book_vertical == 1;
+    uint8_t word_spacing=0;
+    s_book_word_spacing=nvs_get_u8(h,"book_word_gap",&word_spacing)==ESP_OK&&(word_spacing<=20||word_spacing>=253)?(int8_t)word_spacing:0;
     s_book_tracking = -APP_BOOK_TRACK_MIN;
     uint8_t tracking = 2, reading_line = 0, rule_offset = 4, indent = 2, indent_adjust = 20;
     if (nvs_get_u8(h, NVS_KEY_BOOK_TRACK, &tracking) == ESP_OK) {
@@ -496,10 +513,11 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_BOOK_FOOTER_PCT, &ft_pct) == ESP_OK) s_book_footer_pct = ft_pct == 1;
     uint8_t line = 130, para = 50, margin = 24;
     if (nvs_get_u8(h, NVS_KEY_BOOK_LINE, &line) == ESP_OK) {
-        if (line >= 110 && line <= 150) s_book_line = line;
-        else if (line == 180) s_book_line = 150;
+        if(line==236||line==246||line==0||(line>=100&&line<=130&&line%10==0))s_book_line=line;
+        else if(line>=110&&line<=150)s_book_line=line>130?130:((line+5)/10)*10;
+        else if (line == 180) s_book_line = 130;
     }
-    if (nvs_get_u8(h, NVS_KEY_BOOK_PARA, &para) == ESP_OK && app_settings_book_paragraph_value(app_settings_book_paragraph_level(para)) == para) s_book_para = para;
+    if(nvs_get_u8(h,NVS_KEY_BOOK_PARA,&para)==ESP_OK){if(para==100)s_book_para=75;else if(app_settings_book_paragraph_value(app_settings_book_paragraph_level(para))==para)s_book_para=para;}
     if (nvs_get_u8(h, NVS_KEY_BOOK_MARGIN, &margin) == ESP_OK && margin <= 60)
         s_book_margin = margin > 48 ? 48 : margin;
     uint8_t shelf_style = 2;
@@ -727,10 +745,11 @@ void app_settings_set_system_font_path(const char* path) {
 
 uint8_t app_settings_system_font_size(void) { return s_system_size; }
 void app_settings_set_system_font_size(uint8_t percent) {
-    if (percent < 100 || percent > 200 || percent % 10 || percent == s_system_size) return;
+    if (percent < 100 || percent > 202 || (percent % 10 && percent != 144 && percent != 202) || percent == s_system_size) return;
     nvs_handle_t h;
     if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
     esp_err_t err=nvs_set_u8(h,NVS_KEY_SYS_SIZE,percent);
+    if(err==ESP_OK)err=nvs_set_u8(h,"sys_size_rev",2);
     if(err==ESP_OK)err=nvs_commit(h);
     nvs_close(h);
     if(err==ESP_OK)s_system_size=percent;
@@ -919,7 +938,8 @@ esp_err_t app_settings_set_action_menu(uint32_t mask){
     if(mask==s_action_menu)return ESP_OK;
     nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
     if(err!=ESP_OK)return err;
-    err=nvs_set_u32(h,"action_menu",mask);if(err==ESP_OK)err=nvs_commit(h);nvs_close(h);
+    err=nvs_set_u32(h,"action_menu",mask);if(err==ESP_OK)err=nvs_commit(h);
+    nvs_close(h);
     if(err==ESP_OK)s_action_menu=mask;
     return err;
 }
@@ -928,7 +948,8 @@ esp_err_t app_settings_set_power_action_menu(bool enabled){
     if(enabled==s_power_action_menu)return ESP_OK;
     nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
     if(err!=ESP_OK)return err;
-    err=nvs_set_u8(h,"power_menu",enabled);if(err==ESP_OK)err=nvs_commit(h);nvs_close(h);
+    err=nvs_set_u8(h,"power_menu",enabled);if(err==ESP_OK)err=nvs_commit(h);
+    nvs_close(h);
     if(err==ESP_OK)s_power_action_menu=enabled;
     return err;
 }
@@ -1072,6 +1093,17 @@ void app_settings_set_shelf_recent_sort(bool on) {
     s_shelf_recent_sort = on;
     nvs_put_u8(NVS_KEY_SHELF_RECENT, on ? 1 : 0);
 }
+int8_t app_settings_book_word_spacing(void){return s_book_word_spacing;}
+bool app_settings_set_book_word_spacing(int8_t px) {
+    if(px < -3 || px>20)return false;
+    if(px==s_book_word_spacing)return true;
+    nvs_handle_t h;if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
+    esp_err_t err=nvs_set_u8(h,"book_word_gap",px);
+    if(err==ESP_OK)err=nvs_commit(h);
+    nvs_close(h);
+    if(err!=ESP_OK)return false;
+    s_book_word_spacing=px;return true;
+}
 uint8_t app_settings_book_tracking(void) { return s_book_tracking; }
 void app_settings_set_book_tracking(uint8_t index) {
     if (index >= APP_BOOK_TRACK_COUNT || index == s_book_tracking) return;
@@ -1137,7 +1169,7 @@ void app_settings_set_book_reading_line_offset(int8_t offset_px) {
 }
 uint8_t app_settings_book_line_spacing(void) { return s_book_line; }
 void app_settings_set_book_line_spacing(uint8_t percent) {
-    if (percent < 110 || percent > 150) return;
+    if(percent!=236&&percent!=246&&percent!=0&&percent!=100&&percent!=110&&percent!=120&&percent!=130)return;
     if (s_book_line == percent) return;
     s_book_line = percent;
     nvs_put_u8(NVS_KEY_BOOK_LINE, percent);
@@ -1150,14 +1182,14 @@ void app_settings_set_book_margin(uint8_t px) {
 }
 // 非线性段距保留旧档位，并将25%置于几何中点。/ Nonlinear gaps retain legacy stops with 25% at the geometric midpoint.
 uint8_t app_settings_book_paragraph_value(uint8_t level) {
-    static const uint8_t values[APP_BOOK_PARAGRAPH_COUNT]={0,5,10,15,20,25,30,40,50,75,100};
+    static const uint8_t values[APP_BOOK_PARAGRAPH_COUNT]={(uint8_t)-10,(uint8_t)-5,0,5,10,15,20,25,30,40,50,75};
     return values[level<APP_BOOK_PARAGRAPH_COUNT?level:APP_BOOK_PARAGRAPH_COUNT-1];
 }
 uint8_t app_settings_book_paragraph_level(uint8_t percent) {
     uint8_t best=0;
     unsigned distance=255;
     for(uint8_t i=0;i<APP_BOOK_PARAGRAPH_COUNT;++i) {
-        int delta=(int)app_settings_book_paragraph_value(i)-(int)percent;
+        int delta=(int)(int8_t)app_settings_book_paragraph_value(i)-(int)(int8_t)percent;
         unsigned d=(unsigned)(delta<0?-delta:delta);
         if(d<distance){distance=d;best=i;}
     }
@@ -1330,6 +1362,10 @@ static bool backup_indent_adjust_valid(const settings_backup_indent_adjust_t *ad
     for (unsigned i = 0; i < 4; ++i) stored |= (uint32_t)adjust->checksum[i] << (8 * i);
     return adjust->encoded <= 200 && stored == backup_indent_adjust_checksum(adjust);
 }
+static bool backup_word_spacing_valid(const settings_backup_indent_adjust_t *v) {
+    uint32_t sum=0;for(unsigned i=0;i<4;i++)sum|=(uint32_t)v->checksum[i]<<(8*i);
+    return sum==backup_indent_adjust_checksum(v);
+}
 // v13 adds a checked reading-weight block; older backups restore native strokes.
 typedef struct { uint8_t encoded, checksum[4]; } settings_backup_weight_t;
 static uint32_t backup_weight_checksum(const settings_backup_weight_t *weight) {
@@ -1365,7 +1401,7 @@ static bool backup_home_valid(const settings_backup_home_t *v) {
 static unsigned backup_version(const settings_backup_v1_t *backup) {
     if (memcmp(backup->magic, "PICOSET", 7)) return 0;
     unsigned char c = backup->magic[7];
-    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : 0;
+    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : c == 'L' ? 21 : 0;
 }
 
 static void backup_erase_secret(void *ptr, size_t size) {
@@ -1445,7 +1481,7 @@ static bool backup_card_ready(void) {
 esp_err_t app_settings_backup_save(void) {
     if (!backup_card_ready()) return ESP_ERR_INVALID_STATE;
     settings_backup_v1_t backup = {0};
-    memcpy(backup.magic, "PICOSETK", sizeof(backup.magic));
+    memcpy(backup.magic, "PICOSETL", sizeof(backup.magic));
     uint8_t *f = backup.flags;
     f[BK_SLEEP] = s_sleep;
     f[BK_PICKUP] = s_pickup_wake;
@@ -1536,6 +1572,10 @@ esp_err_t app_settings_backup_save(void) {
     for(unsigned i=0;i<4;++i)bookmark.checksum[i]=bookmark_hash>>(8*i);
     if(ok)ok=fwrite(&bookmark,1,sizeof(bookmark),file)==sizeof(bookmark);
     backup_erase_secret(&wifi, sizeof(wifi));
+    settings_backup_indent_adjust_t word_spacing={.encoded=s_book_word_spacing};
+    uint32_t word_hash=backup_indent_adjust_checksum(&word_spacing);
+    for(unsigned i=0;i<4;i++)word_spacing.checksum[i]=word_hash>>(8*i);
+    if(ok)ok=fwrite(&word_spacing,1,sizeof(word_spacing),file)==sizeof(word_spacing);
     if (ok) ok = book_history_backup_write(file) == ESP_OK;
     if (ok) ok = fflush(file) == 0;
     if (ok) ok = fsync(fileno(file)) == 0;
@@ -1574,16 +1614,16 @@ static bool backup_valid(const settings_backup_v1_t *backup) {
     for (int i = 0; i < 4; ++i) checksum |= (uint32_t)backup->checksum[i] << (i * 8);
     if (!backup_version(backup) || checksum != backup_checksum(backup)) return false;
     if (f[BK_SLEEP] > APP_SLEEP_OFF || f[BK_PICKUP] > 1 ||
-        f[BK_SYS_SIZE] < 100 || f[BK_SYS_SIZE] > 200 || f[BK_SYS_SIZE] % 10 ||
+        f[BK_SYS_SIZE] < 100 || f[BK_SYS_SIZE] > 202 || (f[BK_SYS_SIZE] % 10 && f[BK_SYS_SIZE] != 144 && f[BK_SYS_SIZE] != 202) ||
         f[BK_SYS_CONTRAST] < 100 || f[BK_SYS_CONTRAST] > 140 || f[BK_SYS_CONTRAST] % 10 ||
         f[BK_LOCK] > 3 || f[BK_BOOK_PX] < BOOK_READER_PX_MIN || f[BK_BOOK_PX] > BOOK_READER_PX_MAX ||
         f[BK_SHAKE] > 1 || !reader_full_pages_valid(f[BK_FULL_PAGES]) ||
         f[BK_TURN] > READER_TURN_EFFECT_MAX || f[BK_POWER_TURN] > 1 || f[BK_IMMERSIVE] > 1 ||
         f[BK_TRACKING] > (backup_version(backup)>=20 ? APP_BOOK_TRACK_COUNT-1 : backup_version(backup)==19 ? 20 : 4) || f[BK_READING_LINE] > 2 ||
-        f[BK_LINE_SPACING] < 110 || f[BK_LINE_SPACING] > 150 ||
+        (f[BK_LINE_SPACING]!=236&&f[BK_LINE_SPACING]!=246&&f[BK_LINE_SPACING]!=0&&(f[BK_LINE_SPACING]<100||f[BK_LINE_SPACING]>150)) ||
         f[BK_MARGIN] > 60 ||
         (backup_version(backup)>=20 ?
-         app_settings_book_paragraph_value(app_settings_book_paragraph_level(f[BK_PARAGRAPH])) != f[BK_PARAGRAPH] :
+         (f[BK_PARAGRAPH]!=100 && app_settings_book_paragraph_value(app_settings_book_paragraph_level(f[BK_PARAGRAPH])) != f[BK_PARAGRAPH]) :
          f[BK_PARAGRAPH] > 75 || f[BK_PARAGRAPH] % 25) ||
         f[BK_SHELF] < 1 || f[BK_SHELF] > 5) return false;
     if (strnlen(backup->books_dir, sizeof(backup->books_dir)) == sizeof(backup->books_dir) ||
@@ -1610,7 +1650,7 @@ esp_err_t app_settings_backup_restore(void) {
     unsigned version = ok ? backup_version(&backup) : 0;
     settings_backup_hold_t hold = {.action = APP_READER_KEY_HOME};
     uint8_t indent = 2, rule_offset = 4, staged_shutdown = 0;
-    settings_backup_indent_adjust_t adjust = {.encoded = 20};
+    settings_backup_indent_adjust_t adjust = {.encoded = 20}, word_spacing={0};
     settings_backup_weight_t weight = {.encoded = 2};
 #if KIIKO_BOARD_METALIO47
     settings_backup_profile_t profile = {.device_name = "Metalio S31"};
@@ -1685,6 +1725,8 @@ esp_err_t app_settings_backup_restore(void) {
     if (ok && version >= 16) ok = fread(&home, 1, sizeof(home), file) == sizeof(home) && backup_home_valid(&home);
     if(ok && version>=18)ok=fread(&bookmark,1,sizeof(bookmark),file)==sizeof(bookmark)&&
         backup_background_valid(&bookmark)&&backup_path_valid(bookmark.path,sizeof(bookmark.path));
+    if(ok&&version>=21)ok=fread(&word_spacing,1,sizeof(word_spacing),file)==sizeof(word_spacing)&&
+        (word_spacing.encoded<=20||word_spacing.encoded>=253)&&backup_word_spacing_valid(&word_spacing);
     bool has_history = ok && version >= 6;
     if (has_history) {
         history_position = ftell(file);
@@ -1748,6 +1790,8 @@ esp_err_t app_settings_backup_restore(void) {
     if (err == ESP_OK) err = nvs_set_str(h, NVS_KEY_STATUS_SIGNATURE, profile.status_signature);
     BACKUP_SET_U8(NVS_KEY_PICKUP, BK_PICKUP);
     BACKUP_SET_U8(NVS_KEY_SYS_SIZE, BK_SYS_SIZE);
+    if(err==ESP_OK)err=nvs_set_u8(h,"sys_size_rev",2);
+    if(err==ESP_OK)err=nvs_set_u8(h,"book_word_gap",word_spacing.encoded);
     BACKUP_SET_U8(NVS_KEY_SYS_CONTRAST, BK_SYS_CONTRAST);
     BACKUP_SET_U8(NVS_KEY_LOCK_STYLE, BK_LOCK);
     BACKUP_SET_U8(NVS_KEY_BOOK_PX, BK_BOOK_PX);
@@ -1766,8 +1810,10 @@ esp_err_t app_settings_backup_restore(void) {
     if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_AA, antialias ? 1 : 0);
     BACKUP_SET_U8(NVS_KEY_BOOK_RULE, BK_READING_LINE);
     if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_RULE_OFFSET, rule_offset);
+    if(backup.flags[BK_LINE_SPACING]>=100&&backup.flags[BK_LINE_SPACING]<=180)backup.flags[BK_LINE_SPACING]=backup.flags[BK_LINE_SPACING]>130?130:((backup.flags[BK_LINE_SPACING]+5)/10)*10;
     BACKUP_SET_U8(NVS_KEY_BOOK_LINE, BK_LINE_SPACING);
     BACKUP_SET_U8(NVS_KEY_BOOK_MARGIN, BK_MARGIN);
+    if(backup.flags[BK_PARAGRAPH]==100)backup.flags[BK_PARAGRAPH]=75;
     BACKUP_SET_U8(NVS_KEY_BOOK_PARA, BK_PARAGRAPH);
     BACKUP_SET_U8(NVS_KEY_SHELF_STYLE, BK_SHELF);
     if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_SHELF_V22, 1);
@@ -1817,6 +1863,7 @@ esp_err_t app_settings_backup_restore(void) {
     s_reader_turn_effect = f[BK_TURN];
     s_reader_power_turn = f[BK_POWER_TURN];
     s_reader_immersive = f[BK_IMMERSIVE];
+    s_book_word_spacing=(int8_t)word_spacing.encoded;
     s_book_tracking = f[BK_TRACKING];
     s_book_indent = indent;
     s_book_indent_adjust = adjust.encoded;

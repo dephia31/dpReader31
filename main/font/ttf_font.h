@@ -219,3 +219,10 @@ esp_err_t ttf_font_resume_io(void);
  * horizontal text functions visit advances without writing framebuffer pixels. */
 typedef void (*ttf_geometry_fn)(void *ctx, size_t byte, size_t bytes, EpdRect cell);
 void ttf_geometry_visit(ttf_geometry_fn fn, void *ctx);
+
+/// Body-only spacing; word_px affects spaces/NBSP, never internal letters.
+void ttf_draw_text_px_word_spaced(uint8_t *fb,int x,int y,int px,const char *text,int tracking_px,int word_px,uint8_t fg,uint8_t bg);
+void ttf_draw_text_px_word_fitted(uint8_t *fb,int x,int y,int px,const char *text,int tracking_px,int word_px,int target_width,uint8_t fg,uint8_t bg);
+
+int ttf_draw_text_px_word_vertical(uint8_t *fb,int x,int y,int px,const char *text,int tracking_px,int word_px,uint8_t fg,uint8_t bg);
+int ttf_vertical_text_height_word_px(int px,const char *text,int tracking_px,int word_px);

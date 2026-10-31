@@ -207,6 +207,8 @@ def export(build, output, board):
             "Distributed under the FreeType License; see FREETYPE_LICENSE.txt. No Bookerly font is bundled.\n")
         for name in ('FREETYPE_LICENSE.txt', 'FREETYPE_NOTICE.txt'):
             checksums.append(f"{hashlib.sha256((output / name).read_bytes()).hexdigest()}  {name}\n")
+    shutil.copyfile(ROOT / 'main/assets/OFL-Bitter.txt', output / 'OFL-Bitter.txt')
+    checksums.append(f"{hashlib.sha256((output / 'OFL-Bitter.txt').read_bytes()).hexdigest()}  OFL-Bitter.txt\n")
     (output / 'SHA256SUMS.txt').write_text(''.join(checksums))
     (output / 'HUONG_DAN_FLASH.txt').write_text(
         f"Firmware dpReader / {info['name']} / {info['idf_target']} / {identity['version']}\n"

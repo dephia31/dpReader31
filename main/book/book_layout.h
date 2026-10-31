@@ -29,6 +29,7 @@ void book_layout_set_runs(const html_run_t* runs, size_t count);
 void book_layout_set_spacing(unsigned line_percent, unsigned paragraph_percent);
 /// 正文额外字间距为 -15..+15 像素。/ Extra body tracking is -15..+15 pixels.
 void book_layout_set_typography(int tracking_px);
+void book_layout_set_word_spacing(int px);
 /// 普通正文首行缩进 0..3 字；不改变标题及居中、右对齐块。/ Indent ordinary body paragraphs by 0..3 em; keep headings and aligned blocks unchanged.
 void book_layout_set_first_line_indent(unsigned em);
 /// 正文首行按像素微调-100..100，0为默认，不改变标题/对齐块或无缩进。/ Fine-tune body indent by -100..100px; default 0, leaving headings/aligned/no-indent blocks intact.

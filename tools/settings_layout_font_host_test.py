@@ -59,6 +59,7 @@ static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=
 static uint8_t scale=100;
 static bool write_fail;
 static uint8_t app_settings_system_font_size(void){return scale;}
+static unsigned ui_text_system_percent(void){return app_settings_system_font_size();}
 static void app_settings_set_system_font_size(uint8_t n){if(!write_fail)scale=n;}
 static char system_path[192]="/sdcard/fonts/Old.ttf",reader_path[192]="/sdcard/fonts/Reader.ttf";
 static unsigned reader_writes,system_activations;

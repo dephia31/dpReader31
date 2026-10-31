@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate main/assets/builtin.ttf (Noto Sans Medium + Vietnamese + UI Symbols) for dpReader."""
+"""Generate main/assets/builtin.ttf (Bitter Bold + Vietnamese + UI Symbols) for dpReader."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ SCAN_DIRS = [
     ROOT / "components/ble_page_turner",
 ]
 MAX_BYTES = 700 * 1024
-BUILTIN_WEIGHT = 500
+BUILTIN_WEIGHT = 700
 STRING_RE = re.compile(r'"(?:\\.|[^"\\])*"')
 COMMENT_RE = re.compile(r"//.*?$|/\*.*?\*/", re.DOTALL | re.MULTILINE)
 
@@ -123,23 +123,21 @@ def copy_glyphs_from(dst_font, src_path: Path, cps: list[int]) -> None:
 
 def default_src() -> Path:
     for path in (
-        ROOT / "main/assets/Bitter-Medium.ttf",
+        ROOT / "main/assets/Bitter-Bold.ttf",
         Path("/usr/share/fonts/truetype/noto/NotoSans-Medium.ttf"),
         ROOT / "sdcard/fonts/Hei.ttf",
         ROOT / "flash/fonts/Hei.ttf",
     ):
         if path.is_file():
             return path
-    return ROOT / "main/assets/Bitter-Medium.ttf"
+    return ROOT / "main/assets/Bitter-Bold.ttf"
 
 
 def build_vietnamese_builtin(src: Path, text: str, dest: Path) -> int:
     from fontTools.subset import Subsetter, Options
     from fontTools.ttLib import TTFont
 
-    existing_cjk_backup = Path("/tmp/orig_cjk_backup.ttf")
-    if dest.is_file() and not existing_cjk_backup.is_file():
-        existing_cjk_backup.write_bytes(dest.read_bytes())
+    existing_cjk_backup = dest
 
     f_base = TTFont(src)
     base_cmap = set(f_base.getBestCmap().keys())
@@ -205,9 +203,9 @@ def build_vietnamese_builtin(src: Path, text: str, dest: Path) -> int:
 
     for name_id, value in (
         (1, "Bitter"),
-        (2, "Medium"),
-        (4, "Bitter Medium"),
-        (6, "Bitter-Medium"),
+        (2, "Bold"),
+        (4, "Bitter Bold"),
+        (6, "Bitter-Bold"),
     ):
         f_base["name"].setName(value, name_id, 3, 1, 0x409)
 
@@ -228,7 +226,7 @@ def main() -> int:
 
     text = unique_text(ascii_printable(), load_preset(CHARSET), scan_sources())
     size = build_vietnamese_builtin(args.src, text, args.out)
-    print(f"wrote {args.out} ({size} bytes, Medium wght={BUILTIN_WEIGHT})")
+    print(f"wrote {args.out} ({size} bytes, Bold wght={BUILTIN_WEIGHT})")
     if size > MAX_BYTES:
         print("subset still too large", file=sys.stderr)
         return 1

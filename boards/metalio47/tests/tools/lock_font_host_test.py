@@ -57,14 +57,10 @@ static bool pico_boot_font_allowed(void){return manual_font||!recovery;}
 static void pico_boot_allow_font(void){manual_font=true;}
 static const char *app_settings_system_font_path(void){return chosen;}
 static const char *app_settings_font_path(void){return reader;}
-static const char *app_settings_fonts_dir(void){return "/absent/fonts";}
 static bool ttf_font_ready(void){return true;}
 static const char *ttf_font_path(void){return active;}
 static bool ttf_font_is_builtin(void){return !strcmp(active,"builtin");}
 static bool ttf_font_path_is_builtin(const char *path){return !*path||!strcmp(path,"builtin");}
-static int ttf_font_count(void){return 0;}
-static void ttf_font_scan(void){}
-static const ttf_font_item_t *ttf_font_item(int index){(void)index;return NULL;}
 static int ttf_font_open(const char *path){++opens;if(!strcmp(path,corrupt)){active[0]=0;return ESP_ERR_INVALID_RESPONSE;}
  if(!strcmp(path,reader)&&transient_failures){--transient_failures;strcpy(active,"builtin");return -1;}
  if(!strcmp(path,missing)){active[0]=0;return -1;}snprintf(active,sizeof(active),"%s",path);return ESP_OK;}
@@ -78,6 +74,7 @@ for name in ('font_file', 'font_allowed', 'system_path', 'activate', 'app_font_a
     unit += function(name, FONT) + '\n'
 unit += r'''
 int main(void){
+ char default_path[TTF_FONT_PATH_MAX];chosen[0]=0;assert(!strcmp(system_path(default_path),TTF_FONT_BUILTIN));strcpy(chosen,"/fonts/system.ttf");
  app_lock_font_t saved;
  // 有意卸载期间不能打开文件/换内建；重新就绪后保持原选择可恢复。
  // Intentional unmount cannot open files or select built-in; the same choice recovers when ready.

@@ -437,7 +437,7 @@ for name in ("inline_ink_gray", "reader_margin_width", "reader_margin_levels", "
     unit += function(name) + "\n"
 for name in ("book_remote_direction", "shelf_turn_page", "shelf_page_arrow_rect", "reader_swipe_direction"):
     unit += function(name) + "\n"
-unit += "static unsigned app_settings_system_font_size(void){return 100;}\n"
+unit += "static unsigned app_settings_system_font_size(void){return 100;}\nstatic unsigned ui_text_system_percent(void){return app_settings_system_font_size();}\n"
 for name in ("apply_reader_layout", "reader_ui_extra", "reader_slider_rect", "reader_slider_map", "reader_slider_begin", "reader_slider_move", "reader_slider_commit"):
     unit += function(name) + "\n"
 unit += r'''

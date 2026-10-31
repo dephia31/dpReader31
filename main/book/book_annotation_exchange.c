@@ -76,9 +76,13 @@ static bool make_directory(char *path) {
     for(char *p=path+1;;p++) {
         if(*p!='/'&&*p)continue;
         char c=*p;*p=0;
-        if(mkdir(path,0775)&&errno!=EEXIST){*p=c;return false;}
         struct stat st;
-        if(stat(path,&st)||!S_ISDIR(st.st_mode)){*p=c;errno=ENOTDIR;return false;}
+        if(stat(path,&st)) {
+            if(errno!=ENOENT){*p=c;return false;}
+            if(mkdir(path,0775)&&errno!=EEXIST){*p=c;return false;}
+            if(stat(path,&st)){*p=c;return false;}
+        }
+        if(!S_ISDIR(st.st_mode)){*p=c;errno=ENOTDIR;return false;}
         *p=c;if(!c)break;
     }
     return true;

@@ -39,14 +39,10 @@ static int mock_stat(const char *path,struct stat *st){
 static bool pico_boot_recovery(void){return recovery;}
 static const char *app_settings_system_font_path(void){return chosen;}
 static const char *app_settings_font_path(void){return reader;}
-static const char *app_settings_fonts_dir(void){return "/absent/fonts";}
 static bool ttf_font_ready(void){return true;}
 static const char *ttf_font_path(void){return active;}
 static bool ttf_font_is_builtin(void){return !strcmp(active,"builtin");}
 static bool ttf_font_path_is_builtin(const char *path){return !*path||!strcmp(path,"builtin");}
-static int ttf_font_count(void){return 0;}
-static void ttf_font_scan(void){}
-static const ttf_font_item_t *ttf_font_item(int index){(void)index;return NULL;}
 static int ttf_font_open(const char *path){++opens;if(!strcmp(path,missing)||!strcmp(path,corrupt)){active[0]=0;return -1;}snprintf(active,sizeof(active),"%s",path);return ESP_OK;}
 static int ttf_font_open_builtin(void){return ttf_font_open("builtin");}
 static void ui_text_set_system_font(bool on){system_face=on;}
@@ -58,6 +54,7 @@ for name in ('font_file', 'font_allowed', 'system_path', 'activate', 'app_font_a
     unit += function(name, FONT) + '\n'
 unit += r'''
 int main(void){
+ char default_path[TTF_FONT_PATH_MAX];chosen[0]=0;assert(!strcmp(system_path(default_path),TTF_FONT_BUILTIN));strcpy(chosen,"/fonts/system.ttf");
  app_lock_font_t saved;
  // 缺失字体可重复尝试，但不会重载内建或报告变化。/ Retry missing fonts without reloading built-in or reporting changes.
  strcpy(missing,chosen);unsigned first=opens;

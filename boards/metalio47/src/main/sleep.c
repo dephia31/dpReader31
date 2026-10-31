@@ -10,8 +10,8 @@
  * User revision: tickets use the system face from every page; light wake restores the previous reader face, while deep wake uses the startup checkpoint.
  * 用户修订：单击锁屏提示复用Pico布局；双击/PIN和S31外设休眠顺序保持。
  * User revision: use Pico's single-click hint layout, retaining double-click/PIN and S31 peripheral sleep sequencing.
- * 用户2026-10-31修订：锁屏浅睡；0小时不关机，其余1..24小时后关机；每分钟恢复输入，失败重试。
- * User revision 2026-10-31: manual/idle locks light-sleep immediately; 0 hours means sleep only, otherwise selected1..24 hours then off. Restore input between60s slices and retry failed input restoration.
+ * 用户2026-10-31修订：锁屏浅睡；0小时不关机，其余1..24小时后关机；定时维护不重启外设，真实唤醒后输入恢复失败重试。
+ * User revision 2026-10-31: manual/idle locks light-sleep immediately; 0 hours means sleep only, otherwise selected1..24 hours then off. Timer slices retain parked peripherals to avoid the reported resume power-glitch loop; retry failed input restoration after actual wake.
  */
 
 #include "kosync_client.h"
@@ -20,6 +20,7 @@
 #include "book_cover_jobs.h"
 #include "metalio_hw.h"
 #include "metalio_sleep.h"
+#include "crash_report.h"
 #include "ble_page_turner.h"
 #include "driver/usb_serial_jtag.h"
 #include "ttf_font.h"
@@ -354,6 +355,7 @@ app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc,uint32_t timeo
             lock_restore_key_wake();
             key_restore_retry_at=esp_timer_get_time()+INT64_C(1000000);
         }
+        crash_report_poll(false);
         lock_resume_io_service();
         lock_resume_service();
         lock_hint_service();
@@ -510,12 +512,14 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
         err=metalio_hold_for_light_sleep();
     }
     if(err==ESP_OK) {
+        metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_BEFORE_SLEEP);
         ESP_LOGI(TAG,"S31 light sleep: slice<=60s; handles paused, RAM/font/index retained");
         unsigned maintenance=0;
         for(;;) {
             if(wake_by && esp_timer_get_time()>=wake_by) break;
             err=metalio_light_sleep_start();
             if(err!=ESP_OK) break;
+            crash_report_poll(false);
             uint32_t causes=esp_sleep_get_wakeup_causes();
             key_irq=(causes & (1u<<ESP_SLEEP_WAKEUP_EXT1))!=0;
             // 恢复方向和慢挂卡之前验证P17；定时/USB/共享线毛刺不能补造解锁事件。
@@ -523,31 +527,41 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
             if(key_irq)power_confirmed=metalio_confirm_power_key();
             if(key_irq || !(causes & (1u<<ESP_SLEEP_WAKEUP_TIMER)) ||
                 (wake_by && esp_timer_get_time()>=wake_by)) break;
-            /* Return to the retained lock loop after every timer slice. Restore
-             * the key sampler and peripheral directions at least once a minute;
-             * never leave input paused across an unbounded chain of sleeps. */
+            /* A maintenance timer does not need SD/LCD/rail restoration. The
+             * 1.2.3 minute-by-minute restart exposed power-glitch resets after
+             * CPU resume. Keep the parked transaction until input/USB/deadline. */
             ++maintenance;
-            break;
+            if(metalio_usb_blocks_sleep() || read_pico_ioe_int_level()==0) break;
+            vTaskDelay(pdMS_TO_TICKS(30));
+            if(read_pico_ioe_int_level()==0) break;
+            err=esp_sleep_enable_timer_wakeup(lock_light_sleep_slice_us(wake_by));
+            if(err!=ESP_OK) break;
         }
         ESP_LOGI(TAG,"S31 light wake: maintenance=%u ext1=%u power_confirmed=%u result=%s",
             maintenance,(unsigned)key_irq,(unsigned)power_confirmed,esp_err_to_name(err));
     }
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_RELEASE_PINS);
     if(pins_prepared) metalio_release_light_sleep_pins();
     (void)esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
     if(rails_cut) {
+        metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_RAILS);
         esp_err_t restore=metalio_sleep_restore_rails(saved_rails);
         if(err==ESP_OK) err=restore;
         metalio_frontlight(0,50);
     }
     if(keys_ready) {
+        metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_KEYS);
         lock_restore_key_wake();
         // 只补记已确认且在恢复期间松开的真实按键；共享IRQ本身不提供解锁授权。
         // Retain only a confirmed press released during restoration; a shared IRQ alone cannot authorize unlock.
         if(power_confirmed&&!s_lock_keys_restore_pending) read_pico_pmu_latch_power_wakeup();
     }
     const int64_t restore_at=esp_timer_get_time();
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_SD);
     if(sd_closed) (void)read_pico_sd_remount();
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_LCD);
     if(lcd_stopped) read_pico_epd_restore_lcd();
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_TOUCH);
     if(touch_asleep) {
         esp_err_t restore=cst836u_wake(touch);
         if(err==ESP_OK) err=restore;
@@ -555,6 +569,7 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
     metalio_haptic_resume();
     // 恢复输入先于TF；正常卡短暂等待，慢卡由已有主循环重试，不阻塞解锁十五秒。
     // Restore input before TF; briefly allow normal media, then let the main loop retry slow media.
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_MEDIA);
     esp_err_t restored_io=lock_resume_media_io(500);
     if(restored_io!=ESP_OK)
         ESP_LOGW(TAG,"S31 wake media pending: %s",esp_err_to_name(restored_io));
@@ -567,6 +582,7 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
     }
     // 恢复失败仍保持锁屏；仅真正的电源键可交给PIN/解锁逻辑。
     // Restore failure retains the lock; only a real power wake reaches PIN/unlock handling.
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_RESTORED);
     ESP_LOGI(TAG,"S31 light restore: result=%s power_wake=%u",esp_err_to_name(err),*key_wake);
     return err;
 }

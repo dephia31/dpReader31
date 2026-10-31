@@ -38,12 +38,17 @@ bool ui_status_visible(const uint8_t *fb) { return fb && s_status_framebuffer==f
 void ui_text_set_system_scale(bool enabled) { s_system_text_scale = enabled; }
 void ui_text_set_system_font(bool enabled) { s_system_ttf = enabled; }
 
+unsigned ui_text_system_percent(void) {
+    /* New 100% baseline equals the former 160%; the user preference stays relative. */
+    return (160u * app_settings_system_font_size() + 50u) / 100u;
+}
+
 int ui_text_effective_px(int px) {
     px += 2;
     // 系统界面与阅读工具跟随系统字号；正文关闭此开关，保持书内字号。
     // System screens and reader controls follow UI size; body drawing disables this switch.
     return s_system_text_scale && px < 46 ?
-        (px * app_settings_system_font_size() + 50) / 100 : px;
+        (px * (int)ui_text_system_percent() + 50) / 100 : px;
 }
 
 uint8_t ui_contrast_gray(uint8_t gray) {

@@ -46,6 +46,7 @@ static ttf_font_item_t font;
 static int ttf_font_count(void){return count;}
 static const ttf_font_item_t*ttf_font_item(int i){if(i<0||i>=count)return NULL;snprintf(font.path,sizeof(font.path),"/fonts/Font-%d.ttf",i);return &font;}
 static unsigned app_settings_system_font_size(void){return scale;}
+static unsigned ui_text_system_percent(void){return app_settings_system_font_size();}
 static void app_settings_set_system_font_size(unsigned n){if(!write_fail)scale=n;}
 static int ui_text_effective_px(int px){return ((px+2)*scale+50)/100;}
 static const char*app_settings_system_font_path(void){return saved;}

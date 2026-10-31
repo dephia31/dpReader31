@@ -175,7 +175,34 @@ static void geometry_offset(void *ctx,size_t start,size_t end,EpdRect rect) {
     assert(((unsigned char)text[start]&0xc0)!=0x80);
     assert(geometry_count<128);geometry_offsets[geometry_count++]=start;
 }
+static int last_word_spacing;
+void ttf_draw_text_px_word_spaced(uint8_t *fb,int x,int y,int px,const char *text,int track,int word,uint8_t fg,uint8_t bg){last_word_spacing=word;ttf_draw_text_px_spaced(fb,x,y,px,text,track,fg,bg);}
+void ttf_draw_text_px_word_fitted(uint8_t *fb,int x,int y,int px,const char *text,int track,int word,int target,uint8_t fg,uint8_t bg){last_word_spacing=word;ttf_draw_text_px_fitted(fb,x,y,px,text,track,target,fg,bg);}
+int ttf_draw_text_px_word_vertical(uint8_t *fb,int x,int y,int px,const char *text,int track,int word,uint8_t fg,uint8_t bg){last_word_spacing=word;return ttf_draw_text_px_vertical(fb,x,y,px,text,track,fg,bg);}
+int ttf_vertical_text_height_word_px(int px,const char *text,int track,int word){(void)word;return ttf_vertical_text_height_px(px,text,track);}
 int main(void) {
+    const char *words="ab cd ef gh ij kl mn op";
+    book_layout_set_first_line_indent(0);book_layout_set_spacing(110,0);book_layout_set_typography(0);
+    EpdRect word_rect={0,0,66,12};
+    book_layout_set_word_spacing(0);assert(book_layout_build(words,strlen(words),word_rect,10));
+    size_t plain_pages=book_layout_page_count(),plain_next=book_layout_page_start_offset(1);
+    book_layout_set_word_spacing(20);assert(book_layout_build(words,strlen(words),word_rect,10));
+    assert(book_layout_page_count()>plain_pages&&book_layout_page_start_offset(1)<plain_next);
+    uint8_t word_fb=0;drawn[0]=0;book_layout_draw_page(&word_fb,0,word_rect,10);assert(last_word_spacing==20);
+    const char *unbroken="abcdefghijklmnop";
+    book_layout_set_word_spacing(0);assert(book_layout_build(unbroken,strlen(unbroken),word_rect,10));plain_pages=book_layout_page_count();plain_next=book_layout_page_start_offset(1);
+    book_layout_set_word_spacing(20);assert(book_layout_build(unbroken,strlen(unbroken),word_rect,10));assert(book_layout_page_count()==plain_pages&&book_layout_page_start_offset(1)==plain_next);
+    book_layout_set_vertical(true);assert(book_layout_build(words,strlen(words),(EpdRect){0,0,60,66},10));
+    book_layout_set_vertical(false);book_layout_set_word_spacing(0);book_layout_set_spacing(150,50);book_layout_free();drawn[0]=0;
+
+    const char *tight="alpha beta\ngamma delta\nepsilon zeta\neta theta\niota kappa";
+    for(int para=-10;para<=0;para+=5){
+        book_layout_set_spacing(236,(uint8_t)para);book_layout_set_word_spacing(-3);
+        assert(book_layout_build(tight,strlen(tight),(EpdRect){0,0,100,80},10));
+        size_t pages=book_layout_page_count();assert(pages>0&&pages<100);
+        for(size_t i=1;i<pages;i++)assert(book_layout_page_start_offset(i)>book_layout_page_start_offset(i-1));
+    }
+    book_layout_set_word_spacing(0);book_layout_set_spacing(150,50);book_layout_free();
     const char *geometry_text="  apple banana\ncarrot";
     EpdRect geometry_rect={20,60,100,140};
     book_layout_set_first_line_indent(0);

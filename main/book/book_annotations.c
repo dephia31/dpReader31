@@ -8,6 +8,7 @@
 #include <unistd.h>
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
+#include "esp_log.h"
 #endif
 static uint64_t hash(const void *data,size_t n) {
     const unsigned char *p=data;uint64_t h=UINT64_C(14695981039346656037);
@@ -60,32 +61,61 @@ bool book_annotations_load(book_annotations_t *a,const char *root,const char *pa
     }
     free(candidate);return valid||!exists;
 }
+static bool save_error(const char *stage,const char *path,int error) {
+    if(!error)error=EIO;
+#ifdef ESP_PLATFORM
+    ESP_LOGE("book_annotations","save failed stage=%s errno=%d path=%s",stage,error,path?path:"");
+#else
+    (void)stage;(void)path;
+#endif
+    errno=error;return false;
+}
+static bool make_save_directory(const char *root) {
+    char path[640];
+    if(!root||!*root)return save_error("directory",root,EINVAL);
+    if(snprintf(path,sizeof(path),"%s",root)>=(int)sizeof(path))return save_error("directory",root,ENAMETOOLONG);
+    for(char *part=path+1;;++part){
+        if(*part&&*part!='/')continue;
+        char end=*part;*part=0;
+        struct stat st;
+        if(stat(path,&st)) {
+            if(errno!=ENOENT)return save_error("stat-directory",path,errno);
+            if(mkdir(path,0775)&&errno!=EEXIST)return save_error("mkdir",path,errno);
+            if(stat(path,&st))return save_error("stat-created-directory",path,errno);
+        }
+        if(!S_ISDIR(st.st_mode))return save_error("not-directory",path,ENOTDIR);
+        *part=end;if(!end)break;
+    }
+    return true;
+}
 bool book_annotations_save(book_annotations_t *a,const char *root) {
-    if(a->count>BOOK_ANNOTATION_MAX||a->sequence==UINT32_MAX)return false;
-    if(mkdir(root,0775)&&errno!=EEXIST)return false;
-    char file[640],tmp[648];if(!filename(file,sizeof(file),root,a,(a->sequence+1)&1))return false;
-    if(snprintf(tmp,sizeof(tmp),"%s.tmp",file)>=(int)sizeof(tmp))return false;
-    FILE *f=fopen(tmp,"wb");if(!f)return false;
+    if(a->count>BOOK_ANNOTATION_MAX||a->sequence==UINT32_MAX)return save_error("validate",root,EINVAL);
+    if(!make_save_directory(root))return false;
+    char file[640],tmp[648];
+    if(!filename(file,sizeof(file),root,a,(a->sequence+1)&1)||
+       snprintf(tmp,sizeof(tmp),"%s.tmp",file)>=(int)sizeof(tmp))return save_error("filename",root,ENAMETOOLONG);
+    errno=0;FILE *f=fopen(tmp,"wb");if(!f)return save_error("open",tmp,errno);
     unsigned char header[20]={'K','A','N','N',2,0,0,0};uint32_t sum=(uint32_t)hash(a->items,a->count*sizeof(a->items[0]));
     for(int j=0;j<4;j++){header[8+j]=(unsigned char)(a->count>>(8*j));header[12+j]=(unsigned char)(sum>>(8*j));header[16+j]=(unsigned char)((a->sequence+1)>>(8*j));}
-    bool ok=fwrite(header,1,20,f)==20;
-    for(uint32_t i=0;ok&&i<a->count;i++) {
+    int error=0;const char *stage="write";
+    if(fwrite(header,1,20,f)!=20)error=errno?errno:EIO;
+    for(uint32_t i=0;!error&&i<a->count;i++) {
         const book_annotation_t *item=&a->items[i];unsigned char offsets[8];
         for(int j=0;j<4;j++){offsets[j]=(unsigned char)(item->start>>(8*j));offsets[j+4]=(unsigned char)(item->end>>(8*j));}
-        ok=fwrite(offsets,1,8,f)==8&&fwrite(item->note,1,BOOK_NOTE_CAP,f)==BOOK_NOTE_CAP&&fwrite(item->quote,1,BOOK_QUOTE_CAP,f)==BOOK_QUOTE_CAP;
+        if(fwrite(offsets,1,8,f)!=8||fwrite(item->note,1,BOOK_NOTE_CAP,f)!=BOOK_NOTE_CAP||fwrite(item->quote,1,BOOK_QUOTE_CAP,f)!=BOOK_QUOTE_CAP)error=errno?errno:EIO;
     }
-    if(fflush(f))ok=false;
-    if(ok&&fsync(fileno(f)))ok=false;
-    if(fclose(f))ok=false;
-    /* FatFS refuses rename over an existing destination. Only remove the older
-     * target slot after the replacement is durable; the current slot stays intact. */
-    if(ok&&unlink(file)&&errno!=ENOENT)ok=false;
-    if(ok&&rename(tmp,file))ok=false;
-    int error=errno;
-    if(!ok)unlink(tmp);
-    else ++a->sequence;
-    if(!ok)errno=error;
-    return ok;
+    if(!error&&fflush(f)){stage="flush";error=errno?errno:EIO;}
+    if(!error&&fsync(fileno(f))){stage="fsync";error=errno?errno:EIO;}
+    if(fclose(f)&&!error){stage="close";error=errno?errno:EIO;}
+    /* Keep the latest slot intact until the other slot's replacement is durable. */
+    if(!error&&unlink(file)&&errno!=ENOENT){stage="unlink-old-slot";error=errno?errno:EIO;}
+    if(!error&&rename(tmp,file)){stage="rename";error=errno?errno:EIO;}
+    if(error){(void)unlink(tmp);return save_error(stage,file,error);}
+    ++a->sequence;
+#ifdef ESP_PLATFORM
+    ESP_LOGI("book_annotations","saved count=%lu sequence=%lu path=%s",(unsigned long)a->count,(unsigned long)a->sequence,file);
+#endif
+    return true;
 }
 bool book_annotations_put(book_annotations_t *a,const char *text,size_t start,size_t end,const char *note) {
     if(start>=end||!boundary(text,a->length,start)||!boundary(text,a->length,end)||strlen(note)>=BOOK_NOTE_CAP)return false;

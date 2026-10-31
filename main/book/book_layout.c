@@ -44,8 +44,9 @@ static void layout_geometry(void *ctx, size_t byte, size_t bytes, EpdRect cell) 
 }
 static EpdRect s_rect;
 static int s_px;
-static unsigned s_line_percent = 150, s_paragraph_percent = 50;
-static int s_tracking_px;
+static unsigned s_line_percent = 150;
+static int s_paragraph_percent = 50;
+static int s_tracking_px, s_word_spacing_px;
 static unsigned s_first_line_indent_em = 2;
 static int s_first_line_indent_adjust_px;
 // 正文对齐：0 两端（原行为），1 左，2 居中，3 右。书内 CSS 已指定居中/右对齐的块不受影响。
@@ -307,9 +308,16 @@ void book_layout_free(void) {
 }
 
 void book_layout_set_spacing(unsigned line_percent, unsigned paragraph_percent) {
-    s_line_percent = line_percent >= 110 && line_percent <= 200 ? line_percent : 150;
-    s_paragraph_percent = paragraph_percent <= 100 ? paragraph_percent : 50;
+    /* Negative choices reduce the former 30% leading; 0 keeps that natural leading.
+     * Positive percentages retain the established line-height meaning. */
+    if(line_percent==236||line_percent==246)s_line_percent=100+30*(100+(int)line_percent-256)/100;
+    else if(line_percent==0)s_line_percent=130;
+    else s_line_percent=line_percent>=100&&line_percent<=200?line_percent:130;
+    int paragraph=(int)(int8_t)(uint8_t)paragraph_percent;
+    s_paragraph_percent = paragraph>=-10&&paragraph<=100?paragraph:50;
 }
+void book_layout_set_word_spacing(int px){s_word_spacing_px=px>=-3&&px<=20?px:0;}
+
 void book_layout_set_typography(int tracking_px) {
     s_tracking_px = tracking_px >= -15 && tracking_px <= 15 ? tracking_px : 0;
 }
@@ -457,7 +465,7 @@ static int final_line_height(size_t off,int px) {
     return height>px?height:px;
 }
 static int gap_for(int height, bool heading) {
-    return (int)((unsigned)height * s_paragraph_percent / (heading ? 150 : 100));
+    return height * (heading && s_paragraph_percent<0?0:s_paragraph_percent) / (heading ? 150 : 100);
 }
 
 static bool append_page(size_t off) {
@@ -608,8 +616,12 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
         // Every glyph is measured in its own span's face; width, tracking and alignment math
         // are untouched.
         slot_select_for(end);
-        int64_t candidate = width + ttf_text_width_px(*px, glyph) +
-                            (end > visible_off && !*heading ? s_tracking_px : 0);
+        int advance=ttf_text_width_px(*px,glyph);
+        int word_extra=!*heading&&(cp==32||cp==9||cp==0xa0||cp==0x202f)?s_word_spacing_px:0;
+        if(advance+word_extra<0)word_extra=-advance;
+        int64_t candidate = width + advance +
+                            (end > visible_off && !*heading ? s_tracking_px : 0) +
+                            word_extra;
         if (candidate < 0) return false;
         if (candidate > available) {
             if (end == visible_off) return false;
@@ -944,7 +956,7 @@ static bool line_has_ink(const char* line) {
 // spreads its slack between glyphs, mirroring horizontal justification.
 static void draw_vertical_column(uint8_t* fb, EpdRect rect, int left, int pitch, int lead,
                                  int px, int indent, uint8_t align, int run_height,
-                                 bool justify) {
+                                 int word_px,bool justify) {
     const int cell = left + (pitch - px) / 2;
     const int available = rect.height - lead;
     const size_t line_len = strlen(s_line);
@@ -985,7 +997,7 @@ static void draw_vertical_column(uint8_t* fb, EpdRect rect, int left, int pitch,
         // column shares it regardless of indent, centring or column length. The dashes ink only the
         // column's glyph span; the leading indent and the trailing blank stay white.
         const int ink_top = y;
-        int ink_bottom = y + ttf_vertical_text_height_px(px, s_line, s_tracking_px + extra);
+        int ink_bottom = y + ttf_vertical_text_height_word_px(px, s_line, s_tracking_px + extra,word_px);
         if (ink_bottom > rect.y + rect.height) ink_bottom = rect.y + rect.height;
         for (int pos = rect.y; pos < rect.y + rect.height; pos += period) {
             int top = pos, bottom = pos + dash;
@@ -999,7 +1011,7 @@ static void draw_vertical_column(uint8_t* fb, EpdRect rect, int left, int pitch,
     // Hand the whole column to the font engine: it follows the run table for faces and decides
     // per glyph whether it stands upright, lifts into the corner or turns 90°.
     ttf_draw_set_runs(s_line_run_count ? s_line_runs : NULL, s_line_run_count);
-    (void)ttf_draw_text_px_vertical(fb, cell, y, px, s_line, s_tracking_px + extra, 0, 15);
+    (void)ttf_draw_text_px_word_vertical(fb, cell, y, px, s_line, s_tracking_px + extra,word_px, 0, 15);
     // 画完把游标还回去：页面其它文字、界面和状态栏都按系统字体走。
     // Hand the cursor back: every other page, the UI and the status bar use the system face.
     ttf_draw_set_runs(NULL, 0);
@@ -1058,7 +1070,7 @@ static void draw_vertical_page(uint8_t* fb, size_t page, EpdRect rect) {
                 column_align = s_body_align == 2 ? 1 : s_body_align == 3 ? 2 : 0;
             }
             draw_vertical_column(fb, rect, rect.x + rect.width - (int)used - pitch, pitch, lead,
-                                 px, indent, column_align, run_height,
+                                 px, indent, column_align, run_height,heading?0:s_word_spacing_px,
                                  !heading && !column_align && !body_align_applies &&
                                  (!final_column || run_height > rect.height - lead - indent));
         }
@@ -1181,10 +1193,10 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
             // only the slot each glyph comes from changes.
             ttf_draw_set_runs(s_line_run_count ? s_line_runs : NULL, s_line_run_count);
             if (fitted)
-                ttf_draw_text_px_fitted(fb, x, baseline, line_px, s_line, s_tracking_px,
-                                        line_extent, 0, 15);
-            else if (s_tracking_px && !heading)
-                ttf_draw_text_px_spaced(fb, x, baseline, line_px, s_line, s_tracking_px, 0, 15);
+                ttf_draw_text_px_word_fitted(fb, x, baseline, line_px, s_line, s_tracking_px,
+                                        heading?0:s_word_spacing_px,line_extent, 0, 15);
+            else if ((s_tracking_px||s_word_spacing_px) && !heading)
+                ttf_draw_text_px_word_spaced(fb, x, baseline, line_px, s_line, s_tracking_px,s_word_spacing_px, 0, 15);
             else
                 ttf_draw_text_px(fb, x, baseline, line_px, s_line, EPD_DRAW_ALIGN_LEFT, 0, 15);
             // 画完把游标还回去：页面其它文字、界面和状态栏都按系统字体走。

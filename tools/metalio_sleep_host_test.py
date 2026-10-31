@@ -5,6 +5,7 @@ from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1]
 unit=r'''
 #include <assert.h>
+static void crash_report_poll(_Bool allow_sd){assert(!allow_sd);}
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>

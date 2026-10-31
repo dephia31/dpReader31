@@ -1,13 +1,12 @@
-# dpReader Metalio 4.7 — v1.2.3-vn
+# dpReader Metalio 4.7 — v1.2.4-vn
 
-- Hai chế độ theo khóa màn hình: Chỉ Sleep, hoặc Sleep và tắt nguồn sau 1–24 giờ. Cài phiên bản mới đặt về Chỉ Sleep một lần; sau đó lưu và giữ lựa chọn người dùng qua khởi động lại cùng phiên bản. Thời gian tự khóa chỉnh riêng.
-- Gia cố khôi phục phím sau Sleep: thử lại khi cấu hình đầu vào lỗi, tạm hoãn Sleep tiếp cho tới khi phục hồi; khôi phục phím/ngoại vi sau mỗi lát Sleep tối đa 60 giây. Đang điều tra phản ánh khó đánh thức trên 1.2.1, chưa xác nhận khắc phục trên máy thật.
-- Menu thao tác nhanh có mục cài đặt riêng để bật/tắt 10 tác vụ, gồm KoSync. Có thể gán mở menu cho AI, âm lượng, nguồn và phím mặt trước; chọn mục sẽ thực thi, không đổi gán nhấn ngắn AI.
-- Sửa AI lật trang/chương bị chặn khi công cụ đọc đang mở; sửa chữ/khung trang cũ chồng lên cài đặt menu nhanh.
+- Sửa reboot sau khoảng một phút Sleep; giữ ngoại vi ở trạng thái ngủ qua các lần thức định kỳ, khôi phục khi đánh thức.
+- Tự lưu báo cáo khởi động/reset vào thư mục `crash_log` trên thẻ nhớ, gồm nguyên nhân reset và dấu vết Sleep; chờ thẻ sẵn sàng, thử lại khi ghi lỗi.
+- Font hệ thống mặc định Bitter Bold. Cỡ 100% mới tương đương 160% trước đây; chuyển về 100% một lần khi nâng cấp sang cách tính mới, sau đó lưu lựa chọn người dùng.
+- Đổi các mục chuyển giá trị lần lượt và thanh trượt cỡ chữ/bố cục đọc thành hộp chọn có đánh dấu giá trị hiện tại, phân trang và chạm ngoài để hủy.
+- Cỡ chữ đọc gồm 40, 42, …, 90 px. Giãn dòng: −20%, −10%, 0%, 100%, 110%, 120%, 130%; giãn đoạn từ −10% đến 75%. Thêm khoảng cách giữa từ −3 đến 20 px, độc lập với giãn ký tự.
+- Sửa lỗi 2 khi lưu highlight/ghi chú trên thẻ; tự tạo đủ thư mục còn thiếu, giữ snapshot cũ khi ghi lỗi và bổ sung log chẩn đoán.
 
+Cập nhật bằng OTA, thẻ nhớ hoặc gói USB đi kèm. Giữ sách và dữ liệu người dùng. Lần đầu chạy phiên bản mới đặt Chỉ Sleep; người dùng có thể chọn lại chế độ trong Cài đặt. Cỡ chữ hệ thống chuyển sang cơ sở mới một lần, sau đó giữ các lựa chọn đã lưu.
 
-Cập nhật bằng OTA, thẻ nhớ hoặc gói USB đi kèm. Lần đầu chạy phiên bản này sẽ đặt Chỉ Sleep; sau đó người dùng chọn lại chế độ nào thì lưu chế độ đó. Không xóa sách hoặc các cài đặt khác.
-
-Đã build S31 và kiểm thử host về nâng phiên bản/NVS, Sleep/khôi phục phím, menu nhanh, gán nút và AI. Chưa nghiệm thu bản này trên máy thật; chưa tái hiện hay xác nhận sửa dứt điểm phản ánh khó đánh thức ở1.2.1. Khôi phục ngoại vi mỗi phút có thể ảnh hưởng pin và cần đo thực tế.
-
-Tính năng từ điển/ghi chú của1.2.2 được giữ nguyên. Bản1.2.2 vẫn có đường tải lưu trữ để quay lại.
+Bản 1.2.3 vẫn có đường tải lưu trữ để quay lại.

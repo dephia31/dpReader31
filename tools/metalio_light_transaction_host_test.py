@@ -10,6 +10,7 @@ if not source.exists():
     source = root / 'main/sleep.c'
 unit = r'''
 #include <assert.h>
+static void crash_report_poll(_Bool allow_sd){assert(!allow_sd);}
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -23,12 +24,19 @@ enum {ESP_OK=0,ESP_ERR_NOT_FINISHED=1,ESP_ERR_INVALID_STATE=-1,ESP_SLEEP_WAKEUP_
 #define ESP_LOGI(tag,...) do {if(0)printf(__VA_ARGS__);} while(0)
 #define ESP_LOGW ESP_LOGI
 static const char *esp_err_to_name(int e){(void)e;return "error";}
+enum {METALIO_SLEEP_TRACE_BEFORE_SLEEP=4,METALIO_SLEEP_TRACE_SD=7,METALIO_SLEEP_TRACE_LCD=8,
+ METALIO_SLEEP_TRACE_RESTORED=9,METALIO_SLEEP_TRACE_RELEASE_PINS=10,METALIO_SLEEP_TRACE_RAILS=11,
+ METALIO_SLEEP_TRACE_KEYS=12,METALIO_SLEEP_TRACE_TOUCH=13,METALIO_SLEEP_TRACE_MEDIA=14};
+static void metalio_sleep_trace_phase(unsigned phase){assert(phase>=4&&phase<=14);}
+static unsigned irq_after,sleep_count_for_irq;
+static int read_pico_ioe_int_level(void){return irq_after&&sleep_count_for_irq>=irq_after?0:1;}
 static bool s_lock_keys_restore_pending;
 static bool s_lock_io_pending,s_lock_io_no_media,usb,busy,online,queued,allow_key,keys,rails,pins,lcd,touch,media,usb_at_timer,slow_media,confirmed;
 static unsigned sleeps,stop_after,usb_after,timers,cut,restore,closes,mounts,resume,keys_restored,latches;
 static unsigned fail_at,operation;
 static int64_t clock_us;
 static uint64_t timer_us;
+static unsigned timer_arms;static bool fail_rearm;
 static int64_t esp_timer_get_time(void){return clock_us;}
 static unsigned fail(void){return ++operation==fail_at;}
 static bool metalio_usb_blocks_sleep(void){return usb||(usb_after&&sleeps>=usb_after);}
@@ -48,12 +56,12 @@ static int metalio_prepare_light_sleep_pins(void){pins=true;return fail()?-2:ESP
 static int sc7a20h_shared_irq_idle(void *a){assert(a);return fail()?-2:ESP_OK;}
 static bool lock_take_key_wakeup(void){bool v=allow_key&&queued;queued=false;return v;}
 static bool lock_prepare_key_wake(void){if(fail())return false;keys=true;return true;}
-static int esp_sleep_enable_timer_wakeup(uint64_t us){assert(us>0&&us<=60000000);timer_us=us;if(usb_at_timer)usb=true;return fail()?-2:ESP_OK;}
+static int esp_sleep_enable_timer_wakeup(uint64_t us){assert(us>0&&us<=60000000);++timer_arms;if(fail_rearm&&timer_arms==2)return -2;timer_us=us;if(usb_at_timer)usb=true;return fail()?-2:ESP_OK;}
 static int metalio_sleep_cut_rails(uint16_t *s){*s=123;rails=true;++cut;return fail()?-2:ESP_OK;}
 static int metalio_hold_for_light_sleep(void){return fail()?-2:ESP_OK;}
 static int metalio_light_sleep_start(void){
  assert(pins&&rails&&keys&&touch&&lcd&&!media);assert(++sleeps<=181);
- clock_us+=(int64_t)timer_us;return fail()?-2:ESP_OK;
+ sleep_count_for_irq=sleeps;clock_us+=(int64_t)timer_us;return fail()?-2:ESP_OK;
 }
 static uint32_t esp_sleep_get_wakeup_causes(void){return 1u<<(sleeps==stop_after?ESP_SLEEP_WAKEUP_EXT1:ESP_SLEEP_WAKEUP_TIMER);}
 
@@ -75,21 +83,27 @@ unit += r'''
 static void reset(void){
  s_lock_io_no_media=s_lock_io_pending=usb=busy=online=queued=keys=rails=pins=lcd=touch=usb_at_timer=slow_media=false;
  media=allow_key=confirmed=true;sleeps=usb_after=timers=cut=restore=closes=mounts=resume=keys_restored=latches=0;
- stop_after=1;fail_at=operation=0;clock_us=0;
+ stop_after=1;fail_at=operation=0;clock_us=0;irq_after=sleep_count_for_irq=timer_arms=0;fail_rearm=false;
 }
 static void restored(void){assert(!keys&&!rails&&!pins&&!lcd&&!touch);assert(cut==restore);assert(closes==mounts);}
 int main(void){
  bool key;
  reset();assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key&&latches==1);restored();
  reset();slow_media=true;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&key&&s_lock_io_pending);restored();
- // Three hours restore input after every timer slice; timer wake never unlocks.
+ // Three hours retain one parked transaction; only physical input restores peripherals.
  reset();stop_after=180;
- for(unsigned minute=0;minute<180;++minute){assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK);restored();}
- assert(key&&sleeps==180&&closes==180&&mounts==180&&cut==180&&restore==180&&latches==1&&clock_us>=10800000000LL);
+ assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK);restored();
+ assert(key&&sleeps==180&&closes==1&&mounts==1&&cut==1&&restore==1&&latches==1&&clock_us>=10800000000LL);
  // Inserting USB exits maintenance and restores the normal serial route's peripherals without unlocking.
  reset();stop_after=180;usb_after=3;
- for(unsigned minute=0;minute<3;++minute){assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&!key&&!latches);restored();}
- assert(sleeps==3&&mounts==3&&closes==3);
+ assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&!key&&!latches);restored();
+ assert(sleeps==3&&mounts==1&&closes==1);
+ // A shared low IRQ observed on timer maintenance restores IO without synthesizing a press.
+ reset();stop_after=180;irq_after=2;
+ assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_OK&&!key&&!latches&&sleeps==2);restored();
+ // Failing to rearm a later timer must exit the parked transaction and restore all owners.
+ reset();stop_after=180;fail_rearm=true;
+ assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)!=ESP_OK&&!key&&!latches&&sleeps==1);restored();
  // Double-click remains enforced after a single EXT1: the caller stays locked and retries later.
  reset();allow_key=false;assert(lock_light_sleep_once((void*)1,(void*)2,&key,0)==ESP_ERR_INVALID_STATE&&!key&&latches==1);restored();
  // A shared EXT1 without verified physical P17 is not an unlock in single or double mode.
@@ -113,12 +127,12 @@ int main(void){
  // A timer session stops at the deep deadline rather than endlessly repeating60s slices.
  reset();stop_after=180;
  while(clock_us<600000000){assert(lock_light_sleep_once((void*)1,(void*)2,&key,600000000)==ESP_OK&&!key);restored();}
- assert(sleeps==10&&mounts==10&&!latches);
+ assert(sleeps==10&&mounts==1&&!latches);
  // Short final slices and already-expired deadlines cannot oversleep by another minute.
  reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,1500000)==ESP_OK&&!key);
  assert(clock_us==1500000&&sleeps==1);restored();
  reset();stop_after=180;assert(lock_light_sleep_once((void*)1,(void*)2,&key,1)==ESP_OK&&!key&&!sleeps);restored();
- puts("PASS: actual S31 light transaction, 3h timer slices restore input each minute, exact10min/short/expired deadlines, USB insertion/no unlock, single IRQ/double gate and all operation faults/rollback");
+ puts("PASS: actual S31 light transaction, 3h timer slices keep peripherals parked, exact10min/short/expired deadlines, USB insertion/no unlock, single IRQ/double gate and all operation faults/rollback");
 }
 '''
 with tempfile.TemporaryDirectory() as folder:

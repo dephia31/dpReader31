@@ -32,3 +32,14 @@ python3 tools/reader_turn_antialias_host_test.py
 ```
 
 Các bài font nhận đường dẫn font riêng nếu được hỗ trợ; không tái phân phối font người dùng. So cùng font/cỡ/trang/ánh sáng sau một lần full refresh rồi theo dõi nhiều trang để phân biệt raster với bóng mờ.
+
+
+Font hệ thống mặc định tích hợp là Bitter Bold (wght700), tạo bằng `tools/gen_builtin_font.py` từ `main/assets/Bitter-Bold.ttf`, có chữ Việt và giữ glyph ký hiệu/nhãn chương cần thiết từ font tích hợp. Nguồn Bitter: Google Fonts `ofl/bitter/Bitter[wght].ttf`, bản tĩnh700 tạo bằng fontTools4.60.1; giấy phép SIL OFL trong `main/assets/OFL-Bitter.txt`, kèm gói firmware. Không cần thẻ để dùng font mặc định. Lựa chọn font/cỡ chữ đã lưu vẫn được tôn trọng.
+
+Cỡ chữ cơ sở giao diện được tăng1,6lần: mức100% mới tương đương160% theo cách tính cũ. Giá trị mặc định là100%, không phải160% hay202%. Dấu nâng cấp `sys_size_rev=2` chuyển thiết bị sang100% một lần; khởi động/nâng cấp tiếp theo giữ lựa chọn người dùng. Các tỷ lệ sau đó tính theo cơ sở mới, còn nội dung sách không đổi. Bố cục dùng `ui_text_system_percent()` để theo kích thước thực tế (ví dụ100% mới→160% cũ), nhãn cài đặt vẫn hiển thị phần trăm người dùng chọn.
+
+
+Các tham số đọc dùng hộp chọn phân trang, đánh dấu giá trị hiện tại; chạm ngoài hoặc đóng không áp dụng thay đổi. Khoảng cách giữa từ là phần cộng0..20px vào khoảng trắng, tab, NBSP và narrow NBSP, độc lập với giãn ký tự. Đo dòng và vẽ ngang/dọc dùng cùng khoảng cộng; tiêu đề giữ nguyên. Khi căn đều, khoảng cách còn chịu phân bổ phần dư theo chiều rộng dòng. Thay đổi dàn trang giữ vị trí theo byte; nếu dàn trang hoặc lưu tham số khoảng cách từ lỗi thì trở lại giá trị trước. Cấu hình lưu NVS và bản sao lưuv21; bản sao lưu cũ khôi phục khoảng cách từ0.
+
+
+RC7: hộp cỡ chữ đọc có40,42,…,90px; lựa chọn cũ lẻ không tự đổi cho tới khi chọn lại. Giãn dòng gồm−20%,−10%,0%,100%,110%,120%,130%: mức âm giảm phần leading chuẩn30% của chiều cao chữ (−20%→pitch124%,−10%→127%);0 giữ leading chuẩn130%; các mức dương giữ ý nghĩa tỷ lệ chiều cao dòng cũ. Không tạo chiều cao dòng âm. Giãn đoạn gồm−10,−5,0,5,10,15,20,25,30,40,50,75%; âm giảm khoảng cách cuối đoạn, không áp dụng cho tiêu đề. Khoảng cách từ−3..20px; khoảng trắng được chặn ở độ rộng0 để không tiến lùi hoặc đổi khoảng cách trong từ.

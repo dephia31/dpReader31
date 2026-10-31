@@ -21,6 +21,7 @@ static int scale=100,wide,tall,s_page,s_main_scroll,s_settings_group;
 static bool s_system_ttf;
 static char s_notice[96];
 static unsigned app_settings_system_font_size(void){return scale;}
+static unsigned ui_text_system_percent(void){return app_settings_system_font_size();}
 static unsigned app_settings_wake_presses(void){return 2;}
 static int ui_text_effective_px(int px){return px*scale/100;}
 static bool ttf_font_is_builtin(void){return !s_system_ttf;}

@@ -37,3 +37,8 @@ int ttf_vertical_text_height_px(int px, const char* text, int tracking_px);
 
 typedef void (*ttf_geometry_fn)(void *ctx,size_t byte,size_t bytes,EpdRect cell);
 void ttf_geometry_visit(ttf_geometry_fn fn,void *ctx);
+
+void ttf_draw_text_px_word_spaced(uint8_t*,int,int,int,const char*,int,int,uint8_t,uint8_t);
+void ttf_draw_text_px_word_fitted(uint8_t*,int,int,int,const char*,int,int,int,uint8_t,uint8_t);
+int ttf_draw_text_px_word_vertical(uint8_t*,int,int,int,const char*,int,int,uint8_t,uint8_t);
+int ttf_vertical_text_height_word_px(int,const char*,int,int);

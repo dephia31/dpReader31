@@ -58,6 +58,9 @@
 #endif
 #include "auto_lock.h"
 #include "crash_note.h"
+#if KIIKO_BOARD_METALIO47
+#include "crash_report.h"
+#endif
 
 #include <string.h>
 #include <stdio.h>
@@ -1105,6 +1108,9 @@ void app_loop_run(const app_loop_config_t* config) {
 #endif
 
     while (true) {
+#if KIIKO_BOARD_METALIO47
+        crash_report_poll(!usb_storage_active() && !pico_online_busy() && current!=&app_transfer);
+#endif
         kosync_auto_poll();
         unsigned requested_cover_policy = (unsigned)app_settings_main_refresh_mode() | ((unsigned)app_settings_system_contrast() << 8);
         if (requested_cover_policy != cover_policy) {

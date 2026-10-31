@@ -49,6 +49,7 @@ static EpdRect last_box, image_text_boxes[2];
 static bool image_probe;static unsigned image_text_count,image_switches;
 static int s_reader_slider=-1,s_reader_preview_px=32,s_px=32;
 static unsigned app_settings_system_font_size(void){return scale;}
+static unsigned ui_text_system_percent(void){return app_settings_system_font_size();}
 static int ui_text_effective_px(int px){return scaling?(px+2)*(int)scale/100:px+2;}
 static bool ttf_font_is_builtin(void){return face==0;}
 static bool ui_font_has_text(const char *text){(void)text;return true;}

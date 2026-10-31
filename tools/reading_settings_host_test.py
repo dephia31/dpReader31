@@ -28,7 +28,7 @@ static app_redraw_t apply_reader_option(app_ctx_t *ctx,int i){(void)ctx;assert(i
 static void invalidate_prep(void){++invalidates;}
 '''
 source = ROOT/'main/apps/app_book.c'
-unit+='static unsigned app_settings_system_font_size(void){return 100;}\n'
+unit+='static unsigned app_settings_system_font_size(void){return 100;}\nstatic unsigned ui_text_system_percent(void){return app_settings_system_font_size();}\n'
 for name in ('reader_ui_extra', 'reading_settings_top', 'reading_setting_rect', 'reading_toggle_rect', 'reading_settings_action'):
     unit += function(name, source)+'\n'
 unit += r'''

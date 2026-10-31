@@ -104,9 +104,11 @@ void ui_draw_frosted_pocket(uint8_t *framebuffer, EpdRect rect);
 
 /// 文字按「行的上沿」定位，基线由字号推出，调用处不用再算 ascender。
 /// Text is placed by the top of the line; the baseline comes from the size so callers skip the ascender.
-/// 系统页面字号放大 1.2 倍；阅读正文保持原字号。/ Enlarge system text by 1.2x while preserving reader text size.
+/// 系统页面按保存的字号比例绘制；阅读正文保持原字号。/ Scale system text by its saved percentage while preserving reader body size.
 void ui_text_set_system_scale(bool enabled);
 void ui_text_set_system_font(bool enabled);
+/// Actual UI percentage against the original base; preference100% maps to160%.
+unsigned ui_text_system_percent(void);
 int ui_text_effective_px(int px);
 /// 按系统字号绘制单行文字，按字形真实边界适配控件；不打开第二份字体。
 /// Scale one line to the UI preference, fitting native glyphs within a control without loading another face.

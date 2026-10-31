@@ -20,6 +20,7 @@
 
 #include "app_loop.h"
 #include "log_export.h"
+#include "crash_report.h"
 #include "app_content_open.h"
 #include "boot_state.h"
 #include "lock_screen.h"
@@ -174,6 +175,7 @@ void app_main(void) {
     tzset();
     app_lock_capture_boot_wakeup();
     ESP_ERROR_CHECK(metalio_sleep_sdk_init());
+    crash_report_boot();
     // 共享 TF 卡期间复位后，先把内部 PHY 交回串口，再清理已用完的 BOOT 请求。
     // Reclaim Serial/JTAG after a reset during card sharing, then clear the served BOOT request.
     usb_storage_phy_init();
@@ -189,6 +191,7 @@ void app_main(void) {
 
     read_pico_handle_t hw;
     if (read_pico_init(&hw) != ESP_OK) return;
+    crash_report_poll(true);
     rp_boot_mark("hw");
     print_memory_profile("display-and-board-ready");
     if (hw.pmu_ready) restore_time_from_pmu();
@@ -219,6 +222,7 @@ void app_main(void) {
     const bool retain_lock = (pico_boot_has_resume() || pico_boot_lock_pending()) &&
         (reset != ESP_RST_POWERON || app_settings_wake_presses() == 2);
     (void)prepare_startup_frame(&hl,framebuffer,retain_lock);
+    crash_report_poll(true);
     rp_boot_mark("splash");
     // 直接续读不先加载整份系统字体；密码验证仍先使用所选系统字体。
     // Direct reader resume skips loading the whole system face first; PIN authentication still uses the selected UI face.

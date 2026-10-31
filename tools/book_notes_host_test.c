@@ -36,7 +36,10 @@ int main(void) {
     assert(book_annotations_load(&a,root,"/sdcard/book.epub",3,text,strlen(text)));assert(!strcmp(a.items[0].note,"Edited"));
     assert(book_annotations_load(&b,root,"/sdcard/book.epub",4,text,strlen(text))&&!b.count);
     assert(book_annotations_load(&b,root,"/sdcard/book.epub",3,"changed",7)&&!b.count);
-    assert(!book_annotations_save(&a,"/missing/path/notes"));
+    char nested[700];snprintf(nested,sizeof(nested),"%s/missing/parent/book.epub/snapshots",root);
+    uint32_t original_sequence=a.sequence;assert(book_annotations_save(&a,nested));a.sequence=original_sequence;
+    char blocked[700];snprintf(blocked,sizeof(blocked),"%s/block",root);FILE *block=fopen(blocked,"w");assert(block);fclose(block);
+    snprintf(nested,sizeof(nested),"%s/block/snapshots",root);assert(!book_annotations_save(&a,nested));
     /* Exercise destination reuse: POSIX-only tests previously missed save #3. */
     book_annotations_t repeats;
     assert(book_annotations_load(&repeats,root,"repeat.txt",0,text,strlen(text)));
