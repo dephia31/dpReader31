@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "version": "1.2.2-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "1606fd9bb7fdaf562686aff080d0a8e278ff4ddc95ca8c9dbfee129f6358d9d4",
+  "size": 4254832,
+  "notes": "dpReader 1.2.2: Highlight, ghi chú, tra StarDict nén offline, tải folder từ điển; tối ưu PSRAM và giao diện.",
+  "previous_version": "1.2.1-vn"
+}
