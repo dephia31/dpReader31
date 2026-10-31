@@ -85,7 +85,7 @@ int ui_ai_menu_feed(ui_ai_menu_t *m,const app_ctx_t *ctx,bool valid){
     if(m->draining){if(!t->touched)m->draining=false;return UI_AI_NO_ACTION;}
     if(ctx->pressed){m->pressed=hit(m,t->x,t->y);m->x0=t->x;m->y0=t->y;m->armed=true;}
     if(m->armed&&t->touched&&(hit(m,t->x,t->y)!=m->pressed||abs((int)t->x-m->x0)>20||abs((int)t->y-m->y0)>20))m->armed=false;
-    if(ctx->released&&m->armed){m->armed=false;return m->pressed<0?UI_AI_CLOSE:m->actions[m->pressed];}
+    if(ctx->released&&m->armed){m->armed=false;return m->pressed<0?UI_AI_CLOSE:(int)m->actions[m->pressed];}
     return UI_AI_NO_ACTION;
 }
 EpdRect ui_ai_menu_save_error(ui_ai_menu_t*m,uint8_t*fb){
