@@ -26,6 +26,10 @@ typedef enum {
     METALIO_SLEEP_TRACE_KEYS = 12,
     METALIO_SLEEP_TRACE_TOUCH = 13,
     METALIO_SLEEP_TRACE_MEDIA = 14,
+    METALIO_SLEEP_TRACE_P14_BEFORE = 15,
+    METALIO_SLEEP_TRACE_P14_AFTER = 16,
+    METALIO_SLEEP_TRACE_P5_BEFORE = 17,
+    METALIO_SLEEP_TRACE_P5_AFTER = 18,
 } metalio_sleep_trace_phase_t;
 void metalio_sleep_trace_phase(metalio_sleep_trace_phase_t phase);
 #ifdef __cplusplus

@@ -92,6 +92,8 @@ typedef enum { FILE_VIEW_LIST, FILE_VIEW_ACTIONS, FILE_VIEW_RENAME, FILE_VIEW_MO
 static file_view_t s_view;
 static file_item_t s_selected;
 static bool s_delete_confirm;
+static bool s_bulk_delete_confirm;
+static char s_bulk_delete_dir[288];
 static int s_move_origin_folder, s_move_origin_page;
 static char s_move_origin_dir[288];
 static char s_editor[121], s_editor_ext[16], s_editor_notice[96];
@@ -113,6 +115,16 @@ static const char *folder_root(int folder) {
     if (folder == 2) return app_settings_fonts_dir();
     return s_dir;
 }
+static void file_text(uint8_t *fb,int x,int y,int px,const char *text,enum EpdFontFlags align,bool inverted) {
+    int left=36,right=648;
+    if(align==EPD_DRAW_ALIGN_LEFT)left=x;
+    else if(align==EPD_DRAW_ALIGN_RIGHT)right=x;
+    else {int half=x-36;if(648-x<half)half=648-x;left=x-half;right=x+half;}
+    ui_text_box(fb,(EpdRect){left,y,right-left,px>=25?48:32},px,text,align,inverted);
+}
+static void file_text_center(uint8_t *fb,int x,int y,int px,const char *text,enum EpdFontFlags align,bool inverted) {
+    file_text(fb,x,y-(px>=25?24:16),px,text,align,inverted);
+}
 static int file_pager_top(void) {
     return 1006;
 }
@@ -127,7 +139,7 @@ static int file_sheet_offset(void) {
     return 0;
 }
 static int visible_rows(void) {
-    int end=s_folder==3||s_view==FILE_VIEW_MOVE?file_action_rect(0).y-16:file_pager_top()-16;
+    int end=s_folder>=0||s_view==FILE_VIEW_MOVE?file_action_rect(0).y-16:file_pager_top()-16;
     return (end-214)/88;
 }
 static int root_rows(void) { return 5; }
@@ -528,18 +540,18 @@ static void render_actions(uint8_t *fb) {
     ui_fill_round_rect(fb, sheet, 28, UI_GRAY_WHITE);
     file_card_border(fb, sheet, 28);
     ui_fill_round_rect(fb, (EpdRect){604, 454+offset, 38, 38}, 19, 0xe0);
-    ui_text_vc(fb, 623, 473+offset, 24, "×", EPD_DRAW_ALIGN_CENTER, false);
+    file_text_center(fb, 623, 473+offset, 24, "×", EPD_DRAW_ALIGN_CENTER, false);
     char name[128]; copy_utf8(name, sizeof(name), s_selected.name); fit_name(name, 28, 540);
     file_icon(fb, 48, 467+offset, s_selected.is_dir);
-    ui_text(fb, 102, 462+offset, 28, name, EPD_DRAW_ALIGN_LEFT, false);
+    file_text(fb, 102, 462+offset, 28, name, EPD_DRAW_ALIGN_LEFT, false);
     char detail[48]; file_detail(detail, sizeof(detail), &s_selected);
-    ui_text(fb, 102, 507+offset, 20, detail, EPD_DRAW_ALIGN_LEFT, false);
+    file_text(fb, 102, 507+offset, 20, detail, EPD_DRAW_ALIGN_LEFT, false);
     char path[128]; copy_utf8(path, sizeof(path), s_selected.path); fit_name(path, 19, 585);
-    ui_text(fb, 50, 552+offset, 19, path, EPD_DRAW_ALIGN_LEFT, false);
+    file_text(fb, 50, 552+offset, 19, path, EPD_DRAW_ALIGN_LEFT, false);
     file_rule(fb, 42, 590+offset, 600);
-    if (s_message[0]) ui_text(fb, 50, 608+offset, 20, s_message, EPD_DRAW_ALIGN_LEFT, false);
+    if (s_message[0]) file_text(fb, 50, 608+offset, 20, s_message, EPD_DRAW_ALIGN_LEFT, false);
     if (s_delete_confirm) {
-        ui_text_vc(fb, 342, 712+offset, s_selected.is_dir ? 23 : 28,
+        file_text_center(fb, 342, 712+offset, s_selected.is_dir ? 23 : 28,
                    s_selected.is_dir ? "Sẽ xóa toàn bộ nội dung trong thư mục, không thể hoàn tác" : "Không thể khôi phục sau khi xóa, tiếp tục?",
                    EPD_DRAW_ALIGN_CENTER, false);
         ui_draw_button(fb, (EpdRect){50, 788+offset, 278, 76}, "Hủy", false);
@@ -550,21 +562,21 @@ static void render_actions(uint8_t *fb) {
             EpdRect button = {40 + (i % 2) * 312, 648 + (i / 2) * 122, 292, 100};
             ui_fill_round_rect(fb, button, 20, 0xe8);
             ui_draw_control_frame(fb, button, 20, 0x60);
-            ui_text_vc(fb, button.x + button.width / 2, button.y + 50, 25,
+            file_text_center(fb, button.x + button.width / 2, button.y + 50, 25,
                        labels[i], EPD_DRAW_ALIGN_CENTER, false);
         }
-        ui_text_vc(fb, 342, 900+offset, 20, "Nhấn giữ tệp hoặc thư mục để mở tùy chọn", EPD_DRAW_ALIGN_CENTER, false);
+        file_text_center(fb, 342, 900+offset, 20, "Nhấn giữ tệp hoặc thư mục để mở tùy chọn", EPD_DRAW_ALIGN_CENTER, false);
         ui_fill_round_rect(fb, (EpdRect){40, 930+offset, 604, 76}, 26, 0xe0);
-        ui_text_vc(fb, 342, 968+offset, 23, "Hủy", EPD_DRAW_ALIGN_CENTER, false);
+        file_text_center(fb, 342, 968+offset, 23, "Hủy", EPD_DRAW_ALIGN_CENTER, false);
     }
 }
 
 static void render_rename(uint8_t *fb) {
     ui_nav_back(fb, 36, 79);
-    ui_text_vc(fb, 342, 107, 34, "Đổi tên", EPD_DRAW_ALIGN_CENTER, false);
-    ui_text_vc(fb, 646, 107, 25, "Xong", EPD_DRAW_ALIGN_RIGHT, false);
+    file_text_center(fb, 342, 107, 34, "Đổi tên", EPD_DRAW_ALIGN_CENTER, false);
+    file_text_center(fb, 646, 107, 25, "Xong", EPD_DRAW_ALIGN_RIGHT, false);
     file_rule(fb, 36, 157, 612);
-    ui_text(fb, 36, 202, 22, "Tên tệp", EPD_DRAW_ALIGN_LEFT, false);
+    file_text(fb, 36, 202, 22, "Tên tệp", EPD_DRAW_ALIGN_LEFT, false);
     EpdRect field = {36, 242, 612, 82};
     ui_text_input_draw(fb, &s_editor_input, field, 29, false, s_editor_ext);
     if (s_editor_notice[0]) ui_text_fixed_vc(fb, 36, 510, 22, s_editor_notice, EPD_DRAW_ALIGN_LEFT, false);
@@ -610,17 +622,17 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     }
     if (s_folder >= 0) {
         ui_nav_back(fb, 36, 79);
-        ui_text_vc(fb, 342, 107, 34, s_view == FILE_VIEW_MOVE ? "Chọn thư mục đích" : names[s_folder], EPD_DRAW_ALIGN_CENTER, false);
+        ui_text_box(fb,(EpdRect){108,75,344,64},30,s_view==FILE_VIEW_MOVE?"Chọn thư mục đích":names[s_folder],EPD_DRAW_ALIGN_CENTER,false);
+        if(s_view==FILE_VIEW_LIST)ui_draw_button(fb,(EpdRect){470,76,178,64},"Xóa tất cả",false);
         char path[144];
         snprintf(path, sizeof(path), "Thẻ nhớ%s", folder_root(s_folder) + 7);
-        ui_text(fb, 36, 172, 20, path, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_box(fb,(EpdRect){36,151,340,44},20,path,EPD_DRAW_ALIGN_LEFT,false);
         int folders = 0, files = 0;
         for (int i = 0; i < s_count; ++i) s_files[i].is_dir ? ++folders : ++files;
         char summary[48]; snprintf(summary, sizeof(summary), "%d thư mục · %d tệp", folders, files);
-        ui_text(fb, 648, 172, 20, summary, EPD_DRAW_ALIGN_RIGHT, false);
+        ui_text_box(fb,(EpdRect){390,151,258,44},20,summary,EPD_DRAW_ALIGN_RIGHT,false);
         file_rule(fb, 36, 202, 612);
-        if (s_message[0] && s_folder != 3) ui_text(fb, 36, 238, 27, s_message, EPD_DRAW_ALIGN_LEFT, false);
-        else if (!s_count) ui_text(fb, 36, 238, 27, "Thư mục này chưa có tệp nào", EPD_DRAW_ALIGN_LEFT, false);
+        if (!s_count) file_text(fb, 36, 238, 27, "Thư mục này chưa có tệp nào", EPD_DRAW_ALIGN_LEFT, false);
         for (int row = 0; row < visible_rows(); ++row) {
             int index = s_page * visible_rows() + row;
             if (index >= s_count) break;
@@ -632,28 +644,28 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
                 name[n] = 0;
             }
             file_icon(fb, 48, y + 20, s_files[index].is_dir);
-            ui_text(fb, 101, y + 11, 23, name, EPD_DRAW_ALIGN_LEFT, false);
+            file_text(fb, 101, y + 11, 23, name, EPD_DRAW_ALIGN_LEFT, false);
             char detail[32]; file_detail(detail, sizeof(detail), &s_files[index]);
-            ui_text(fb, 101, y + 49, 19, detail, EPD_DRAW_ALIGN_LEFT, false);
+            file_text(fb, 101, y + 49, 19, detail, EPD_DRAW_ALIGN_LEFT, false);
             const char *tag = !strcmp(s_files[index].path, app_settings_books_dir()) ? "Thư mục sách" :
                               !strcmp(s_files[index].path, app_settings_fonts_dir()) ? "Thư mục phông" : NULL;
-            if (tag) ui_text(fb, 588, y + 35, 18, tag, EPD_DRAW_ALIGN_RIGHT, false);
-            ui_text(fb, 640, y + 30, 22, "›", EPD_DRAW_ALIGN_RIGHT, false);
+            if (tag) file_text(fb, 588, y + 35, 18, tag, EPD_DRAW_ALIGN_RIGHT, false);
+            file_text(fb, 640, y + 30, 22, "›", EPD_DRAW_ALIGN_RIGHT, false);
             file_rule(fb, 101, y + 82, 547);
         }
         if (s_folder == 3 || s_view == FILE_VIEW_MOVE) {
             ui_draw_control_frame(fb, file_action_rect(0), 8, UI_GRAY_BLACK);
             ui_draw_control_frame(fb, file_action_rect(1), 8, UI_GRAY_BLACK);
-            ui_text(fb, 182, file_action_rect(0).y+22, 24, s_view == FILE_VIEW_MOVE ? "Hủy chuyển" : "Đặt làm thư mục sách", EPD_DRAW_ALIGN_CENTER, false);
-            ui_text(fb, 501, file_action_rect(1).y+22, 24, s_view == FILE_VIEW_MOVE ? "Chuyển tới đây" : "Đặt làm thư mục phông", EPD_DRAW_ALIGN_CENTER, false);
-            if (s_message[0]) ui_text(fb, 36, file_message_top(), 22, s_message, EPD_DRAW_ALIGN_LEFT, false);
+            file_text(fb, 182, file_action_rect(0).y+22, 24, s_view == FILE_VIEW_MOVE ? "Hủy chuyển" : "Đặt làm thư mục sách", EPD_DRAW_ALIGN_CENTER, false);
+            file_text(fb, 501, file_action_rect(1).y+22, 24, s_view == FILE_VIEW_MOVE ? "Chuyển tới đây" : "Đặt làm thư mục phông", EPD_DRAW_ALIGN_CENTER, false);
+            if (s_message[0]) ui_text_caption(fb,(EpdRect){36,file_message_top()-18,612,52},22,s_message,EPD_DRAW_ALIGN_LEFT,false);
         }
     } else {
-        ui_text(fb, 36, 91, 52, "Tệp", EPD_DRAW_ALIGN_LEFT, false);
+        file_text(fb, 36, 91, 52, "Tệp", EPD_DRAW_ALIGN_LEFT, false);
         EpdRect storage = storage_card_rect();
         ui_fill_round_rect(fb, storage, 24, UI_GRAY_WHITE);
         file_card_border(fb, storage, 24);
-        ui_text(fb, 58, 188, 27, "Thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
+        file_text(fb, 58, 188, 27, "Thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
         char total[32], usage[96];
         if (s_sd.mounted) {
             storage_usage(&s_sd,total,sizeof(total),usage,sizeof(usage));
@@ -667,15 +679,15 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             snprintf(total, sizeof(total), "Chưa gắn thẻ");
             snprintf(usage, sizeof(usage), "Vui lòng kiểm tra thẻ nhớ");
         }
-        ui_text(fb, 624, 191, 21, total, EPD_DRAW_ALIGN_RIGHT, false);
-        ui_text(fb, 58, 231, 19, usage, EPD_DRAW_ALIGN_LEFT, false);
+        file_text(fb, 624, 191, 21, total, EPD_DRAW_ALIGN_RIGHT, false);
+        ui_text_caption(fb,(EpdRect){58,222,566,38},19,usage,EPD_DRAW_ALIGN_LEFT,false);
         EpdRect capacity = {58, 263, 566, 6};
         ui_fill_round_rect(fb, capacity, 3, 0xa0);
         if (storage_space_valid(&s_sd)) {
             capacity.width = (int)((s_sd.filesystem_bytes - s_sd.free_bytes) * 566 / s_sd.filesystem_bytes);
             if (capacity.width > 0) ui_fill_round_rect(fb, capacity, 3, 0x68);
         }
-        ui_text(fb, 42, 308, 21, "Truyền tệp", EPD_DRAW_ALIGN_LEFT, false);
+        file_text(fb, 42, 308, 21, "Truyền tệp", EPD_DRAW_ALIGN_LEFT, false);
         static const char *const methods[] = {"WiFi", "Điểm phát", "USB"};
         static const char *const details[] = {"Cùng mạng", "Không cần mạng", "Cáp máy tính"};
         for (int i = 0; i < 3; ++i) {
@@ -686,10 +698,10 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_text_box(fb,(EpdRect){card.x+12,card.y+60,card.width-24,34},17,details[i],EPD_DRAW_ALIGN_CENTER,false);
         }
         char summary[48]; snprintf(summary, sizeof(summary), "Thư mục gốc · %d mục", s_count);
-        ui_text(fb, 36, 482, 21, summary, EPD_DRAW_ALIGN_LEFT, false);
+        file_text(fb, 36, 482, 21, summary, EPD_DRAW_ALIGN_LEFT, false);
         ui_fill_round_rect(fb, (EpdRect){537, 458, 111, 50}, 23, UI_GRAY_WHITE);
         ui_draw_control_frame(fb, (EpdRect){537, 458, 111, 50}, 23, 0x70);
-        ui_text_vc(fb, 592, 483, 19, "Tên ↑", EPD_DRAW_ALIGN_CENTER, false);
+        file_text_center(fb, 592, 483, 19, "Tên ↑", EPD_DRAW_ALIGN_CENTER, false);
         int first = s_page * root_rows();
         int rows = s_count - first;
         if (rows > root_rows()) rows = root_rows();
@@ -697,7 +709,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         EpdRect list = {36, 520, 612, root_rows() * 91};
         ui_fill_round_rect(fb, list, 24, UI_GRAY_WHITE);
         file_card_border(fb, list, 24);
-        if (!s_count) ui_text_vc(fb, 342, 565, 22, s_message[0] ? s_message : "Thư mục gốc trống", EPD_DRAW_ALIGN_CENTER, false);
+        if (!s_count) file_text_center(fb, 342, 565, 22, s_message[0] ? s_message : "Thư mục gốc trống", EPD_DRAW_ALIGN_CENTER, false);
         for (int row = 0; row < root_rows(); ++row) {
             int index = first + row;
             if (index >= s_count) break;
@@ -706,17 +718,19 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             char name[128]; copy_utf8(name, sizeof(name), s_files[index].name); fit_name(name, 23, 430);
             file_icon(fb, 52, y + 24, s_files[index].is_dir);
             if (s_files[index].is_dir)
-                ui_text_vc(fb, 101, y + 46, 23, name, EPD_DRAW_ALIGN_LEFT, false);
+                file_text_center(fb, 101, y + 46, 23, name, EPD_DRAW_ALIGN_LEFT, false);
             else
-                ui_text(fb, 101, y + 20, 23, name, EPD_DRAW_ALIGN_LEFT, false);
+                file_text(fb, 101, y + 20, 23, name, EPD_DRAW_ALIGN_LEFT, false);
             char detail[32]; file_detail(detail, sizeof(detail), &s_files[index]);
-            if (s_files[index].is_dir) ui_text_vc(fb, 628, y + 46, 24, "›", EPD_DRAW_ALIGN_RIGHT, false);
+            if (s_files[index].is_dir) file_text_center(fb, 628, y + 46, 24, "›", EPD_DRAW_ALIGN_RIGHT, false);
             else {
-                ui_text(fb, 101, y + 55, 19, detail, EPD_DRAW_ALIGN_LEFT, false);
-                ui_text_vc(fb, 624, y + 44, 22, "›", EPD_DRAW_ALIGN_RIGHT, false);
+                file_text(fb, 101, y + 55, 19, detail, EPD_DRAW_ALIGN_LEFT, false);
+                file_text_center(fb, 624, y + 44, 22, "›", EPD_DRAW_ALIGN_RIGHT, false);
             }
         }
     }
+    if(s_folder>=0&&s_folder!=3&&s_message[0])
+        ui_text_caption(fb,(EpdRect){36,946,612,52},22,s_message,EPD_DRAW_ALIGN_LEFT,false);
     draw_file_pager(fb);
     files_navigation(fb);
 }
@@ -726,6 +740,16 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
     s_render_secondary=previous || !main_page_visible(ctx);
     render_content(ctx,fb);
     s_render_secondary=previous;
+    if(s_bulk_delete_confirm) {
+        EpdRect panel={24,330,636,500};
+        ui_fill_round_rect(fb,panel,24,UI_GRAY_WHITE);ui_draw_control_frame(fb,panel,24,UI_GRAY_BLACK);
+        ui_text_box(fb,(EpdRect){48,352,588,64},30,"Xóa tất cả tệp?",EPD_DRAW_ALIGN_CENTER,false);
+        ui_text_box(fb,(EpdRect){48,440,588,64},22,s_bulk_delete_dir,EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_caption(fb,(EpdRect){48,516,588,70},22,"Giữ thư mục con và tệp bên trong.",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_caption(fb,(EpdRect){48,598,588,70},22,"Không thể hoàn tác thao tác này.",EPD_DRAW_ALIGN_LEFT,false);
+        ui_draw_button(fb,(EpdRect){48,710,280,80},"Hủy",false);
+        ui_draw_button(fb,(EpdRect){356,710,280,80},"Xóa tất cả",false);
+    }
 #if KIIKO_BOARD_METALIO47
     display_monochrome_content(fb);
 #endif
@@ -737,6 +761,7 @@ static void on_enter(app_ctx_t *ctx) {
     s_folder = s_requested_folder; s_requested_folder = -1;
     s_view = FILE_VIEW_LIST;
     s_delete_confirm = false;
+    s_bulk_delete_confirm=false;
     snprintf(s_dir, sizeof(s_dir), "/sdcard");
     s_page = 0; s_scan_pending = true;
     read_pico_sd_start_probe();
@@ -1013,7 +1038,26 @@ static app_redraw_t rename_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev)
     return result == UI_KEYBOARD_CHANGED ? rename_paint(ctx, false) : APP_REDRAW_NONE;
 }
 
+static app_redraw_t bulk_delete_gesture(const ui_gesture_event_t *ev) {
+        if(ev->type!=UI_GESTURE_TAP)return APP_REDRAW_NONE;
+        if(ui_rect_hit((EpdRect){356,710,280,80},ev->x0,ev->y0)) {
+            unsigned removed=0,failed=0;
+            esp_err_t err=file_tree_delete_files(s_bulk_delete_dir,file_deleted,NULL,&removed,&failed);
+            s_bulk_delete_confirm=false;
+            rescan_current();book_store_notify_changed();ttf_font_scan();
+            if(err==ESP_OK)snprintf(s_message,sizeof(s_message),"Đã xóa %u tệp",removed);
+            else snprintf(s_message,sizeof(s_message),"Đã xóa %u tệp; còn lỗi, hãy thử lại",removed);
+        } else if(ui_rect_hit((EpdRect){48,710,280,80},ev->x0,ev->y0)||!ui_rect_hit((EpdRect){24,330,636,500},ev->x0,ev->y0))s_bulk_delete_confirm=false;
+        return APP_REDRAW_PAGE;
+
+}
 static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
+    if(s_bulk_delete_confirm)return bulk_delete_gesture(ev);
+    if(ev->type==UI_GESTURE_TAP&&s_view==FILE_VIEW_LIST&&s_folder>=0&&ui_rect_hit((EpdRect){470,76,178,64},ev->x0,ev->y0)) {
+        copy_utf8(s_bulk_delete_dir,sizeof(s_bulk_delete_dir),folder_root(s_folder));
+        s_bulk_delete_confirm=true;return APP_REDRAW_PAGE;
+    }
+
     app_redraw_t pager;
     if(file_pager_event(ctx,ev,&pager))return pager;
     if (s_view == FILE_VIEW_ACTIONS) return action_gesture(ctx, ev);
@@ -1160,6 +1204,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 }
 
 static app_redraw_t on_key(app_ctx_t *ctx, int key) {
+    if(s_bulk_delete_confirm){s_bulk_delete_confirm=false;return APP_REDRAW_PAGE;}
     s_sd_format_confirm=false;
     if (s_view == FILE_VIEW_MOVE) { leave_move(false); return APP_REDRAW_PAGE; }
     if (key == 1) { ui_nav_request(ctx, 0); return APP_REDRAW_NONE; }

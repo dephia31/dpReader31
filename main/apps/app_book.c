@@ -290,6 +290,7 @@ static bool s_reader_image_frame, s_reader_image_exit_pending;
 #endif
 static char s_requested_open[BOOK_STORE_PATH_MAX];
 static bool s_requested_open_home;
+static bool s_requested_home_sync;
 static bool s_reader_return_home;
 static bool s_requested_manage;
 static bool s_requested_opds;
@@ -619,6 +620,10 @@ bool app_book_resume_context(char *path, size_t capacity, bool *fullscreen) {
 }
 void app_book_request_manage(void) { s_requested_manage = true; }
 void app_book_request_opds(void) { s_requested_opds = true; }
+bool app_book_request_home_sync(const char *path) {
+    if(!app_book_request_open_from_home(path))return false;
+    s_requested_home_sync=true;return true;
+}
 static void draw_control(uint8_t* fb, EpdRect rect, const char* label, int id) {
     if (id == 112 && s_query[0]) {
         ui_fill_round_rect(fb, rect, UI_BTN_RADIUS, UI_GRAY_BLACK);
@@ -5445,7 +5450,7 @@ static bool open_requested_book(app_ctx_t* ctx) {
     s_requested_open[0] = 0;
     s_requested_open_home = false;
     bool opened = open_book(ctx, path);
-    if (!opened) return false;
+    if (!opened) {s_requested_home_sync=false;return false;}
     s_reader_return_home = from_home;
     return true;
 }
@@ -7852,6 +7857,7 @@ static void on_enter(app_ctx_t* ctx) {
 static void reader_edge_light_cancel(void);
 #endif
 static void book_on_exit(app_ctx_t* ctx) {
+    s_requested_home_sync=false;
     s_reader_choice.open=false;
     book_notes_cancel();
 #if KIIKO_BOARD_METALIO47
@@ -8959,6 +8965,10 @@ static app_redraw_t reader_font_recovery_tick(app_ctx_t *ctx) {
     return APP_REDRAW_DONE;
 }
 static app_redraw_t on_tick(app_ctx_t* ctx) {
+    if(s_requested_home_sync&&!s_requested_open[0]&&!s_scan_pending) {
+        s_requested_home_sync=false;
+        if(s_view==READING&&s_text){app_book_request_kosync(ctx);return APP_REDRAW_PAGE;}
+    }
     if(book_notes_active()) {
         if(ctx->request_app||ctx->request_menu){book_notes_cancel();return APP_REDRAW_PAGE;}
         return book_notes_tick();

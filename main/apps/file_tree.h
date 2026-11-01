@@ -15,3 +15,7 @@ esp_err_t file_tree_inspect(const char *path, file_tree_info_t *info);
 esp_err_t file_tree_copy(const char *source, const char *target, uint64_t free_bytes);
 esp_err_t file_tree_move(const char *source, const char *target);
 esp_err_t file_tree_delete(const char *path, file_tree_deleted_cb_t callback, void *ctx);
+
+// Delete all direct files, including entries beyond the UI page limit; retain folders.
+esp_err_t file_tree_delete_files(const char *directory, file_tree_deleted_cb_t callback,
+                                void *ctx, unsigned *deleted, unsigned *failed);

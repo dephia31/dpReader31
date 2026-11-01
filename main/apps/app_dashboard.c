@@ -14,7 +14,7 @@
  * 用户修订：首页原比例点阵独立落卡，复用灰阶缩略图；普通/水波纹复用灰阶缓存，始终预留内存。
  * User revision: persist proportional Home monochrome separately and reuse gray thumbnail files; ordinary/water reuse gray caches with a memory reserve.
  * 中文：首页使用真实续读、完整缓存书摘、可选书夹/时钟与月阅读记录；绘图不读卡。
- * English: Home uses real resume data, cached complete sentences, selectable folder/clock and monthly records; painting never reads media.
+ * English: Home uses real resume data, cached complete sentences, a four-slot utility card and four recently read books; painting never reads media.
  * 用户修订：缓存原位换位，只用一个条目的栈空间；保留复用速度，避免启动时复制七条占用半个主任务栈。
  * User revision: reorder the cache in place with one stack entry, retaining hot reuse without copying seven entries into half the main stack at boot.
  * 用户最新修订：续读书名复用已加载系统字体，按原40px直接生成字形；不加载阅读字体或增加内建字库。
@@ -39,6 +39,7 @@
 
 #include "app.h"
 #include "app_content_open.h"
+#include "app_transfer_mode.h"
 #include "boot_state.h"
 #include "app_registry.h"
 #include "book_cover.h"
@@ -114,7 +115,7 @@ static bool s_clock_pending;
 static int64_t s_clock_minute=-2;
 static uint32_t s_reading_days[31];
 static struct tm s_date;
-static enum { HOME_ROOT,HOME_COMPONENT,HOME_GOAL,HOME_TIME } s_view;
+static enum { HOME_ROOT,HOME_COMPONENT,HOME_GOAL,HOME_TIME,HOME_UTILITIES,HOME_UTILITY_PICK } s_view;
 static app_home_component_t s_component_browse;
 static bool s_component_pending;
 static EpdRect s_component_dirty;
@@ -131,6 +132,11 @@ static int64_t s_motion_ms=-100;
 typedef struct {unsigned start,last,steps;int64_t stamp;int view;bool valid;} clock_trail_t;
 static clock_trail_t s_widget_trail,s_time_trail;
 static uint8_t s_goal_draft;
+static uint8_t s_utility_draft[APP_HOME_UTILITY_SLOTS];
+static bool s_utility_labels_draft,s_utility_border_draft;
+static unsigned s_utility_slot,s_utility_page;
+static char s_utility_notice[96];
+static int64_t s_utility_notice_until;
 static bool s_save_error,s_folder_attempted;
 static uint8_t *s_folder;
 static bool s_folder_fast;
@@ -441,7 +447,7 @@ static EpdRect time_clock_bounds(void) {return(EpdRect){122,275,460,503};}
 static EpdRect component_clock_bounds(void){return s_view==HOME_COMPONENT?(EpdRect){141,294,420,460}:(EpdRect){24,640,320,350};}
 static EpdRect component_clock_graphics(void){return s_view==HOME_COMPONENT?component_clock_bounds():(EpdRect){24,640,320,326};}
 static bool visible_motion_clock(void){
-    return(s_view==HOME_ROOT&&ui_home_clock_has_motion(clock_style(app_settings_home_component())))
+    return(s_view==HOME_TIME&&ui_home_clock_has_motion(clock_style(app_settings_home_component())))
 #if KIIKO_BOARD_METALIO47
         ;
 #else
@@ -604,6 +610,93 @@ static int title_lines(uint8_t *fb,const char *text,uint8_t background) {
     for(unsigned i=0;i<2;++i)if(lines[i][0])ui_text_fixed_context_aa_vc(fb,264,312+44*i,px,lines[i],text,EPD_DRAW_ALIGN_LEFT,0,background);
     return lines[1][0]?2:1;
 }
+static const char *const utility_names[APP_HOME_UTIL_COUNT]={
+    "Để trống","Đọc tiếp","Thư viện","Duyệt OPDS","Đồng bộ KoSync","Cài đặt",
+    "Bật/tắt Wi-Fi","Bật/tắt Bluetooth","Cập nhật OTA","Tệp tin","Chuyển tệp","Làm mới màn hình"
+};
+static const ui_icon_t utility_icons[APP_HOME_UTIL_COUNT]={
+    UI_ICON_PENCIL,UI_ICON_BOOK_OPEN,UI_ICON_LIBRARY_BIG,UI_ICON_RADIO_TOWER,UI_ICON_REFRESH_CW,
+    UI_ICON_SLIDERS_HORIZONTAL,UI_ICON_WIFI,UI_ICON_BLUETOOTH,UI_ICON_DOWNLOAD,UI_ICON_FOLDER_OPEN,UI_ICON_COPY,UI_ICON_ROTATE_CW
+};
+static EpdRect utility_button(unsigned i){return(EpdRect){52+(int)i*148,662,136,108};}
+static EpdRect utility_icon_rect(unsigned slot,bool labels) {
+    EpdRect button=utility_button(slot);int size=labels?32:64;
+    return(EpdRect){button.x+(button.width-size)/2,button.y+(labels?27:button.height/2)-size/2,size,size};
+}
+static EpdRect utility_notice_rect(void){return(EpdRect){100,812,484,100};}
+static bool utility_notice_expire(int64_t now_ms) {
+    if(!s_utility_notice[0]||!s_utility_notice_until||now_ms<s_utility_notice_until)return false;
+    s_utility_notice[0]=0;s_utility_notice_until=0;s_area=utility_notice_rect();return true;
+}
+static EpdRect utility_labels_button(void){return(EpdRect){36,800,612,64};}
+static EpdRect utility_border_button(void){return(EpdRect){36,880,612,64};}
+static EpdRect utility_save_button(void){return(EpdRect){36,1000,612,80};}
+static EpdRect recent_cover(unsigned i){return(EpdRect){36+(int)i*160,828,132,180};}
+static unsigned recent_books(home_book_t *books[4]) {
+    unsigned n=0;
+    if(s_current.path[0]&&s_current.has_progress)books[n++]=&s_current;
+    for(unsigned i=0;i<6&&n<4;++i)if(s_recent[i].path[0]&&s_recent[i].has_progress) {
+        bool duplicate=false;for(unsigned j=0;j<n;++j)if(!strcmp(books[j]->path,s_recent[i].path))duplicate=true;
+        if(!duplicate)books[n++]=&s_recent[i];
+    }
+    return n;
+}
+static bool utilities_configured(void){for(unsigned i=0;i<4;++i)if(app_settings_home_utility(i))return true;return false;}
+static void utilities_edit(void) {
+    for(unsigned i=0;i<4;++i)s_utility_draft[i]=app_settings_home_utility(i);
+    s_utility_labels_draft=app_settings_home_utility_labels();
+    s_utility_border_draft=app_settings_home_utility_border();
+    s_view=HOME_UTILITIES;s_save_error=false;s_utility_notice[0]=0;s_utility_notice_until=0;
+}
+static void render_utilities_editor(uint8_t *fb) {
+    header(fb,s_view==HOME_UTILITY_PICK?"Chọn tiện ích":"Thiết lập Tiện Ích");
+    if(s_view==HOME_UTILITIES) {
+        for(unsigned i=0;i<4;++i) {
+            EpdRect row={36,248+(int)i*140,612,112};char name[96];
+            snprintf(name,sizeof(name),"%u. %s",i+1,utility_names[s_utility_draft[i]]);
+            ui_draw_button(fb,row,name,false);
+        }
+        ui_draw_button(fb,utility_labels_button(),s_utility_labels_draft?"Nhãn shortcut: Bật":"Nhãn shortcut: Tắt",s_utility_labels_draft);
+        ui_draw_button(fb,utility_border_button(),s_utility_border_draft?"Viền icon: Bật":"Viền icon: Tắt",s_utility_border_draft);
+        if(s_save_error)ui_text_caption(fb,(EpdRect){48,950,588,40},18,"Không lưu được thiết lập. Vui lòng thử lại.",EPD_DRAW_ALIGN_LEFT,false);
+        ui_draw_button(fb,utility_save_button(),"Lưu tiện ích",true);
+    } else {
+        for(unsigned row=0;row<6;++row) {
+            unsigned action=s_utility_page*6+row;if(action>=APP_HOME_UTIL_COUNT)break;
+            ui_draw_button(fb,(EpdRect){36,230+(int)row*116,612,98},utility_names[action],s_utility_draft[s_utility_slot]==action);
+        }
+        ui_draw_button(fb,(EpdRect){36,960,286,80},"Trang trước",false);
+        ui_draw_button(fb,(EpdRect){362,960,286,80},"Trang sau",false);
+    }
+}
+static app_redraw_t utility_run(app_ctx_t *ctx,unsigned action) {
+    s_utility_notice[0]=0;s_utility_notice_until=0;
+    switch(action) {
+    case APP_HOME_UTIL_NONE:utilities_edit();return APP_REDRAW_PAGE;
+    case APP_HOME_UTIL_RESUME:
+    case APP_HOME_UTIL_KOSYNC:
+        if(featured()->path[0]) {
+            bool ok=action==APP_HOME_UTIL_KOSYNC?app_book_request_home_sync(featured()->path):app_book_request_open_from_home(featured()->path);
+            if(ok){ui_nav_request(ctx,1);return APP_REDRAW_NONE;}
+        }
+        snprintf(s_utility_notice,sizeof(s_utility_notice),"Chưa có sách để đọc tiếp hoặc đồng bộ");break;
+    case APP_HOME_UTIL_LIBRARY:ui_nav_request(ctx,1);return APP_REDRAW_NONE;
+    case APP_HOME_UTIL_OPDS:app_book_request_opds();ui_nav_request(ctx,1);return APP_REDRAW_NONE;
+    case APP_HOME_UTIL_SETTINGS:ui_nav_request(ctx,3);return APP_REDRAW_NONE;
+    case APP_HOME_UTIL_OTA:app_device_settings_request_ota();ui_nav_request(ctx,3);return APP_REDRAW_NONE;
+    case APP_HOME_UTIL_FILES:ui_nav_request(ctx,2);return APP_REDRAW_NONE;
+    case APP_HOME_UTIL_TRANSFER: {extern const app_desc_t app_transfer;app_transfer_request_method_picker();ctx->request_app=&app_transfer;return APP_REDRAW_NONE;}
+    case APP_HOME_UTIL_WIFI:
+    case APP_HOME_UTIL_BLUETOOTH: {
+        bool bt=action==APP_HOME_UTIL_BLUETOOTH;esp_err_t err=app_toggle_network(bt);
+        snprintf(s_utility_notice,sizeof(s_utility_notice),"%s",err==ESP_OK?(bt?(app_settings_ble_turner()?"Đã bật Bluetooth":"Đã tắt Bluetooth"):"Đã gửi yêu cầu bật/tắt Wi-Fi"):(err==ESP_ERR_NOT_FOUND?"Chưa lưu mạng Wi-Fi":"Không thể thay đổi kết nối lúc này"));break;
+    }
+    case APP_HOME_UTIL_REFRESH:return APP_REDRAW_FULL;
+    default:break;
+    }
+    if(s_utility_notice[0])s_utility_notice_until=esp_timer_get_time()/1000+2000;
+    return APP_REDRAW_PAGE;
+}
 static void render_root(uint8_t *fb) {
 #ifdef KIIKO_LOCAL_LATENCY
     int64_t probe_home=esp_timer_get_time();
@@ -629,7 +722,7 @@ static void render_root(uint8_t *fb) {
         int x=side?648:36;epd_fill_circle(x,252,14,0xff,fb);circle_frame(fb,x,252,14);
         ui_fill_rect_fast((EpdRect){side?x:0,237,side?36:36,30},0xff,fb);
     }
-    label_on(fb,60,222,24,"Đọc gần đây",EPD_DRAW_ALIGN_LEFT,0x60,card_gray);
+    label_on(fb,60,222,24,"Đọc tiếp",EPD_DRAW_ALIGN_LEFT,0x60,card_gray);
     if(s_excerpt[0]) {
         char quote[BOOK_EXCERPT_CAP+12];snprintf(quote,sizeof(quote),"“%s”",s_excerpt);
         int px=22;while(px>16&&ui_text_fixed_width_px(px,quote)>426)--px;
@@ -651,26 +744,38 @@ static void render_root(uint8_t *fb) {
         track.width=358*(b->has_progress?b->progress.pct:0)/100;if(track.width)ui_fill_round_rect(fb,track,3,0x30);
     } else label_on(fb,342,410,23,"Sau khi mở sách, bạn có thể đọc tiếp ngay tại đây",EPD_DRAW_ALIGN_CENTER,0x60,card_gray);
     HOME_STAGE("card_body");
-    ui_draw_separator(fb,606,36,612,0x50);
-    if(app_settings_home_component()==APP_HOME_FOLDER) {
-        ui_home_folder_draw(fb,s_folder,s_folder_fast,(EpdRect){24,604,320,350});
-        label(fb,184,985,22,"Đọc gần đây",EPD_DRAW_ALIGN_CENTER,0x50);
-    } else {
-        clock_draw_region(fb,(EpdRect){24,640,320,350},&s_date,app_settings_main_fast_refresh(),clock_style(app_settings_home_component()),(EpdRect){24,640,320,326},s_widget_phase);
-        label(fb,184,985,22,component_name(app_settings_home_component()),EPD_DRAW_ALIGN_CENTER,0x50);
+    EpdRect utility_card={36,590,612,206};
+    ui_fill_round_rect(fb,utility_card,28,card_gray);home_frame(fb,utility_card,28);
+    for(unsigned side=0;side<2;++side) {
+        int x=side?648:36;epd_fill_circle(x,650,12,0xff,fb);circle_frame(fb,x,650,12);
+        ui_fill_rect_fast((EpdRect){side?648:0,637,36,26},0xff,fb);
     }
-    HOME_STAGE("component");
-    if(s_reading_days_valid) {
-        static const char *const wd[]={"Chủ Nhật","Thứ Hai","Thứ Ba","Thứ Tư","Thứ Năm","Thứ Sáu","Thứ Bảy"};
-        snprintf(value,sizeof(value),"Ngày %2$d/%1$d",s_date.tm_mon+1,s_date.tm_mday);
-        label(fb,354,665,30,value,EPD_DRAW_ALIGN_LEFT,0);
-        label(fb,642,665,24,wd[s_date.tm_wday],EPD_DRAW_ALIGN_RIGHT,0x50);
-        int start=(s_date.tm_wday+7-(s_date.tm_mday-1)%7)%7;
-        int rows=(start+month_length(&s_date)+6)/7;
-        calendar(fb,375,754,42,rows==6?38:48,26,app_settings_home_goal_minutes()*60);
-    } else label(fb,496,754,22,"Vui lòng cài đặt ngày giờ trước",EPD_DRAW_ALIGN_CENTER,0x60);
-    label(fb,642,985,22,"· Đạt mục tiêu",EPD_DRAW_ALIGN_RIGHT,0x50);
-    HOME_STAGE("calendar");
+    ui_draw_separator(fb,650,66,552,0x50);
+    label_on(fb,60,620,24,"Tiện Ích",EPD_DRAW_ALIGN_LEFT,0x30,card_gray);
+    if(utilities_configured()) {
+        ui_draw_icon(fb,608,620,28,UI_ICON_PENCIL,0);
+        for(unsigned i=0;i<4;++i) {
+            unsigned action=app_settings_home_utility(i);EpdRect box=utility_button(i);
+            ui_fill_round_rect(fb,box,16,card_gray);
+            if(app_settings_home_utility_border())home_frame(fb,box,16);
+            bool labels=app_settings_home_utility_labels();EpdRect icon=utility_icon_rect(i,labels);
+            ui_draw_icon_normalized(fb,icon.x+icon.width/2,icon.y+icon.height/2,icon.width,utility_icons[action],0);
+            if(labels)ui_text_caption(fb,(EpdRect){box.x+6,box.y+50,box.width-12,52},18,action?utility_names[action]:"Thêm",EPD_DRAW_ALIGN_CENTER,false);
+        }
+    }else ui_draw_button(fb,(EpdRect){150,672,384,88},"Thiết lập",false);
+    home_book_t *recent[4];unsigned count=recent_books(recent);
+    for(unsigned i=0;i<4;++i) {
+        EpdRect box=recent_cover(i);
+        if(i<count) {
+            draw_cover(fb,recent[i],box);
+            ui_text_caption(fb,(EpdRect){box.x,1018,box.width,62},19,recent[i]->title,EPD_DRAW_ALIGN_CENTER,false);
+        } else {ui_fill_round_rect(fb,box,12,0xf0);home_frame(fb,box,12);ui_draw_icon(fb,box.x+66,box.y+90,38,UI_ICON_BOOK_OPEN,0x90);}
+    }
+    if(s_utility_notice[0]) {
+        EpdRect notice=utility_notice_rect();ui_fill_round_rect(fb,notice,20,0xff);home_frame(fb,notice,20);
+        ui_text_caption(fb,(EpdRect){112,824,460,76},22,s_utility_notice,EPD_DRAW_ALIGN_CENTER,false);
+    }
+    HOME_STAGE("utilities_and_books");
     ui_nav_draw(fb,0);
     HOME_STAGE("nav");
 #undef HOME_STAGE
@@ -753,7 +858,7 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
     (void)ctx;ui_clear_page(fb);ui_fill_rect_fast((EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT},0xff,fb);
     if(s_view==HOME_GOAL){s_widget_trail.valid=s_time_trail.valid=false;}
     s_widget_phase=s_time_phase=clock_phase_now(&s_date);
-    if(s_view==HOME_ROOT)render_root(fb);else if(s_view==HOME_GOAL)render_goal(fb);else if(s_view==HOME_TIME)render_time(fb);else render_components(fb);
+    if(s_view==HOME_UTILITIES||s_view==HOME_UTILITY_PICK)render_utilities_editor(fb);else if(s_view==HOME_ROOT)render_root(fb);else if(s_view==HOME_GOAL)render_goal(fb);else if(s_view==HOME_TIME)render_time(fb);else render_components(fb);
     if(s_press_pending && !continue_card_pressed())ui_draw_selected_round_rect(fb,s_pressed,s_pressed.width==60?30:s_pressed.width==64?32:s_pressed.width==86?43:s_pressed.height==76?38:20);
     if(s_view!=HOME_ROOT)ui_nav_draw(fb,0);
 }
@@ -818,25 +923,9 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
     if(redraw==APP_REDRAW_AREA&&s_clock_pending) {
         s_clock_pending=false;
         ui_fill_rect_fast((EpdRect){24,18,156,44},0xff,ctx->fb);ui_nav_clock_draw(ctx->fb);
-#if KIIKO_BOARD_METALIO47
-        if(display_pipeline_enabled()) {
-            EpdRect dirty={24,18,156,44};
-            if(s_view==HOME_ROOT&&app_settings_home_component()!=APP_HOME_FOLDER) {
-                date_now(&s_date);ui_home_clock_style_t style=clock_style(app_settings_home_component());
-                clock_draw_region(ctx->fb,(EpdRect){24,640,320,350},&s_date,app_settings_main_fast_refresh(),style,(EpdRect){24,640,320,326},s_widget_phase);
-                dirty=ui_rect_union(dirty,style==UI_HOME_CLOCK_PS1995?(EpdRect){78,684,198,198}:component_clock_graphics());
-            }
-            enum EpdDrawError result=present_clock_area(ctx,dirty);
-            guard_draw_result(ctx->hl,result);if(result==EPD_DRAW_SUCCESS)s_clock_minute=minute;return true;
-        }
-#endif
-        enum EpdDrawError result=update_display_area_diff_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,(EpdRect){24,18,156,44});
-        if(result==EPD_DRAW_SUCCESS&&s_view==HOME_ROOT&&app_settings_home_component()!=APP_HOME_FOLDER) {
-            date_now(&s_date);ui_home_clock_style_t style=clock_style(app_settings_home_component());
-            clock_draw_region(ctx->fb,(EpdRect){24,640,320,350},&s_date,app_settings_main_fast_refresh(),style,(EpdRect){24,640,320,326},s_widget_phase);
-            result=present_clock_area(ctx,style==UI_HOME_CLOCK_PS1995?(EpdRect){78,684,198,198}:component_clock_graphics());
-        }
-        guard_draw_result(ctx->hl,result);if(result==EPD_DRAW_SUCCESS)s_clock_minute=minute;return true;
+        enum EpdDrawError result=present_clock_area(ctx,(EpdRect){24,18,156,44});
+        guard_draw_result(ctx->hl,result);if(result==EPD_DRAW_SUCCESS)s_clock_minute=minute;
+        return true;
     }
     s_clock_pending=s_widget_pending=s_component_pending=false;render(ctx,ctx->fb);enum EpdDrawError result;
     if(redraw==APP_REDRAW_AREA)result=update_display_area_diff_with(ctx->hl,
@@ -864,12 +953,13 @@ static void on_enter(app_ctx_t *ctx) {
     s_component_dirty=(EpdRect){0};
     s_cover_generation=book_cover_jobs_begin();
     const uint32_t progress_revision=book_progress_revision();
-    s_clock_base_attempted=false;clock_base_prepare();
+    s_clock_base_attempted=false;
 #if KIIKO_BOARD_METALIO47
     // Complete previews include font-rendered numerals; discard after returning from font/settings pages.
     ui_home_clock_preview_invalidate();
 #endif
     s_widget_trail.valid=s_time_trail.valid=false;
+    s_utility_notice[0]=0;s_utility_notice_until=0;
     (void)ctx;s_view=HOME_ROOT;s_clock_pending=s_time_pending=s_widget_pending=s_component_pending=false;s_press_pending=false;s_save_error=false;s_time_stamp=s_widget_stamp=-1;s_motion_ms=-100;
     s_home_force_full_once=app_settings_home_full_refresh();refresh_days();avatar_prepare_state();
     read_pico_sd_info_t sd={0};esp_err_t error=read_pico_sd_get_info(&sd);
@@ -905,8 +995,9 @@ static void on_media_lost(app_ctx_t *ctx) {
 }
 static void on_media_ready(app_ctx_t *ctx) {(void)ctx;s_books_cache_valid=false;s_scan_pending=true;avatar_prepare_state();}
 static app_redraw_t on_tick(app_ctx_t *ctx) {
-    clock_base_prepare();
+    if(s_view==HOME_TIME||s_view==HOME_COMPONENT)clock_base_prepare();
     if(ctx->consumed||(ctx->touch&&ctx->touch->touched))return APP_REDRAW_NONE;
+    if(s_view==HOME_ROOT&&utility_notice_expire(ctx->now_ms))return APP_REDRAW_AREA;
     if(s_view==HOME_COMPONENT&&s_component_pending){s_area=s_component_dirty;return APP_REDRAW_AREA;}
     bool folder_preview=s_view==HOME_COMPONENT&&s_component_browse==APP_HOME_FOLDER;
     if(s_view==HOME_ROOT||folder_preview){
@@ -951,6 +1042,16 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
         if(valid)s_date=date;
         s_clock_pending=true;s_area=(EpdRect){24,18,156,44};return APP_REDRAW_AREA;
     }
+    if(s_view==HOME_ROOT) {
+        home_book_t *recent[4];unsigned n=recent_books(recent);
+        for(unsigned i=0;i<n;++i)if(!recent[i]->cover) {
+            home_book_t *book=recent[i];int slot=book==&s_current?0:(int)(book-s_recent)+1;
+            if(load_cover(book,slot)){s_area=recent_cover(i);return APP_REDRAW_AREA;}
+            if(s_cover_waiting)return APP_REDRAW_NONE;
+        }
+        return APP_REDRAW_NONE;
+    }
+    if(s_view==HOME_UTILITIES||s_view==HOME_UTILITY_PICK)return APP_REDRAW_NONE;
     // 只为正在预览的书夹准备封面；切到时钟即停止隐藏文件处理。
     // Prepare covers only for the visible folder preview; switching to a clock stops hidden media work.
     if(s_view==HOME_COMPONENT&&!folder_preview){
@@ -986,6 +1087,12 @@ static EpdRect control(int x,int y) {
     if(s_view==HOME_ROOT) {
         if(featured()->path[0] && hit(continue_card_hit_rect(),x,y))return continue_card_rect();
         if(hit((EpdRect){510,88,60,60},x,y))return(EpdRect){510,88,60,60};
+        if(hit((EpdRect){36,590,612,64},x,y))return(EpdRect){548,598,80,48};
+        if(!utilities_configured()&&hit((EpdRect){150,672,384,88},x,y))return(EpdRect){150,672,384,88};
+        if(utilities_configured())for(unsigned i=0;i<4;++i)if(hit(utility_button(i),x,y))return utility_button(i);
+        home_book_t *recent[4];unsigned count=recent_books(recent);
+        for(unsigned i=0;i<count;++i)if(hit(recent_cover(i),x,y))return recent_cover(i);
+
     }else if(hit((EpdRect){36,78,60,60},x,y))return(EpdRect){0}; // 共享圆圈反馈负责题头返回，避免再叠错位框。/ Shared circle feedback owns header backs; do not add a shifted frame.
     if(s_view==HOME_COMPONENT){
         if(hit((EpdRect){36,472,64,64},x,y))return(EpdRect){36,472,64,64};
@@ -1018,9 +1125,6 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
 #if KIIKO_BOARD_METALIO47
     s_component_warm_after_ms=ctx->now_ms+600;
 #endif
-    if(ev->type==UI_GESTURE_LONG_PRESS&&s_view==HOME_ROOT&&hit((EpdRect){24,640,320,365},ev->x0,ev->y0)) {
-        s_component_browse=app_settings_home_component();s_view=HOME_COMPONENT;s_save_error=false;return APP_REDRAW_PAGE;
-    }
     if(s_view==HOME_COMPONENT&&ev->y0>=250&&ev->y0<970){
         int direction=ev->type==UI_GESTURE_SWIPE_L?1:ev->type==UI_GESTURE_SWIPE_R?-1:0;
         if(ev->type==UI_GESTURE_TAP&&hit((EpdRect){36,472,64,64},ev->x0,ev->y0))direction=-1;
@@ -1047,6 +1151,21 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
     }
     if(ev->type!=UI_GESTURE_TAP) {if(restore){s_area=control_feedback_area(s_pressed);return APP_REDRAW_AREA;}return APP_REDRAW_NONE;}
     int x=ev->x0,y=ev->y0;
+    if(s_view==HOME_UTILITIES||s_view==HOME_UTILITY_PICK) {
+        if(hit((EpdRect){36,78,60,60},x,y)){s_view=s_view==HOME_UTILITY_PICK?HOME_UTILITIES:HOME_ROOT;return APP_REDRAW_PAGE;}
+        if(s_view==HOME_UTILITIES) {
+            for(unsigned i=0;i<4;++i)if(hit((EpdRect){36,248+(int)i*140,612,112},x,y)){s_utility_slot=i;s_utility_page=s_utility_draft[i]/6;s_view=HOME_UTILITY_PICK;return APP_REDRAW_PAGE;}
+            if(hit(utility_labels_button(),x,y)){s_utility_labels_draft=!s_utility_labels_draft;return APP_REDRAW_PAGE;}
+            if(hit(utility_border_button(),x,y)){s_utility_border_draft=!s_utility_border_draft;return APP_REDRAW_PAGE;}
+            if(hit(utility_save_button(),x,y)){s_save_error=app_settings_set_home_utilities_config(s_utility_draft,s_utility_labels_draft,s_utility_border_draft)!=ESP_OK;if(!s_save_error)s_view=HOME_ROOT;return APP_REDRAW_PAGE;}
+        }else {
+            for(unsigned i=0;i<6;++i)if(hit((EpdRect){36,230+(int)i*116,612,98},x,y)&&s_utility_page*6+i<APP_HOME_UTIL_COUNT){s_utility_draft[s_utility_slot]=s_utility_page*6+i;s_view=HOME_UTILITIES;return APP_REDRAW_PAGE;}
+            if(hit((EpdRect){36,960,286,80},x,y)&&s_utility_page){--s_utility_page;return APP_REDRAW_PAGE;}
+            if(hit((EpdRect){362,960,286,80},x,y)&&(s_utility_page+1)*6<APP_HOME_UTIL_COUNT){++s_utility_page;return APP_REDRAW_PAGE;}
+        }
+        return APP_REDRAW_NONE;
+    }
+
     if(s_view!=HOME_ROOT&&hit((EpdRect){36,78,60,60},x,y)) {s_view=HOME_ROOT;s_save_error=false;return APP_REDRAW_PAGE;}
     if(s_view==HOME_COMPONENT) {
         if(hit((EpdRect){36,996,612,76},x,y)) {
@@ -1067,13 +1186,14 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         if(old!=s_goal_draft){s_area=(EpdRect){36,198,612,830};return APP_REDRAW_AREA;}
     }else {
         int tab=ui_nav_hit(x,y);if(tab>=0){ui_nav_request(ctx,tab);return APP_REDRAW_NONE;}
-        if(hit((EpdRect){24,640,320,365},x,y)){
-            if(app_settings_home_component()==APP_HOME_FOLDER){ui_nav_request(ctx,1);return APP_REDRAW_NONE;}
-            s_time_trail.valid=false;s_view=HOME_TIME;s_time_pending=false;s_time_stamp=-1;refresh_days();return APP_REDRAW_PAGE;
+        if(hit((EpdRect){36,590,612,206},x,y)) {
+            if(!utilities_configured()||y<654){utilities_edit();return APP_REDRAW_PAGE;}
+            for(unsigned i=0;i<4;++i)if(hit(utility_button(i),x,y))return utility_run(ctx,app_settings_home_utility(i));
+            return APP_REDRAW_NONE;
         }
-        if(hit((EpdRect){354,640,294,365},x,y)||hit((EpdRect){510,88,60,60},x,y)) {
-            refresh_days();s_goal_draft=app_settings_home_goal_minutes();s_view=HOME_GOAL;s_save_error=false;return APP_REDRAW_PAGE;
-        }
+        home_book_t *recent[4];unsigned count=recent_books(recent);
+        for(unsigned i=0;i<count;++i)if(hit((EpdRect){36+(int)i*160,818,132,262},x,y)&&app_book_request_open_from_home(recent[i]->path)){ui_nav_request(ctx,1);return APP_REDRAW_NONE;}
+        if(hit((EpdRect){510,88,60,60},x,y)){refresh_days();s_goal_draft=app_settings_home_goal_minutes();s_view=HOME_GOAL;s_save_error=false;return APP_REDRAW_PAGE;}
         if(hit(continue_card_hit_rect(),x,y)) {
             home_book_t *b=featured();
             if(b->path[0] && app_book_request_open_from_home(b->path)){
@@ -1095,7 +1215,7 @@ static bool main_page_visible(app_ctx_t *ctx) {(void)ctx;return s_view==HOME_ROO
 static EpdRect area_hint(app_ctx_t *ctx) {(void)ctx;return s_area;}
 static void home_exit(app_ctx_t *ctx){(void)ctx;book_cover_jobs_cancel(s_cover_generation);s_cover_generation=0;}
 const app_desc_t app_dashboard={
-    .title="Trang chủ Home",.detail="Đọc tiếp & Lịch đọc tháng",.enter_full=false,.owns_keys=true,.menu_handle_enabled=no_menu_handle,
+    .title="Trang chủ Home",.detail="Đọc tiếp, Tiện Ích & Giá sách",.enter_full=false,.owns_keys=true,.menu_handle_enabled=no_menu_handle,
     .main_page_visible=main_page_visible,.persistent_navigation=true,.on_enter=on_enter,.on_exit=home_exit,.on_media_lost=on_media_lost,.on_media_ready=on_media_ready,
     .render=render,.present=present,.on_tick=on_tick,.on_gesture=on_gesture,.on_key=on_key,.area_hint=area_hint,
 };

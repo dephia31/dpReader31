@@ -411,6 +411,13 @@ static esp_err_t quick_toggle_wifi(void) {
         return ESP_ERR_NOT_FOUND;
     }
 }
+esp_err_t app_toggle_network(bool bluetooth) {
+    if(!bluetooth)return quick_toggle_wifi();
+    bool enable=!app_settings_ble_turner();app_settings_set_ble_turner(enable);
+    if(app_settings_ble_turner()!=enable)return ESP_FAIL;
+    if(enable)ble_pt_reconnect_recent();else {ble_pt_cancel_recent();ble_pt_sync(false);}
+    return ESP_OK;
+}
 static bool main_page_ready(app_ctx_t* ctx, const app_desc_t* app);
 static bool navigation_page_ready(app_ctx_t* ctx,const app_desc_t* app) {
     return app->persistent_navigation || main_page_ready(ctx,app);

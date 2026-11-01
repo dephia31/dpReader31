@@ -196,3 +196,41 @@ esp_err_t file_tree_move(const char *source, const char *target) {
     if (!S_ISDIR(st.st_mode) && !S_ISREG(st.st_mode)) return ESP_ERR_NOT_SUPPORTED;
     return rename(source, target) ? ESP_FAIL : ESP_OK;
 }
+
+/* Delete direct regular children only. Never recurse into folders or follow links. */
+esp_err_t file_tree_delete_files(const char *directory, file_tree_deleted_cb_t callback,
+                                void *ctx, unsigned *deleted, unsigned *failed) {
+    if (!directory || !*directory || !deleted || !failed) return ESP_ERR_INVALID_ARG;
+    *deleted = *failed = 0;
+    DIR *dir = opendir(directory);
+    if (!dir) return ESP_ERR_NOT_FOUND;
+    char *path = tree_buffer(TREE_PATH_MAX);
+    if (!path) { closedir(dir); return ESP_ERR_NO_MEM; }
+    esp_err_t result = ESP_OK;
+    struct dirent *entry;
+    for (;;) {
+        errno = 0;
+        entry = readdir(dir);
+        if (!entry) { if (errno) result = ESP_FAIL; break; }
+        if (!strcmp(entry->d_name,".") || !strcmp(entry->d_name,"..")) continue;
+        if (snprintf(path,TREE_PATH_MAX,"%s/%s",directory,entry->d_name) >= (int)TREE_PATH_MAX) {
+            ++*failed; result = ESP_FAIL; continue;
+        }
+        struct stat st;
+#ifdef ESP_PLATFORM
+        int status = stat(path,&st); /* SD FAT has no symbolic links. */
+#else
+        int status = lstat(path,&st);
+#endif
+        if (status) { ++*failed; result = ESP_FAIL; continue; }
+        if (!S_ISREG(st.st_mode)) continue;
+        if (unlink(path)) { ++*failed; result = ESP_FAIL; }
+        else { ++*deleted; if (callback) callback(path,false,ctx); }
+#ifdef ESP_PLATFORM
+        vTaskDelay(1);
+#endif
+    }
+    free(path);
+    if (closedir(dir)) result = ESP_FAIL;
+    return result;
+}

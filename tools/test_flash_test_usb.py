@@ -67,6 +67,7 @@ class UsbPackageTest(unittest.TestCase):
         import types
         mac = 'MAC: 1c:29:04:d0:46:64'
         calls = []
+        fail_write = [False]
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             self.fixture(folder)
@@ -78,11 +79,18 @@ class UsbPackageTest(unittest.TestCase):
                     for i, (name, (offset, size)) in enumerate(usb.EXPECTED.items()):
                         struct.pack_into('<HBBII16sI', table, i*32, 0x50aa, *usb.PARTITION_TYPES[name], offset, size, name.encode(), 0)
                     Path(cmd[-1]).write_bytes(table)
+                elif 'read-mac' in cmd:
+                    self.assertEqual(cmd[cmd.index('--before')+1], 'no-reset')
+                    self.assertEqual(cmd[cmd.index('--after')+1], 'watchdog-reset')
+                    self.assertIn('write-flash', calls[-2])
                 else:
                     self.assertIn('write-flash', cmd)
+                    self.assertEqual(cmd[cmd.index('--after')+1], 'no-reset')
                     self.assertEqual(cmd[-4], '0x10000')
                     self.assertEqual(cmd[-2], '0xd000')
                     self.assertEqual(Path(cmd[-1]).read_bytes(), b'\xff' * 8192)
+                    if fail_write[0]:
+                        raise usb.subprocess.CalledProcessError(2,cmd)
                 return types.SimpleNamespace(returncode=0)
             modules = {'esptool': types.SimpleNamespace(__version__='5.6.0'),
                        'serial.tools': types.SimpleNamespace(list_ports=None)}
@@ -91,7 +99,14 @@ class UsbPackageTest(unittest.TestCase):
                     patch.object(usb.subprocess, 'check_output', return_value=mac), \
                     patch.object(usb.subprocess, 'run', side_effect=run):
                 usb.main()
-            self.assertEqual(len(calls), 2)
+                successful=list(calls)
+                calls.clear();fail_write[0]=True
+                with self.assertRaises(usb.subprocess.CalledProcessError):
+                    usb.main()
+                self.assertEqual(len(calls),2)
+                self.assertFalse(any('watchdog-reset' in c for c in calls))
+                calls[:]=successful
+            self.assertEqual(len(calls), 3)
             self.assertFalse((folder/'USB Backups').exists())
 
     def test_invalid_bundle_never_opens_device(self):

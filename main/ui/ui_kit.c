@@ -154,6 +154,24 @@ void ui_draw_icon(
     }
 }
 
+void ui_draw_icon_normalized(uint8_t *fb,int cx,int cy,int size,ui_icon_t icon,uint8_t gray) {
+    if(!fb||size<1||icon<0||icon>=UI_ICON_COUNT)return;
+    int left=UI_ICON_MASK_SIZE,top=UI_ICON_MASK_SIZE,right=-1,bottom=-1;
+    const uint8_t *mask=ui_icon_masks[icon];
+    for(int y=0;y<UI_ICON_MASK_SIZE;++y)for(int x=0;x<UI_ICON_MASK_SIZE;++x)if(icon_nibble(mask,x,y)>0) {
+        if(x<left)left=x;
+        if(x>right)right=x;
+        if(y<top)top=y;
+        if(y>bottom)bottom=y;
+    }
+    if(right<left||bottom<top)return;
+    int width=right-left+1,height=bottom-top+1,extent=width>height?width:height;
+    int scaled=(size*UI_ICON_MASK_SIZE+extent/2)/extent;
+    int x=cx+scaled/2-(left+right+1)*scaled/(2*UI_ICON_MASK_SIZE);
+    int y=cy+scaled/2-(top+bottom+1)*scaled/(2*UI_ICON_MASK_SIZE);
+    ui_draw_icon(fb,x,y,scaled,icon,gray);
+}
+
 EpdRect ui_pager_area_at(int top) { return (EpdRect){36,top,612,50}; }
 EpdRect ui_pager_rect_at(int action,int top) {
     static const int left[]={36,116,480,576},width[]={72,88,88,72};
@@ -1731,4 +1749,30 @@ const ui_sample_line_t ui_sample_lines[] = {
 
 int ui_sample_line_count(void) {
     return (int)(sizeof(ui_sample_lines) / sizeof(ui_sample_lines[0]));
+}
+
+void ui_text_caption(uint8_t *fb,EpdRect box,int px,const char *text,
+                     enum EpdFontFlags align,bool inverted) {
+    if(!text||!text[0]||box.width<=0||box.height<=0)return;
+    int actual=ui_text_effective_px(px);
+    size_t length=strlen(text);
+    if(length>=512||box.height<48||ui_text_fixed_width_px(actual,text)<=box.width) {
+        ui_text_box(fb,box,px,text,align,inverted);return;
+    }
+    char line[512];memcpy(line,text,length+1);
+    size_t split=0;int best=0x7fffffff;
+    bool spaces=strchr(text,' ')!=NULL;
+    for(size_t i=1;i<length;++i) {
+        if(((unsigned char)text[i]&0xc0)==0x80)continue;
+        if(spaces&&text[i]!=' ')continue;
+        char saved=line[i];line[i]=0;
+        int left=ui_text_fixed_width_px(actual,line),right=ui_text_fixed_width_px(actual,text+i+(spaces?1:0));
+        line[i]=saved;int score=left>right?left:right;
+        if(score<best){best=score;split=i;}
+    }
+    if(!split){ui_text_box(fb,box,px,text,align,inverted);return;}
+    line[split]=0;
+    int half=box.height/2;
+    ui_text_box(fb,(EpdRect){box.x,box.y,box.width,half},px,line,align,inverted);
+    ui_text_box(fb,(EpdRect){box.x,box.y+half,box.width,box.height-half},px,text+split+(spaces?1:0),align,inverted);
 }

@@ -193,6 +193,9 @@ void ui_draw_icon(
     uint8_t* framebuffer, int cx, int cy, int size, ui_icon_t icon, uint8_t gray
 );
 
+/// Center visible icon ink and give every icon the same maximum visible dimension.
+void ui_draw_icon_normalized(uint8_t *framebuffer,int cx,int cy,int size,ui_icon_t icon,uint8_t gray);
+
 /// 书架与文件目录共用四向分页栏；矩形止于导航触摸区之上，无圆圈或反馈底框。
 /// Shared shelf/file pager, ending above the navigation touch strip, without circles or backing boxes.
 enum { UI_PAGER_NONE=-1, UI_PAGER_FIRST, UI_PAGER_PREVIOUS, UI_PAGER_NEXT, UI_PAGER_LAST };
@@ -364,3 +367,7 @@ int ui_no_font_hit_test(uint16_t x, uint16_t y);
 #ifdef __cplusplus
 }
 #endif
+
+/// Bounded captions use up to two balanced lines; both retain the entire text.
+void ui_text_caption(uint8_t *fb,EpdRect box,int px,const char *text,
+                     enum EpdFontFlags align,bool inverted);

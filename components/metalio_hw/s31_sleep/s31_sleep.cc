@@ -185,6 +185,11 @@ extern "C" void metalio_sleep_report_reset(void) {
 }
 
 extern "C" void metalio_sleep_trace_phase(metalio_sleep_trace_phase_t phase) {
+    if (phase >= METALIO_SLEEP_TRACE_P14_BEFORE && phase <= METALIO_SLEEP_TRACE_P5_AFTER) {
+        // Preserve the rail transaction timing: no serial output between rail writes.
+        s_sleep_trace.phase = static_cast<uint32_t>(phase);
+        return;
+    }
     s31_sleep::Checkpoint(static_cast<s31_sleep::Phase>(phase), 0);
 }
 

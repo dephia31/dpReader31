@@ -21,6 +21,10 @@ typedef struct {uint64_t pin_bit_mask;int mode,pull_up_en,pull_down_en,intr_type
 static uint64_t touched,latched,revoked;
 static int bad_pin=-1,bad_hold=-1,io_calls,bad_io,io_pins[4];
 static uint8_t outputs[2]={0x20,0x14};
+enum {METALIO_SLEEP_TRACE_P14_BEFORE=15,METALIO_SLEEP_TRACE_P14_AFTER=16,
+ METALIO_SLEEP_TRACE_P5_BEFORE=17,METALIO_SLEEP_TRACE_P5_AFTER=18};
+static unsigned trace_count,trace_phases[4],trace_io[4];
+static void metalio_sleep_trace_phase(unsigned p){assert(trace_count<4);trace_phases[trace_count]=p;trace_io[trace_count++]=io_calls;}
 static int gpio_hold_dis(int p){touched|=1ULL<<p;latched&=~(1ULL<<p);return 0;}
 static int gpio_hold_en(int p){latched|=1ULL<<p;return p==bad_hold?-1:0;}
 static void esp_gpio_revoke(uint64_t mask){revoked|=mask;}
@@ -52,7 +56,11 @@ int main(void){
   uint16_t saved;io_calls=0;bad_io=fail;outputs[0]=0x20;outputs[1]=0x14;
   int cut=metalio_sleep_cut_rails(&saved);assert(saved==0x1420);
   if(cut){bad_io=0;io_calls=0;}else assert(io_calls==2&&io_pins[0]==5&&io_pins[1]==12);
+  trace_count=0;unsigned before=io_calls;
   (void)metalio_sleep_restore_rails(saved);
+  assert(trace_count==4);
+  for(unsigned n=0;n<4;++n)assert(trace_phases[n]==15+n);
+  assert(trace_io[0]==before&&trace_io[1]==before+1&&trace_io[2]==before+1&&trace_io[3]==before+2);
   assert(outputs[0]==0x20&&outputs[1]==0x14);
   assert(io_pins[io_calls-2]==12&&io_pins[io_calls-1]==5);
  }

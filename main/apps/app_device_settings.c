@@ -108,6 +108,8 @@ static ui_online_fonts_t s_online_fonts;
 #endif
 
 static void fit_value(char *value, int width);
+static void settings_line(uint8_t*,int,int,int,const char*,enum EpdFontFlags,bool);
+static void settings_center_line(uint8_t*,int,int,int,const char*,enum EpdFontFlags,bool);
 static void settings_card(uint8_t *fb, EpdRect rect, int radius, uint8_t fill, uint8_t edge);
 static char s_notice[96];
 static char s_kosync_notice[96];
@@ -287,7 +289,7 @@ static void draw_upgrade_percent(uint8_t *fb) {
     EpdRect number = {496, 472, 132, 42};
     ui_fill_rect_fast(number, UI_GRAY_WHITE, fb);
     char progress[32]; snprintf(progress, sizeof(progress), "%lu%%", (unsigned long)percent);
-    ui_text_fixed(fb, 624, 477, 26, progress, EPD_DRAW_ALIGN_RIGHT, false);
+    ui_text_box(fb,number,26,progress,EPD_DRAW_ALIGN_RIGHT,false);
     ui_image_bw_rect(fb, number);
 }
 static void draw_upgrade_progress(uint8_t *fb) {
@@ -360,7 +362,7 @@ static void draw_upgrade_notes(uint8_t *fb) {
     const char *cursor = s_update.release.notes;
     char line[sizeof(s_update.release.notes)];
     if (!*cursor) {
-        ui_text_fixed(fb, 60, 530, 26, "Không có ghi chú phát hành cho bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
+        settings_line(fb, 60, 530, 26, "Không có ghi chú phát hành cho bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
         return;
     }
     for (int row = 0; row < 6 && upgrade_note_line(&cursor, line, sizeof(line)); ++row) {
@@ -372,11 +374,11 @@ static void draw_upgrade_notes(uint8_t *fb) {
             }
             memcpy(line + used, "…", 4);
         }
-        ui_text_fixed(fb, 60, 530 + row * 38, 26, line, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_box(fb,(EpdRect){60,530+row*38,564,36},26,line,EPD_DRAW_ALIGN_LEFT,false);
     }
 }
 static EpdRect upgrade_confirm_button(bool online, bool accept) {
-    return (EpdRect){accept ? 364 : 60, online ? 842 : 613, 260, 64};
+    return (EpdRect){60,online?(accept?958:858):(accept?730:630),564,80};
 }
 #if KIIKO_BOARD_METALIO47
 // 中文：本地TF升级与显示同属UI任务；先归还缓存并关面板轨，再擦写应用槽。
@@ -527,20 +529,20 @@ static EpdRect system_font_sync_button(bool sync) { return (EpdRect){sync ? 351 
 static void draw_system_font_sync(uint8_t *fb) {
     // 仅一个有界弹窗，不额外打开阅读字体。/ One bounded dialog; never load the reading face here.
     settings_card(fb,(EpdRect){48,389,588,401},28,UI_GRAY_WHITE,0x58);
-    ui_text_fixed_vc(fb,342,448,32,"Đồng bộ làm phông đọc sách?",EPD_DRAW_ALIGN_CENTER,false);
+    settings_center_line(fb,342,448,32,"Đồng bộ làm phông đọc sách?",EPD_DRAW_ALIGN_CENTER,false);
     char name[80]; snprintf(name,sizeof(name),"Đã chọn '%s'",system_font_label(s_font_sync_path));
     while (ui_text_fixed_width_px(27,name) > 520 && strlen(name) > 6) {
         size_t n = strlen(name) - 1;
         while (n && ((unsigned char)name[n] & 0xc0) == 0x80) --n;
         name[n] = 0;
     }
-    ui_text_fixed_vc(fb,342,516,27,name,EPD_DRAW_ALIGN_CENTER,false);
-    ui_text_fixed_vc(fb,342,570,24,"Bạn có muốn dùng phông chữ này cho cả nội dung đọc sách không?",EPD_DRAW_ALIGN_CENTER,false);
-    ui_text_fixed_vc(fb,342,614,23,s_notice[0]?s_notice:"Nếu không đồng bộ, phông chữ đọc sách hiện tại sẽ giữ nguyên.",EPD_DRAW_ALIGN_CENTER,false);
+    settings_center_line(fb,342,516,27,name,EPD_DRAW_ALIGN_CENTER,false);
+    settings_center_line(fb,342,570,24,"Bạn có muốn dùng phông chữ này cho cả nội dung đọc sách không?",EPD_DRAW_ALIGN_CENTER,false);
+    settings_center_line(fb,342,614,23,s_notice[0]?s_notice:"Nếu không đồng bộ, phông chữ đọc sách hiện tại sẽ giữ nguyên.",EPD_DRAW_ALIGN_CENTER,false);
     for (int i=0;i<2;++i) {
         EpdRect r=system_font_sync_button(i);
         settings_card(fb,r,20,i ? UI_GRAY_BLACK : UI_GRAY_WHITE,0x58);
-        ui_text_fixed_vc(fb,r.x+r.width/2,r.y+r.height/2,25,i ? "Đồng bộ phông đọc sách" : "Chỉ phông hệ thống",EPD_DRAW_ALIGN_CENTER,i);
+        settings_center_line(fb,r.x+r.width/2,r.y+r.height/2,25,i ? "Đồng bộ phông đọc sách" : "Chỉ phông hệ thống",EPD_DRAW_ALIGN_CENTER,i);
     }
 }
 static int s_year, s_month, s_day, s_hour, s_minute;
@@ -872,6 +874,12 @@ static void controls_row(uint8_t *fb,int y,const char *label,const char *value) 
     ui_text_box(fb,(EpdRect){54,y+42,532,30},20,value,EPD_DRAW_ALIGN_LEFT,false);
     ui_draw_icon(fb,625,y+40,24,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
 }
+#if KIIKO_BOARD_METALIO47
+static EpdRect frontlight_row_rect(int index) {
+    static const int tops[]={264,382,500,702};
+    return (EpdRect){36,tops[index],612,80};
+}
+#endif
 static void draw_controls_choices(uint8_t *fb) {
     epd_fill_rect((EpdRect){0,0,684,1088},UI_GRAY_WHITE,fb);
     back_header(fb,"Chọn tác vụ");
@@ -1197,23 +1205,56 @@ static char s_avatar_path[288];
 static bool s_avatar_ready, s_avatar_pending;
 static char s_main_wifi[33];
 static bool s_main_wifi_saved;
+static void settings_log_preview(uint8_t *fb,const char *text) {
+    int px=19,physical=ui_text_effective_px(px),height=physical+8;
+    if(height<32)height=32;
+    if(height>64)height=64;
+    int rows=210/height;
+    const char *cursor=text;
+    for(int row=0;row<rows&&*cursor;++row) {
+        char line[512];size_t used=0;
+        while(*cursor&&*cursor!='\n'&&*cursor!='\r') {
+            unsigned char lead=(unsigned char)*cursor;
+            size_t bytes=lead<0x80?1:lead<0xe0?2:lead<0xf0?3:4;
+            if(bytes>strlen(cursor)||used+bytes>=sizeof(line))break;
+            memcpy(line+used,cursor,bytes);line[used+bytes]=0;
+            if(used&&ui_text_fixed_width_px(physical,line)>580)break;
+            used+=bytes;cursor+=bytes;
+        }
+        line[used]=0;
+        while(*cursor=='\n'||*cursor=='\r')++cursor;
+        if(row==rows-1&&*cursor) {
+            while(used&&ui_text_fixed_width_px(physical,line)>540) {
+                do{--used;}while(used&&((unsigned char)line[used]&0xc0)==0x80);
+                line[used]=0;
+            }
+            memcpy(line+used,"…",4);
+        }
+        ui_text_box(fb,(EpdRect){52,630+row*height,580,height},px,line,EPD_DRAW_ALIGN_LEFT,false);
+    }
+}
 static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #if KIIKO_BOARD_METALIO47
     if(s_page==SETTINGS_ONLINE_FONTS){ui_online_fonts_draw(&s_online_fonts,fb);return;}
     if(s_page==SETTINGS_FRONTLIGHT) {
-        epd_fill_rect((EpdRect){0,0,684,1216},UI_GRAY_WHITE,fb); back_header(fb,"Đèn nền & Rung");
-        char value[48]; snprintf(value,sizeof(value),"%u%%",metalio_brightness());
-        row(fb,300,"Độ sáng",value); row(fb,390,"Chạm để chọn độ sáng","");
-        snprintf(value,sizeof(value),"%u%%",metalio_warmth()); row(fb,530,"Tỷ lệ ánh sáng ấm",value);
-        row(fb,620,"Chạm để chọn độ ấm",""); row(fb,750,"Đèn nền",metalio_frontlight_enabled()?"Bật":"Tắt");
-        row(fb,850,"Rung phản hồi chạm",metalio_haptic_enabled()?"Bật":"Tắt");
-        settings_navigation(fb); return;
+        ui_clear_page(fb);ui_nav_status(fb);back_header(fb,"Đèn nền & Rung");
+        section(fb,204,"Đèn nền");
+        char value[32];snprintf(value,sizeof(value),"%u%%",metalio_brightness());
+        controls_row(fb,frontlight_row_rect(0).y,"Độ sáng",value);
+        snprintf(value,sizeof(value),"%u%%",metalio_warmth());
+        controls_row(fb,frontlight_row_rect(1).y,"Ánh sáng ấm",value);
+        controls_row(fb,frontlight_row_rect(2).y,"Bật đèn nền",metalio_frontlight_enabled()?"Bật":"Tắt");
+        section(fb,642,"Phản hồi");
+        controls_row(fb,frontlight_row_rect(3).y,"Rung khi chạm",metalio_haptic_enabled()?"Bật":"Tắt");
+        ui_text_caption(fb,(EpdRect){54,844,576,128},22,
+            "Chạm từng mục để thay đổi. Độ sáng và ánh sáng ấm được lưu riêng.",EPD_DRAW_ALIGN_LEFT,false);
+        settings_navigation(fb);return;
     }
     if(s_page==SETTINGS_ACTION_MENU) {
         ui_clear_page(fb);
         ui_nav_status(fb);
         back_header(fb,"Menu thao tác nhanh");
-        ui_text_box(fb,(EpdRect){48,180,588,60},21,"Chọn các tác vụ muốn hiện. Gán mở menu trong Phím cứng & Cử chỉ.",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_caption(fb,(EpdRect){48,176,588,72},21,"Chọn các tác vụ muốn hiện. Gán mở menu trong Phím cứng & Cử chỉ.",EPD_DRAW_ALIGN_LEFT,false);
         uint32_t mask=app_settings_action_menu();int row=0;
         for(int action=0;action<APP_AI_ACTION_COUNT;++action)if(APP_ACTION_MENU_ALLOWED&(1u<<action)) {
             EpdRect r={36,258+row++*72,612,64};bool enabled=(mask&(1u<<action))!=0;
@@ -1236,7 +1277,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             controls_row(fb,250,"Nhấn ngắn",short_label);
             uint8_t held=app_settings_control_hold(key);
             controls_row(fb,390,"Nhấn giữ",held==APP_CONTROL_HOLD_DEFAULT?"Mặc định hệ thống":reader_key_action_label(held));
-            ui_text_box(fb,(EpdRect){54,550,576,120},20,
+            ui_text_caption(fb,(EpdRect){54,550,576,120},20,
                 "Giữ 500 ms; nút nguồn 700 ms. Phím mặt trước áp dụng khi đọc sách. Giữ không chạy thêm nhấn ngắn.",EPD_DRAW_ALIGN_LEFT,false);
         } else {
             for(int i=0;i<7;++i) {
@@ -1281,9 +1322,9 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #if KIIKO_BOARD_METALIO47
     if (s_page == SETTINGS_SD_RECOVERY) {
         back_header(fb,"Khôi phục thẻ nhớ");
-        ui_text_fixed(fb,54,270,26,"Quét lại thẻ nhớ và danh sách phông chữ",EPD_DRAW_ALIGN_LEFT,false);
-        ui_text_fixed(fb,54,325,23,"Thử hạ xung nhịp và chế độ 1-bit để tăng tương thích thẻ nhớ",EPD_DRAW_ALIGN_LEFT,false);
-        ui_text_fixed(fb,54,380,23,"Không định dạng thẻ, không xóa sách và cài đặt",EPD_DRAW_ALIGN_LEFT,false);
+        settings_line(fb,54,270,26,"Quét lại thẻ nhớ và danh sách phông chữ",EPD_DRAW_ALIGN_LEFT,false);
+        settings_line(fb,54,325,23,"Thử hạ xung nhịp và chế độ 1-bit để tăng tương thích thẻ nhớ",EPD_DRAW_ALIGN_LEFT,false);
+        settings_line(fb,54,380,23,"Không định dạng thẻ, không xóa sách và cài đặt",EPD_DRAW_ALIGN_LEFT,false);
         app_sd_recovery_status_t status=app_sd_recovery_status();
         const char *message="Dùng khi thẻ nhớ chưa nhận hoặc chưa hiện phông chữ mới";
         switch(status.phase) {
@@ -1295,15 +1336,15 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             case APP_SD_RECOVERY_FAILED: message="Khôi phục chưa hoàn tất, hãy thử lại sau";break;
             default: break;
         }
-        ui_text_fixed(fb,54,510,25,message,EPD_DRAW_ALIGN_LEFT,false);
+        settings_line(fb,54,510,25,message,EPD_DRAW_ALIGN_LEFT,false);
         if(status.phase==APP_SD_RECOVERY_DONE) {
             char fonts[64];snprintf(fonts,sizeof(fonts),"Đã nhận diện %d phông chữ ngoài",status.fonts);
-            ui_text_fixed(fb,54,575,24,fonts,EPD_DRAW_ALIGN_LEFT,false);
+            settings_line(fb,54,575,24,fonts,EPD_DRAW_ALIGN_LEFT,false);
             if(!status.selected_font_ready)
-                ui_text_fixed(fb,54,635,22,"Không tải được phông đã chọn, vui lòng chọn lại",EPD_DRAW_ALIGN_LEFT,false);
+                settings_line(fb,54,635,22,"Không tải được phông đã chọn, vui lòng chọn lại",EPD_DRAW_ALIGN_LEFT,false);
         } else if(status.phase==APP_SD_RECOVERY_FAILED) {
-            ui_text_fixed(fb,54,575,21,esp_err_to_name(status.error),EPD_DRAW_ALIGN_LEFT,false);
-            ui_text_fixed(fb,54,635,22,"Hãy kiểm tra xem thẻ nhớ đã lắp chặt chưa hoặc thử thẻ khác",EPD_DRAW_ALIGN_LEFT,false);
+            settings_line(fb,54,575,21,esp_err_to_name(status.error),EPD_DRAW_ALIGN_LEFT,false);
+            settings_line(fb,54,635,22,"Hãy kiểm tra xem thẻ nhớ đã lắp chặt chưa hoặc thử thẻ khác",EPD_DRAW_ALIGN_LEFT,false);
         }
         if(s_sd_notice[0])ui_text_box(fb,(EpdRect){54,710,576,110},22,s_sd_notice,EPD_DRAW_ALIGN_LEFT,false);
         ui_draw_button(fb,sd_recovery_button(),app_sd_recovery_busy()?"Đang khôi phục…":"Bắt đầu khôi phục",false);
@@ -1400,7 +1441,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         ui_text_box(fb,(EpdRect){542,79,106,70},24,"Xong",EPD_DRAW_ALIGN_RIGHT,false);
         settings_line(fb, 36, 201, 21, desc, EPD_DRAW_ALIGN_LEFT, false);
         ui_text_input_draw(fb, &s_editor_input, (EpdRect){36, 243, 612, 82}, 28, false, NULL);
-        if (s_editor_notice[0]) ui_text_fixed_vc(fb, 36, 510, 22, s_editor_notice, EPD_DRAW_ALIGN_LEFT, false);
+        if (s_editor_notice[0]) settings_center_line(fb, 36, 510, 22, s_editor_notice, EPD_DRAW_ALIGN_LEFT, false);
         ui_keyboard_draw(fb, UI_SYSTEM_KEYBOARD_TOP);
         settings_navigation(fb);
         return;
@@ -1574,8 +1615,8 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         if(s_notice[0])ui_text_box(fb,(EpdRect){190,settings_viewport_end()-66,304,48},18,s_notice,EPD_DRAW_ALIGN_CENTER,false);
         else settings_center_line(fb,342,settings_viewport_end()-42,20,pages,EPD_DRAW_ALIGN_CENTER,false);
 #else
-        ui_text_fixed_vc(fb,648,settings_viewport_end()-16,18,pages,EPD_DRAW_ALIGN_RIGHT,false);
-        if (s_notice[0]) ui_text_fixed_vc(fb,42,settings_viewport_end()-16,18,s_notice,EPD_DRAW_ALIGN_LEFT,false);
+        settings_center_line(fb,648,settings_viewport_end()-16,18,pages,EPD_DRAW_ALIGN_RIGHT,false);
+        if (s_notice[0]) settings_center_line(fb,42,settings_viewport_end()-16,18,s_notice,EPD_DRAW_ALIGN_LEFT,false);
 #endif
         settings_navigation(fb);
         if (s_font_sync_confirm) draw_system_font_sync(fb);
@@ -1848,7 +1889,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             if(active)epd_fill_circle(609,box.y+66,8,UI_GRAY_BLACK,fb);
         }
         if(hours) {
-            ui_text_fixed_vc(fb,36,650,26,"Tự tắt nguồn sau khi khóa (1–24 giờ)",EPD_DRAW_ALIGN_LEFT,false);
+            settings_center_line(fb,36,650,26,"Tự tắt nguồn sau khi khóa (1–24 giờ)",EPD_DRAW_ALIGN_LEFT,false);
             char duration[48];snprintf(duration,sizeof(duration),"%u giờ",hours);
             settings_card(fb,(EpdRect){36,690,612,72},18,UI_GRAY_WHITE,0x70);
             ui_text_box(fb,(EpdRect){54,698,576,56},27,duration,EPD_DRAW_ALIGN_CENTER,false);
@@ -1909,16 +1950,16 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_line(fb, 60, 224, 22, "Phiên bản hiện tại", EPD_DRAW_ALIGN_LEFT, false);
         settings_line(fb, 60, 264, 29, esp_app_get_description()->version, EPD_DRAW_ALIGN_LEFT, false);
         if (s_upgrade_confirm) {
-            settings_card(fb, (EpdRect){36, 356, 612, s_upgrade_online ? 574 : 344}, 22, UI_GRAY_WHITE, 0x70);
-            ui_text_fixed(fb, 60, 383, 31, s_upgrade_online ? "Có phiên bản mới" : "Xác nhận cập nhật thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
-            ui_text_fixed(fb, 60, 447, 28, s_upgrade_online ? s_update.release.version : s_local_update.candidate_version,
+            settings_card(fb, (EpdRect){36, 356, 612, s_upgrade_online ? 708 : 480}, 22, UI_GRAY_WHITE, 0x70);
+            settings_line(fb, 60, 383, 31, s_upgrade_online ? "Có phiên bản mới" : "Xác nhận cập nhật thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
+            settings_line(fb, 60, 447, 28, s_upgrade_online ? s_update.release.version : s_local_update.candidate_version,
                     EPD_DRAW_ALIGN_LEFT, false);
             if (s_upgrade_online) {
-                ui_text_fixed(fb, 60, 494, 26, "Bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
+                settings_line(fb, 60, 494, 26, "Bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
                 draw_upgrade_notes(fb);
             }
-            ui_text_fixed(fb, 60, s_upgrade_online ? 770 : 513, 24, "Vui lòng giữ nguồn điện ổn định trong suốt quá trình cập nhật", EPD_DRAW_ALIGN_LEFT, false);
-            ui_text_fixed(fb, 60, s_upgrade_online ? 806 : 560, 23, "Giữ nguyên cài đặt, lịch sử đọc và tệp trên thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_caption(fb,(EpdRect){60,s_upgrade_online?766:512,564,80},22,
+                "Giữ nguồn điện ổn định. Cài đặt, lịch sử đọc và tệp trên thẻ nhớ được giữ nguyên.",EPD_DRAW_ALIGN_LEFT,false);
             ui_draw_button(fb, upgrade_confirm_button(s_upgrade_online, false), s_upgrade_online ? "Để sau" : "Hủy", false);
             ui_draw_button(fb, upgrade_confirm_button(s_upgrade_online, true), s_upgrade_online ? "Bắt đầu cập nhật" : "Xác nhận cập nhật", true);
         } else {
@@ -1930,8 +1971,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #else
             snprintf(detail, sizeof(detail), "%s", s_update.message[0] ? s_update.message : "Kết nối WiFi để kiểm tra bản cập nhật firmware mới");
 #endif
-            fit_value(detail, 540);
-            settings_line(fb, 60, 436, 21, detail, EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_caption(fb,(EpdRect){60,424,564,52},21,detail,EPD_DRAW_ALIGN_LEFT,false);
             if (s_update.state == PICO_UPDATE_AVAILABLE)
                 settings_line(fb, 60, 477, 24, s_update.release.version, EPD_DRAW_ALIGN_LEFT, false);
             if (s_update.state == PICO_UPDATE_DOWNLOADING) draw_upgrade_progress(fb);
@@ -1958,32 +1998,31 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         section(fb, 248, "Nhanh chóng khôi phục cài đặt sau khi nạp lại firmware");
         settings_card(fb, (EpdRect){36, 299, 612, 197}, 22, UI_GRAY_WHITE, 0x70);
         settings_line(fb, 60, 326, 26, "Thư mục gốc thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
-        settings_line(fb, 60, 377, 23, "Tệp sao lưu cấu hình", EPD_DRAW_ALIGN_LEFT, false);
-        settings_line(fb, 60, 435, 19, "Bố cục trang, hồ sơ máy, lịch sử đọc và dấu trang", EPD_DRAW_ALIGN_LEFT, false);
+        settings_line(fb, 60, 377, 23, "Cấu hình hệ thống và trình đọc sách", EPD_DRAW_ALIGN_LEFT, false);
         ui_draw_button(fb, (EpdRect){36, 561, 612, 83}, "Sao lưu cấu hình hiện tại ra thẻ nhớ", false);
         ui_draw_button(fb, (EpdRect){36, 681, 612, 83},
                        s_config_confirm ? "Chạm lần nữa để xác nhận khôi phục cấu hình" : "Khôi phục cấu hình từ thẻ nhớ", false);
         if (s_notice[0]) settings_line(fb, 48, 819, 21, s_notice, EPD_DRAW_ALIGN_LEFT, false);
-        settings_line(fb, 48, 899, 19, "Bao gồm lịch sử đọc, hồ sơ máy, WiFi và đồng bộ KOSync/OPDS.", EPD_DRAW_ALIGN_LEFT, false);
-        settings_line(fb, 48, 939, 19, "Sách, phông chữ và hình ảnh vẫn lưu trên thẻ nhớ.", EPD_DRAW_ALIGN_LEFT, false);
-        settings_line(fb, 48, 979, 19, "Bản sao lưu có chứa mật khẩu WiFi, hãy bảo quản thẻ nhớ cẩn thận.", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_caption(fb,(EpdRect){48,864,588,64},21,"Gồm thiết lập đọc sách, lịch sử đọc, hồ sơ máy, WiFi và KOSync/OPDS.",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_caption(fb,(EpdRect){48,938,588,54},21,"Sách, phông chữ và hình ảnh vẫn lưu trên thẻ nhớ.",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_caption(fb,(EpdRect){48,1002,588,76},21,"Bản sao lưu có chứa mật khẩu WiFi, hãy bảo quản thẻ nhớ cẩn thận.",EPD_DRAW_ALIGN_LEFT,false);
         settings_navigation(fb);
         return;
     }
     if (s_page == SETTINGS_LOG_EXPORT) {
         back_header(fb, "Nhật ký & Chẩn đoán lỗi");
         section(fb, 248, "Thông tin hệ thống và xuất log để kiểm tra lỗi");
-        EpdRect info_card = {36, 298, 612, 216};
+        EpdRect info_card = {36, 278, 612, 322};
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.4-vn", "ESP32-S31");
-        settings_line(fb, 56, 324, 22, v_line, EPD_DRAW_ALIGN_LEFT, false);
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.5-vn", "ESP32-S31");
+        ui_text_caption(fb,(EpdRect){56,294,572,54},22,v_line,EPD_DRAW_ALIGN_LEFT,false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
-        settings_line(fb, 56, 360, 20, heap_line, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_caption(fb,(EpdRect){56,350,572,54},20,heap_line,EPD_DRAW_ALIGN_LEFT,false);
         const pmu_snapshot_t *pmu = read_pico_pmu_get();
         char bat_line[80];
         if (pmu) {
@@ -1993,27 +2032,27 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         } else {
             snprintf(bat_line, sizeof(bat_line), "Pin: Đang đo...");
         }
-        settings_line(fb, 56, 396, 20, bat_line, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_caption(fb,(EpdRect){56,406,572,54},20,bat_line,EPD_DRAW_ALIGN_LEFT,false);
         read_pico_sd_info_t sd = {0};
         read_pico_sd_get_info(&sd);
         char sd_line[80];
         snprintf(sd_line, sizeof(sd_line), "Thẻ nhớ SD: %s", sd.mounted ? "Đã nhận (Sẵn sàng xuất log)" : "Chưa cắm / Không nhận");
-        settings_line(fb, 56, 432, 20, sd_line, EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_caption(fb,(EpdRect){56,462,572,54},20,sd_line,EPD_DRAW_ALIGN_LEFT,false);
         char ble_line[80];
         snprintf(ble_line, sizeof(ble_line), "Bluetooth: %s", ble_pt_connected() ? ble_pt_connected_name() : (ble_pt_running() ? "Bật (Chưa kết nối)" : "Tắt"));
-        settings_line(fb, 56, 468, 20, ble_line, EPD_DRAW_ALIGN_LEFT, false);
-        EpdRect log_box = {36, 532, 612, 250};
+        ui_text_caption(fb,(EpdRect){56,518,572,54},20,ble_line,EPD_DRAW_ALIGN_LEFT,false);
+        EpdRect log_box = {36, 620, 612, 230};
         settings_card(fb, log_box, 18, 0xf0, 0x50);
         char preview[512] = {0};
         log_export_get_recent(preview, sizeof(preview));
         if (!preview[0]) {
             snprintf(preview, sizeof(preview), "Nhật ký hệ thống trống hoặc chưa có bản ghi mới.\nBấm nút bên dưới để xuất toàn bộ log ra thẻ nhớ.");
         }
-        ui_text_box(fb, (EpdRect){48, 544, 588, 226}, 16, preview, EPD_DRAW_ALIGN_LEFT, false);
-        ui_draw_button(fb, (EpdRect){36, 804, 612, 80}, "Xuất log ra thẻ nhớ (/sdcard/dpreader_log.txt)", false);
-        ui_draw_button(fb, (EpdRect){36, 902, 612, 80}, "Xóa nhật ký lưu tạm", false);
+        settings_log_preview(fb,preview);
+        ui_draw_button(fb,(EpdRect){36,870,612,80},"Xuất log ra thẻ nhớ",false);
+        ui_draw_button(fb,(EpdRect){36,968,612,80},"Xóa nhật ký lưu tạm",false);
         if (s_notice[0]) {
-            settings_line(fb, 48, 1010, 20, s_notice, EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb,(EpdRect){48,1052,588,32},20,s_notice,EPD_DRAW_ALIGN_LEFT,false);
         }
         settings_navigation(fb);
         return;
@@ -2142,7 +2181,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #endif
         if (!avatar_ok) {
             ui_fill_round_rect(fb,(EpdRect){57,avatar_y,82,82},20,0x30);
-            ui_text_fixed_vc(fb,98,avatar_y+41,49,"K",EPD_DRAW_ALIGN_CENTER,true);
+            settings_center_line(fb,98,avatar_y+41,49,"K",EPD_DRAW_ALIGN_CENTER,true);
         }
         char name[64];snprintf(name,sizeof(name),"%s",app_settings_device_name());
         int width=588-ui_text_fixed_width_px(ui_text_effective_px(20),"Sửa")-188;
@@ -2271,6 +2310,8 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #endif
 }
 
+static bool s_request_ota;
+void app_device_settings_request_ota(void){s_request_ota=true;}
 #if KIIKO_BOARD_METALIO47
 static bool s_lock_style_return;
 void app_device_settings_resume_lock_style(void) { s_lock_style_return=true; }
@@ -2377,6 +2418,7 @@ static void on_enter(app_ctx_t *ctx) {
     pin_setup_close();
     s_notice[0] = 0;
     s_ble_feedback[0] = 0;
+    bool ota_requested=s_request_ota;s_request_ota=false;
     s_page = SETTINGS_MAIN;
     s_settings_group=-1; s_settings_root_scroll=0;
     s_style_scroll = s_main_scroll = s_font_page = s_wallpaper_page = 0;
@@ -2393,6 +2435,7 @@ static void on_enter(app_ctx_t *ctx) {
     s_upgrade_offer_pending = s_upgrade_confirm = false;
     (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved);
     settings_prepare_profile();
+    if(ota_requested)upgrade_open();
 #if KIIKO_BOARD_METALIO47
     if(settings_take_lock_style_return()){s_page=SETTINGS_LOCK_STYLE;s_settings_group=2;}
 #endif
@@ -2985,11 +3028,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     int y = ev->y0;
 #if KIIKO_BOARD_METALIO47
     if(s_page==SETTINGS_FRONTLIGHT) {
-        if(y<190) { s_page=SETTINGS_MAIN; return APP_REDRAW_PAGE; }
-        if(y>=300&&y<458){settings_choice_open(SET_PICK_BRIGHTNESS);return APP_REDRAW_PAGE;}
-        if(y>=530&&y<688){settings_choice_open(SET_PICK_WARMTH);return APP_REDRAW_PAGE;}
-        if(y>=750&&y<818){metalio_frontlight_toggle();return APP_REDRAW_PAGE;}
-        if(y>=850&&y<918){metalio_haptic_set_enabled(!metalio_haptic_enabled());return APP_REDRAW_PAGE;}
+        if(y<190) {s_page=SETTINGS_MAIN;return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(frontlight_row_rect(0),ev->x0,y)){settings_choice_open(SET_PICK_BRIGHTNESS);return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(frontlight_row_rect(1),ev->x0,y)){settings_choice_open(SET_PICK_WARMTH);return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(frontlight_row_rect(2),ev->x0,y)){metalio_frontlight_toggle();return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(frontlight_row_rect(3),ev->x0,y)){metalio_haptic_set_enabled(!metalio_haptic_enabled());return APP_REDRAW_PAGE;}
         return APP_REDRAW_NONE;
     }
     if(s_page==SETTINGS_ACTION_MENU) {
@@ -3347,6 +3390,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
 #endif
     if (s_page == SETTINGS_CONFIG) {
+
         if (y >= 561 && y < 644) {
             s_config_confirm = false;
             esp_err_t err = app_settings_backup_save();
@@ -3389,7 +3433,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
     if (s_page == SETTINGS_LOG_EXPORT) {
         if (ev->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
-        if (y >= 804 && y < 884) {
+        if (y >= 870 && y < 950) {
             char err[96] = {0};
             char path[64] = {0};
             esp_err_t err_code = log_export_to_sd(path, sizeof(path), err, sizeof(err));
@@ -3400,7 +3444,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             }
             return APP_REDRAW_PAGE;
         }
-        if (y >= 902 && y < 982) {
+        if (y >= 968 && y < 1048) {
             log_export_clear();
             rp_crash_log_clear();
             snprintf(s_notice, sizeof(s_notice), "Đã xóa sạch nhật ký tạm thời");

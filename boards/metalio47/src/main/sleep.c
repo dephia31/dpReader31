@@ -537,8 +537,8 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
             err=esp_sleep_enable_timer_wakeup(lock_light_sleep_slice_us(wake_by));
             if(err!=ESP_OK) break;
         }
-        ESP_LOGI(TAG,"S31 light wake: maintenance=%u ext1=%u power_confirmed=%u result=%s",
-            maintenance,(unsigned)key_irq,(unsigned)power_confirmed,esp_err_to_name(err));
+        ESP_LOGI(TAG,"S31 light wake: maintenance=%u ext1=%u power_confirmed=%u usb=%u result=%s",
+            maintenance,(unsigned)key_irq,(unsigned)power_confirmed,(unsigned)metalio_usb_blocks_sleep(),esp_err_to_name(err));
     }
     metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_RELEASE_PINS);
     if(pins_prepared) metalio_release_light_sleep_pins();

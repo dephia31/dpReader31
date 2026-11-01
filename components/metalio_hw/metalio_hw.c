@@ -3,6 +3,7 @@
  * English: Use one new I2C bus for S31 peripherals and shut TPS down on errors.
  */
 #include "metalio_hw.h"
+#include "metalio_sleep.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "esp_log.h"
@@ -659,8 +660,13 @@ esp_err_t metalio_sleep_cut_rails(uint16_t *saved) {
 esp_err_t metalio_sleep_restore_rails(uint16_t saved) {
     // 中文：P14先于P5恢复，任何一笔失败仍尝试下一笔。
     // English: Restore P14 before P5, attempting both even after an error.
+    // Retained memory markers only: no log/I2C/extra delay between the original writes.
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P14_BEFORE);
     esp_err_t first=metalio_io_set(12,(saved&(1u<<12))!=0);
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P14_AFTER);
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P5_BEFORE);
     esp_err_t next=metalio_io_set(5,(saved&(1u<<5))!=0);
+    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P5_AFTER);
     return first!=ESP_OK?first:next;
 }
 void metalio_hold_for_deep_sleep(void) {

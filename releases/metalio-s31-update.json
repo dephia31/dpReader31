@@ -1,13 +1,13 @@
 {
   "schema": 1,
-  "version": "1.2.4-vn",
+  "version": "1.2.5-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "1aa1e24860b3b0cfac425314e6de85ab686b86680d336b87eb5ee60aa69de2a9",
-  "size": 4266240,
-  "notes": "dpReader 1.2.4: Sửa reboot Sleep và lưu highlight; tự lưu crash_log; Bitter Bold, chữ hệ thống lớn; hộp chọn và giãn từ.",
-  "previous_version": "1.2.3-vn"
+  "sha256": "8eb1a33217ffba987af8e2f31690abb8f10c0910b3f6f4d7326d9539b5ad59a5",
+  "size": 4276848,
+  "notes": "dpReader 1.2.5: Home mới, 4 tiện ích tùy chọn; sao lưu chung SD; xóa nhanh tệp; cải thiện giao diện và chữ lớn.",
+  "previous_version": "1.2.4-vn"
 }

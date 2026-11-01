@@ -46,6 +46,26 @@ int main(void) {
     assert(file_tree_delete(moved, deleted, NULL) == ESP_OK);
     assert(file_tree_delete(copy, deleted, NULL) == ESP_OK);
     assert(deleted_files == 2 && deleted_dirs == 4);
+    assert(!mkdir(src,0700));assert(!mkdir(sub,0700));
+    make_file(file,"keep nested file");
+    for(unsigned i=0;i<140;++i){snprintf(copy,sizeof(copy),"%s/bulk-%u.txt",src,i);make_file(copy,"delete");}
+    snprintf(copy,sizeof(copy),"%s/outside.txt",root);make_file(copy,"keep outside");
+    snprintf(moved,sizeof(moved),"%s/link.txt",src);assert(!symlink(copy,moved));
+    unsigned removed=99,failed=99;deleted_files=deleted_dirs=0;
+    assert(file_tree_delete_files(src,deleted,NULL,&removed,&failed)==ESP_OK);
+    assert(removed==140&&failed==0&&deleted_files==140&&!deleted_dirs);
+    assert(exists(file)&&exists(sub)&&exists(src)&&exists(copy)&&exists(moved));
+    assert(file_tree_delete_files(src,deleted,NULL,&removed,&failed)==ESP_OK&&!removed&&!failed);
+    snprintf(nested,sizeof(nested),"%s/.hidden.txt",src);make_file(nested,"hidden");
+    assert(file_tree_delete_files(src,deleted,NULL,&removed,&failed)==ESP_OK&&removed==1&&!exists(nested));
+    make_file(nested,"retry");
+    if(geteuid()!=0){assert(!chmod(src,0500));assert(file_tree_delete_files(src,deleted,NULL,&removed,&failed)!=ESP_OK&&!removed&&failed==1&&exists(nested));assert(!chmod(src,0700));}
+    assert(file_tree_delete_files(src,deleted,NULL,&removed,&failed)==ESP_OK&&removed==1&&!exists(nested));
+    assert(file_tree_delete_files("/missing-dpreader-directory",deleted,NULL,&removed,&failed)!=ESP_OK);
+    assert(file_tree_delete_files(NULL,deleted,NULL,&removed,&failed)==ESP_ERR_INVALID_ARG);
+    assert(file_tree_delete_files(src,deleted,NULL,NULL,&failed)==ESP_ERR_INVALID_ARG);
+    assert(!unlink(moved));assert(!unlink(copy));
+    assert(file_tree_delete(src,NULL,NULL)==ESP_OK);
     assert(!rmdir(root));
     puts("file tree tests passed");
     return 0;

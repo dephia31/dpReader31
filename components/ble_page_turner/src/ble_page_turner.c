@@ -2176,8 +2176,12 @@ esp_err_t ble_pt_suspend_for_sleep(void) {
     if (!lifecycle_take(2000)) return ESP_ERR_TIMEOUT;
     if (atomic_load(&s_sleep_suspended)) { lifecycle_give(); return ESP_OK; }
     snprintf(s_sleep_peer,sizeof(s_sleep_peer),"%s",s_link_up?s_conn_addr:s_reconnect_addr);
+    ESP_LOGI(TAG,"sleep BLE before-stop running=%u connected=%u connecting=%u host=%u",
+        (unsigned)s_running,(unsigned)s_connected,(unsigned)s_connecting,(unsigned)(s_host_task!=NULL));
     atomic_store(&s_sleep_suspended,true);
     const esp_err_t err=stop_locked();
+    ESP_LOGI(TAG,"sleep BLE after-stop result=%d running=%u host=%u",
+        (int)err,(unsigned)s_running,(unsigned)(s_host_task!=NULL));
     if (err!=ESP_OK) atomic_store(&s_sleep_suspended,false);
     lifecycle_give();
     return err;

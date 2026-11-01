@@ -54,9 +54,9 @@ def validate_port(port):
         raise ValueError('Expected COM5 on Windows or /dev/cu.usbmodem... on macOS.')
 
 
-def command(port, *args, after='hard-reset'):
+def command(port, *args, after='hard-reset', before='default-reset'):
     return [sys.executable, '-m', 'esptool', '--chip', 'esp32s31', '--port', port,
-            '--baud', '115200', '--no-stub', '--before', 'default-reset',
+            '--baud', '115200', '--no-stub', '--before', before,
             '--after', after, *args]
 
 
@@ -103,7 +103,11 @@ def main():
         clear.write_bytes(b'\xff' * 0x2000)
         print(f'Installing {info["version"]} without backup.', flush=True)
         subprocess.run(command(port, 'write-flash', '0x10000', str(folder / APP_NAME),
-                               '0xd000', str(clear)), check=True)
+                               '0xd000', str(clear), after='no-reset'), check=True)
+    # S31 USB Serial/JTAG can remain in ROM after an RTS-only reset. Use the
+    # supported transient watchdog reset after verification; never run on failure.
+    print('Verified USB write. Restarting the device into firmware...', flush=True)
+    subprocess.run(command(port, 'read-mac', before='no-reset', after='watchdog-reset'), check=True)
     print(f'USB write completed. After reboot, verify the device version is {info["version"]}.')
     print('Boot and screen behavior still require checking on the device.')
 

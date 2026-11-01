@@ -90,6 +90,18 @@ typedef enum {
     // 3为旧组件的保留编号，不能重排已有配置。/ ID 3 is retired; preserve existing persisted IDs.
     APP_HOME_MOON = 4, APP_HOME_KEHAI = 5, APP_HOME_DALI = 6, APP_HOME_CAT = 7, APP_HOME_HOUSE = 8, APP_HOME_COMPONENT_COUNT = 9
 } app_home_component_t;
+enum { APP_HOME_UTILITY_SLOTS=4 };
+typedef enum {
+    APP_HOME_UTIL_NONE, APP_HOME_UTIL_RESUME, APP_HOME_UTIL_LIBRARY, APP_HOME_UTIL_OPDS,
+    APP_HOME_UTIL_KOSYNC, APP_HOME_UTIL_SETTINGS, APP_HOME_UTIL_WIFI, APP_HOME_UTIL_BLUETOOTH,
+    APP_HOME_UTIL_OTA, APP_HOME_UTIL_FILES, APP_HOME_UTIL_TRANSFER, APP_HOME_UTIL_REFRESH,
+    APP_HOME_UTIL_COUNT
+} app_home_utility_t;
+uint8_t app_settings_home_utility(unsigned slot);
+esp_err_t app_settings_set_home_utilities(const uint8_t actions[APP_HOME_UTILITY_SLOTS]);
+bool app_settings_home_utility_labels(void);
+bool app_settings_home_utility_border(void);
+esp_err_t app_settings_set_home_utilities_config(const uint8_t actions[APP_HOME_UTILITY_SLOTS],bool labels,bool border);
 app_home_component_t app_settings_home_component(void);
 esp_err_t app_settings_set_home_component(app_home_component_t component);
 uint8_t app_settings_home_goal_minutes(void);

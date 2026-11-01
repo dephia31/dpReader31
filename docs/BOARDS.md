@@ -319,3 +319,23 @@ Firmware automatically saves a separate text report in `/sdcard/crash_log/` afte
 Capture starts before new boot breadcrumbs. Reports are written after SD becomes ready, from the awake boot/UI owner, never from a panic handler, render callback or sleeping/USB-storage/OTA context. A temporary file is flushed, synchronized and closed before rename; failed writes remain pending and retry with backoff. A committed report is not duplicated after a reset between rename and RTC acknowledgement.
 
 RTC retains at most four pending reports across compatible resets. A longer card-less bootloop keeps the latest four and records how many older events were replaced. Full power loss or loss of RTC retention can discard pending evidence; a crash before application startup or before any successful SD mount cannot be written immediately. This is a compact diagnostic report, not a complete core dump or the full 32KiB console ring. Files already written to the card remain there; existing manual log export still provides the full available session log.
+
+### S31 wake crash checkpoints
+
+Crash reports retain phase11 at the outer rail-restore boundary. Diagnostic builds additionally mark15 immediately before the P14 write,16 after it,17 before P5, and18 after it. These four markers only write retained memory, without logging or delays between the two original I2C operations. Their last value narrows a reset to a boundary; it does not measure a voltage rail or prove a particular component failed. BLE shutdown and wake-source details are written to the normal diagnostic log.
+
+### File manager bulk deletion
+
+“Xóa tất cả” is available inside a folder and asks confirmation of a captured directory path. It deletes direct regular files without the UI listing limit, including hidden regular files, and retains subdirectories and their contents. Each successful removal invokes the same metadata cleanup as single-file deletion. Errors report partial completion; the folder remains available for retry. The operation does not run when opening or cancelling the confirmation.
+
+### Reader settings SD profile
+
+Settings → Sao lưu & Khôi phục cấu hình backs up system settings, reading settings, WiFi/sync profiles and reading history in one operation. Version 22 adds a checked reader block to the same backup file, validated before committing settings; older backup formats remain readable. Font and background bytes stay on the SD card; reopen the book after restoring layout.
+
+### Home utilities
+
+Home places the Tiện Ích tag card below Continue Reading, followed by four individually tappable recently read books. The calendar widget and recent-reading caption are removed from this layout. An unconfigured card offers Thiết lập; its header edit icon reopens four slot selectors. Choices include resume, library, OPDS, KoSync for the resumed book, settings, radio toggles, OTA settings, files, file transfer and full refresh. Selection changes remain a draft until Save; Back discards them. The four NVS slots are included in the same SD settings backup (v23); older backups preserve existing shortcuts. Radio shortcuts reuse quick-panel connection/admission logic; OTA opens the existing confirmation flow without starting an update.
+
+The Home utility editor also saves a Show Labels choice with the four slots in one NVS commit. Labels default to visible. Hiding them centers four equal 64px visible-ink icons (32px with labels); mask padding is normalized without changing the other interface icons. Home utility notices use a smaller bordered box and expire after two seconds with a regional repaint restoring the books underneath. Backup v24 includes the hidden-label flag in the sealed utility block; pre-v24 backups preserve the current label preference.
+
+The utility editor offers an independent Icon Border toggle. Default on preserves the existing four shortcut frames; off removes only those frames while retaining the Tiện Ích ticket card, icon alignment and label choice. Save commits slots, labels and borders together. Backup v25 includes this preference in the checked utility block; older backups preserve the current border setting.

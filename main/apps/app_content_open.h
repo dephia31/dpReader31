@@ -8,6 +8,8 @@
 #pragma once
 
 #include <stdbool.h>
+#include "esp_err.h"
+#include "app/app.h"
 #include <stddef.h>
 
 bool app_book_request_open(const char *path);
@@ -31,7 +33,6 @@ void app_device_settings_resume_lock_style(void);
 /// 阅读音量键固定翻页；非阅读返回false，由原页面处理。/ Fixed volume turns in the reader; false delegates non-reader views to their existing keys.
 bool app_book_volume_key(app_ctx_t *ctx, int direction, app_redraw_t *redraw);
 app_redraw_t app_book_handle_key_action(app_ctx_t *ctx, app_reader_key_action_t action);
-void app_book_request_kosync(app_ctx_t *ctx);
 /// 仅当前正文允许AI书签，复用原书签保存/提示。/ AI bookmark only on the visible reader body, using existing persistence/notices.
 bool app_book_ai_bookmark(void);
 #endif
@@ -40,3 +41,9 @@ void app_book_cover_mode_changed(void);
 void app_home_cover_mode_changed(void);
 /// 开书前释放可重建的表盘底图，让解析器使用这部分 PSRAM。/ Release rebuildable clock bases before opening a book so parsing can use that PSRAM.
 void app_home_release_clock_cache(void);
+
+/// Shared quick-panel radio admission and BLE reconnect handling.
+esp_err_t app_toggle_network(bool bluetooth);
+void app_device_settings_request_ota(void);
+bool app_book_request_home_sync(const char *path);
+void app_book_request_kosync(app_ctx_t *ctx);

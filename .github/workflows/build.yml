@@ -57,6 +57,16 @@ jobs:
           python3 tools/crash_report_host_test.py
           python3 tools/system_font_defaults_host_test.py
           python3 tools/ui_choice_host_test.py
+          python3 tools/ui_caption_host_test.py
+          python3 tools/files_bulk_ui_host_test.py
+          python3 tools/settings_dialog_geometry_host_test.py
+          mkdir -p build/book-tests/settings-card
+          cc -std=gnu11 -DKIIKO_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=undefined -Itools/settings_backup_stubs -Icomponents/read_pico_transfer/include tools/reader_settings_backup_host_test.c -o build/book-tests/reader-settings-backup
+          build/book-tests/reader-settings-backup
+          cc -std=gnu11 -DKIIKO_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=undefined -Itools/settings_backup_stubs -Icomponents/read_pico_transfer/include tools/home_utilities_settings_host_test.c -o build/book-tests/home-utilities-settings
+          build/book-tests/home-utilities-settings
+          python3 tools/home_utilities_host_test.py
+          python3 tools/home_utility_icons_host_test.py
           python3 tools/word_spacing_host_test.py
           python3 tools/word_spacing_settings_host_test.py
           python3 tools/reader_spacing_ranges_host_test.py

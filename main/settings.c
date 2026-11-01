@@ -128,6 +128,10 @@ static uint8_t s_pin_grace_code_v;
 static uint32_t s_pin_locked_at;
 #endif
 static bool s_home_full_refresh;
+static uint8_t s_home_utilities[APP_HOME_UTILITY_SLOTS];
+static bool s_home_utility_labels=true;
+static bool s_home_utility_border=true;
+static const char *s_home_utility_keys[]={"home_util0","home_util1","home_util2","home_util3"};
 static app_home_component_t s_home_component = APP_HOME_FOLDER;
 static uint8_t s_home_goal_minutes = 30;
 static app_main_refresh_mode_t s_main_refresh;
@@ -333,6 +337,14 @@ void app_settings_init(void) {
 #endif
     raw = 0;
     if (nvs_get_u8(h, NVS_KEY_HOME_FULL, &raw) == ESP_OK) s_home_full_refresh = raw == 1;
+    for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i) {
+        raw=0;
+        s_home_utilities[i]=nvs_get_u8(h,s_home_utility_keys[i],&raw)==ESP_OK&&raw<APP_HOME_UTIL_COUNT?raw:APP_HOME_UTIL_NONE;
+    }
+    raw=1;
+    s_home_utility_labels=nvs_get_u8(h,"home_util_lbl",&raw)!=ESP_OK||raw!=0;
+    raw=1;
+    s_home_utility_border=nvs_get_u8(h,"home_util_bdr",&raw)!=ESP_OK||raw!=0;
     raw = 0;
     s_home_component = nvs_get_u8(h, NVS_KEY_HOME_COMPONENT, &raw) == ESP_OK && raw < APP_HOME_COMPONENT_COUNT
         ? (raw == 3 ? APP_HOME_CLOCK : (app_home_component_t)raw) : APP_HOME_FOLDER;
@@ -641,6 +653,24 @@ static void nvs_put_u32(const char* key, uint32_t value) {
 }
 #endif
 
+uint8_t app_settings_home_utility(unsigned slot) {return slot<APP_HOME_UTILITY_SLOTS?s_home_utilities[slot]:APP_HOME_UTIL_NONE;}
+bool app_settings_home_utility_labels(void){return s_home_utility_labels;}
+bool app_settings_home_utility_border(void){return s_home_utility_border;}
+esp_err_t app_settings_set_home_utilities(const uint8_t actions[APP_HOME_UTILITY_SLOTS]) {
+    return app_settings_set_home_utilities_config(actions,s_home_utility_labels,s_home_utility_border);
+}
+esp_err_t app_settings_set_home_utilities_config(const uint8_t actions[APP_HOME_UTILITY_SLOTS],bool labels,bool border) {
+    if(!actions)return ESP_ERR_INVALID_ARG;
+    for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i)if(actions[i]>=APP_HOME_UTIL_COUNT)return ESP_ERR_INVALID_ARG;
+    nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);if(err!=ESP_OK)return err;
+    for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS&&err==ESP_OK;++i)err=nvs_set_u8(h,s_home_utility_keys[i],actions[i]);
+    if(err==ESP_OK)err=nvs_set_u8(h,"home_util_lbl",labels?1:0);
+    if(err==ESP_OK)err=nvs_set_u8(h,"home_util_bdr",border?1:0);
+    if(err==ESP_OK)err=nvs_commit(h);
+    nvs_close(h);
+    if(err==ESP_OK){memcpy(s_home_utilities,actions,sizeof(s_home_utilities));s_home_utility_labels=labels;s_home_utility_border=border;}
+    return err;
+}
 app_home_component_t app_settings_home_component(void) { return s_home_component; }
 uint8_t app_settings_home_goal_minutes(void) { return s_home_goal_minutes; }
 static esp_err_t home_preference_save(const char *key, uint8_t value) {
@@ -1401,7 +1431,7 @@ static bool backup_home_valid(const settings_backup_home_t *v) {
 static unsigned backup_version(const settings_backup_v1_t *backup) {
     if (memcmp(backup->magic, "PICOSET", 7)) return 0;
     unsigned char c = backup->magic[7];
-    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : c == 'L' ? 21 : 0;
+    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : c == 'L' ? 21 : c == 'M' ? 22 : c == 'N' ? 23 : c == 'O' ? 24 : c == 'P' ? 25 : 0;
 }
 
 static void backup_erase_secret(void *ptr, size_t size) {
@@ -1478,10 +1508,115 @@ static bool backup_card_ready(void) {
     return read_pico_sd_get_info(&info) == ESP_OK && info.mounted;
 }
 
+static bool backup_path_valid(const char *path,size_t capacity);
+typedef struct { const char *key; void *state; int low,high; bool fine; } reader_backup_field_t;
+static const reader_backup_field_t s_reader_backup_fields[]={
+    {NVS_KEY_BOOK_PX,&s_book_px,18,90,false},
+    {NVS_KEY_BOOK_WEIGHT_FINE,&s_book_weight_fine,0,64,true},
+    {NVS_KEY_BOOK_AA,&s_book_antialias,0,1,false},
+    {NVS_KEY_READER_FULL,&s_reader_full_pages,0,30,false},
+    {NVS_KEY_READER_TURN,&s_reader_turn_effect,0,READER_TURN_EFFECT_MAX,false},
+    {NVS_KEY_POWER_TURN,&s_reader_power_turn,0,1,false},
+    {NVS_KEY_HIDE_IMAGES,&s_reader_hide_images,0,1,false},
+    {NVS_KEY_HOLD_REFRESH,&s_reader_hold_refresh,0,1,false},
+    {NVS_KEY_HOLD_ACTION,&s_reader_hold_action,0,APP_READER_KEY_COUNT-1,false},
+    {"rd_key_l",&s_reader_keys[0],0,APP_READER_KEY_COUNT-1,false},
+    {"rd_key_m",&s_reader_keys[1],0,APP_READER_KEY_COUNT-1,false},
+    {"rd_key_r",&s_reader_keys[2],0,APP_READER_KEY_COUNT-1,false},
+    {NVS_KEY_VERTICAL_TURN,&s_reader_turn_mode,0,2,false},
+    {NVS_KEY_BOOK_FONTS,&s_book_fonts,0,1,false},
+    {NVS_KEY_BOOK_VERTICAL,&s_book_vertical,0,1,false},
+    {NVS_KEY_BOOK_LINE,&s_book_line,0,255,false},
+    {NVS_KEY_BOOK_PARA,&s_book_para,0,255,false},
+    {NVS_KEY_BOOK_MARGIN,&s_book_margin,0,48,false},
+    {NVS_KEY_BOOK_TRACK,&s_book_tracking,0,APP_BOOK_TRACK_MAX-APP_BOOK_TRACK_MIN,false},
+    {NVS_KEY_BOOK_RULE,&s_book_reading_line,0,2,false},
+    {NVS_KEY_BOOK_RULE_OFFSET,&s_book_rule_offset,0,8,false},
+    {NVS_KEY_BOOK_INDENT,&s_book_indent,0,3,false},
+    {NVS_KEY_BOOK_INDENT_ADJUST,&s_book_indent_adjust,0,200,false},
+    {NVS_KEY_BOOK_ALIGN,&s_book_align,0,APP_BOOK_ALIGN_COUNT-1,false},
+    {NVS_KEY_BOOK_PROGRESS_V2,&s_book_progress_style,0,APP_BOOK_PROGRESS_STYLE_COUNT-1,false},
+    {NVS_KEY_BOOK_FOOTER_PAGE,&s_book_footer_page,0,1,false},
+    {NVS_KEY_BOOK_FOOTER_CHAPTER,&s_book_footer_chapter,0,1,false},
+    {NVS_KEY_BOOK_FOOTER_PCT,&s_book_footer_pct,0,1,false},
+    {"book_word_gap",&s_book_word_spacing,0,255,false},
+    {"vol_down",&s_volume_keys[0],0,APP_READER_KEY_COUNT-1,false},
+    {"vol_up",&s_volume_keys[1],0,APP_READER_KEY_COUNT-1,false},
+    {"r_swipe_up",&s_reader_swipe_up_tools,0,1,false},
+    {"r_swipe_bot",&s_reader_swipe_bottom_home,0,1,false},
+    {"r_edge_light",&s_reader_edge_brightness,0,1,false},
+    {"r_edge_warm",&s_reader_edge_warmth,0,1,false},
+};
+enum {READER_BACKUP_FIELDS=sizeof(s_reader_backup_fields)/sizeof(s_reader_backup_fields[0])};
+typedef struct {
+    char magic[8];uint8_t values[READER_BACKUP_FIELDS];
+    char font[FONT_PATH_MAX],background[288];uint8_t checksum[4];
+} reader_backup_t;
+_Static_assert(sizeof(bool)==1,"Reader profile byte flags require 1-byte bool");
+static uint32_t reader_backup_checksum(const reader_backup_t *profile) {
+    const unsigned char *data=(const unsigned char*)profile;
+    uint32_t hash=2166136261u;
+    for(size_t i=0;i<offsetof(reader_backup_t,checksum);++i)hash=(hash^data[i])*16777619u;
+    return hash;
+}
+static bool reader_backup_valid(const reader_backup_t *profile) {
+    uint32_t stored=0;for(unsigned i=0;i<4;++i)stored|=(uint32_t)profile->checksum[i]<<(8*i);
+    if(memcmp(profile->magic,"DPRREAD1",8)||stored!=reader_backup_checksum(profile)||
+       !backup_path_valid(profile->font,sizeof(profile->font))||!backup_path_valid(profile->background,sizeof(profile->background)))return false;
+    for(unsigned i=0;i<READER_BACKUP_FIELDS;++i) {
+        int value=profile->values[i];const reader_backup_field_t *field=&s_reader_backup_fields[i];
+        if(value<field->low||value>field->high)return false;
+        if(!strcmp(field->key,NVS_KEY_BOOK_PX)&&valid_book_px(value)!=value)return false;
+        if(!strcmp(field->key,NVS_KEY_READER_FULL)&&!reader_full_pages_valid(value))return false;
+        if(!strcmp(field->key,NVS_KEY_BOOK_LINE)&&!(value==236||value==246||value==0||(value>=100&&value<=130&&value%10==0)))return false;
+        if(!strcmp(field->key,NVS_KEY_BOOK_PARA)&&app_settings_book_paragraph_value(app_settings_book_paragraph_level(value))!=value)return false;
+        if(!strcmp(field->key,"book_word_gap")&&!(value<=20||value>=253))return false;
+    }
+    return true;
+}
+static void reader_backup_capture(reader_backup_t *profile) {
+    memset(profile,0,sizeof(*profile));memcpy(profile->magic,"DPRREAD1",8);
+    for(unsigned i=0;i<READER_BACKUP_FIELDS;++i) {
+        memcpy(&profile->values[i],s_reader_backup_fields[i].state,1);
+        if(s_reader_backup_fields[i].fine)profile->values[i]=s_book_weight_fine+APP_BOOK_WEIGHT_FINE_MAX;
+    }
+    strlcpy(profile->font,!strcmp(s_font,"builtin")?"":s_font,sizeof(profile->font));
+    strlcpy(profile->background,s_book_background,sizeof(profile->background));
+    uint32_t hash=reader_backup_checksum(profile);
+    for(unsigned i=0;i<4;++i)profile->checksum[i]=hash>>(8*i);
+}
+static esp_err_t reader_backup_stage(nvs_handle_t h,const reader_backup_t *profile) {
+    esp_err_t err=ESP_OK;
+    for(unsigned i=0;i<READER_BACKUP_FIELDS&&err==ESP_OK;++i) {
+        uint8_t value=profile->values[i];
+        if(!strcmp(s_reader_backup_fields[i].key,NVS_KEY_BOOK_TRACK))value+=192;
+        err=nvs_set_u8(h,s_reader_backup_fields[i].key,value);
+    }
+    return err;
+}
+static void reader_backup_apply(const reader_backup_t *profile) {
+    for(unsigned i=0;i<READER_BACKUP_FIELDS;++i) {
+        uint8_t value=profile->values[i];
+        if(s_reader_backup_fields[i].fine)value=(uint8_t)(int8_t)((int)value-APP_BOOK_WEIGHT_FINE_MAX);
+        memcpy(s_reader_backup_fields[i].state,&value,1);
+    }
+    s_book_weight=s_book_weight_fine/APP_BOOK_WEIGHT_SUBSTEPS+2;
+    s_control_holds[4]=s_reader_hold_action;
+}
+
+typedef struct {uint8_t actions[APP_HOME_UTILITY_SLOTS],checksum[4];} settings_backup_utilities_t;
+static uint32_t backup_utilities_checksum(const settings_backup_utilities_t *v) {
+    uint32_t hash=2166136261u;for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i)hash=(hash^v->actions[i])*16777619u;return hash;
+}
+static bool backup_utilities_valid(const settings_backup_utilities_t *v,unsigned version) {
+    uint32_t stored=0;for(unsigned i=0;i<4;++i)stored|=(uint32_t)v->checksum[i]<<(8*i);
+    for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i)if((i==0&&version>=24?(v->actions[i]&(version>=25?0x3f:0x7f)):v->actions[i])>=APP_HOME_UTIL_COUNT)return false;
+    return stored==backup_utilities_checksum(v);
+}
 esp_err_t app_settings_backup_save(void) {
     if (!backup_card_ready()) return ESP_ERR_INVALID_STATE;
     settings_backup_v1_t backup = {0};
-    memcpy(backup.magic, "PICOSETL", sizeof(backup.magic));
+    memcpy(backup.magic, "PICOSETP", sizeof(backup.magic));
     uint8_t *f = backup.flags;
     f[BK_SLEEP] = s_sleep;
     f[BK_PICKUP] = s_pickup_wake;
@@ -1576,6 +1711,15 @@ esp_err_t app_settings_backup_save(void) {
     uint32_t word_hash=backup_indent_adjust_checksum(&word_spacing);
     for(unsigned i=0;i<4;i++)word_spacing.checksum[i]=word_hash>>(8*i);
     if(ok)ok=fwrite(&word_spacing,1,sizeof(word_spacing),file)==sizeof(word_spacing);
+    reader_backup_t reader;reader_backup_capture(&reader);
+    if(ok)ok=reader_backup_valid(&reader)&&fwrite(&reader,1,sizeof(reader),file)==sizeof(reader);
+    settings_backup_utilities_t utilities={0};memcpy(utilities.actions,s_home_utilities,sizeof(utilities.actions));
+    /* v24 packs the hidden-label flag in the first action's unused high bit. */
+    if(!s_home_utility_labels)utilities.actions[0]|=0x80;
+    if(!s_home_utility_border)utilities.actions[0]|=0x40;
+    uint32_t utilities_hash=backup_utilities_checksum(&utilities);
+    for(unsigned i=0;i<4;++i)utilities.checksum[i]=utilities_hash>>(8*i);
+    if(ok)ok=fwrite(&utilities,1,sizeof(utilities),file)==sizeof(utilities);
     if (ok) ok = book_history_backup_write(file) == ESP_OK;
     if (ok) ok = fflush(file) == 0;
     if (ok) ok = fsync(fileno(file)) == 0;
@@ -1727,6 +1871,12 @@ esp_err_t app_settings_backup_restore(void) {
         backup_background_valid(&bookmark)&&backup_path_valid(bookmark.path,sizeof(bookmark.path));
     if(ok&&version>=21)ok=fread(&word_spacing,1,sizeof(word_spacing),file)==sizeof(word_spacing)&&
         (word_spacing.encoded<=20||word_spacing.encoded>=253)&&backup_word_spacing_valid(&word_spacing);
+    reader_backup_t reader={0};
+    if(ok&&version>=22)ok=fread(&reader,1,sizeof(reader),file)==sizeof(reader)&&reader_backup_valid(&reader);
+    settings_backup_utilities_t utilities={0};
+    if(ok&&version>=23)ok=fread(&utilities,1,sizeof(utilities),file)==sizeof(utilities)&&backup_utilities_valid(&utilities,version);
+    bool utility_labels=s_home_utility_labels,utility_border=s_home_utility_border;
+    if(ok&&version>=24){utility_labels=!(utilities.actions[0]&0x80);if(version>=25)utility_border=!(utilities.actions[0]&0x40);utilities.actions[0]&=version>=25?0x3f:0x7f;}
     bool has_history = ok && version >= 6;
     if (has_history) {
         history_position = ftell(file);
@@ -1830,6 +1980,10 @@ esp_err_t app_settings_backup_restore(void) {
     BACKUP_SET_STR(NVS_KEY_FONTS_DIR, backup.fonts_dir);
 #undef BACKUP_SET_U8
 #undef BACKUP_SET_STR
+    if(err==ESP_OK&&version>=22)err=reader_backup_stage(h,&reader);
+    if(version>=23)for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS&&err==ESP_OK;++i)err=nvs_set_u8(h,s_home_utility_keys[i],utilities.actions[i]);
+    if(err==ESP_OK&&version>=24)err=nvs_set_u8(h,"home_util_lbl",utility_labels?1:0);
+    if(err==ESP_OK&&version>=25)err=nvs_set_u8(h,"home_util_bdr",utility_border?1:0);
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
     if (err != ESP_OK) { backup_erase_secret(&wifi, sizeof(wifi)); return err; }
@@ -1882,6 +2036,10 @@ esp_err_t app_settings_backup_restore(void) {
     strlcpy(s_system_font, backup.system_font, sizeof(s_system_font));
     strlcpy(s_wallpaper, backup.wallpaper, sizeof(s_wallpaper));
     strlcpy(s_bookmark,bookmark.path,sizeof(s_bookmark));
+    if(version>=22)reader_backup_apply(&reader);
+    if(version>=23)memcpy(s_home_utilities,utilities.actions,sizeof(s_home_utilities));
+    if(version>=24)s_home_utility_labels=utility_labels;
+    if(version>=25)s_home_utility_border=utility_border;
     if (has_history) {
         file = fopen(source, "rb");
         if (!file) { backup_erase_secret(&wifi, sizeof(wifi)); return ESP_FAIL; }
