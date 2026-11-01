@@ -1,7 +1,7 @@
 # dpReader — Firmware Đọc Sách Tiếng Việt Chuyên Biệt cho Metalio E-ink 4 Plus (`metalio4.7`)
 
 <p align="center">
-  <img src="docs/screenshots/00_overview_banner.png" alt="dpReader Overview Banner" width="100%">
+  <img src="docs/screenshots/01_home_dashboard.png" alt="Trang chủ dpReader 1.2.5 — ảnh chụp từ thiết bị" width="320">
 </p>
 
 <p align="center">
@@ -16,12 +16,14 @@
 
 ---
 
-## 📸 Giao diện Thực tế Firmware dpReader
+## 📸 Giao diện dpReader
 
-| Trang chủ (`app_dashboard.c`) | Kệ sách & Hộp thoại nạp sách (`app_book.c`) |
+Ảnh Home và thiết lập Tiện Ích được lấy trực tiếp từ bộ đệm màn hình thiết bị chạy giao diện 1.2.5. Các ảnh minh họa cũ bên dưới sẽ được thay dần theo giao diện hiện tại.
+
+| Home mới | Thiết lập Tiện Ích |
 | :---: | :---: |
-| <img src="docs/screenshots/01_home_dashboard.png" width="360" alt="Trang chủ dpReader"> | <img src="docs/screenshots/02_bookshelf.png" width="360" alt="Kệ sách Tiếng Việt"> |
-| *Thẻ Đọc tiếp, Đồng hồ Analog, Thống kê đọc trong tháng (GMT+7)* | *Lưới kệ sách tác phẩm kinh điển & Menu nạp sách WiFi / OPDS* |
+| <img src="docs/screenshots/01_home_dashboard.png" width="360" alt="Home dpReader 1.2.5 chụp từ thiết bị"> | <img src="docs/screenshots/08_home_utilities_settings.png" width="360" alt="Thiết lập 4 shortcut, nhãn và viền icon"> |
+| *Đọc tiếp, Tiện Ích ẩn nhãn/viền và 4 sách từng đọc.* | *Chọn 4 shortcut; bật/tắt nhãn và viền, rồi lưu cùng cấu hình.* |
 
 | Màn hình đọc sách & KOSync (`app_book.c`) | Thư viện sách online OPDS (`opds_client.c`) |
 | :---: | :---: |
@@ -40,6 +42,14 @@
   <em>Giao diện Web Portal quản lý truyền sách WiFi, cấu hình máy chủ KOSync (<code>https://sync.vreader.cloud</code>) và thư viện OPDS (<code>https://sach.vreader.cloud:8443/opds</code>)</em>
 </p>
 
+### Mới trong phiên bản 1.2.5
+
+- **Home:** thẻ Đọc tiếp, thẻ **Tiện Ích** và 4 sách từng đọc theo chiều ngang.
+- **Tiện Ích:** chọn 4 shortcut như Đọc tiếp, Thư viện, OPDS, KoSync, Cài đặt, Wi-Fi, Bluetooth, OTA hoặc Tệp tin. Có thể bật/tắt nhãn và viền; khi ẩn nhãn, icon lớn và căn đều.
+- **Sao lưu chung trên SD:** lưu cấu hình hệ thống, thiết lập đọc và Tiện Ích trong `dpReader-settings.backup`, tại **Cài đặt → Sao lưu & Khôi phục cấu hình**.
+- **Tệp tin:** nút **Xóa tất cả** xóa các tệp trong thư mục đang mở sau khi xác nhận, giữ các thư mục con.
+- **Cài đặt:** bố cục Đèn nền & Rung thống nhất, chú thích và hộp xác nhận OTA phù hợp hơn khi dùng chữ lớn.
+
 ---
 
 ## ✨ Tính năng nổi bật trên dpReader
@@ -49,7 +59,7 @@
    - Tối ưu hóa bộ nhớ Flash và RAM nội bộ cho kết nối WiFi/TLS và điều khiển lật trang Bluetooth (BLE Page Turner).
 2. **Giao diện & Phông chữ Tiếng Việt 100%:**
    - Toàn bộ giao diện hệ thống, cài đặt, thông báo, màn hình khóa và cổng truyền sách Web Portal (`http://dpreader.local`) được Việt hóa hoàn toàn.
-   - Nhúng sẵn phông chữ hệ thống Tiếng Việt sắc nét (`Noto Sans Medium` `wght=500`, đầy đủ 134 ký tự Tiếng Việt dựng sẵn + dấu tổ hợp + ký hiệu điều hướng UI).
+   - Nhúng sẵn phông chữ hệ thống Tiếng Việt sắc nét **Bitter Bold**, hỗ trợ Tiếng Việt. Cỡ hệ thống 100% đã được tăng để dễ đọc hơn.
    - Thuật toán **ngắt dòng theo từ Tiếng Việt (Word-Wrap)** cho cả `EPUB` và `TXT` (không cắt ngang giữa âm tiết Tiếng Việt), tự động nhận diện mục lục Tiếng Việt (`Chương`, `Phần`, `Hồi`, `Quyển`, `Tập`, `Mục`, `Lời mở đầu`, `Ngoại truyện`...) và tìm kiếm sách không phân biệt dấu Tiếng Việt.
    - Đồng bộ giờ chuẩn Việt Nam (`GMT+7` / `ICT-7`) qua cụm máy chủ NTP `vn.pool.ntp.org`.
 3. **Đồng bộ tiến độ đọc KOReader Sync (`KOSync`):**
