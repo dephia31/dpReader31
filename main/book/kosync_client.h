@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include "esp_err.h"
 #include "book_progress.h"
+#include "book_xpointer.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,7 +21,8 @@ extern "C" {
 
 typedef struct {
     char document[36];      ///< Mã băm MD5 (32 ký tự hex) của tài liệu
-    char progress[128];     ///< Chuỗi vị trí đọc (XPointer hoặc offset)
+    char progress[BOOK_XPOINTER_CAP];     ///< Chuỗi vị trí đọc (XPointer hoặc offset)
+    bool position_valid;   ///< Position resolved against the actual EPUB, never default chapter zero.
     double percentage;      ///< Tỷ lệ hoàn thành 0.0 .. 1.0
     char device[48];        ///< Tên thiết bị cập nhật cuối cùng
     char device_id[40];     ///< ID thiết bị cập nhật cuối cùng
@@ -49,6 +51,9 @@ esp_err_t kosync_pull_book_progress(const char *file_path, kosync_progress_t *ou
 esp_err_t kosync_sync_book(const char *file_path, uint16_t *cur_chapter, uint32_t *cur_byte_off,
                            uint8_t *cur_pct, bool *pulled_newer, char *message, size_t message_cap);
 
+esp_err_t kosync_sync_book_precise(const char *file_path,uint16_t *chapter,uint32_t *offset,uint8_t *pct,
+    double ratio,bool *pulled,char *message,size_t cap);
+
 
 /// 后台同步持有网络/文件时禁止睡眠与媒体重挂。/ Block sleep and media recovery while a sync owns network/files.
 bool kosync_busy(void);
@@ -58,6 +63,10 @@ void kosync_auto_submit(const char *path,const book_progress_t *progress,double 
 void kosync_auto_poll(void);
 /// 仅返回同书同位置的结果，用户已翻页则丢弃。/ Return only a same-book, unchanged-position result; discard after user movement.
 bool kosync_auto_take_pull(const char *path,const book_progress_t *current,kosync_progress_t *remote,uint16_t *chapter,uint32_t *offset,bool *exact);
+
+/* Latest trusted event wins; exact location order is the clock-free fallback. */
+bool kosync_should_pull(const char *path,uint16_t current_chapter,uint32_t current_offset,double local_ratio,
+    const kosync_progress_t *remote,uint16_t chapter,uint32_t offset,bool exact);
 
 #ifdef __cplusplus
 }

@@ -124,6 +124,14 @@ async function setup({responses = [], confirmations = [true], mode = 'ap', mkdir
 
   assert.match(html, /Duyệt thẻ nhớ TF/);
   assert.doesNotMatch(html, /图片对比|编辑书架名称/);
+  const dropped=await setup(),drop=dropped.sections[0];
+  let prevented=false;
+  drop.ondrop({preventDefault(){prevented=true},dataTransfer:{files:[{name:'drop.epub',size:100}]}});
+  assert.equal(prevented,true);assert.match(drop.result.textContent,/drop.epub/);
+  await drop.send.onclick();assert.equal(dropped.state.sent.length,1);
+  vm.runInContext('lock(true)',dropped.context);
+  drop.ondrop({preventDefault(){},dataTransfer:{files:[{name:'blocked.epub',size:100}]}});
+  assert.notEqual(drop.input.files[0]?.name,'blocked.epub');
   let t = await setup();
   assert.match(t.nodes.get('storage').textContent, /Thẻ nhớ TF sẵn sàng/);
   assert.equal(t.nodes.get('entries').children.length, 2);

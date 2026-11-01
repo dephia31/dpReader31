@@ -10,6 +10,16 @@ prefix=r'''
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
+#include <stdlib.h>
+#include <math.h>
+#define BOOK_XPOINTER_CAP 768
+#define ESP_ERR_INVALID_ARG 2
+#define ESP_ERR_NO_MEM 3
+#define MALLOC_CAP_SPIRAM 1
+#define MALLOC_CAP_8BIT 2
+static void *heap_caps_malloc(size_t n,int caps){(void)caps;return malloc(n);}
+static int book_sync_export(const char*p,uint16_t ch,uint32_t off,char*buf,size_t cap,double*r,bool*exact){(void)p;(void)ch;(void)off;(void)buf;(void)cap;(void)exact;*r=.123456;return 0;}
 #define CPU_STATE_RAM
 #define BOOK_STORE_PATH_MAX 288
 #define KIIKO_BOARD_METALIO47 1
@@ -25,6 +35,7 @@ typedef void *TaskHandle_t;
 typedef struct {uint32_t file_size,byte_off;uint16_t chapter;uint8_t px,pct;} book_progress_t;
 typedef struct {double percentage;} kosync_progress_t;
 static int depth, calls, starts, creates_fail;
+static double last_ratio;
 static bool enabled=true, ota_busy;
 static bool pico_online_update_busy(void){return ota_busy;}
 static int64_t now;
@@ -54,20 +65,20 @@ static esp_err_t kosync_push_book_progress_impl(const char *p,const book_progres
 static esp_err_t kosync_pull_book_progress_impl(const char *p,kosync_progress_t *r,uint16_t *ch,uint32_t *off,bool *ex,char *m,size_t c){
  (void)m;(void)c;assert(!depth);++calls;strlcpy(last_path,p,sizeof(last_path));r->percentage=.8;*ch=8;*off=80;*ex=true;return ESP_OK;
 }
-static esp_err_t kosync_sync_book_impl(const char *p,uint16_t *ch,uint32_t *off,uint8_t *pct,bool *pull,char *m,size_t c){
- (void)ch;(void)off;(void)pct;(void)pull;(void)m;(void)c;assert(!depth);++calls;strlcpy(last_path,p,sizeof(last_path));return ESP_OK;
+static esp_err_t kosync_sync_book_impl(const char *p,uint16_t *ch,uint32_t *off,uint8_t *pct,double ratio,bool *pull,char *m,size_t c){
+ (void)ch;(void)off;(void)pct;last_ratio=ratio;(void)pull;(void)m;(void)c;assert(!depth);++calls;strlcpy(last_path,p,sizeof(last_path));return ESP_OK;
 }
 '''
 suffix=r'''
 static void run(void){assert(worker);task=(void*)2;worker(NULL);task=(void*)1;worker=NULL;assert(!s_sync_active&&!depth);}
 int main(void){
  book_progress_t p={.chapter=1,.byte_off=20,.pct=10};
- kosync_auto_submit("old",&p,.1,false);kosync_auto_submit("latest",&p,.1,false);
+ kosync_auto_submit("old",&p,.1,false);kosync_auto_submit("latest",&p,.123456,false);
  kosync_auto_submit("read",&p,.1,true);assert(!calls&&!starts);
  ota_busy=true;kosync_auto_poll();assert(!starts&&!calls);ota_busy=false;
  kosync_auto_poll();assert(starts==1&&kosync_busy()&&!calls);
  assert(kosync_verify_account(false,NULL,0)==ESP_ERR_INVALID_STATE);
- kosync_auto_poll();assert(starts==1);run();assert(calls==1&&!strcmp(last_path,"latest"));
+ kosync_auto_poll();assert(starts==1);run();assert(calls==1&&!strcmp(last_path,"latest")&&last_ratio==.123456);
  kosync_auto_poll();run();assert(calls==2&&!strcmp(last_path,"read"));
  kosync_progress_t r={0};uint16_t ch=0;uint32_t off=0;bool exact=false;
  book_progress_t moved=p;moved.byte_off++;

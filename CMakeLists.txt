@@ -49,3 +49,7 @@ set_property(TARGET ${app_desc_lib} PROPERTY C_COMPILER_LAUNCHER "${app_desc_utc
 # 用 idf_build_set_property 设全局链接选项已经太晚，链接器看不到 --wrap。
 # The panic wrapper's link option hangs off the main component in main/CMakeLists.txt: setting a
 # global link option after project() is too late for the linker to see --wrap.
+
+if(KIIKO_BOARD_METALIO47)
+    include("${CMAKE_CURRENT_LIST_DIR}/components/ble_page_turner/nimble_identity_sdk.cmake")
+endif()

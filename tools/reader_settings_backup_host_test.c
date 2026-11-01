@@ -7,7 +7,7 @@ esp_err_t nvs_set_u32(nvs_handle_t h,const char*k,uint32_t v){(void)h;(void)k;(v
 int main(void) {
     (void)mkdir("build",0700);(void)mkdir("build/book-tests",0700);(void)mkdir(APP_SETTINGS_BACKUP_ROOT,0700);
     app_settings_init();
-    s_book_px=72;s_book_tracking=23;s_book_weight_fine=-17;s_book_line=236;s_book_para=251;s_book_word_spacing=-3;
+    s_book_px=72;s_book_tracking=23;s_book_weight_fine=-17;s_book_line=206;s_book_para=251;s_book_word_spacing=-10;
     s_volume_keys[0]=APP_READER_KEY_TOOLS;s_reader_edge_warmth=false;
     s_book_align=3;s_book_footer_pct=false;s_reader_keys[0]=APP_READER_KEY_HOME;
     assert(app_settings_backup_save()==ESP_OK);

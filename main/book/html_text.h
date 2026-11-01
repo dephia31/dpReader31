@@ -86,3 +86,12 @@ esp_err_t html_to_blocks_with_css_target(const char* html, size_t len,
                                           size_t* text_offset, html_text_t* out);
 /// 释放文本与块表并清零；可重复调用。/ Free text and blocks and reset; safe to repeat.
 void html_text_free(html_text_t* text);
+
+/* Bidirectional source/text mapping used only during explicit position conversion.
+ * SIZE_MAX disables a direction. Offsets must identify an emitted code point. */
+typedef struct {
+    size_t source_target, text_target;
+    size_t source_result, text_result;
+    bool source_found, text_found;
+} html_source_map_t;
+esp_err_t html_to_blocks_mapped(const char *html,size_t len,html_source_map_t *map,html_text_t *out);

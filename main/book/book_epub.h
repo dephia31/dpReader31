@@ -71,3 +71,9 @@ esp_err_t book_epub_resume_io(book_epub_t *book);
 int book_epub_prefetch_step(book_epub_t *book,size_t chapter);
 #else
 #endif
+
+/* Borrow no shared font state; return owned chapter markup in PSRAM. */
+esp_err_t book_epub_chapter_markup(book_epub_t *book,size_t chapter,char **markup,size_t *len);
+
+/* False if linked styles can change CRE text normalization/DOM boundaries. */
+bool book_epub_sync_style_safe(book_epub_t *book,size_t chapter,const char *markup,size_t len);

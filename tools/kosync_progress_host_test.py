@@ -15,6 +15,8 @@ PREFIX = r'''
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <math.h>
+#include <errno.h>
 
 static int failures;
 #define CHECK(cond, ...) do { if (!(cond)) { printf("FAIL: "); printf(__VA_ARGS__); printf("\n"); ++failures; } } while (0)
@@ -78,6 +80,19 @@ int main(void) {
     CHECK(kosync_remote_wins(0.0, 0.05, false, 0, 0, 0, 0),
           "remote with real progress pulls over an unread local");
 
+    CHECK(kosync_remote_wins(.42,.420001,false,3,100,3,0),"tiny fractional progress lead must not be discarded");
+    CHECK(!kosync_remote_wins(.42,.9,true,5,100,4,999),"exact earlier chapter must not win via incompatible percent");
+    CHECK(kosync_remote_wins(.9,.1,true,4,100,5,0),"exact later chapter wins independently of render percentages");
+    CHECK(!kosync_remote_wins(.42,NAN,false,0,0,0,0),"NaN must be rejected");
+    CHECK(!kosync_remote_wins(.42,1.1,false,0,0,0,0),"invalid percentage must be rejected");
+    kosync_parse_pointer("/body/DocFragment[2]/body/p[1].12junk",&chap,&off,&exact);
+    CHECK(!exact,"trailing garbage must not become exact native offset");
+    kosync_parse_pointer("/body/DocFragment[2]/body/p[1].-1",&chap,&off,&exact);
+    CHECK(!exact,"negative offsets must fail");
+    kosync_parse_pointer("/body/DocFragment[999999999999999999999]/body/p[1].2",&chap,&off,&exact);
+    CHECK(!exact,"overflowing chapter ID must fail");
+    kosync_parse_pointer("/body/DocFragment[2]/body/p[1].999999999999999999999",&chap,&off,&exact);
+    CHECK(!exact,"overflowing offsets must fail");
     if (failures) { printf("\n%d check(s) failed\n", failures); return 1; }
     puts("\nPASS: pointer shapes stay separate and sub-percent leads still pull");
     return 0;

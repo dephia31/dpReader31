@@ -8,45 +8,82 @@ dpReader · Truyền dữ liệu Wi-Fi, quản lý thẻ nhớ, cấu hình KOSy
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>dpReader · Truyền dữ liệu & Đồng bộ</title>
 <style>
-:root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;color:#202221;background:#fff}
-*{box-sizing:border-box}body{max-width:760px;margin:0 auto;padding:26px 20px 68px;font-size:16px;line-height:1.55}
-header{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:8px 0 22px}
-h1{font-size:36px;line-height:1.15;letter-spacing:-.03em;margin:0}h2{font-size:23px;line-height:1.25;margin:0 0 9px}
-section{background:#fff;border:1px solid #d2d4d0;border-radius:22px;padding:23px;margin:15px 0}
-.eyebrow,.muted{color:#696d68;font-size:14px}.eyebrow{letter-spacing:.14em;margin:0 0 8px}
-.hint{color:#626762;margin:4px 0 15px}.line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-#storage{font-weight:600}button,input{font:inherit;max-width:100%}
-button{min-height:42px;padding:8px 15px;border:1px solid #c5c8c4;border-radius:13px;color:#202221;background:#f7f7f5;cursor:pointer}
-button:hover{background:#e8eae7}button:disabled{opacity:.45;cursor:default}
-.primary{background:#303331;color:#fff;border-color:#303331}.primary:hover{background:#484b49}
-.danger{color:#943b34}.tiny{min-height:34px;padding:5px 10px;font-size:14px}
-input[type=file]{width:100%;padding:13px;border:1px dashed #a8ada8;border-radius:13px;background:#fafaf9}
-input[type=text],input[type=password],input[type=url]{width:100%;min-height:44px;padding:9px 12px;border:1px solid #b9bdb9;border-radius:11px;margin-bottom:10px}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.check-line{display:flex;align-items:center;gap:8px;margin:6px 0 14px;font-weight:500}
-.upload h2,.upload .hint{margin-bottom:9px}.upload .send{margin-top:10px}
-.result{min-height:24px;margin:9px 0 0;color:#4f5751;overflow-wrap:anywhere}
-.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:13px 0}#path{font-weight:600;overflow-wrap:anywhere}
-ul{list-style:none;padding:0;margin:0}li{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:60px;padding:11px 0;border-top:1px solid #e1e3df}
-.entry-name{min-width:0;flex:1;overflow-wrap:anywhere}.entry-name small{display:block;color:#6a6e69;font-size:13px}
-.entry-actions{display:flex;flex-wrap:wrap;justify-content:end;gap:6px}.folder{font-weight:600;text-align:left;border:0;background:none;padding:0}.folder:hover{background:none;text-decoration:underline}
-.pages{display:flex;gap:8px;align-items:center;justify-content:end;margin-top:14px}
-dialog{width:min(92vw,420px);border:1px solid #c8cac6;border-radius:20px;padding:22px;background:#fff;color:#202221;box-shadow:0 18px 60px #0003}
-dialog::backdrop{background:#20222175}dialog h2{margin-bottom:10px}dialog p{margin:8px 0 16px;color:#626762;overflow-wrap:anywhere}
-.dialog-actions{display:flex;justify-content:end;gap:8px;margin-top:18px}section[hidden]{display:none}
-.crop-layout{display:flex;align-items:start;gap:22px;flex-wrap:wrap}.crop-preview{display:block;width:min(100%,260px);height:auto;aspect-ratio:684/1216;border:2px solid #626662;border-radius:14px;background:#e2e3e0;touch-action:none;cursor:grab}.crop-preview:active{cursor:grabbing}
-.crop-controls{flex:1;min-width:220px}.crop-controls label{display:block;margin:14px 0 5px;font-weight:600}.crop-controls input[type=range]{width:100%;accent-color:#303331}.crop-controls .primary{margin-top:16px}
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#f1f1f5;background:#0b0b10;--red:#ff3c50;--muted:#aaaabb;--line:#292932}
+
+*{box-sizing:border-box}
+body{max-width:1100px;margin:24px auto;padding:0 24px 40px;font-size:14px;line-height:1.6;display:grid;grid-template-columns:190px minmax(0,1fr);column-gap:28px}
+header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding:20px 0 24px;margin-bottom:24px}
+h1{font-size:30px;line-height:1.2;letter-spacing:-1px;font-weight:500;margin:0}
+h2{font-size:19px;line-height:1.3;font-weight:500;margin:0 0 12px}
+section{background:#111116;border:1px solid var(--line);border-radius:14px;padding:24px;margin:0 0 20px}
+.eyebrow{color:var(--red);font:11px/1.7 ui-monospace,monospace;letter-spacing:1.5px;margin:0 0 9px}
+.muted,.hint{color:var(--muted)}
+.muted{font-size:12px}
+.hint{margin:4px 0 17px;font-size:13px}
+.line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#storage{margin:0;font-size:13px}
+button,input{font:inherit;max-width:100%}
+button{min-height:44px;padding:9px 14px;border:1px solid #35353f;border-radius:8px;background:#1a1a22;color:#f1f1f5;cursor:pointer}
+button:hover{background:#252530}
+button:disabled{opacity:.45;cursor:default}
+.primary{background:var(--red);border-color:var(--red);color:#fff}
+.primary:hover{background:#e83447}
+.danger{color:#ffa2ae}
+.tiny{font-size:12px;padding:8px 10px}
+input[type=file]{width:100%;padding:24px 16px;border:1px dashed #79323e;border-radius:12px;background:#17121a;color:#c4c4d0}
+input::file-selector-button{font:inherit;min-height:44px;padding:8px 12px;margin:0 12px 4px 0;border:1px solid #4b323e;border-radius:8px;background:#34202c;color:#ffe9ed;cursor:pointer}
+input[type=text],input[type=password],input[type=url]{width:100%;min-height:44px;padding:10px 12px;background:#191920;color:#f1f1f5;border:1px solid #35353f;border-radius:8px;margin-bottom:12px}
+input[type=checkbox],input[type=range]{accent-color:var(--red)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.check-line{display:flex;align-items:center;gap:10px;margin:10px 0 20px;min-height:44px}
+.upload .send{margin-top:14px}
+.result{min-height:24px;margin:12px 0 0;color:#e4a5b0;overflow-wrap:anywhere}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0}
+#path{overflow-wrap:anywhere;font-size:13px}
+ul{list-style:none;padding:0;margin:0}
+li{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:65px;padding:13px 0;border-top:1px solid var(--line)}
+.entry-name{min-width:0;flex:1;overflow-wrap:anywhere}
+.entry-name small{display:block;color:var(--muted);font-size:12px}
+.entry-actions{display:flex;flex-wrap:wrap;justify-content:end;gap:6px}
+.folder{font-weight:500;text-align:left;border:0;background:none;padding:0;color:#f1f1f5}
+.folder:hover{background:none;text-decoration:underline}
+.pages{display:flex;gap:8px;align-items:center;justify-content:end;flex-wrap:wrap;margin-top:14px}
+dialog{width:min(92vw,440px);border:1px solid #59404d;border-radius:14px;padding:24px;background:#17171e;color:#f1f1f5;box-shadow:0 18px 60px #0008}
+dialog::backdrop{background:#0009}
+dialog p{color:var(--muted);overflow-wrap:anywhere}
+.dialog-actions{display:flex;justify-content:end;gap:8px;margin-top:20px}
+.crop-layout{display:flex;align-items:start;gap:22px;flex-wrap:wrap}
+.crop-preview{display:block;width:min(100%,240px);height:auto;aspect-ratio:684/1216;border:2px solid #59515e;border-radius:12px;background:#e2e3e0;touch-action:none;cursor:grab}
+.crop-preview:active{cursor:grabbing}
+.crop-controls{flex:1;min-width:min(100%,200px)}
+.crop-controls label{display:block;margin:14px 0 5px}
+.crop-controls input[type=range]{width:100%}
+.crop-controls .primary{margin-top:16px}
 [hidden]{display:none!important}
-.portal-tabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;padding:7px;border:1px solid #d2d4d0;border-radius:18px;background:#fff;position:sticky;top:8px;z-index:2;margin:18px 0}
-.portal-tabs button{min-width:0;min-height:46px;padding:8px 4px;border:0;background:transparent;font-size:14px;font-weight:600;white-space:nowrap}
-.portal-tabs button[aria-selected=true]{background:#303331;color:#fff}
-.portal-tabs button:focus-visible{outline:3px solid #737d73;outline-offset:2px}
-.storage-summary{padding:14px 20px;border-radius:16px}.storage-summary p{margin:0}.storage-summary .hint{font-size:13px;margin-top:4px}
-[role=tabpanel]:focus-visible{outline:2px solid #737d73;outline-offset:4px;border-radius:18px}
-@media(max-width:540px){.portal-tabs{grid-template-columns:repeat(3,minmax(0,1fr));top:6px}.portal-tabs button{min-height:42px}.storage-summary{padding:12px 16px}}
-@media(max-width:540px){body{padding:18px 12px 48px;font-size:15px}header{align-items:start}h1{font-size:31px}section{padding:17px;border-radius:19px}.entry-actions{width:100%;justify-content:start}li{flex-wrap:wrap}.form-grid{grid-template-columns:1fr}}
+.portal-tabs{grid-column:1;grid-row:2/4;display:flex;flex-direction:column;gap:7px;border-right:1px solid var(--line);padding-right:18px}
+.portal-tabs button{min-width:0;width:100%;text-align:left;padding:12px;border:0;background:transparent;color:#b8b8c6}
+.portal-tabs button[aria-selected=true]{background:#ff3c5017;color:#fff;box-shadow:inset 3px 0 var(--red)}
+button:focus-visible,input:focus-visible,[role=tabpanel]:focus-visible{outline:2px solid var(--red);outline-offset:3px}
+.storage-summary{grid-column:2;padding:15px 20px;margin-bottom:20px}
+.storage-summary .hint{font-size:12px;margin:5px 0 0}
+main{grid-column:2;min-width:0}
+#panel-books .upload{border:1px dashed #79323e;background:radial-gradient(ellipse at 50% 0%,#ff3c5012,transparent 80%),#111116}
+.upload.dragging{outline:2px solid var(--red);outline-offset:3px}
+@media(max-width:700px){body{display:block;padding:0 14px 32px;margin-top:8px}
+header{align-items:start;flex-wrap:wrap;padding-bottom:20px}
+h1{font-size:27px}
+section{padding:19px 16px}
+.portal-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:0 0 16px;border:0}
+.portal-tabs button{text-align:center;padding:10px 4px;font-size:12px}
+.portal-tabs button[aria-selected=true]{box-shadow:inset 0 -2px var(--red)}
+.entry-actions{width:100%;justify-content:start}
+li{flex-wrap:wrap}
+.form-grid{grid-template-columns:1fr}
+input,button{min-height:44px}
+}
+
 </style>
-<header><div><p class="eyebrow">dpReader / TRUYỀN DỮ LIỆU</p><h1>Quản lý & Truyền sách</h1></div><span class="muted">Metalio E-ink 4.7"</span></header>
+<header><div><p class="eyebrow">dpReader / TRUYỀN DỮ LIỆU</p><h1>Chuyển một cuốn sách.<br>Mở một thế giới.</h1></div><span class="muted">Metalio E-ink 4.7"</span></header>
 <section class="storage-summary" aria-label="Trạng thái lưu trữ"><p id="storage" role="status">Đang đọc trạng thái thiết bị…</p><p class="hint">Giữ dpReader ở màn hình truyền dữ liệu. Tệp tải lên sẽ được lưu vào thư mục tương ứng.</p></section>
 <nav class="portal-tabs" role="tablist" aria-label="Chức năng truyền dữ liệu">
 <button type="button" role="tab" id="tab-books" aria-controls="panel-books" aria-selected="true" tabindex="0">Sách</button>
@@ -59,7 +96,7 @@ dialog::backdrop{background:#20222175}dialog h2{margin-bottom:10px}dialog p{marg
 </nav>
 <main>
 <div id="panel-books" role="tabpanel" aria-labelledby="tab-books" tabindex="0">
-<section class="upload" data-kind="book"><h2>Tải sách lên</h2><p class="hint">EPUB, TXT → thư mục books. Sẽ hỏi xác nhận nếu trùng tên.</p><input type="file" accept=".epub,.txt" multiple aria-label="Chọn sách"><button class="primary send" type="button">Tải lên thư mục books</button><p class="result" role="status"></p></section>
+<section class="upload" data-kind="book"><h2>Truyền sách vào dpReader</h2><p class="hint">Kéo thả hoặc chọn tệp EPUB, TXT → thư mục books. Sẽ hỏi xác nhận nếu trùng tên.</p><input type="file" accept=".epub,.txt" multiple aria-label="Chọn sách"><button class="primary send" type="button">Tải lên thư mục books</button><p class="result" role="status"></p></section>
 </div>
 <div id="panel-files" role="tabpanel" aria-labelledby="tab-files" tabindex="0" hidden>
 <section id="browser"><div class="line"><h2>Duyệt thẻ nhớ TF</h2><button id="refresh" class="tiny" type="button">Làm mới</button></div>
@@ -254,7 +291,18 @@ async function sendFiles(section){
  if(files.length>1)result.textContent='Đã lưu '+saved+' tệp'+(kind==='file'?' vào /'+destination:'')+(failed?' · '+failed+' tệp lỗi':'');
  }finally{lock(false)}
 }
-document.querySelectorAll('.upload').forEach(section=>section.querySelector('.send').onclick=()=>sendFiles(section));
+document.querySelectorAll('.upload').forEach(section=>{
+ const input=section.querySelector('input'),result=section.querySelector('.result');
+ input.onchange=()=>{result.textContent=[...input.files].map(file=>file.name+' · '+size(file.size)).join(' / ')};
+ section.ondragover=event=>{event.preventDefault();if(!busy)section.classList.toggle('dragging',true)};
+ section.ondragleave=()=>section.classList.toggle('dragging',false);
+ section.ondrop=event=>{
+  event.preventDefault();section.classList.toggle('dragging',false);
+  if(busy||!event.dataTransfer.files.length)return;
+  try{input.files=event.dataTransfer.files;input.onchange()}catch(_){result.textContent='Vui lòng dùng nút chọn tệp của trình duyệt'}
+ };
+ section.querySelector('.send').onclick=()=>sendFiles(section);
+});
 info().then(loadDirectory).catch(error=>$('storage').textContent=error.message+', vui lòng tải lại trang');
 </script>
 </html>

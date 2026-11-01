@@ -157,10 +157,10 @@ Trang Web Flasher chính thức của dpReader được tích hợp sẵn công 
    - Nhấn giữ đồng thời **Nút Giữa (phím BOOT)** và **Nút Nguồn** khoảng 3–5 giây (hoặc vào **Cài đặt -> Nạp ROM qua máy tính -> Mở cổng nạp ROM**).
 3. **Kết nối:** Bấm nút **Kết nối Thiết bị** trên trang web và chọn thiết bị có tên `USB JTAG/serial debug unit` (hoặc cổng COM tương ứng).
 4. **Chọn chế độ nạp:**
-   - **Nâng cấp Ứng dụng (Khuyên dùng):** Nạp bản cập nhật mới nhất vào offset `0x10000`, tự động xoá `otadata` để máy boot ngay vào bản mới, **giữ nguyên toàn bộ sách, ghi chú, WiFi và cài đặt VCOM**.
-   - **Nạp Toàn Diện (Full Flash):** Nạp toàn bộ hệ thống từ offset `0x0` (`Bootloader` + `Partition Table` + `Otadata` + `Firmware`) dành cho máy mới xuất xưởng hoặc cứu máy bị lỗi hệ điều hành.
+   - **Nâng cấp Ứng dụng:** Nạp bản cập nhật mới nhất vào offset `0x10000`, tự động xoá `otadata` để máy boot ngay vào bản mới, **giữ nguyên toàn bộ sách, ghi chú, WiFi và cài đặt VCOM**.
+   - **Nạp toàn phần (mặc định — Cài mới / Cài từ firmware khác / Cứu máy):** Nạp toàn bộ hệ thống từ offset `0x0` (`Bootloader` + `Partition Table` + `Otadata` + `Firmware`) dành cho máy mới xuất xưởng hoặc cứu máy bị lỗi hệ điều hành.
    - *(Hoặc bạn có thể chọn "Tự chọn file .bin từ máy tính" nếu muốn nạp một bản build riêng).*
-5. **Tiến hành nạp:** Bấm **Bắt đầu Nạp Firmware**. Trang web sẽ tự động tải file nhị phân mới nhất từ máy chủ với cơ chế chống cache, hiển thị thanh tiến trình % trực quan.
+5. **Xác nhận và nạp:** Đọc cảnh báo, tích ô chấp nhận và tự chịu trách nhiệm về rủi ro, rồi bấm **Bắt đầu nạp firmware**. Đổi chế độ, phiên bản hoặc tệp cần xác nhận lại. Trang web sẽ tự động tải file nhị phân mới nhất từ máy chủ với cơ chế chống cache, hiển thị thanh tiến trình % trực quan.
 6. **Tự động khởi động lại:** Khi thanh tiến trình đạt `100%`, Web Flasher sẽ tự động phát xung reset cứng (RTS/EN) để khởi động lại máy thẳng vào hệ điều hành `dpReader` mới và tự động nhả cổng kết nối USB.
 
 #### Cách 5: Flash bằng công cụ dòng lệnh `esptool.py` (Windows / macOS / Linux)

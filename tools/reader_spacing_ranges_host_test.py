@@ -22,10 +22,10 @@ int main(void){
   uint8_t encoded=app_settings_book_paragraph_value(i);assert((int8_t)encoded==values[i]);assert(app_settings_book_paragraph_level(encoded)==i);
   book_layout_set_spacing(130,encoded);assert(gap_for(100,false)==values[i]);assert(gap_for(100,true)>=0);
  }
- const unsigned lines[]={236,246,0,100,110,120,130};const int heights[]={124,127,130,100,110,120,130};
- for(unsigned i=0;i<7;i++){book_layout_set_spacing(lines[i],0);assert(line_height_for(100)==heights[i]&&line_height_for(100)>0);}
- for(int i=-3;i<=20;i++){book_layout_set_word_spacing(i);assert(s_word_spacing_px==i);}
- book_layout_set_word_spacing(-4);assert(s_word_spacing_px==0);
+ const unsigned lines[]={206,216,226,236,246,0,100,110,120,130};const int heights[]={115,118,121,124,127,130,100,110,120,130};
+ for(unsigned i=0;i<10;i++){book_layout_set_spacing(lines[i],0);assert(line_height_for(100)==heights[i]&&line_height_for(100)>0);}
+ for(int i=-10;i<=20;i++){book_layout_set_word_spacing(i);assert(s_word_spacing_px==i);}
+ book_layout_set_word_spacing(-11);assert(s_word_spacing_px==0);
  return 0;
 }
 '''
@@ -33,6 +33,6 @@ with tempfile.TemporaryDirectory() as d:
  p=Path(d);(p/'t.c').write_text(u);subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',str(p/'t.c'),'-o',str(p/'t')],check=True);subprocess.run([str(p/'t')],check=True)
 assert 'if(kind==READ_PICK_SIZE)return 26;' in s and '40+2*index' in s
 assert 's_px>=40&&s_px<=90&&!(s_px%2)?(s_px-40)/2:-1' in s
-assert re.search(r's_line_choices\[\]=\{236,246,0,100,110,120,130\}',s)
-assert 'if(kind==READ_PICK_WORD)return 24;' in s and 'apply_reader_word_spacing(ctx,index-3)' in s
-print('PASS: even40..90 size ladder, signed paragraph -10..75 encoding/levels/gap, negative line leading arithmetic and seven choices, word -3..20 bounds')
+assert re.search(r's_line_choices\[\]=\{206,216,226,236,246,0,100,110,120,130\}',s)
+assert 'if(kind==READ_PICK_WORD)return 31;' in s and 'apply_reader_word_spacing(ctx,index-10)' in s
+print('PASS: even40..90 size ladder, signed paragraph -10..75 encoding/levels/gap, negative line leading arithmetic and ten choices, word -10..20 bounds')

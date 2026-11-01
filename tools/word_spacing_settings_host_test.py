@@ -22,7 +22,7 @@ for n in ['app_settings_book_word_spacing','app_settings_set_book_word_spacing',
 u+=r'''
 int main(void){
  for(int f=1;f<=3;f++){s_book_word_spacing=stored=0;fault=f;assert(!app_settings_set_book_word_spacing(12));assert(!stored&&!app_settings_book_word_spacing());}
- fault=0;for(int i=-128;i<=127;i++){s_book_word_spacing=stored=0;assert(app_settings_set_book_word_spacing(i)==(i>=-3&&i<=20));assert(stored==(uint8_t)(i>=-3&&i<=20?i:0));}
+ fault=0;for(int i=-128;i<=127;i++){s_book_word_spacing=stored=0;assert(app_settings_set_book_word_spacing(i)==(i>=-10&&i<=20));assert(stored==(uint8_t)(i>=-10&&i<=20?i:0));}
  settings_backup_indent_adjust_t b={.encoded=12};uint32_t sum=backup_indent_adjust_checksum(&b);for(unsigned i=0;i<4;i++)b.checksum[i]=sum>>(8*i);assert(backup_indent_adjust_valid(&b));b.encoded^=1;assert(!backup_indent_adjust_valid(&b));
  b.encoded=(uint8_t)-3;sum=backup_indent_adjust_checksum(&b);for(unsigned i=0;i<4;i++)b.checksum[i]=sum>>(8*i);assert(backup_word_spacing_valid(&b));b.checksum[0]^=1;assert(!backup_word_spacing_valid(&b));return 0;
 }

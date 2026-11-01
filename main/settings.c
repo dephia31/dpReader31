@@ -492,7 +492,7 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_BOOK_FONTS, &book_fonts) == ESP_OK) s_book_fonts = book_fonts == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_VERTICAL, &book_vertical) == ESP_OK) s_book_vertical = book_vertical == 1;
     uint8_t word_spacing=0;
-    s_book_word_spacing=nvs_get_u8(h,"book_word_gap",&word_spacing)==ESP_OK&&(word_spacing<=20||word_spacing>=253)?(int8_t)word_spacing:0;
+    s_book_word_spacing=nvs_get_u8(h,"book_word_gap",&word_spacing)==ESP_OK&&(word_spacing<=20||word_spacing>=246)?(int8_t)word_spacing:0;
     s_book_tracking = -APP_BOOK_TRACK_MIN;
     uint8_t tracking = 2, reading_line = 0, rule_offset = 4, indent = 2, indent_adjust = 20;
     if (nvs_get_u8(h, NVS_KEY_BOOK_TRACK, &tracking) == ESP_OK) {
@@ -525,7 +525,7 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_BOOK_FOOTER_PCT, &ft_pct) == ESP_OK) s_book_footer_pct = ft_pct == 1;
     uint8_t line = 130, para = 50, margin = 24;
     if (nvs_get_u8(h, NVS_KEY_BOOK_LINE, &line) == ESP_OK) {
-        if(line==236||line==246||line==0||(line>=100&&line<=130&&line%10==0))s_book_line=line;
+        if((line>=206&&line<=246&&(line-206)%10==0)||line==0||(line>=100&&line<=130&&line%10==0))s_book_line=line;
         else if(line>=110&&line<=150)s_book_line=line>130?130:((line+5)/10)*10;
         else if (line == 180) s_book_line = 130;
     }
@@ -1125,7 +1125,7 @@ void app_settings_set_shelf_recent_sort(bool on) {
 }
 int8_t app_settings_book_word_spacing(void){return s_book_word_spacing;}
 bool app_settings_set_book_word_spacing(int8_t px) {
-    if(px < -3 || px>20)return false;
+    if(px < -10 || px>20)return false;
     if(px==s_book_word_spacing)return true;
     nvs_handle_t h;if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
     esp_err_t err=nvs_set_u8(h,"book_word_gap",px);
@@ -1199,7 +1199,7 @@ void app_settings_set_book_reading_line_offset(int8_t offset_px) {
 }
 uint8_t app_settings_book_line_spacing(void) { return s_book_line; }
 void app_settings_set_book_line_spacing(uint8_t percent) {
-    if(percent!=236&&percent!=246&&percent!=0&&percent!=100&&percent!=110&&percent!=120&&percent!=130)return;
+    if(!(percent>=206&&percent<=246&&(percent-206)%10==0)&&percent!=0&&percent!=100&&percent!=110&&percent!=120&&percent!=130)return;
     if (s_book_line == percent) return;
     s_book_line = percent;
     nvs_put_u8(NVS_KEY_BOOK_LINE, percent);
@@ -1568,9 +1568,9 @@ static bool reader_backup_valid(const reader_backup_t *profile) {
         if(value<field->low||value>field->high)return false;
         if(!strcmp(field->key,NVS_KEY_BOOK_PX)&&valid_book_px(value)!=value)return false;
         if(!strcmp(field->key,NVS_KEY_READER_FULL)&&!reader_full_pages_valid(value))return false;
-        if(!strcmp(field->key,NVS_KEY_BOOK_LINE)&&!(value==236||value==246||value==0||(value>=100&&value<=130&&value%10==0)))return false;
+        if(!strcmp(field->key,NVS_KEY_BOOK_LINE)&&!((value>=206&&value<=246&&(value-206)%10==0)||value==0||(value>=100&&value<=130&&value%10==0)))return false;
         if(!strcmp(field->key,NVS_KEY_BOOK_PARA)&&app_settings_book_paragraph_value(app_settings_book_paragraph_level(value))!=value)return false;
-        if(!strcmp(field->key,"book_word_gap")&&!(value<=20||value>=253))return false;
+        if(!strcmp(field->key,"book_word_gap")&&!(value<=20||value>=246))return false;
     }
     return true;
 }
@@ -1764,7 +1764,7 @@ static bool backup_valid(const settings_backup_v1_t *backup) {
         f[BK_SHAKE] > 1 || !reader_full_pages_valid(f[BK_FULL_PAGES]) ||
         f[BK_TURN] > READER_TURN_EFFECT_MAX || f[BK_POWER_TURN] > 1 || f[BK_IMMERSIVE] > 1 ||
         f[BK_TRACKING] > (backup_version(backup)>=20 ? APP_BOOK_TRACK_COUNT-1 : backup_version(backup)==19 ? 20 : 4) || f[BK_READING_LINE] > 2 ||
-        (f[BK_LINE_SPACING]!=236&&f[BK_LINE_SPACING]!=246&&f[BK_LINE_SPACING]!=0&&(f[BK_LINE_SPACING]<100||f[BK_LINE_SPACING]>150)) ||
+        (!(f[BK_LINE_SPACING]>=206&&f[BK_LINE_SPACING]<=246&&(f[BK_LINE_SPACING]-206)%10==0)&&f[BK_LINE_SPACING]!=0&&(f[BK_LINE_SPACING]<100||f[BK_LINE_SPACING]>150)) ||
         f[BK_MARGIN] > 60 ||
         (backup_version(backup)>=20 ?
          (f[BK_PARAGRAPH]!=100 && app_settings_book_paragraph_value(app_settings_book_paragraph_level(f[BK_PARAGRAPH])) != f[BK_PARAGRAPH]) :
@@ -1870,7 +1870,7 @@ esp_err_t app_settings_backup_restore(void) {
     if(ok && version>=18)ok=fread(&bookmark,1,sizeof(bookmark),file)==sizeof(bookmark)&&
         backup_background_valid(&bookmark)&&backup_path_valid(bookmark.path,sizeof(bookmark.path));
     if(ok&&version>=21)ok=fread(&word_spacing,1,sizeof(word_spacing),file)==sizeof(word_spacing)&&
-        (word_spacing.encoded<=20||word_spacing.encoded>=253)&&backup_word_spacing_valid(&word_spacing);
+        (word_spacing.encoded<=20||word_spacing.encoded>=246)&&backup_word_spacing_valid(&word_spacing);
     reader_backup_t reader={0};
     if(ok&&version>=22)ok=fread(&reader,1,sizeof(reader),file)==sizeof(reader)&&reader_backup_valid(&reader);
     settings_backup_utilities_t utilities={0};

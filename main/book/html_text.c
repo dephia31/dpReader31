@@ -667,11 +667,11 @@ static esp_err_t add_image(writer_t* w, const char* path) {
     return err;
 }
 
-esp_err_t html_to_blocks_with_css_target(const char* html, size_t len,
+static esp_err_t html_to_blocks_core(const char* html, size_t len,
                                           const char* css, size_t css_len,
                                           const html_font_map_t* fonts,
                                           const char* anchor, size_t source_offset,
-                                          size_t* anchor_offset, html_text_t* out) {
+                                          size_t* anchor_offset, html_text_t* out, html_source_map_t *map) {
     if (!out) return ESP_ERR_INVALID_ARG;
     *out = (html_text_t){0};
     if (anchor_offset) *anchor_offset = 0;
@@ -783,8 +783,13 @@ esp_err_t html_to_blocks_with_css_target(const char* html, size_t len,
                                  name_equal(name, "svg:image") || name_equal(name, "object"))) {
                     char path[HTML_IMAGE_PATH_MAX + 1];
                     if (image_attr(html + at, html + end, name_equal(name, "object"), path)) {
+                        size_t before_image=w.text.len;
                         err = add_image(&w, path);
                         if (err != ESP_OK) goto fail;
+                        if(map&&w.text.len>=before_image+3){
+                            if(map->source_target==tag_offset){map->text_result=w.text.len-3;map->source_found=true;}
+                            if(map->text_target>=before_image&&map->text_target<w.text.len){map->source_result=tag_offset;map->text_found=true;}
+                        }
                     }
                     continue;
                 }
@@ -806,6 +811,9 @@ esp_err_t html_to_blocks_with_css_target(const char* html, size_t len,
                     if (name[0] == 'h' && name[1] >= '1' && name[1] <= '6' && !name[2])
                         w.heading_level = !closing && !self_closing ? (uint8_t)(name[1] - '0') : 0;
                 }
+                if(map&&!closing&&!skip[0]&&map->source_target==tag_offset){
+                    map->text_result=w.text.len+(!w.active&&w.text.count?1:0);map->source_found=true;
+                }
                 if (!closing && !skip[0] && anchor_offset) {
                     const char *value = NULL; size_t length = 0;
                     bool matched = tag_offset == source_offset;
@@ -825,8 +833,19 @@ esp_err_t html_to_blocks_with_css_target(const char* html, size_t len,
         size_t n = html[pos] == '&' ? entity(html + pos, len - pos, &cp) : 0;
         if (!n) n = utf8(html + pos, len - pos, &cp);
         if (!n) { err = ESP_ERR_INVALID_RESPONSE; goto fail; }
+        size_t before = w.text.len;
         err = emit(&w, cp);
         if (err != ESP_OK) goto fail;
+        if (map && w.text.len > before) {
+            size_t width = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+            size_t begin = w.text.len - width;
+            if (map->source_target >= pos && map->source_target < pos+n) {
+                map->text_result=begin; map->source_found=true;
+            }
+            if (map->text_target >= before && map->text_target < w.text.len) {
+                map->source_result=pos; map->text_found=true;
+            }
+        }
         pos += n;
     }
     err = finish_block(&w, false);
@@ -842,6 +861,16 @@ fail:
     free(w.rules);
     html_text_free(&w.text);
     return err;
+}
+
+esp_err_t html_to_blocks_with_css_target(const char* html,size_t len,const char* css,size_t css_len,
+    const html_font_map_t* fonts,const char* anchor,size_t source_offset,size_t* anchor_offset,html_text_t* out) {
+    return html_to_blocks_core(html,len,css,css_len,fonts,anchor,source_offset,anchor_offset,out,NULL);
+}
+esp_err_t html_to_blocks_mapped(const char* html,size_t len,html_source_map_t* map,html_text_t* out) {
+    if (!map) return ESP_ERR_INVALID_ARG;
+    map->source_found=map->text_found=false;
+    return html_to_blocks_core(html,len,NULL,0,NULL,NULL,SIZE_MAX,NULL,out,map);
 }
 
 esp_err_t html_to_blocks_with_css_anchor(const char* html, size_t len,

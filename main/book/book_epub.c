@@ -2245,3 +2245,85 @@ esp_err_t book_epub_resume_io(book_epub_t *book) {
 }
 #else
 #endif
+
+esp_err_t book_epub_chapter_markup(book_epub_t *book,size_t chapter,char **markup,size_t *len) {
+    if (!book || chapter>=book->count || !markup || !len) return ESP_ERR_INVALID_ARG;
+    *markup=NULL;*len=0;
+    return load_entry(book,book->chapters[chapter].zip_index,markup,len);
+}
+
+static bool sync_style_text_safe(const char* text, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        if (text[i] == '\\') return false;
+        if (i + 7 <= len && !strncasecmp(text + i, "@import", 7)) return false;
+        const char* name = NULL;
+        size_t n = 0;
+        if (i + 11 <= len && !strncasecmp(text + i, "white-space", 11)) {
+            name = "white-space";
+            n = 11;
+        } else if (i + 7 <= len && !strncasecmp(text + i, "display", 7)) {
+            name = "display";
+            n = 7;
+        }
+        if (!name) continue;
+        size_t at = i + n;
+        while (at < len && space(text[at])) at++;
+        if (at == len || text[at++] != ':') continue;
+        while (at < len && space(text[at])) at++;
+        if (n == 7) return false;
+        size_t end = at;
+        while (end < len && ((text[end] >= 'a' && text[end] <= 'z') ||
+                             (text[end] >= 'A' && text[end] <= 'Z') || text[end] == '-'))
+            end++;
+        if (!((end - at == 6 && !strncasecmp(text + at, "normal", 6)) ||
+              (end - at == 6 && !strncasecmp(text + at, "nowrap", 6))))
+            return false;
+    }
+    return true;
+}
+bool book_epub_sync_style_safe(book_epub_t* book, size_t chapter, const char* markup, size_t len) {
+    if (!book || chapter >= book->count || !markup || !sync_style_text_safe(markup, len))
+        return false;
+    typedef struct {
+        xml_t xml;
+        token_t token;
+        char href[EPUB_PATH_CAP], rel[128], media[80], path[EPUB_PATH_CAP];
+    } check_t;
+    check_t* check = psram(sizeof(*check));
+    if (!check) return false;
+    bool safe = true;
+    size_t total = 0;
+    xml_reader(&check->xml, markup, len);
+    while (safe && xml_next(&check->xml, &check->token)) {
+        token_t t = check->token;
+        if (t.kind != XML_OPEN || !local_name(t.name, "link")) continue;
+        if (!attribute(t, "href", check->href, sizeof(check->href)) ||
+            !attribute(t, "rel", check->rel, sizeof(check->rel)) ||
+            !attribute(t, "type", check->media, sizeof(check->media))) {
+            safe = false;
+            break;
+        }
+        if (!word(check->rel, "stylesheet") && strcasecmp(check->media, "text/css")) continue;
+        if (!resolve_path(
+                zip_entry_name(book->zip, book->chapters[chapter].zip_index), check->href,
+                check->path)) {
+            safe = false;
+            break;
+        }
+        int entry = zip_find(book->zip, check->path);
+        size_t n = zip_entry_size(book->zip, entry);
+        if (entry < 0 || n > EPUB_CSS_FILE_MAX || n > EPUB_CSS_MAX - total) {
+            safe = false;
+            break;
+        }
+        char* css = NULL;
+        size_t bytes = 0;
+        safe = load_entry(book, entry, &css, &bytes) == ESP_OK;
+        if (safe) safe = sync_style_text_safe(css, bytes);
+        free(css);
+        total += n;
+    }
+    safe = safe && !check->xml.failed;
+    free(check);
+    return safe;
+}

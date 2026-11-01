@@ -1,5 +1,23 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.6RC5-vn · 2026-11-01
+
+- KoSync EPUB dùng vị trí phần tử/ký tự trong chương và tỷ lệ đầy đủ thay vì phần trăm nguyên; hỗ trợ kéo đúng vị trí trong chương dài và giữ tương thích vị trí dpReader cũ.
+- So sánh thời gian đọc mới nhất khi đồng hồ hợp lệ; vị trí ước lượng được báo riêng, không tự áp dụng khi mở sách. Phản hồi sai hoặc lỗi máy chủ không đẩy đè tiến độ.
+
+## dpReader 1.2.6RC3-vn · 2026-11-01
+
+- Trang truyền tệp local dùng giao diện Red Studio đỏ/đen, hỗ trợ kéo thả tệp và hiển thị tệp đã chọn; giữ quản lý thẻ nhớ, từ điển, font, hình ảnh và cấu hình đồng bộ.
+- Trang web flash dùng Red Studio; mặc định Nạp toàn phần cho Cài mới / Cài từ firmware khác / Cứu máy. Phải chấp nhận rủi ro trước khi ghi; đổi chế độ, phiên bản hoặc tệp sẽ yêu cầu xác nhận lại.
+
+## dpReader 1.2.6RC2-vn · 2026-11-01
+
+- Thêm giãn dòng −50%, −40%, −30% và khoảng cách từ −10 đến −4 px; lưu/khôi phục cùng cấu hình SD.
+
+## dpReader 1.2.6RC1-vn · 2026-11-01
+
+- Sửa truy cập địa chỉ BLE lệch hàng trên S31; giới hạn thời gian chờ dừng Bluetooth và xác nhận host sẵn sàng/đã thoát trước khi kết nối lại.
+
 ## dpReader 1.2.5-vn · 2026-11-01
 
 - Thiết kế lại Home: thẻ Tiện Ích với 4 shortcut tùy chọn và hàng 4 sách từng đọc; bỏ widget lịch và nhãn Đọc gần đây.

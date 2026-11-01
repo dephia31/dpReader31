@@ -176,6 +176,7 @@ static ui_online_fonts_t s_online_fonts;
 #include "book_excerpt.h"
 #include "book_toc.h"
 #include "kosync_client.h"
+#include "kosync_state.h"
 #include "app_loop.h"
 #include "read_pico_transfer.h"
 #include "opds_client.h"
@@ -1462,6 +1463,12 @@ static size_t reader_page_offset(size_t page) {
         off = s_jump_offset;
     return off;
 }
+static double reader_sync_ratio(size_t page) {
+    uint32_t total=book_total_bytes();if(!total)return 0;
+    if(s_chapter+1==book_chapter_count()&&page+1==book_layout_page_count())return 1;
+    uint32_t off=book_position_bytes(book_chapter_byte_offset(s_chapter),chapter_end(),reader_page_offset(page),s_text_len);
+    return (double)off/(double)total;
+}
 static unsigned percent(size_t page) {
     uint32_t total = book_total_bytes();
     if (!total) return 0;
@@ -1990,6 +1997,7 @@ static void draw_bulk(uint8_t* fb, int leaf) {
 }
 static void save_progress(void) {
     if (!s_text || !s_path[0] || !book_layout_page_count()) return;
+    kosync_state_touch(s_path,s_file_size,(uint16_t)s_chapter,(uint32_t)reader_page_offset(s_page));
     bool was_failed = s_save_failed;
     pending_progress_t* pending = pending_find(s_path);
     if (!pending) { s_save_failed = true; return; }
@@ -4886,6 +4894,7 @@ static void track_ticket_stats(app_ctx_t* ctx) {
     if (s_stats_pending_ms >= 30000) flush_ticket_stats();
 }
 static void free_book(void) {
+    kosync_state_commit(s_path);
     book_notes_reset();
     reader_font_recovery_reset();
 #if KIIKO_BOARD_METALIO47
@@ -5403,13 +5412,14 @@ static bool open_book_impl(app_ctx_t* ctx, const char* path) {
     s_clear_confirm = s_batch_confirm = false;
     s_session_read_ms = s_session_turns = 0;
     s_reader_notice[0] = 0;
+    kosync_state_begin(s_path,s_file_size,(uint16_t)s_chapter,(uint32_t)reader_page_offset(s_page));
     s_turns = s_unsaved = 0;
     pending_mark_latest(s_path);
     save_progress();
     if(app_settings_kosync_auto()&&app_settings_kosync_user()[0]) {
         book_progress_t snapshot={.file_size=s_file_size,.chapter=(uint16_t)s_chapter,
             .byte_off=(uint32_t)reader_page_offset(s_page),.px=(uint8_t)s_px,.pct=(uint8_t)percent(s_page)};
-        kosync_auto_submit(s_path,&snapshot,(double)snapshot.pct/100.0,true);
+        kosync_auto_submit(s_path,&snapshot,reader_sync_ratio(s_page),true);
     }
     // 打开即重新上书架：移出书架只隐藏条目，重新读这本书就是它该在架上的信号。
     // Opening puts the book back on the shelf: removal only hides the entry, and reading it
@@ -6069,6 +6079,7 @@ static app_redraw_t turn_page(app_ctx_t* ctx, int dir) {
     else s_turns = 0;
     s_reader_cleanup = full_pages > 0 && s_turns >= full_pages;
     if (s_reader_cleanup) s_turns = 0;
+    kosync_state_touch(s_path,s_file_size,(uint16_t)s_chapter,(uint32_t)reader_page_offset(s_page));
     if (s_unsaved < 8) ++s_unsaved;
     if (s_unsaved >= 8 && !s_save_failed) save_progress();
     ESP_LOGI(TAG, "turn chapter=%u page=%u/%u pct=%u", (unsigned)s_chapter, (unsigned)s_page + 1, (unsigned)book_layout_page_count(), percent(s_page));
@@ -6117,7 +6128,7 @@ static app_redraw_t apply_reader_layout(app_ctx_t* ctx, int next_px, int next_ma
     (void)ctx;
     if (next_px < BOOK_PX_MIN || next_px > BOOK_PX_MAX ||
         next_margin < BOOK_MARGIN_MIN || next_margin > BOOK_MARGIN_MAX ||
-        (next_line!=236&&next_line!=246&&next_line!=0&&next_line!=100&&next_line!=110&&next_line!=120&&next_line!=130) ||
+        (!(next_line>=206&&next_line<=246&&(next_line-206)%10==0)&&next_line!=0&&next_line!=100&&next_line!=110&&next_line!=120&&next_line!=130) ||
         app_settings_book_paragraph_value(app_settings_book_paragraph_level(next_para)) != next_para) return APP_REDRAW_NONE;
     if (next_px == s_px && next_margin == s_margin && next_line == app_settings_book_line_spacing() &&
         next_para == app_settings_book_paragraph_spacing()) return APP_REDRAW_NONE;
@@ -6205,14 +6216,14 @@ static app_redraw_t apply_reader_indent(app_ctx_t* ctx, int em, int adjustment) 
     return APP_REDRAW_PAGE;
 }
 
-static const uint8_t s_line_choices[]={236,246,0,100,110,120,130};
+static const uint8_t s_line_choices[]={206,216,226,236,246,0,100,110,120,130};
 static int reader_choice_count(int kind) {
     if(kind==READ_PICK_SIZE)return 26;
     if(kind==READ_PICK_MARGIN){int widths[BOOK_MARGIN_CHOICES],values[BOOK_MARGIN_CHOICES];return reader_margin_levels(s_px,app_settings_book_tracking()+APP_BOOK_TRACK_MIN,widths,values);}
-    if(kind==READ_PICK_LINE)return 7;
+    if(kind==READ_PICK_LINE)return 10;
     if(kind==READ_PICK_PARAGRAPH)return APP_BOOK_PARAGRAPH_COUNT;
     if(kind==READ_PICK_TRACK)return APP_BOOK_TRACK_COUNT;
-    if(kind==READ_PICK_WORD)return 24;
+    if(kind==READ_PICK_WORD)return 31;
     if(kind==READ_PICK_INDENT||kind==READ_PICK_ALIGN)return 4;
     if(kind==READ_PICK_INDENT_FINE)return 201;
     if(kind==READ_PICK_REFRESH)return 9;
@@ -6226,10 +6237,10 @@ static const uint8_t s_refresh_choices[]={0,1,3,5,8,10,15,20,30};
 static int reader_choice_current(int kind) {
     if(kind==READ_PICK_SIZE)return s_px>=40&&s_px<=90&&!(s_px%2)?(s_px-40)/2:-1;
     if(kind==READ_PICK_MARGIN)return reader_margin_level_for(s_margin,s_px,app_settings_book_tracking()+APP_BOOK_TRACK_MIN);
-    if(kind==READ_PICK_LINE){for(int i=0;i<7;i++)if(s_line_choices[i]==app_settings_book_line_spacing())return i;return -1;}
+    if(kind==READ_PICK_LINE){for(int i=0;i<10;i++)if(s_line_choices[i]==app_settings_book_line_spacing())return i;return -1;}
     if(kind==READ_PICK_PARAGRAPH)return app_settings_book_paragraph_level(app_settings_book_paragraph_spacing());
     if(kind==READ_PICK_TRACK)return app_settings_book_tracking();
-    if(kind==READ_PICK_WORD)return app_settings_book_word_spacing()+3;
+    if(kind==READ_PICK_WORD)return app_settings_book_word_spacing()+10;
     if(kind==READ_PICK_INDENT)return app_settings_book_indent();
     if(kind==READ_PICK_INDENT_FINE)return app_settings_book_indent_adjust()+100;
     if(kind==READ_PICK_ALIGN)return app_settings_book_align();
@@ -6244,10 +6255,10 @@ static int reader_choice_current(int kind) {
 static void reader_choice_label(int kind,int index,char *out,size_t size) {
     if(kind==READ_PICK_SIZE)snprintf(out,size,"%d px",40+2*index);
     else if(kind==READ_PICK_MARGIN)snprintf(out,size,"%d px",reader_margin_for_level(index,s_margin,s_px,app_settings_book_tracking()+APP_BOOK_TRACK_MIN));
-    else if(kind==READ_PICK_LINE)snprintf(out,size,"%d%%",s_line_choices[index]>=236?(int)s_line_choices[index]-256:(int)s_line_choices[index]);
+    else if(kind==READ_PICK_LINE)snprintf(out,size,"%d%%",s_line_choices[index]>=206?(int)s_line_choices[index]-256:(int)s_line_choices[index]);
     else if(kind==READ_PICK_PARAGRAPH)snprintf(out,size,"%d%%",(int)(int8_t)app_settings_book_paragraph_value(index));
     else if(kind==READ_PICK_TRACK)snprintf(out,size,"%+d px",index+APP_BOOK_TRACK_MIN);
-    else if(kind==READ_PICK_WORD)snprintf(out,size,"%+d px",index-3);
+    else if(kind==READ_PICK_WORD)snprintf(out,size,"%+d px",index-10);
     else if(kind==READ_PICK_INDENT){if(index)snprintf(out,size,"%d chữ",index);else snprintf(out,size,"Không");}
     else if(kind==READ_PICK_INDENT_FINE)snprintf(out,size,"%+d px",index-100);
     else if(kind==READ_PICK_ALIGN)snprintf(out,size,"%s",reader_align_name(index));
@@ -6266,7 +6277,7 @@ static void reader_choice_open(int kind) {
     ui_choice_begin(&s_reader_choice,kind,titles[kind],reader_choice_count(kind),reader_choice_current(kind));
 }
 static app_redraw_t apply_reader_word_spacing(app_ctx_t *ctx,int value) {
-    (void)ctx;if(!s_text||value < -3||value>20)return APP_REDRAW_NONE;
+    (void)ctx;if(!s_text||value < -10||value>20)return APP_REDRAW_NONE;
     int old=app_settings_book_word_spacing();if(value==old)return APP_REDRAW_NONE;
     size_t off=book_layout_page_start_offset(s_page);lock_draw();invalidate_prep();
     book_layout_set_word_spacing(value);
@@ -6291,7 +6302,7 @@ static app_redraw_t reader_choice_gesture(app_ctx_t *ctx,const ui_gesture_event_
     else if(kind==READ_PICK_LINE)(void)apply_reader_layout(ctx,s_px,s_margin,s_line_choices[index],app_settings_book_paragraph_spacing());
     else if(kind==READ_PICK_PARAGRAPH)(void)apply_reader_layout(ctx,s_px,s_margin,app_settings_book_line_spacing(),app_settings_book_paragraph_value(index));
     else if(kind==READ_PICK_TRACK)(void)apply_reader_typography(ctx,index);
-    else if(kind==READ_PICK_WORD)(void)apply_reader_word_spacing(ctx,index-3);
+    else if(kind==READ_PICK_WORD)(void)apply_reader_word_spacing(ctx,index-10);
     else if(kind==READ_PICK_INDENT)(void)apply_reader_indent(ctx,index,app_settings_book_indent_adjust());
     else if(kind==READ_PICK_INDENT_FINE)(void)apply_reader_indent(ctx,app_settings_book_indent(),index-100);
     else if(kind==READ_PICK_ALIGN){app_settings_set_book_align(index);book_layout_set_body_align(app_settings_book_align());invalidate_prep();s_reader_cleanup=true;}
@@ -6468,7 +6479,7 @@ static app_redraw_t reader_return(app_ctx_t *ctx) {
             .px = (uint8_t)s_px,
             .pct = (uint8_t)percent(s_page),
         };
-        kosync_auto_submit(s_path, &kp, (double)kp.pct / 100.0, false);
+        kosync_auto_submit(s_path, &kp, reader_sync_ratio(s_page), false);
     }
     free_book();
     s_view = SHELF;
@@ -6782,7 +6793,7 @@ static app_redraw_t reader_chapter_jump_action(app_ctx_t *ctx,uint16_t x,uint16_
                 .pct = (uint8_t)percent(s_page),
             };
             char status_msg[96] = {0};
-            if (kosync_push_book_progress(s_path, &kp, (double)kp.pct / 100.0, status_msg, sizeof(status_msg)) == ESP_OK) {
+            if (kosync_push_book_progress(s_path, &kp, reader_sync_ratio(s_page), status_msg, sizeof(status_msg)) == ESP_OK) {
                 copy_text(s_reader_notice, sizeof(s_reader_notice), "Đã đồng bộ KOSync");
             } else {
                 copy_text(s_reader_notice, sizeof(s_reader_notice), status_msg[0] ? status_msg : "Đồng bộ KOSync thất bại");
@@ -7896,8 +7907,9 @@ static void book_on_exit(app_ctx_t* ctx) {
             .px = (uint8_t)s_px,
             .pct = (uint8_t)percent(s_page),
         };
-        kosync_auto_submit(s_path, &kp, (double)kp.pct / 100.0, false);
+        kosync_auto_submit(s_path, &kp, reader_sync_ratio(s_page), false);
     }
+    kosync_state_commit(s_path);
     s_reader_return_home = false;
     ui_reader_background_release();
     free(s_backgrounds); s_backgrounds = NULL; s_background_count = 0;
@@ -8639,7 +8651,7 @@ void app_book_request_kosync(app_ctx_t *ctx) {
         bool pulled_newer = false;
         char msg[96] = {0};
 
-        esp_err_t err = kosync_sync_book(s_path, &chap, &off, &pct, &pulled_newer, msg, sizeof(msg));
+        esp_err_t err = kosync_sync_book_precise(s_path, &chap, &off, &pct, reader_sync_ratio(s_page), &pulled_newer, msg, sizeof(msg));
         if (err == ESP_OK) {
             if (pulled_newer) {
                 if (chap < book_chapter_count()) {
@@ -8978,9 +8990,10 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
         book_progress_t current={.chapter=(uint16_t)s_chapter,.byte_off=(uint32_t)reader_page_offset(s_page),.pct=(uint8_t)percent(s_page)};
         kosync_progress_t remote={0};uint16_t chapter=0;uint32_t offset=0;bool exact=false;
         if(kosync_auto_take_pull(s_path,&current,&remote,&chapter,&offset,&exact)&&
-           (exact||remote.percentage>0.0005)&&remote.percentage>=(double)current.pct/100.0&&chapter<book_chapter_count()&&
-           (chapter!=current.chapter||(exact?offset!=current.byte_off:remote.percentage>(double)current.pct/100.0))) {
-            if(load_chapter(ctx,chapter,exact?offset:0,false)){save_progress();return APP_REDRAW_PAGE;}
+           remote.position_valid&&exact&&chapter<book_chapter_count()&&
+           kosync_should_pull(s_path,current.chapter,current.byte_off,reader_sync_ratio(s_page),&remote,chapter,offset,exact)) {
+            kosync_state_accept(s_path,chapter,offset,remote.timestamp);
+            if(load_chapter(ctx,chapter,offset,false)){save_progress();return APP_REDRAW_PAGE;}
         }
     }
 
@@ -9186,6 +9199,7 @@ static void before_lock(app_ctx_t* ctx) {
     s_reader_tap.pending = false;
     track_ticket_stats(ctx);
     save_progress();
+    kosync_state_commit(s_path);
     // 锁屏前丢弃分行预绘，后续只按当前字体重建。/ Discard idle prefetch before lock; rebuild only with the current face.
     lock_draw();
     invalidate_prep();

@@ -76,11 +76,20 @@ static bool metalio_radio_reserved(void) {
 #else
 #endif
 static TaskHandle_t s_host_task;
+static atomic_bool s_host_ready, s_host_exited=true;
+static atomic_bool s_stop_active, s_stop_done;
+static esp_err_t s_stop_result;
+static bool s_stop_timeout_logged;
+static uint32_t s_stop_budget_ms=2000;
+static int64_t s_host_started_ms;
+static esp_err_t stop_locked(void);
 static bool lifecycle_take(uint32_t timeout_ms) {
     const int64_t deadline = esp_timer_get_time() + (int64_t)timeout_ms * 1000;
     while (atomic_flag_test_and_set(&s_lifecycle)) {
-        if (esp_timer_get_time() >= deadline) return false;
-        vTaskDelay(pdMS_TO_TICKS(10));
+        int64_t remaining=deadline-esp_timer_get_time();
+        if(remaining<=0)return false;
+        uint32_t pause_ms=remaining>=10000?10:(uint32_t)((remaining+999)/1000);
+        vTaskDelay(pdMS_TO_TICKS(pause_ms));
     }
     return true;
 }
@@ -693,7 +702,7 @@ static int scan_cb(struct ble_gap_event *event, void *arg) {
 }
 
 void ble_pt_scan_start(uint32_t ms) {
-    if (!s_running || s_scanning || s_connected || s_connecting) return;
+    if (!s_running || !atomic_load(&s_host_ready) || atomic_load(&s_stop_active) || s_scanning || s_connected || s_connecting) return;
     s_device_count = 0;  // 重扫时清空，免得新旧混在一起 / clear on rescan so old and new do not mix
     // 扫描参数用协议栈默认值：曾经照 CrossMux 设成 itvl=window=160（100% 占空比），
     // 那也是可能被控制器以 HCI 0x12 拒掉的一条命令。先把连接能力拿回来。
@@ -1338,6 +1347,7 @@ static int gap_cb(struct ble_gap_event *event, void *arg) {
         }
 
         case BLE_GAP_EVENT_NOTIFY_RX: {
+            if(atomic_load(&s_stop_active)||!atomic_load(&s_host_ready))return 0;
             ble_pt_crumb(BLE_PT_CRUMB_RX);
 #if KIIKO_BOARD_METALIO47
             // S31/NimBLE传输适配：完整拷贝链式mbuf，作者的整帧学习和HID解析保持原样。
@@ -1391,6 +1401,7 @@ static int gap_cb(struct ble_gap_event *event, void *arg) {
 // 按给定地址类型发起连接；成功返回 0，失败返回 NimBLE 的错误码。
 // Start a connection with the given peer address type; 0 on success, else NimBLE's error code.
 static int start_connect(const char *addr, uint8_t type) {
+    if(!atomic_load(&s_host_ready)||atomic_load(&s_stop_active))return BLE_HS_EBUSY;
     unsigned v[6];
     if (sscanf(addr, "%x:%x:%x:%x:%x:%x", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5]) != 6)
         return BLE_HS_EINVAL;
@@ -1427,6 +1438,7 @@ static int start_connect(const char *addr, uint8_t type) {
 }
 
 esp_err_t ble_pt_connect(const char *addr) {
+    if(!atomic_load(&s_host_ready)||atomic_load(&s_stop_active))return ESP_ERR_INVALID_STATE;
     if (!s_running || !addr || !addr[0]) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -1510,8 +1522,8 @@ void ble_pt_disconnect(void) {
 // "Connected" in the UI means the link exists, regardless of whether our HID subscription
 // succeeded. This used to report "subscription usable", and since a subscription can fail while
 // the remote keeps notifying, the page sat on "connecting" forever.
-bool ble_pt_connected(void) { return s_link_up; }
-bool ble_pt_connecting(void) { return s_connecting && !s_link_up; }
+bool ble_pt_connected(void) { return s_link_up&&atomic_load(&s_host_ready)&&!atomic_load(&s_stop_active); }
+bool ble_pt_connecting(void) { return s_connecting && !s_link_up && atomic_load(&s_host_ready)&&!atomic_load(&s_stop_active); }
 const char *ble_pt_connected_name(void) { return s_conn_name; }
 
 bool ble_pt_take_failure(char *out, size_t cap) {
@@ -1531,17 +1543,29 @@ bool ble_pt_take_passkey(uint32_t *out) {
 /* ---- 生命周期 / Lifecycle ---- */
 
 static void on_sync(void) {
+    atomic_store(&s_host_ready,false);
+    if(atomic_load(&s_stop_active))return;
     if (ble_hs_util_ensure_addr(0) != 0) {
         ESP_LOGE(TAG, "no usable address");
         return;
     }
-    ble_hs_id_infer_auto(0, &s_own_addr_type);
+    uint8_t address_type=0;
+    int rc=ble_hs_id_infer_auto(0,&address_type);
+    if(rc!=0){ESP_LOGE(TAG,"BLE identity inference failed: %d",rc);return;}
+    s_own_addr_type=address_type;
+    atomic_store(&s_host_ready,true);
+    ESP_LOGI(TAG,"BLE host ready, address_type=%u",(unsigned)address_type);
+}
+static void on_host_reset(int reason) {
+    atomic_store(&s_host_ready,false);
+    ESP_LOGW(TAG,"BLE host reset: %d",reason);
 }
 
 static void host_task(void *param) {
     (void)param;
     nimble_port_run();
-    s_host_task = NULL;
+    atomic_store(&s_host_ready,false);
+    atomic_store(&s_host_exited,true);
     vTaskDelete(NULL);
 }
 
@@ -1561,6 +1585,7 @@ static esp_err_t start_locked(void) {
 #else
     if (atomic_load(&s_network_users)) return ESP_ERR_INVALID_STATE;
 #endif
+    if(atomic_load(&s_stop_active))return ESP_ERR_INVALID_STATE;
     if (s_running) return ESP_OK;
 #if KIIKO_BOARD_METALIO47
     network_resume_peer();
@@ -1593,7 +1618,10 @@ static esp_err_t start_locked(void) {
         return err;
     }
 
+    atomic_store(&s_host_ready,false);atomic_store(&s_host_exited,false);
+    s_host_started_ms=esp_timer_get_time()/1000;
     ble_hs_cfg.sync_cb = on_sync;
+    ble_hs_cfg.reset_cb=on_host_reset;
     // 与 CrossMux 的 BleKeyboardHost 对齐：Just Works + LE Legacy 配对。
     // 要求 Secure Connections（sc=1）时，不支持 SC 的老翻页器会直接以认证失败收场，
     // 表现正是"配对表里有它、按键一个都进不来"。
@@ -1620,7 +1648,7 @@ static esp_err_t start_locked(void) {
     if (xTaskCreatePinnedToCore(host_task, "nimble_host", CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE,
                                NULL, configMAX_PRIORITIES - 4, &s_host_task,
                                CONFIG_BT_NIMBLE_PINNED_TO_CORE) != pdPASS) {
-        s_host_task = NULL;
+        s_host_task = NULL;atomic_store(&s_host_exited,true);
         (void)nimble_port_deinit();
         return ESP_ERR_NO_MEM;
     }
@@ -1633,17 +1661,48 @@ static esp_err_t start_locked(void) {
     return ESP_OK;
 }
 
+/* Only this worker may block inside the SDK. A timed-out caller must leave
+ * the host/controller intact and prevent restart until completion is acknowledged. */
+static void stop_worker(void *arg) {
+    (void)arg;
+    int rc=nimble_port_stop();
+    esp_err_t result=rc?ESP_FAIL:ESP_OK;
+    if(result==ESP_OK) {
+        while(!atomic_load(&s_host_exited))vTaskDelay(pdMS_TO_TICKS(1));
+        result=nimble_port_deinit();
+    }
+    s_stop_result=result;
+    ESP_LOGI(TAG,"BLE stop worker complete: %s host_exited=%u",esp_err_to_name(result),(unsigned)atomic_load(&s_host_exited));
+    atomic_store(&s_stop_done,true);
+    vTaskDelete(NULL);
+}
 static esp_err_t stop_locked(void) {
     if (!s_running) return ESP_OK;
-    ble_pt_scan_stop();
-    ble_pt_disconnect();
-    // 让断开走完再拆 host；bond 留在 NVS，下次 start() 重新载入。
-    // Let the disconnect settle before tearing the host down; bonds stay in NVS for the next start().
-    vTaskDelay(pdMS_TO_TICKS(200));
-    const int stopped = nimble_port_stop();
-    if (stopped != 0) return ESP_FAIL;
-    const esp_err_t error = nimble_port_deinit();
-    if (error != ESP_OK) return error;
+    const int64_t deadline=esp_timer_get_time()+(int64_t)s_stop_budget_ms*1000;
+    if(!atomic_load(&s_stop_active)) {
+        atomic_store(&s_host_ready,false);
+        ble_pt_scan_stop();ble_pt_disconnect();
+        s_stop_timeout_logged=false;
+        atomic_store(&s_stop_done,false);atomic_store(&s_stop_active,true);
+        if(xTaskCreatePinnedToCore(stop_worker,"ble_stop",4096,NULL,configMAX_PRIORITIES-4,NULL,
+                                  CONFIG_BT_NIMBLE_PINNED_TO_CORE)!=pdPASS) {
+            atomic_store(&s_stop_active,false);return ESP_ERR_NO_MEM;
+        }
+    }
+    while(!atomic_load(&s_stop_done)) {
+        if(esp_timer_get_time()>=deadline) {
+            if(s_stop_budget_ms&&!s_stop_timeout_logged){s_stop_timeout_logged=true;ESP_LOGW(TAG,"BLE stop pending; stack retained, Sleep/restart blocked");}
+            return ESP_ERR_TIMEOUT;
+        }
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    esp_err_t error=s_stop_result;
+    if(error!=ESP_OK) {
+        /* Stop/deinit may have partially completed: quarantine until reboot. */
+        return error;
+    }
+    s_host_task=NULL;
+    atomic_store(&s_stop_active,false);
     s_running = false;
     s_connected = s_connecting = s_scanning = s_link_up = false;
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
@@ -1663,8 +1722,12 @@ esp_err_t ble_pt_start(void) {
     return error;
 }
 esp_err_t ble_pt_stop(uint32_t timeout_ms) {
+    int64_t deadline=esp_timer_get_time()+(int64_t)timeout_ms*1000;
     if (!lifecycle_take(timeout_ms > 2000 ? 2000 : timeout_ms)) return ESP_ERR_TIMEOUT;
+    int64_t remaining=deadline-esp_timer_get_time();
+    s_stop_budget_ms=remaining>0?(uint32_t)(remaining/1000):0;
     const esp_err_t error = stop_locked();
+    s_stop_budget_ms=2000;
     lifecycle_give();
     return error;
 }
@@ -1873,7 +1936,16 @@ void ble_pt_reset_failure(void) {
 #define REPEAT_PERIOD_MS 120
 
 static void poll_locked(void) {
+    if(atomic_load(&s_stop_active)) {
+        s_stop_budget_ms=0;(void)stop_locked();s_stop_budget_ms=2000;return;
+    }
     if (!s_running) return;
+    if(!atomic_load(&s_host_ready)) {
+        if(esp_timer_get_time()/1000-s_host_started_ms>=5000) {
+            s_stop_budget_ms=0;(void)stop_locked();s_stop_budget_ms=2000;
+        }
+        return;
+    }
     reconnect_recent_requested();
 
     // 自动重连：翻页器会自己省电断开，或走出范围。链路曾经建立过就记下目标，掉线后按
@@ -2015,7 +2087,7 @@ const ble_pt_bond_t *ble_pt_bond(uint8_t index) {
 #if KIIKO_BOARD_METALIO47
 esp_err_t ble_pt_forget(const char *addr) {
     if (!addr || !addr[0]) return ESP_ERR_INVALID_ARG;
-    if (!s_running || !ble_hs_synced()) return ESP_ERR_INVALID_STATE;
+    if (!s_running || !atomic_load(&s_host_ready)||atomic_load(&s_stop_active)|| !ble_hs_synced()) return ESP_ERR_INVALID_STATE;
     char saved_addr[18];snprintf(saved_addr,sizeof(saved_addr),"%s",addr);
     const ble_pt_bond_t *bond=bond_find(saved_addr);
     if (!bond) return ESP_ERR_NOT_FOUND;

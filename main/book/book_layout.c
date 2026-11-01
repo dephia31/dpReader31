@@ -310,13 +310,13 @@ void book_layout_free(void) {
 void book_layout_set_spacing(unsigned line_percent, unsigned paragraph_percent) {
     /* Negative choices reduce the former 30% leading; 0 keeps that natural leading.
      * Positive percentages retain the established line-height meaning. */
-    if(line_percent==236||line_percent==246)s_line_percent=100+30*(100+(int)line_percent-256)/100;
+    if(line_percent>=206&&line_percent<=246&&(line_percent-206)%10==0)s_line_percent=100+30*(100+(int)line_percent-256)/100;
     else if(line_percent==0)s_line_percent=130;
     else s_line_percent=line_percent>=100&&line_percent<=200?line_percent:130;
     int paragraph=(int)(int8_t)(uint8_t)paragraph_percent;
     s_paragraph_percent = paragraph>=-10&&paragraph<=100?paragraph:50;
 }
-void book_layout_set_word_spacing(int px){s_word_spacing_px=px>=-3&&px<=20?px:0;}
+void book_layout_set_word_spacing(int px){s_word_spacing_px=px>=-10&&px<=20?px:0;}
 
 void book_layout_set_typography(int tracking_px) {
     s_tracking_px = tracking_px >= -15 && tracking_px <= 15 ? tracking_px : 0;

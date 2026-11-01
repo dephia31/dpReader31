@@ -12,6 +12,10 @@
 #define CPU_STATE_RAM
 #endif
 #include "kosync_client.h"
+#include "book_sync_position.h"
+#include "kosync_state.h"
+#include <math.h>
+#include <errno.h>
 #include "settings.h"
 #include "book_store.h"
 #include "ota_online.h"
@@ -30,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 
 static const char *TAG = "kosync";
@@ -381,27 +386,35 @@ static esp_err_t kosync_push_book_progress_impl(const char *file_path, const boo
     char device_id[32];
     snprintf(device_id, sizeof(device_id), "dpReader-%02X%02X%02X%02X", mac[2], mac[3], mac[4], mac[5]);
 
-    char progress_str[96];
-    snprintf(progress_str, sizeof(progress_str), "/body/DocFragment[%u]/body/p[1].%lu",
-             (unsigned)(local_prog->chapter + 1), (unsigned long)local_prog->byte_off);
-
-    double pct = (exact_ratio >= 0.0 && exact_ratio <= 1.0)
-                     ? exact_ratio
-                     : ((double)local_prog->pct / 100.0);
-    if (pct < 0.0) pct = 0.0;
-    if (pct > 1.0) pct = 1.0;
-
+    char *progress_str=heap_caps_calloc(1,BOOK_XPOINTER_CAP,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!progress_str)return ESP_ERR_NO_MEM;
+    double pct=exact_ratio;bool precise=true;
+    const char *extension=strrchr(file_path,'.');
+    if(extension&&!strcasecmp(extension,".epub")) {
+        err=book_sync_export(file_path,local_prog->chapter,local_prog->byte_off,
+            progress_str,BOOK_XPOINTER_CAP,&pct,&precise);
+        if(err!=ESP_OK){
+            free(progress_str);
+            if(message&&message_cap)snprintf(message,message_cap,"Không xác định được vị trí EPUB chính xác; chưa ghi đè KoSync");
+            return err;
+        }
+    }else{
+        // Retain legacy native dpReader TXT peers; EPUB never sends fabricated DOM paths.
+        snprintf(progress_str,BOOK_XPOINTER_CAP,"/body/DocFragment[%u]/body/p[1].%lu",
+            (unsigned)local_prog->chapter+1,(unsigned long)local_prog->byte_off);
+    }
+    if(!isfinite(pct)||pct<0||pct>1)pct=(double)local_prog->pct/100.0;
     cJSON *root = cJSON_CreateObject();
-    if (!root) return ESP_ERR_NO_MEM;
-    cJSON_AddStringToObject(root, "document", doc_md5);
-    cJSON_AddStringToObject(root, "progress", progress_str);
-    cJSON_AddNumberToObject(root, "percentage", pct);
-    cJSON_AddStringToObject(root, "device", app_settings_device_name());
-    cJSON_AddStringToObject(root, "device_id", device_id);
-
-    time_t now = time(NULL);
-    if (now < 1700000000) now = (time_t)(1730040000 + (esp_timer_get_time() / 1000000ULL));
-    cJSON_AddNumberToObject(root, "timestamp", (double)now);
+    if (!root) {free(progress_str);return ESP_ERR_NO_MEM;}
+    bool complete=cJSON_AddStringToObject(root,"document",doc_md5)&&
+        cJSON_AddStringToObject(root,"progress",progress_str)&&
+        cJSON_AddNumberToObject(root,"percentage",pct)&&
+        cJSON_AddStringToObject(root,"device",app_settings_device_name())&&
+        cJSON_AddStringToObject(root,"device_id",device_id);
+    free(progress_str);
+    time_t now=time(NULL);
+    if(complete&&now>=1700000000)complete=cJSON_AddNumberToObject(root,"timestamp",(double)now)!=NULL;
+    if(!complete){cJSON_Delete(root);return ESP_ERR_NO_MEM;}
 
     char *body = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -416,7 +429,7 @@ static esp_err_t kosync_push_book_progress_impl(const char *file_path, const boo
 
     if (status == 200) {
         if (message && message_cap)
-            snprintf(message, message_cap, "Đã đẩy tiến độ KOSync (%.1f%%)", pct * 100.0);
+            snprintf(message, message_cap, "%s (%.4f%%)", precise?"Đã đẩy vị trí KOSync":"Đã đẩy vị trí ước lượng theo đoạn", pct * 100.0);
         return ESP_OK;
     }
     if (status == 401) {
@@ -437,42 +450,55 @@ static esp_err_t kosync_push_book_progress_impl(const char *file_path, const boo
 // while KOReader/crengine writes .../text().<character index inside one element>. The
 // trailing number is not a chapter byte offset, so a crengine pointer yields the chapter
 // only and never claims an exact offset.
-static void kosync_parse_pointer(const char *progress, uint16_t *out_chapter,
-                                 uint32_t *out_byte_off, bool *has_exact_offset) {
+static void kosync_parse_pointer(
+    const char* progress, uint16_t* out_chapter, uint32_t* out_byte_off, bool* has_exact_offset) {
     if (out_chapter) *out_chapter = 0;
     if (out_byte_off) *out_byte_off = 0;
     if (has_exact_offset) *has_exact_offset = false;
     if (!progress || !progress[0]) return;
 
-    unsigned frag = 0;
-    unsigned long off = 0;
-    const char *df = strstr(progress, "DocFragment[");
-    if (!df || sscanf(df, "DocFragment[%u]", &frag) != 1 || frag < 1) return;
+    const char prefix[] = "/body/DocFragment[";
+    if (strncmp(progress, prefix, sizeof(prefix) - 1)) return;
+    const char* at = progress + sizeof(prefix) - 1;
+    if (*at < '0' || *at > '9') return;
+    char* end = NULL;
+    errno = 0;
+    unsigned long frag = strtoul(at, &end, 10);
+    if (errno || end == at || *end != ']' || frag < 1 || frag > 8192) return;
     if (out_chapter) *out_chapter = (uint16_t)(frag - 1);
-
     if (strstr(progress, "text()")) return;
-    unsigned parsed_frag = 0;
-    if (sscanf(progress, "/body/DocFragment[%u]/body/p[1].%lu", &parsed_frag, &off) != 2) return;
+    const char tail[] = "/body/p[1].";
+    at = end + 1;
+    if (strncmp(at, tail, sizeof(tail) - 1)) return;
+    at += sizeof(tail) - 1;
+    if (*at < '0' || *at > '9') return;
+    errno = 0;
+    unsigned long off = strtoul(at, &end, 10);
+    if (errno || end == at || *end || off > UINT32_MAX) return;
     if (out_byte_off) *out_byte_off = (uint32_t)off;
     if (has_exact_offset) *has_exact_offset = true;
 }
 
-// 判断远端进度是否应覆盖本地。两端都是全书比例；dpReader 本地只有 1% 粒度，
-// 远端（尤其 KOReader）有四位小数，先量化到 1% 会把 42.0% 对 42.4% 判成相等，
-// 于是走“本地不落后”分支，远端更新拉不下来。这里直接比较原始比例。
-// 比例相同时仅当远端确实指向更靠后的位置才拉；否则由本地推送刷新时间戳。
-// Decide whether the remote progress should replace the local one. Both sides are whole-book
-// ratios; dpReader's local value only has 1% granularity while the remote (KOReader especially)
-// carries four decimals, so quantising to 1% makes 42.0% tie against 42.4% and the pull never
-// happens. Compare the raw ratios instead. On an equal ratio, pull only when the remote
-// provably points further; otherwise the local push refreshes the server timestamp.
-static bool kosync_remote_wins(double local_ratio, double remote_ratio, bool has_exact_offset,
-                               uint16_t cur_chapter, uint32_t cur_byte_off,
-                               uint16_t rem_chapter, uint32_t rem_byte_off) {
-    if (remote_ratio > local_ratio + 0.0005) return true;
-    if (remote_ratio < local_ratio - 0.0005 || !has_exact_offset) return false;
-    return rem_chapter > cur_chapter ||
-        (rem_chapter == cur_chapter && rem_byte_off > cur_byte_off);
+// Prefer a resolved location over incompatible engine percentage scales.
+// A ratio is only a fallback; display rounding must never determine exact positions.
+static bool kosync_remote_wins(
+    double local_ratio, double remote_ratio, bool has_exact_offset, uint16_t cur_chapter,
+    uint32_t cur_byte_off, uint16_t rem_chapter, uint32_t rem_byte_off) {
+    if (!isfinite(local_ratio) || !isfinite(remote_ratio) || remote_ratio < 0 || remote_ratio > 1)
+        return false;
+    if (has_exact_offset)
+        return rem_chapter > cur_chapter ||
+               (rem_chapter == cur_chapter && rem_byte_off > cur_byte_off);
+    return remote_ratio > local_ratio + 1e-9;
+}
+
+bool kosync_should_pull(const char *path,uint16_t current_chapter,uint32_t current_offset,double local_ratio,
+ const kosync_progress_t *remote,uint16_t chapter,uint32_t offset,bool exact){
+    if(!remote||!remote->position_valid)return false;
+    if(exact&&chapter==current_chapter&&offset==current_offset)return false;
+    bool known=false;int64_t local=kosync_state_timestamp(path,current_chapter,current_offset);
+    bool newer=kosync_state_remote_newer(local,remote->timestamp,&known);
+    return known?newer:kosync_remote_wins(local_ratio,remote->percentage,exact,current_chapter,current_offset,chapter,offset);
 }
 
 static esp_err_t kosync_pull_book_progress_impl(const char *file_path, kosync_progress_t *out_remote,
@@ -511,7 +537,7 @@ static esp_err_t kosync_pull_book_progress_impl(const char *file_path, kosync_pr
     if (status != 200 || !resp[0]) {
         free(resp);
         if (message && message_cap) snprintf(message, message_cap, "Chưa có tiến độ sách này trên KOSync");
-        return ESP_ERR_NOT_FOUND;
+        return status==404?ESP_ERR_NOT_FOUND:ESP_ERR_INVALID_RESPONSE;
     }
 
     cJSON *json = cJSON_Parse(resp);
@@ -530,37 +556,75 @@ static esp_err_t kosync_pull_book_progress_impl(const char *file_path, kosync_pr
 
     if (!cJSON_IsNumber(j_pct) && !cJSON_IsString(j_prog)) {
         cJSON_Delete(json);
-        if (message && message_cap) snprintf(message, message_cap, "Chưa có tiến độ sách này trên KOSync");
+        if (message && message_cap)
+            snprintf(message, message_cap, "Chưa có tiến độ sách này trên KOSync");
         return ESP_ERR_NOT_FOUND;
     }
 
+    if (cJSON_IsString(j_doc) && j_doc->valuestring && strcmp(j_doc->valuestring, doc_md5)) {
+        cJSON_Delete(json);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
     if (cJSON_IsString(j_doc) && j_doc->valuestring)
         strlcpy(out_remote->document, j_doc->valuestring, sizeof(out_remote->document));
-    if (cJSON_IsString(j_prog) && j_prog->valuestring)
+    if (cJSON_IsString(j_prog) && j_prog->valuestring) {
+        if (strlen(j_prog->valuestring) >= sizeof(out_remote->progress)) {
+            cJSON_Delete(json);
+            return ESP_ERR_INVALID_SIZE;
+        }
         strlcpy(out_remote->progress, j_prog->valuestring, sizeof(out_remote->progress));
-    if (cJSON_IsNumber(j_pct))
-        out_remote->percentage = j_pct->valuedouble;
+    }
+    if (cJSON_IsNumber(j_pct)) out_remote->percentage = j_pct->valuedouble;
     if (cJSON_IsString(j_dev) && j_dev->valuestring)
         strlcpy(out_remote->device, j_dev->valuestring, sizeof(out_remote->device));
     if (cJSON_IsString(j_dev_id) && j_dev_id->valuestring)
         strlcpy(out_remote->device_id, j_dev_id->valuestring, sizeof(out_remote->device_id));
-    if (cJSON_IsNumber(j_ts))
+    if (cJSON_IsNumber(j_ts) && isfinite(j_ts->valuedouble) && j_ts->valuedouble >= 0 &&
+        j_ts->valuedouble < (double)INT64_MAX)
         out_remote->timestamp = (int64_t)j_ts->valuedouble;
 
     cJSON_Delete(json);
-
-    kosync_parse_pointer(out_remote->progress, out_chapter, out_byte_off, has_exact_offset);
+    if (!isfinite(out_remote->percentage) || out_remote->percentage < 0 ||
+        out_remote->percentage > 1)
+        return ESP_ERR_INVALID_RESPONSE;
+    bool legacy = false, native_exact = false;
+    uint16_t native_chapter = 0;
+    uint32_t native_offset = 0;
+    if (!strncmp(out_remote->device_id, "dpReader-", 9) &&
+        !strstr(out_remote->progress, "text()")) {
+        kosync_parse_pointer(out_remote->progress, &native_chapter, &native_offset, &native_exact);
+        legacy = native_exact;
+    }
+    if (legacy) {
+        if (out_chapter) *out_chapter = native_chapter;
+        if (out_byte_off) *out_byte_off = native_offset;
+        if (has_exact_offset) *has_exact_offset = true;
+        out_remote->position_valid = true;
+    } else {
+        bool exact = false;
+        uint16_t chapter = 0;
+        uint32_t offset = 0;
+        err = book_sync_import(
+            file_path, out_remote->progress, out_remote->percentage, &chapter, &offset, &exact);
+        if (err != ESP_OK) return err;
+        if (out_chapter) *out_chapter = chapter;
+        if (out_byte_off) *out_byte_off = offset;
+        if (has_exact_offset) *has_exact_offset = exact;
+        out_remote->position_valid = true;
+    }
+    if (!out_remote->position_valid) return ESP_ERR_INVALID_RESPONSE;
 
     if (message && message_cap) {
-        snprintf(message, message_cap, "Đã tải tiến độ: %.1f%% (%s)",
-                 out_remote->percentage * 100.0,
-                 out_remote->device[0] ? out_remote->device : "KOSync");
+        snprintf(
+            message, message_cap, "Đã tải tiến độ: %.1f%% (%s)", out_remote->percentage * 100.0,
+            out_remote->device[0] ? out_remote->device : "KOSync");
     }
     return ESP_OK;
 }
 
-static esp_err_t kosync_sync_book_impl(const char *file_path, uint16_t *cur_chapter, uint32_t *cur_byte_off,
-                           uint8_t *cur_pct, bool *pulled_newer, char *message, size_t message_cap) {
+static esp_err_t kosync_sync_book_impl(
+    const char* file_path, uint16_t* cur_chapter, uint32_t* cur_byte_off, uint8_t* cur_pct,
+    double local_ratio, bool* pulled_newer, char* message, size_t message_cap) {
     if (!file_path || !file_path[0] || !cur_chapter || !cur_byte_off || !cur_pct || !pulled_newer) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -575,6 +639,7 @@ static esp_err_t kosync_sync_book_impl(const char *file_path, uint16_t *cur_chap
     esp_err_t net_err = kosync_acquire_network(&started_wifi, message, message_cap);
     if (net_err != ESP_OK) return net_err;
 
+    kosync_state_commit(file_path);
     // 1. Kéo tiến độ từ máy chủ về kiểm tra
     kosync_progress_t remote = {0};
     uint16_t rem_chap = 0;
@@ -585,31 +650,34 @@ static esp_err_t kosync_sync_book_impl(const char *file_path, uint16_t *cur_chap
 
     // 两端都是全书比例，按原始比例比较，不在 1% 上量化。
     // Both sides are whole-book ratios; compare them unquantised rather than at 1% steps.
-    const double local_ratio = (double)*cur_pct / 100.0;
+    if(!isfinite(local_ratio)||local_ratio<0||local_ratio>1)local_ratio=(double)*cur_pct/100.0;
     if (pull_err == ESP_OK &&
-        kosync_remote_wins(local_ratio, remote.percentage, has_exact,
-                           *cur_chapter, *cur_byte_off, rem_chap, rem_off)) {
+        kosync_should_pull(file_path,*cur_chapter,*cur_byte_off,local_ratio,&remote,rem_chap,rem_off,has_exact)) {
         uint8_t rem_pct = (uint8_t)(remote.percentage * 100.0 + 0.5);
         if (rem_pct > 100) rem_pct = 100;
+        kosync_state_accept(file_path,rem_chap,rem_off,remote.timestamp);
         *cur_chapter = rem_chap;
-        *cur_byte_off = has_exact ? rem_off : 0;
+        *cur_byte_off = rem_off;
         *cur_pct = rem_pct;
         *pulled_newer = true;
         if (message && message_cap) {
-            snprintf(message, message_cap, "Đã kéo tiến độ KoSync: %u%% (%s)",
-                     (unsigned)rem_pct, remote.device[0] ? remote.device : "Thiết bị khác");
+            snprintf(message, message_cap, "%s %.4f%% (%s)",
+                     has_exact?"Đã lấy đúng vị trí":"Đã lấy vị trí ước lượng",remote.percentage*100.0,remote.device[0]?remote.device:"Thiết bị khác");
         }
         kosync_release_network(started_wifi);
         return ESP_OK;
     }
 
+    if(pull_err!=ESP_OK&&pull_err!=ESP_ERR_NOT_FOUND){
+        kosync_release_network(started_wifi);return pull_err;
+    }
     // 2. Nếu máy cục bộ bằng hoặc xa hơn máy chủ (hoặc máy chủ chưa có), đẩy tiến độ lên máy chủ
     book_progress_t local_prog = {
         .chapter = *cur_chapter,
         .byte_off = *cur_byte_off,
         .pct = *cur_pct,
     };
-    esp_err_t push_err = kosync_push_book_progress(file_path, &local_prog, (double)*cur_pct / 100.0, message, message_cap);
+    esp_err_t push_err = kosync_push_book_progress(file_path, &local_prog, local_ratio, message, message_cap);
     kosync_release_network(started_wifi);
     return push_err;
 }
@@ -678,8 +746,22 @@ esp_err_t kosync_pull_book_progress(const char *path,kosync_progress_t *remote,u
 }
 esp_err_t kosync_sync_book(const char *path,uint16_t *chapter,uint32_t *offset,uint8_t *pct,bool *pulled,char *message,size_t cap) {
     if(!sync_begin())return sync_busy_message(message,cap);
-    esp_err_t err=kosync_sync_book_impl(path,chapter,offset,pct,pulled,message,cap);sync_end();return err;
+    if(!path||!chapter||!offset||!pct||!pulled){sync_end();return ESP_ERR_INVALID_ARG;}
+    double ratio=(double)*pct/100.0;
+    const char *extension=strrchr(path,'.');
+    if(extension&&!strcasecmp(extension,".epub")){
+        char *pointer=heap_caps_malloc(BOOK_XPOINTER_CAP,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+        if(!pointer){sync_end();return ESP_ERR_NO_MEM;}
+        double computed=-1;book_sync_export(path,*chapter,*offset,pointer,BOOK_XPOINTER_CAP,&computed,NULL);free(pointer);
+        if(isfinite(computed)&&computed>=0&&computed<=1)ratio=computed;
+    }
+    esp_err_t err=kosync_sync_book_impl(path,chapter,offset,pct,ratio,pulled,message,cap);sync_end();return err;
 }
+esp_err_t kosync_sync_book_precise(const char *path,uint16_t *chapter,uint32_t *offset,uint8_t *pct,double ratio,bool *pulled,char *message,size_t cap){
+    if(!sync_begin())return sync_busy_message(message,cap);
+    esp_err_t err=kosync_sync_book_impl(path,chapter,offset,pct,ratio,pulled,message,cap);sync_end();return err;
+}
+
 void kosync_auto_submit(const char *path,const book_progress_t *progress,double ratio,bool pull) {
     if(!path||!path[0]||!progress||strlen(path)>=BOOK_STORE_PATH_MAX)return;
     portENTER_CRITICAL(&s_sync_lock);
@@ -712,7 +794,7 @@ static void auto_sync_task(void *arg) {
         uint16_t chapter=s_auto_running.progress.chapter;
         uint32_t offset=s_auto_running.progress.byte_off;
         uint8_t pct=s_auto_running.progress.pct;bool pulled=false;
-        err=kosync_sync_book_impl(s_auto_running.path,&chapter,&offset,&pct,&pulled,NULL,0);
+        err=kosync_sync_book_impl(s_auto_running.path,&chapter,&offset,&pct,s_auto_running.ratio,&pulled,NULL,0);
     }
     ESP_LOGI(TAG,"automatic %s finished: %s",s_auto_running.pull?"pull":"push",esp_err_to_name(err));
     sync_end();

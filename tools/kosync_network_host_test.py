@@ -48,7 +48,8 @@ static void quiet_log(const char *tag,const char *fmt,...){(void)tag;(void)fmt;}
 static int step;
 static atomic_bool s_prep_stop;
 static void *s_prep_task;
-static void vTaskDelete(void *task){assert(task&&step++==2);}
+static unsigned uxTaskGetStackHighWaterMark(void *task){assert(task);return 1000;}
+static void metalio_task_delete(void *task){assert(task&&step++==2);}
 static void lock_draw(void){assert(step++==0);}
 static void pause_reader_prep(void){assert(step++==1);}
 static void reader_page_cache_clear(void){assert(step++==3);}
