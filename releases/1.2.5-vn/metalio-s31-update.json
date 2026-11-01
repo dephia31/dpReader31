@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "version": "1.2.5-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "8eb1a33217ffba987af8e2f31690abb8f10c0910b3f6f4d7326d9539b5ad59a5",
+  "size": 4276848,
+  "notes": "dpReader 1.2.5: Home mới, 4 tiện ích tùy chọn; sao lưu chung SD; xóa nhanh tệp; cải thiện giao diện và chữ lớn.",
+  "previous_version": "1.2.4-vn"
+}

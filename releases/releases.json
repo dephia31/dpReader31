@@ -2,6 +2,29 @@
   "schema": 1,
   "releases": [
     {
+      "version": "1.2.5-vn",
+      "source_commit": "6070167bd32144ebbfe2eebeec88f75112f9be0d",
+      "path": "releases/1.2.5-vn",
+      "files": {
+        "dpReader_metalio47_firmware.bin": {
+          "size": 4276848,
+          "sha256": "8eb1a33217ffba987af8e2f31690abb8f10c0910b3f6f4d7326d9539b5ad59a5"
+        },
+        "dpReader_metalio47_full.bin": {
+          "size": 4342384,
+          "sha256": "7c2c6b6da41e1d124b259fe54168922736f2fc0fbcd773fa01f61d35409ad982"
+        },
+        "SHA256SUMS.txt": {
+          "size": 569,
+          "sha256": "5207007b6c281d6b591dc48aebd94880cec141c6db520fd481ab9115fb47cfb3"
+        },
+        "metalio-s31-update.json": {
+          "size": 564,
+          "sha256": "d5a79cd98fb6e2810c4d09ded19654fa435da5a8a520cc5d1ac70f2c03c58748"
+        }
+      }
+    },
+    {
       "version": "1.2.4-vn",
       "source_commit": "671a247760835c9c89ec22b5f9898d3cc392ba68",
       "path": "releases/1.2.4-vn",
@@ -209,5 +232,5 @@
       }
     }
   ],
-  "previous_version": "1.2.4-vn"
+  "previous_version": "1.2.5-vn"
 }

@@ -1,6 +1,6 @@
 # Nhật ký thay đổi / Changelog
 
-## dpReader 1.2.6RC5-vn · 2026-11-01
+## dpReader 1.2.6-vn · 2026-11-01
 
 - KoSync EPUB dùng vị trí phần tử/ký tự trong chương và tỷ lệ đầy đủ thay vì phần trăm nguyên; hỗ trợ kéo đúng vị trí trong chương dài và giữ tương thích vị trí dpReader cũ.
 - So sánh thời gian đọc mới nhất khi đồng hồ hợp lệ; vị trí ước lượng được báo riêng, không tự áp dụng khi mở sách. Phản hồi sai hoặc lỗi máy chủ không đẩy đè tiến độ.
