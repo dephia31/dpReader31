@@ -66,6 +66,7 @@ static void settings_navigation(uint8_t*f){(void)f;}
 unit+=r"""
 static void ui_text_box(uint8_t *fb,EpdRect r,int px,const char *text,int align,bool active){assert(r.x>=0&&r.y>=0&&r.x+r.width<=684&&r.y+r.height<=1132);ui_text(fb,r.x,r.y,px,text,align,active);}
 static void settings_line(uint8_t *fb,int x,int y,int px,const char *text,int align,bool active){ui_text(fb,x,y,px,text,align,active);}
+static void settings_center_line(uint8_t *fb,int x,int y,int px,const char *text,int align,bool active){ui_text_fixed_vc(fb,x,y,px,text,align,active);}
 """
 unit += 'static void paint(void){uint8_t *fb=NULL;' + paint + '}\n'
 unit += 'static int tap(int x,int y){Event e={x,y};const Event *ev=&e;' + tap + 'return APP_REDRAW_NONE;}\n'

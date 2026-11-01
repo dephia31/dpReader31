@@ -200,6 +200,7 @@ static void ui_clear_page(uint8_t *fb){++clears;memset(fb,255,sizeof(fresh));}
 static void ui_nav_status(uint8_t *fb){paint(fb,(EpdRect){24,12,636,30},100);}
 static void back_header(uint8_t *fb,const char *title){assert(!strcmp(title,"Menu thao tác nhanh"));paint(fb,(EpdRect){36,70,612,88},50);}
 static void ui_text_box(uint8_t *fb,EpdRect r,int px,const char *text,int align,bool inverse){(void)px;(void)text;(void)align;(void)inverse;paint(fb,r,180);}
+static void ui_text_caption(uint8_t *fb,EpdRect r,int px,const char *text,int align,bool inverse){ui_text_box(fb,r,px,text,align,inverse);}
 static void settings_card(uint8_t *fb,EpdRect r,int radius,int fill,int border){(void)radius;(void)border;paint(fb,r,fill);}
 static void epd_fill_circle(int x,int y,int radius,int color,uint8_t *fb){paint(fb,(EpdRect){x-radius,y-radius,2*radius,2*radius},color);}
 static void settings_line(uint8_t *fb,int x,int y,int px,const char *text,int align,bool inverse){ui_text_box(fb,(EpdRect){x,y,560,32},px,text,align,inverse);}
