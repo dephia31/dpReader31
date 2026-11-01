@@ -1,5 +1,10 @@
 # Nhật ký thay đổi / Changelog
 
+## Web Flasher · 2026-11-01
+
+- Giao diện Red Studio đỏ/đen; mặc định Nạp toàn phần cho Cài mới / Cài từ firmware khác / Cứu máy.
+- Hiển thị thỏa thuận chấp nhận rủi ro trước nút bắt đầu; đổi chế độ, phiên bản hoặc tệp phải xác nhận lại.
+
 ## dpReader 1.2.5-vn · 2026-11-01
 
 - Thiết kế lại Home: thẻ Tiện Ích với 4 shortcut tùy chọn và hàng 4 sách từng đọc; bỏ widget lịch và nhãn Đọc gần đây.

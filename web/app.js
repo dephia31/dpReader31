@@ -26,10 +26,27 @@ let device = null;
 let transport = null;
 let esploader = null;
 let isFlashing = false;
+const riskAccepted = document.getElementById("risk-accepted");
+const flashReadiness = document.getElementById("flash-readiness");
+function updateFlashReadiness() {
+  flashBtn.disabled = !esploader || isFlashing || !riskAccepted.checked;
+  riskAccepted.disabled = isFlashing;
+  flashReadiness.textContent = isFlashing ? "Đang nạp, hãy giữ kết nối USB."
+    : !esploader ? "Kết nối thiết bị và tích chấp nhận rủi ro để bắt đầu."
+    : !riskAccepted.checked ? "Đã kết nối. Tích chấp nhận rủi ro để bật nút Bắt đầu nạp."
+    : "Đã kết nối và chấp nhận rủi ro. Sẵn sàng bắt đầu nạp.";
+}
+function resetRiskAgreement() {
+  riskAccepted.checked = false;
+  updateFlashReadiness();
+}
+riskAccepted.addEventListener("change", updateFlashReadiness);
+updateFlashReadiness();
 
 // Kiểm tra Web Serial API
 if (!("serial" in navigator)) {
   browserWarning.style.display = "block";
+  document.getElementById("browser-ok").style.display = "none";
   connectBtn.disabled = true;
 }
 
@@ -50,24 +67,18 @@ const terminal = {
 
 clearTerminalBtn.addEventListener("click", () => terminal.clean());
 
-// Chuyển đổi Radio Cards
-document.querySelectorAll(".radio-card").forEach(card => {
-  card.addEventListener("click", (e) => {
-    if (isFlashing) return;
-    const input = card.querySelector("input[type='radio']");
-    if (input) {
-      input.checked = true;
-      document.querySelectorAll(".radio-card").forEach(c => c.classList.remove("active"));
-      card.classList.add("active");
-      
-      if (input.id === "mode-custom") {
-        customFileContainer.style.display = "block";
-      } else {
-        customFileContainer.style.display = "none";
-      }
-    }
+// Changing a write target invalidates the previous risk acknowledgement.
+document.querySelectorAll("input[name='flash-mode']").forEach(input => {
+  input.addEventListener("change", () => {
+    document.querySelectorAll(".radio-card").forEach(card => {
+      card.classList.toggle("active", card.querySelector("input[type='radio']").checked);
+    });
+    customFileContainer.style.display = radioCustom.checked ? "block" : "none";
+    resetRiskAgreement();
   });
 });
+customFileInput.addEventListener("change", resetRiskAgreement);
+customOffsetInput.addEventListener("input", resetRiskAgreement);
 
 // Kết nối USB Serial
 connectBtn.addEventListener("click", async () => {
@@ -104,7 +115,7 @@ connectBtn.addEventListener("click", async () => {
 
     connectBtn.style.display = "none";
     disconnectBtn.style.display = "inline-flex";
-    flashBtn.disabled = false;
+    updateFlashReadiness();
 
   } catch (error) {
     terminal.writeLine(`[!] Lỗi kết nối: ${error.message || error}`);
@@ -136,7 +147,7 @@ async function disconnect() {
     deviceInfo.style.display = "none";
     connectBtn.style.display = "inline-flex";
     disconnectBtn.style.display = "none";
-    flashBtn.disabled = true;
+    resetRiskAgreement();
     progressContainer.style.display = "none";
     terminal.writeLine("[*] Đã ngắt kết nối thiết bị.");
   }
@@ -149,10 +160,11 @@ let currentReleaseInfo = null;
 // English: Allow only archived versions so current and previous firmware install independently.
 function selectedReleaseFolder() {
   const version = document.getElementById("release-version")?.value || "";
-  return (version === "1.1.8-vn" || version === "1.1.7-vn" || version === "1.1.6-vn") ? `releases/${version}` : "releases";
+  return (version === "1.2.4-vn" || version === "1.1.8-vn" || version === "1.1.7-vn" || version === "1.1.6-vn") ? `releases/${version}` : "releases";
 }
 const releaseVersionSelect = document.getElementById("release-version");
 releaseVersionSelect?.addEventListener("change", () => {
+  resetRiskAgreement();
   const folder = selectedReleaseFolder();
   document.getElementById("release-tf-download").href = `./${folder}/dpReader_metalio47_firmware.bin`;
   document.getElementById("release-usb-download").href = `./${folder}/dpReader_metalio47_full.bin`;
@@ -332,8 +344,18 @@ flashBtn.addEventListener("click", async () => {
     return;
   }
 
+  if (isFlashing) return;
+  if (!riskAccepted.checked) {
+    updateFlashReadiness();
+    riskAccepted.focus();
+    return;
+  }
   try {
     isFlashing = true;
+    updateFlashReadiness();
+    document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = true);
+    customFileInput.disabled = true;
+    customOffsetInput.disabled = true;
     if (releaseVersionSelect) releaseVersionSelect.disabled = true;
     flashBtn.disabled = true;
     disconnectBtn.disabled = true;
@@ -377,7 +399,7 @@ flashBtn.addEventListener("click", async () => {
       if (!file) {
         alert("Vui lòng chọn một tệp .bin từ máy tính của bạn!");
         isFlashing = false;
-        flashBtn.disabled = false;
+        updateFlashReadiness();
         disconnectBtn.disabled = false;
         return;
       }
@@ -459,11 +481,15 @@ flashBtn.addEventListener("click", async () => {
     alert(`Nạp thất bại: ${err.message || err}`);
   } finally {
     isFlashing = false;
+    document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = false);
+    customFileInput.disabled = false;
+    customOffsetInput.disabled = false;
+    resetRiskAgreement();
     if (releaseVersionSelect) releaseVersionSelect.disabled = false;
     // Sau khi nạp thành công cổng đã được nhả; chỉ bật lại nút khi còn kết nối.
     // After a successful flash the port is released; only re-enable the button while still connected.
     if (esploader) {
-      flashBtn.disabled = false;
+      updateFlashReadiness();
       disconnectBtn.disabled = false;
     }
   }
