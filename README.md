@@ -18,12 +18,17 @@
 
 ## 📸 Giao diện dpReader
 
-Ảnh Home và thiết lập Tiện Ích được lấy trực tiếp từ bộ đệm màn hình thiết bị chạy giao diện 1.2.5. Các ảnh minh họa cũ bên dưới sẽ được thay dần theo giao diện hiện tại.
+Ảnh Home, thiết lập Tiện Ích và Đèn nền & Rung được lấy trực tiếp từ bộ đệm màn hình thiết bị chạy giao diện 1.2.5. Các ảnh minh họa cũ bên dưới sẽ được thay dần theo giao diện hiện tại.
 
 | Home mới | Thiết lập Tiện Ích |
 | :---: | :---: |
 | <img src="docs/screenshots/01_home_dashboard.png" width="360" alt="Home dpReader 1.2.5 chụp từ thiết bị"> | <img src="docs/screenshots/08_home_utilities_settings.png" width="360" alt="Thiết lập 4 shortcut, nhãn và viền icon"> |
 | *Đọc tiếp, Tiện Ích ẩn nhãn/viền và 4 sách từng đọc.* | *Chọn 4 shortcut; bật/tắt nhãn và viền, rồi lưu cùng cấu hình.* |
+
+| Đèn nền & Rung |
+| :---: |
+| <img src="docs/screenshots/09_frontlight_haptics.png" width="360" alt="Đèn nền và rung — ảnh chụp từ thiết bị"> |
+| *Độ sáng, ánh sáng ấm và phản hồi rung được bố trí theo các hàng cài đặt thống nhất.* |
 
 | Màn hình đọc sách & KOSync (`app_book.c`) | Thư viện sách online OPDS (`opds_client.c`) |
 | :---: | :---: |
