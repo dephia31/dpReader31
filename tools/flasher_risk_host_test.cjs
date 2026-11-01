@@ -16,7 +16,7 @@ const get=id=>nodes.get(id);get('mode-full').checked=true;get('baud-rate').value
 const radios=['mode-full','mode-app','mode-custom'].map(get),cards=radios.map(n=>({classList:{toggle(){}},querySelector:()=>n}));
 let downloads=0,writes=0;const messages=[];
 const ctx=vm.createContext({document:{getElementById:get,querySelectorAll:s=>s==='.radio-card'?cards:radios},navigator:{serial:{}},console:{...console,warn(){}},alert:s=>messages.push(s),confirm:()=>true,fetch:async()=>{downloads++;throw Error('No network in host test')},setTimeout,Uint8Array,Date});
-vm.runInContext(fs.readFileSync('web/app.js','utf8').replace(/^import[^\n]+\n/,''),ctx);
+vm.runInContext(fs.readFileSync('web/red-studio-app.js','utf8').replace(/^import[^\n]+\n/,''),ctx);
 const run=s=>vm.runInContext(s,ctx);
 (async()=>{
  await new Promise(resolve=>setImmediate(resolve));

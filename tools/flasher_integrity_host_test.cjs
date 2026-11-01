@@ -105,7 +105,7 @@ async function verify(snapshot) {
 // 中文：执行当前网页真实文件选择分支，确认自选应用也切换启动槽，其他偏移不写otadata。
 // English: Execute the current web file-selection branch; custom apps switch boot slots while other offsets leave otadata alone.
 (async () => {
-  const webSource = fs.readFileSync(path.join(__dirname, '../web/app.js'), 'utf8');
+  const webSource = fs.readFileSync(path.join(__dirname, '../web/red-studio-app.js'), 'utf8');
   const begin = webSource.indexOf('    if (radioApp.checked) {', webSource.indexOf('let clearOtadata = false;'));
   const end = webSource.indexOf('    const startTime = Date.now();', begin);
   assert(begin >= 0 && end > begin);
@@ -136,7 +136,7 @@ async function verify(snapshot) {
 })().catch(error => {console.error(error); process.exitCode = 1;});
 
 {
-  const source=fs.readFileSync(path.join(__dirname,'../web/app.js'),'utf8');
+  const source=fs.readFileSync(path.join(__dirname,'../web/red-studio-app.js'),'utf8');
   const helper=source.slice(source.indexOf('function selectedReleaseFolder()'),source.indexOf('const releaseVersionSelect'));
   for(const value of ['', '1.1.7-vn', '../../private', '1.1.6-vn']) {
     const context={document:{getElementById:()=>({value})}};
