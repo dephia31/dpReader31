@@ -1783,6 +1783,8 @@ static esp_err_t files_error(httpd_req_t *req, const char *status, const char *m
     return wifi_response(req, status, message);
 }
 
+#include "transfer_download_handler.h"
+
 #define TRANSFER_FILE_PAGE_SIZE 20
 typedef struct { char name[241]; uint64_t size; bool directory; } transfer_file_entry_t;
 
@@ -2297,7 +2299,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     // File metadata and wallpaper settings access NVS; the HTTP stack must remain readable while caches are disabled.
     // 在无线电启动前预留网页任务，避免 WiFi 内存碎片导致任务创建失败。
     // Reserve the HTTP task before starting the radio to avoid WiFi heap fragmentation.
-    http.stack_size = 12288; http.max_uri_handlers = 20; http.max_open_sockets = 3;
+    http.stack_size = 12288; http.max_uri_handlers = 21; http.max_open_sockets = 3;
     http.recv_wait_timeout = 15;
     http.send_wait_timeout = 15;
     http.task_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
@@ -2320,6 +2322,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
         { .uri = "/image-upload", .method = HTTP_PUT, .handler = image_upload_handler },
         { .uri = "/font-upload", .method = HTTP_PUT, .handler = font_upload_handler },
         { .uri = "/file-upload", .method = HTTP_PUT, .handler = file_upload_handler },
+        { .uri = "/download", .method = HTTP_GET, .handler = file_download_handler },
         { .uri = "/files", .method = HTTP_GET, .handler = files_list_handler },
         { .uri = "/files", .method = HTTP_POST, .handler = files_mutation_handler },
         { .uri = "/books", .method = HTTP_GET, .handler = books_handler },
@@ -3453,6 +3456,8 @@ static esp_err_t files_error(httpd_req_t *req, const char *status, const char *m
     return wifi_response(req, status, message);
 }
 
+#include "transfer_download_handler.h"
+
 #define TRANSFER_FILE_PAGE_SIZE 20
 typedef struct { char name[241]; uint64_t size; bool directory; } transfer_file_entry_t;
 
@@ -3929,7 +3934,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     // File metadata and wallpaper settings access NVS; the HTTP stack must remain readable while caches are disabled.
     // 在无线电启动前预留网页任务，避免 WiFi 内存碎片导致任务创建失败。
     // Reserve the HTTP task before starting the radio to avoid WiFi heap fragmentation.
-    http.stack_size = 12288; http.max_uri_handlers = 20; http.max_open_sockets = 3;
+    http.stack_size = 12288; http.max_uri_handlers = 21; http.max_open_sockets = 3;
     http.recv_wait_timeout = 15;
     http.send_wait_timeout = 15;
     http.task_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
@@ -3951,6 +3956,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
         { .uri = "/image-upload", .method = HTTP_PUT, .handler = image_upload_handler },
         { .uri = "/font-upload", .method = HTTP_PUT, .handler = font_upload_handler },
         { .uri = "/file-upload", .method = HTTP_PUT, .handler = file_upload_handler },
+        { .uri = "/download", .method = HTTP_GET, .handler = file_download_handler },
         { .uri = "/files", .method = HTTP_GET, .handler = files_list_handler },
         { .uri = "/files", .method = HTTP_POST, .handler = files_mutation_handler },
         { .uri = "/books", .method = HTTP_GET, .handler = books_handler },

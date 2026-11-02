@@ -18,6 +18,8 @@ bool app_book_request_open_from_home(const char *path);
 bool app_book_request_resume(const char *path, bool fullscreen);
 /// 仅导出已打开阅读上下文。/ Export only an already open reader context.
 bool app_book_resume_context(char *path, size_t capacity, bool *fullscreen);
+/// Do not snapshot stale progress when the pre-sleep persistence step failed.
+bool app_book_progress_saved(void);
 bool app_image_request_open(const char *path);
 void app_files_request_folder(int folder);
 void app_book_request_manage(void);

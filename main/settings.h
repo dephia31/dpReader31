@@ -336,9 +336,26 @@ bool app_settings_set_fonts_dir(const char* path);
 /// 将设置、阅读记录和 WiFi 凭据保存到 TF 卡根目录；备份含明文密码，需妥善保管。
 /// Save settings, reading records and WiFi credentials to TF root; keep the plaintext-secret backup private.
 esp_err_t app_settings_backup_save(void);
+/// Serial UI checkpoint; respects the persisted automatic-backup switch.
+/// Does not restore data or start a task. Failures retain the pending revision.
+esp_err_t app_settings_autobackup_checkpoint(void);
+/// Default on when no saved preference exists; manual backup/restore remain independent.
+bool app_settings_autobackup_enabled(void);
+esp_err_t app_settings_set_autobackup_enabled(bool enabled);
+bool app_settings_autobackup_blocked(void);
+/// Reset the no-change shortcut after card loss/remount or USB storage access.
+void app_settings_autobackup_media_changed(void);
 /// 校验备份后恢复 NVS；缺失的外部字体或壁纸回退到内建资源。
 /// Validate before restoring NVS; missing external assets fall back safely.
 esp_err_t app_settings_backup_restore(void);
+typedef enum {
+    APP_RESTORE_NORMAL, APP_RESTORE_DONE, APP_RESTORE_NEED_MEDIA, APP_RESTORE_BLOCKED
+} app_restore_status_t;
+/// One startup attempt after known NVS loss; never erase NVS or reboot automatically.
+/// The caller waits for SD before the first font/page is loaded.
+bool app_settings_autorestore_pending(void);
+app_restore_status_t app_settings_autorestore_status(void);
+esp_err_t app_settings_autorestore_boot(void);
 
 /* ---- Cấu hình đồng bộ KOSync (KOReader Sync) & Thư viện OPDS (Calibre-Web) ---- */
 #define DPREADER_DEFAULT_KOSYNC_URL "https://sync.vreader.cloud"

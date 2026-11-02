@@ -23,6 +23,9 @@
 #include "esp_partition.h"
 #include "esp_system.h"
 #include "sdkconfig.h"
+#if CONFIG_DPREADER_AUTO_BACKUP
+#include "settings.h"
+#endif
 
 /*
  * Giữ project_name = "Kiikoread_Metalio_S31" trong header esp_app_desc_t của file .bin
@@ -31,7 +34,7 @@
  */
 const __attribute__((section(".rodata_desc"))) esp_app_desc_t esp_app_desc = {
     .magic_word = ESP_APP_DESC_MAGIC_WORD,
-    .version = "1.2.6-vn",
+    .version = "1.2.7-vn",
     .project_name = "Kiikoread_Metalio_S31",
     .idf_ver = IDF_VER,
     .secure_version = 0,
@@ -173,6 +176,9 @@ esp_err_t pico_ota_install(const char *path, char *message, size_t message_size)
         return err;
     }
 
+#if CONFIG_DPREADER_AUTO_BACKUP
+    (void)app_settings_autobackup_checkpoint();
+#endif
     FILE *file = fopen(path, "rb");
     if (!file) {
         set_message(message, message_size, "Không thể đọc gói cập nhật");

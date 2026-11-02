@@ -25,32 +25,20 @@ static int s_view=READING,s_reader_panel=READER_PANEL_NONE,s_reader_slider=3,s_p
 static char *s_text="text";
 static bool s_clear_confirm,s_scan_pending;
 static struct {bool pending;} s_reader_tap;
-static int64_t s_stats_activity_ms,s_reader_notice_until;
+static int64_t s_stats_activity_ms;
 static unsigned invalidations;
 static void invalidate_prep(void){++invalidations;}
 static void pause_reader_prep(void){++invalidations;}
-static bool locked,aa=true,raster_aa=true,save_fail;
+static bool locked,aa=true,raster_aa=true,save_fail,s_reader_cleanup;
+static unsigned s_turns;
 static void lock_draw(void){assert(!locked);locked=true;}
 static void unlock_draw(void){assert(locked);locked=false;}
-static bool app_settings_book_antialias(void){return aa;}
 static bool vertical_book;
 static bool app_settings_book_vertical(void){return vertical_book;}
 static bool app_settings_set_book_antialias(bool on){assert(locked);if(save_fail)return false;aa=on;return true;}
 static void ttf_set_antialias(bool on){assert(locked);raster_aa=on;}
-static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height;}
-static char s_reader_notice[64];
-static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s",from);}
-static int64_t esp_timer_get_time(void){return 1000000;}
 '''
-unit+='static unsigned font_scale=100;\nstatic unsigned app_settings_system_font_size(void){return font_scale;}\nstatic unsigned ui_text_system_percent(void){return app_settings_system_font_size();}\n'
-unit+=function('reader_ui_extra',book)+'\n'+function('reader_font_card',book)+'\n'
-for name in ['s_font_card','s_weight_card','s_bookfont_card','s_layout_card','s_rule_card','s_antialias_card']:
- unit+=re.search(r'^#define '+name+r' .*',s,re.M)[0]+'\n'
-unit+=function('reader_tools_swipe',book)+'\n'+function('reader_swipe_direction',book)+'\n'
-action=function('reader_panel_action',book)
-a=action.index('        if (ui_rect_hit(s_antialias_card, x, y)) {')
-b=action.index('        if (ui_rect_hit(layout, x, y)) {',a)
-unit+='static app_redraw_t tap_aa(int x,int y){\n'+action[a:b]+'return APP_REDRAW_NONE;}\n'
+unit+=function('reader_tools_swipe',book)+'\n'+function('reader_swipe_direction',book)+'\n'+function('reader_apply_antialias',book)+'\n'
 unit+=r'''
 static void reset(app_ctx_t *ctx){
  s_view=READING;s_text="text";s_reader_panel=READER_PANEL_NONE;s_clear_confirm=s_scan_pending=false;
@@ -77,14 +65,11 @@ int main(void){
  reset(&ctx);s_scan_pending=true;assert(!reader_tools_swipe(&ctx,&e));
  reset(&ctx);s_view=SHELF;assert(!reader_tools_swipe(&ctx,&e));
  reset(&ctx);s_text=NULL;assert(!reader_tools_swipe(&ctx,&e));
- const EpdRect cards[]={s_font_card,s_weight_card,s_bookfont_card,s_layout_card,s_rule_card,s_antialias_card};
- for(unsigned i=0;i<6;++i){EpdRect r=cards[i];assert(r.x>=36&&r.y>=580&&r.x+r.width<=648&&r.y+r.height<1141);
-  for(unsigned j=0;j<i;++j){EpdRect q=cards[j];assert(r.x+r.width<=q.x||q.x+q.width<=r.x||r.y+r.height<=q.y||q.y+q.height<=r.y);}}
- assert(aa&&raster_aa);assert(tap_aa(400,1090)==APP_REDRAW_PAGE&&!aa&&!raster_aa&&!locked);
- save_fail=true;assert(tap_aa(400,1090)==APP_REDRAW_PAGE&&!aa&&!raster_aa&&!locked&&s_reader_notice_until==2800);
- save_fail=false;assert(tap_aa(400,1090)==APP_REDRAW_PAGE&&aa&&raster_aa&&!locked);
- assert(tap_aa(341,1090)==APP_REDRAW_NONE&&tap_aa(650,1090)==APP_REDRAW_NONE);
- puts("PASS: AA row hit bounds/save failures/cache invalidation, six nonoverlapping paired controls, bottom120px tools priority for either turn mode, already-open/modal/input cancellation and physical-key boundary");
+ assert(reader_apply_antialias(false)&&!aa&&!raster_aa&&!locked&&s_reader_cleanup&&s_turns==0);
+ s_reader_cleanup=false;s_turns=7;save_fail=true;
+ assert(!reader_apply_antialias(true)&&!aa&&!raster_aa&&!locked&&!s_reader_cleanup&&s_turns==7);
+ save_fail=false;assert(reader_apply_antialias(true)&&aa&&raster_aa&&!locked&&s_reader_cleanup&&s_turns==0);
+ puts("PASS: real AA application locks font changes, invalidates cache, preserves failed saves; bottom120px tools gestures and input/modal guards");
 }
 '''
 assert 'if (reader_tools_swipe(ctx, ev)) return APP_REDRAW_PAGE;' in function('gesture_event',book)

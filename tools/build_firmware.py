@@ -11,6 +11,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import zipfile
 from board_source_view import BOARDS, BOARD_ALIASES, canonical_board, materialize
 
@@ -215,6 +216,9 @@ def export(build, output, board):
         "- File gộp đầy đủ (nạp tại địa chỉ 0x0): dpReader_metalio47_full.bin\n"
         "- File chỉ riêng ứng dụng (nạp tại 0x10000 hoặc cập nhật thẻ nhớ): dpReader_metalio47_firmware.bin\n"
         "- Chi tiết câu lệnh esptool xem trong flash-command.txt và flash_args.\n")
+    config_text = (build / 'config/sdkconfig.h').read_text()
+    auto_backup = '#define CONFIG_DPREADER_AUTO_BACKUP 1' in config_text
+    auto_restore = '#define CONFIG_DPREADER_AUTO_RESTORE 1' in config_text
     result = {'board': board, 'target': info['idf_target'], **identity,
               'partitions': entries, 'bootloader_offset': expected_offsets['bootloader'],
               'esptool_stub': loader['stub'], 'free_app_bytes': entries['ota_0'][3] - identity['size'],
@@ -227,14 +231,47 @@ def export(build, output, board):
               'experimental_fast_reader_panels': bool(experimental_fast_panels),
               'experimental_network_probe': bool(experimental_network),
               'local_transfer_start_test': bool(transfer_start),
+              'automatic_backup': auto_backup, 'automatic_restore': auto_restore,
+              'runtime_memory_validation': 'not_performed_by_build',
               'built': True, 'device_flashed': False, 'published': False}
     (output / 'verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     write_usb_launcher(output)
+    (output / 'BUILD_NOTES.txt').write_text(
+        f"Firmware: {identity['version']} / {info['name']}\n"
+        f"Automatic backup: {'ON' if auto_backup else 'OFF'}\n"
+        f"Automatic restore: {'ON' if auto_restore else 'OFF'}\n"
+        "Compilation does not establish peak internal SRAM usage or device acceptance.\n"
+        "USB launchers preserve NVS/books and write only the app and OTA selection.\n"
+        "This package has not been flashed or published by the build tool.\n")
+    (output / 'SHA256SUMS.txt').write_text(''.join(
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+        for path in sorted(output.iterdir()) if path.is_file() and path.name != 'SHA256SUMS.txt'))
     with zipfile.ZipFile(output.parent / f"dpReader-{board}-{identity['version']}-USB.zip", 'w', zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(output.iterdir()):
             if path.is_file():
                 archive.write(path, path.name)
     return result
+
+
+def export_test_bundle(source, destination):
+    """Never replace an existing RC with different bytes; publish a complete folder."""
+    source, destination = Path(source), Path(destination)
+    if destination.exists():
+        expected = {p.name: hashlib.sha256(p.read_bytes()).digest()
+                    for p in source.iterdir() if p.is_file()}
+        actual = {p.name: hashlib.sha256(p.read_bytes()).digest()
+                  for p in destination.iterdir() if p.is_file()}
+        if actual != expected:
+            raise FileExistsError(f"Refusing to overwrite existing test build: {destination}. Choose a new RC.")
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix='.' + destination.name + '-', dir=destination.parent))
+    try:
+        shutil.copytree(source, temporary, dirs_exist_ok=True)
+        temporary.rename(destination)
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
 
 
 def build_one(board, args):
@@ -327,9 +364,9 @@ def build_one(board, args):
         print((work / 'build.log').read_text(errors='replace')[-8000:])
         raise RuntimeError(f'{board} build failed; see {work / "build.log"}')
     result = export(build, args.output.resolve() / 'packages' / board, board)
-    if 'RC' in info['version']:
+    if 'RC' in info['version'] and not getattr(args, 'no_test_export', False):
         destination = ROOT / 'Test Build' / info['version']
-        shutil.copytree(args.output.resolve() / 'packages' / board, destination, dirs_exist_ok=True)
+        export_test_bundle(args.output.resolve() / 'packages' / board, destination)
     (work / '.kiiko-built-version').write_text(info['version'] + '\n')
     print(json.dumps(result, ensure_ascii=False))
     return result
@@ -344,6 +381,7 @@ def main():
     for board in BOARDS:
         parser.add_argument('--idf-' + board, dest='idf_' + board)
         parser.add_argument('--managed-' + board, dest='managed_' + board, type=Path)
+    parser.add_argument('--no-test-export', action='store_true', help='Compile/package verification only; do not write Test Build/')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--s31-pie', action='store_true', help='Explicit local S31 PIE experiment; normal builds stay C')

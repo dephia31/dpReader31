@@ -1,13 +1,13 @@
 {
   "schema": 1,
-  "version": "1.2.6-vn",
+  "version": "1.2.7-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
   "minimum_base_version": "1.0.0",
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
-  "sha256": "564fd60d9dddadecd6bed05f6be9bc9502f4cf81a13feb529ef2c48b7794a42b",
-  "size": 4298144,
-  "notes": "dpReader 1.2.6: KoSync chính xác hơn trong chương dài; thêm mức giãn dòng và khoảng cách từ; giao diện truyền tệp Red Studio.",
-  "previous_version": "1.2.5-vn"
+  "sha256": "8ef6bb47bbb829c9b7187ca3c46b4db6978c9129bda204188211005dcbbfb249",
+  "size": 4468400,
+  "notes": "dpReader 1.2.7: tải tệp và log từ trang local; tự sao lưu trước Sleep/cập nhật; logo mới và cải thiện thẻ Đọc tiếp.",
+  "previous_version": "1.2.6-vn"
 }

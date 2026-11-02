@@ -14,3 +14,5 @@ int metalio_take_volume(void);
 enum {METALIO_AI_NONE,METALIO_AI_SHORT,METALIO_AI_LONG};
 int metalio_take_ai(void);
 void metalio_ai_clear(void);
+
+static inline void metalio_frontlight_adjust_position(bool warm,unsigned value){metalio_frontlight_preview_position(warm?metalio_frontlight_position(false):value,warm?value:metalio_frontlight_position(true));}

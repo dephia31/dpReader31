@@ -17,3 +17,6 @@ void app_home_cover_mode_changed(void);
 bool app_book_volume_key(app_ctx_t *ctx, int direction, app_redraw_t *redraw);
 bool app_book_ai_bookmark(void);
 #endif
+
+static inline app_redraw_t app_book_handle_key_action(app_ctx_t *ctx,int action){(void)ctx;(void)action;return APP_REDRAW_NONE;}
+static inline void app_book_request_kosync(app_ctx_t *ctx){(void)ctx;}

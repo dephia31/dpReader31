@@ -85,6 +85,9 @@ esp_err_t nvs_entry_info(nvs_iterator_t it, nvs_entry_info_t *info) {
 void nvs_release_iterator(nvs_iterator_t it) { free(it); }
 
 int main(void) {
+    bool empty = false;
+    assert(book_history_backup_empty(&empty) == ESP_OK && empty);
+    assert(book_history_backup_empty(NULL) == ESP_ERR_INVALID_ARG);
     const char *path = "/sdcard/books/one.epub";
     uint32_t seq = 9;
     assert(put(0,"seq",NVS_TYPE_U32,&seq,4)==ESP_OK);
@@ -115,6 +118,7 @@ int main(void) {
     snprintf(key,sizeof(key),"t_%08x",path_hash);
     assert(put(4,key,NVS_TYPE_BLOB,title,path_len+strlen("我的书")+1)==ESP_OK);
     assert(counts[0]==9);
+    assert(book_history_backup_empty(&empty) == ESP_OK && !empty);
 
     FILE *f=tmpfile(); assert(f);
     assert(book_history_backup_write(f)==ESP_OK);

@@ -347,3 +347,17 @@ The S31 build substitutes a generated copy of NimBLE ble_hs_id.c with volatile b
 SDK stop/deinit runs in a single internal-stack worker; callers wait only within their budget. A timeout retains the stack and blocks Sleep/network handoff or reinitialization. The main loop collects a later successful completion; no duplicate stop worker is launched. Deinitialization waits for nimble_port_run to return and for the host exit acknowledgement. A failed stop/deinit leaves the stack quarantined until reboot, rather than forcibly deleting an active task. Caller timeout does not terminate the SDK worker; if the SDK never returns, those resources remain reserved safely.
 
 Reader spacing now offers −50%, −40%, −30%, −20%, −10%, 0%, 100%, 110%, 120%, 130% line choices. Negative values reduce the natural 30% leading (−50% gives115% line pitch); they do not reduce glyph height. Word spacing offers every integer from−10 to20px and is independent of character tracking. Negative adjustments clamp each whitespace advance at zero in measurement and drawing; saved NVS and checked SD backups preserve signed values.
+
+### Local RC export protection
+
+The normal build driver exports RC versions to `Test Build/<version>/`, including
+macOS/Windows launchers, verification metadata and checksums. Existing RC folders
+are immutable: a byte-identical retry is accepted, but different contents are
+rejected instead of replacing the old package. A complete temporary folder is
+renamed into place only after copying succeeds.
+
+For compile/package verification that must not create or change a test delivery,
+pass `--no-test-export` to `tools/build_firmware.py`. This still creates internal
+artifacts under the build output. Newly delivered test firmware must use the next
+unused RC and an embedded matching version; this flag does not authorize reusing
+a delivered RC for different bytes.

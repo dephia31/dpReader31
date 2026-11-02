@@ -11,6 +11,13 @@
 #include <string.h>
 #include "nvs.h"
 
+#if defined(ESP_PLATFORM) && KIIKO_BOARD_METALIO47
+#include "esp_heap_caps.h"
+#define history_alloc(size) heap_caps_malloc((size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+#else
+#define history_alloc(size) malloc(size)
+#endif
+
 #define HISTORY_MAX_RECORDS 512
 #define HISTORY_MAX_VALUE 4096
 #define HISTORY_RECORD_HEADER 20
@@ -22,6 +29,24 @@ static const char *const namespaces[] = {
     "rp_books", "rp_ticket", "rp_marks", "rp_favs", "rp_titles", "rp_shelf"
 #endif
 };
+
+esp_err_t book_history_backup_empty(bool *empty) {
+    if (!empty) return ESP_ERR_INVALID_ARG;
+    *empty = true;
+    for (unsigned ns = 0; ns < sizeof(namespaces) / sizeof(namespaces[0]); ++ns) {
+        nvs_handle_t h;
+        esp_err_t err = nvs_open(namespaces[ns], NVS_READONLY, &h);
+        if (err == ESP_ERR_NVS_NOT_FOUND) continue;
+        if (err != ESP_OK) return err;
+        nvs_iterator_t it = NULL;
+        err = nvs_entry_find_in_handle(h, NVS_TYPE_ANY, &it);
+        nvs_release_iterator(it);
+        nvs_close(h);
+        if (err == ESP_OK) { *empty = false; return ESP_OK; }
+        if (err != ESP_ERR_NVS_NOT_FOUND) return err;
+    }
+    return ESP_OK;
+}
 
 static uint32_t hash_bytes(uint32_t hash, const void *data, size_t len) {
     const uint8_t *bytes = data;
@@ -81,7 +106,7 @@ static esp_err_t read_value(nvs_handle_t h, const nvs_entry_info_t *info, uint8_
     else return ESP_ERR_INVALID_ARG;
     if ((info->type == NVS_TYPE_STR || info->type == NVS_TYPE_BLOB) && err != ESP_OK) return err;
     if (!*len || *len > HISTORY_MAX_VALUE) return ESP_ERR_INVALID_SIZE;
-    *value = malloc(*len);
+    *value = history_alloc(*len);
     if (!*value) return ESP_ERR_NO_MEM;
     if (info->type == NVS_TYPE_U8) err = nvs_get_u8(h, info->key, *value);
     else if (info->type == NVS_TYPE_U32) err = nvs_get_u32(h, info->key, (uint32_t *)*value);
@@ -164,7 +189,7 @@ static esp_err_t read_stream(FILE *file, bool restore) {
         if (result != ESP_OK || ns >= sizeof(namespaces) / sizeof(namespaces[0]) ||
             strnlen(key, sizeof(key)) == sizeof(key) || !len || len > HISTORY_MAX_VALUE ||
             count == HISTORY_MAX_RECORDS) { result = ESP_ERR_INVALID_RESPONSE; break; }
-        uint8_t *value = malloc(len);
+        uint8_t *value = history_alloc(len);
         if (!value) { result = ESP_ERR_NO_MEM; break; }
         if (fread(value, 1, len, file) != len || !valid_record(ns, type, key, value, len)) {
             free(value); result = ESP_ERR_INVALID_RESPONSE; break;

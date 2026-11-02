@@ -24,6 +24,7 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #include "book/book_font_size.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stddef.h>
 #include <errno.h>
 #include <unistd.h>
@@ -37,6 +38,64 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #include "read_pico_sd.h"
 #include "read_pico_transfer.h"
 #include "book/book_history_backup.h"
+
+#if defined(ESP_PLATFORM) && KIIKO_BOARD_METALIO47
+#include "esp_heap_caps.h"
+#include "esp_attr.h"
+#include "esp_mac.h"
+#define BACKUP_STATE_RAM EXT_RAM_BSS_ATTR
+#ifndef backup_alloc
+#define backup_alloc(size) heap_caps_calloc(1, (size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+#endif
+#else
+#define BACKUP_STATE_RAM
+#ifndef backup_alloc
+#define backup_alloc(size) calloc(1, (size))
+#endif
+#endif
+
+#if CONFIG_DPREADER_AUTO_BACKUP
+#if defined(ESP_PLATFORM) && (!KIIKO_BOARD_METALIO47 || !CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY)
+#error "Automatic backup requires S31 with external BSS enabled"
+#endif
+#include "book/book_progress.h"
+static BACKUP_STATE_RAM struct {
+    uint32_t revision, saved_revision, saved_progress, saved_wifi;
+    bool healthy, failed, saved, enabled;
+#if CONFIG_DPREADER_AUTO_RESTORE
+    bool restore_pending, boot_checked;
+    app_restore_status_t restore_status;
+#endif
+} s_auto_backup;
+static esp_err_t settings_backup_commit(nvs_handle_t h) {
+    esp_err_t err = nvs_commit(h);
+    if (err == ESP_OK) ++s_auto_backup.revision;
+    else s_auto_backup.failed = true;
+    return err;
+}
+static esp_err_t backup_check_nvs(esp_err_t err) {
+    if (err != ESP_OK) s_auto_backup.failed = true;
+    return err;
+}
+static esp_err_t backup_nvs_open(const char *ns, int mode, nvs_handle_t *h) {
+    return backup_check_nvs(nvs_open(ns, mode, h));
+}
+static esp_err_t backup_nvs_set_u8(nvs_handle_t h, const char *key, uint8_t value) {
+    return backup_check_nvs(nvs_set_u8(h, key, value));
+}
+static esp_err_t backup_nvs_set_u32(nvs_handle_t h, const char *key, uint32_t value) {
+    return backup_check_nvs(nvs_set_u32(h, key, value));
+}
+static esp_err_t backup_nvs_set_str(nvs_handle_t h, const char *key, const char *value) {
+    return backup_check_nvs(nvs_set_str(h, key, value));
+}
+#else
+#define settings_backup_commit nvs_commit
+#define backup_nvs_open nvs_open
+#define backup_nvs_set_u8 nvs_set_u8
+#define backup_nvs_set_u32 nvs_set_u32
+#define backup_nvs_set_str nvs_set_str
+#endif
 
 #define TAG "settings"
 #define NVS_NS KIIKO_BOARD_SETTINGS_NAMESPACE
@@ -252,9 +311,9 @@ static bool valid_media_dir(const char* path) {
 static bool set_media_dir(char *dst, const char *key, const char *path) {
     if (!valid_media_dir(path)) return false;
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    esp_err_t err = nvs_set_str(h, key, path);
-    if (err == ESP_OK) err = nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    esp_err_t err = backup_nvs_set_str(h, key, path);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err != ESP_OK) return false;
     strlcpy(dst, path, MEDIA_DIR_MAX);
@@ -270,16 +329,16 @@ static uint8_t valid_book_px(uint8_t px) {
 static void sleep_policy_load(void) {
     s_sleep_off_hours=APP_SLEEP_OFF_HOURS_DEFAULT;
     nvs_handle_t h;
-    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
+    if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
     const char *version=esp_app_get_description()->version;
     char previous[32]={0};size_t size=sizeof(previous);
     if(nvs_get_str(h,"sleep_fw",previous,&size)==ESP_OK&&!strcmp(previous,version)) {
         uint8_t hours=0;
         if(nvs_get_u8(h,NVS_KEY_SLEEP_OFF_HOURS,&hours)==ESP_OK&&hours<=APP_SLEEP_OFF_HOURS_MAX)s_sleep_off_hours=hours;
     }else {
-        esp_err_t err=nvs_set_u8(h,NVS_KEY_SLEEP_OFF_HOURS,APP_SLEEP_OFF_HOURS_DEFAULT);
-        if(err==ESP_OK)err=nvs_set_str(h,"sleep_fw",version);
-        if(err==ESP_OK)err=nvs_commit(h);
+        esp_err_t err=backup_nvs_set_u8(h,NVS_KEY_SLEEP_OFF_HOURS,APP_SLEEP_OFF_HOURS_DEFAULT);
+        if(err==ESP_OK)err=backup_nvs_set_str(h,"sleep_fw",version);
+        if(err==ESP_OK)err=settings_backup_commit(h);
         if(err!=ESP_OK)ESP_LOGW(TAG,"Sleep policy upgrade reset deferred: %s",esp_err_to_name(err));
     }
     nvs_close(h);
@@ -289,32 +348,92 @@ static void sleep_policy_load(void) {
 static void system_size_load(void) {
     s_system_size=100;
     nvs_handle_t h;
-    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
+    if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
     uint8_t revision=0,value=100;
     if(nvs_get_u8(h,"sys_size_rev",&revision)==ESP_OK && revision==2) {
         if(nvs_get_u8(h,NVS_KEY_SYS_SIZE,&value)==ESP_OK && value>=100 &&
            value<=202 && (!(value%10) || value==144 || value==202))s_system_size=value;
     }else {
-        esp_err_t err=nvs_set_u8(h,NVS_KEY_SYS_SIZE,100);
-        if(err==ESP_OK)err=nvs_set_u8(h,"sys_size_rev",2);
-        if(err==ESP_OK)(void)nvs_commit(h);
+        esp_err_t err=backup_nvs_set_u8(h,NVS_KEY_SYS_SIZE,100);
+        if(err==ESP_OK)err=backup_nvs_set_u8(h,"sys_size_rev",2);
+        if(err==ESP_OK)(void)settings_backup_commit(h);
     }
     nvs_close(h);
 }
 
 void app_settings_init(void) {
+#if CONFIG_DPREADER_AUTO_BACKUP
+    memset(&s_auto_backup, 0, sizeof(s_auto_backup));
+    s_auto_backup.enabled = true;
+#endif
     esp_err_t err = nvs_flash_init();
     // 设置分区异常时保留原数据供恢复，绝不因空间不足自动擦除用户资料。
     // Preserve settings on NVS errors; a full partition must never silently erase profile data.
     if (err != ESP_OK) {
+#if CONFIG_DPREADER_AUTO_RESTORE
+        s_auto_backup.restore_status = APP_RESTORE_BLOCKED;
+#endif
         ESP_LOGW(TAG, "nvs init %s, use deep sleep", esp_err_to_name(err));
         return;
     }
 
+#if CONFIG_DPREADER_AUTO_BACKUP
+    // Persist quarantine before migrations recreate defaults on an erased device.
+    nvs_handle_t existing;
+    err = nvs_open(NVS_NS, NVS_READONLY, &existing);
+    if (err == ESP_OK) {
+        uint8_t guard = 0;
+        esp_err_t state = nvs_get_u8(existing, "backup_guard", &guard);
+        s_auto_backup.healthy = state == ESP_ERR_NVS_NOT_FOUND || (state == ESP_OK && guard == 1);
+        if (state != ESP_OK && state != ESP_ERR_NVS_NOT_FOUND) s_auto_backup.failed = true;
+        uint8_t enabled = 1;
+        esp_err_t preference = nvs_get_u8(existing, "auto_backup", &enabled);
+        if (preference == ESP_OK && enabled <= 1) s_auto_backup.enabled = enabled == 1;
+        else if (preference != ESP_ERR_NVS_NOT_FOUND) s_auto_backup.failed = true;
+        nvs_close(existing);
+    } else if (err == ESP_ERR_NVS_NOT_FOUND) {
+        if (backup_nvs_open(NVS_NS, NVS_READWRITE, &existing) == ESP_OK) {
+            esp_err_t guard_err = backup_nvs_set_u8(existing, "backup_guard", 0);
+#if CONFIG_DPREADER_AUTO_RESTORE
+            if (guard_err == ESP_OK) guard_err = backup_nvs_set_u8(existing, "restore_state", 0);
+#endif
+            if (guard_err == ESP_OK) (void)settings_backup_commit(existing);
+            nvs_close(existing);
+        }
+    } else s_auto_backup.failed = true;
+#endif
+#if CONFIG_DPREADER_AUTO_RESTORE
+    if (s_auto_backup.failed) {
+        s_auto_backup.restore_status = APP_RESTORE_BLOCKED;
+        return;
+    }
+    // An interrupted journal overrides even a surviving guard=1 key.
+    err = nvs_open(NVS_NS, NVS_READONLY, &existing);
+    if (err != ESP_OK) { s_auto_backup.restore_status = APP_RESTORE_BLOCKED; return; }
+    uint8_t restore_state = 0;
+    esp_err_t journal = nvs_get_u8(existing, "restore_state", &restore_state);
+    nvs_close(existing);
+    if ((journal != ESP_OK && journal != ESP_ERR_NVS_NOT_FOUND) ||
+        (journal == ESP_OK && restore_state != 0 && restore_state != 2)) {
+        s_auto_backup.healthy = false;
+        s_auto_backup.restore_status = APP_RESTORE_BLOCKED;
+        return;
+    }
+    if (!s_auto_backup.healthy) {
+        s_auto_backup.restore_pending = restore_state == 0;
+        if (!s_auto_backup.restore_pending) s_auto_backup.restore_status = APP_RESTORE_BLOCKED;
+        return; // Do not persist/reload defaults over an unfinished recovery.
+    }
+#endif
     sleep_policy_load();
     system_size_load();
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
+    if (backup_nvs_open(NVS_NS, NVS_READONLY, &h) != ESP_OK) {
+#if CONFIG_DPREADER_AUTO_BACKUP
+        s_auto_backup.healthy = false;
+#endif
+        return;
+    }
     uint8_t raw = APP_SLEEP_DEEP;
     if (nvs_get_u8(h, NVS_KEY_SLEEP, &raw) == ESP_OK && raw <= APP_SLEEP_OFF) {
         s_sleep = (app_sleep_mode_t)raw;
@@ -541,19 +660,19 @@ void app_settings_init(void) {
     if (migrate_shelf) s_shelf_style = 2;
     // 固定媒体根目录；忽略旧版自定义目录键。/ Fixed media roots ignore retired custom-directory keys.
     nvs_close(h);
-    if ((migrate_shelf || retired_shelf) && nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+    if ((migrate_shelf || retired_shelf) && backup_nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
         // 首次刷入此版只切换书架外观；随后尊重用户手动选择。/ Set acrylic once on upgrade, then preserve manual choices.
-        esp_err_t saved = nvs_set_u8(h, NVS_KEY_SHELF_STYLE, 2);
-        if (saved == ESP_OK) saved = nvs_set_u8(h, NVS_KEY_SHELF_V22, 1);
-        if (saved == ESP_OK) (void)nvs_commit(h);
+        esp_err_t saved = backup_nvs_set_u8(h, NVS_KEY_SHELF_STYLE, 2);
+        if (saved == ESP_OK) saved = backup_nvs_set_u8(h, NVS_KEY_SHELF_V22, 1);
+        if (saved == ESP_OK) (void)settings_backup_commit(h);
         nvs_close(h);
     }
     // Migrate only the former default preset once; keep all other user mappings.
     // Committed marker makes a later explicit full-refresh choice remain untouched.
-    if (migrate_reader_defaults && nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
-        esp_err_t saved = old_default_hold ? nvs_set_u8(h, NVS_KEY_HOLD_ACTION, APP_READER_KEY_HOME) : ESP_OK;
-        if (saved == ESP_OK) saved = nvs_set_u8(h, NVS_KEY_READER_KEYS_V2, 1);
-        if (saved == ESP_OK) saved = nvs_commit(h);
+    if (migrate_reader_defaults && backup_nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+        esp_err_t saved = old_default_hold ? backup_nvs_set_u8(h, NVS_KEY_HOLD_ACTION, APP_READER_KEY_HOME) : ESP_OK;
+        if (saved == ESP_OK) saved = backup_nvs_set_u8(h, NVS_KEY_READER_KEYS_V2, 1);
+        if (saved == ESP_OK) saved = settings_backup_commit(h);
         nvs_close(h);
         if (saved == ESP_OK && old_default_hold) s_reader_hold_action = APP_READER_KEY_HOME;
     }
@@ -582,9 +701,9 @@ void app_settings_set_sleep_mode(app_sleep_mode_t mode) {
     if (mode > APP_SLEEP_OFF) mode = APP_SLEEP_DEEP;
     s_sleep = mode;
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    nvs_set_u8(h, NVS_KEY_SLEEP, (uint8_t)mode);
-    nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    backup_nvs_set_u8(h, NVS_KEY_SLEEP, (uint8_t)mode);
+    settings_backup_commit(h);
     nvs_close(h);
 }
 
@@ -592,11 +711,11 @@ uint8_t app_settings_sleep_off_hours(void) { return s_sleep_off_hours; }
 esp_err_t app_settings_set_sleep_off_hours(uint8_t hours) {
     if(hours>APP_SLEEP_OFF_HOURS_MAX)return ESP_ERR_INVALID_ARG;
     nvs_handle_t h;
-    esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
+    esp_err_t err=backup_nvs_open(NVS_NS,NVS_READWRITE,&h);
     if(err!=ESP_OK)return err;
-    err=nvs_set_u8(h,NVS_KEY_SLEEP_OFF_HOURS,hours);
-    if(err==ESP_OK)err=nvs_set_str(h,"sleep_fw",esp_app_get_description()->version);
-    if(err==ESP_OK)err=nvs_commit(h);
+    err=backup_nvs_set_u8(h,NVS_KEY_SLEEP_OFF_HOURS,hours);
+    if(err==ESP_OK)err=backup_nvs_set_str(h,"sleep_fw",esp_app_get_description()->version);
+    if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);
     if(err==ESP_OK)s_sleep_off_hours=hours;
     return err;
@@ -606,9 +725,9 @@ void app_settings_set_staged_shutdown(bool staged) {
     if (staged == s_staged_shutdown) return;
 #if KIIKO_BOARD_METALIO47
     nvs_handle_t h;
-    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK) return;
-    esp_err_t err=nvs_set_u8(h,NVS_KEY_SHUTDOWN_MODE,staged?1:0);
-    if(err==ESP_OK) err=nvs_commit(h);
+    if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK) return;
+    esp_err_t err=backup_nvs_set_u8(h,NVS_KEY_SHUTDOWN_MODE,staged?1:0);
+    if(err==ESP_OK) err=settings_backup_commit(h);
     nvs_close(h);
     if(err==ESP_OK) s_staged_shutdown=staged;
 #else
@@ -646,9 +765,9 @@ void app_settings_record_pin_lock(uint32_t unix_seconds) {
 }
 static void nvs_put_u32(const char* key, uint32_t value) {
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    nvs_set_u32(h, key, value);
-    nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    backup_nvs_set_u32(h, key, value);
+    settings_backup_commit(h);
     nvs_close(h);
 }
 #endif
@@ -662,11 +781,11 @@ esp_err_t app_settings_set_home_utilities(const uint8_t actions[APP_HOME_UTILITY
 esp_err_t app_settings_set_home_utilities_config(const uint8_t actions[APP_HOME_UTILITY_SLOTS],bool labels,bool border) {
     if(!actions)return ESP_ERR_INVALID_ARG;
     for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i)if(actions[i]>=APP_HOME_UTIL_COUNT)return ESP_ERR_INVALID_ARG;
-    nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);if(err!=ESP_OK)return err;
-    for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS&&err==ESP_OK;++i)err=nvs_set_u8(h,s_home_utility_keys[i],actions[i]);
-    if(err==ESP_OK)err=nvs_set_u8(h,"home_util_lbl",labels?1:0);
-    if(err==ESP_OK)err=nvs_set_u8(h,"home_util_bdr",border?1:0);
-    if(err==ESP_OK)err=nvs_commit(h);
+    nvs_handle_t h;esp_err_t err=backup_nvs_open(NVS_NS,NVS_READWRITE,&h);if(err!=ESP_OK)return err;
+    for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS&&err==ESP_OK;++i)err=backup_nvs_set_u8(h,s_home_utility_keys[i],actions[i]);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,"home_util_lbl",labels?1:0);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,"home_util_bdr",border?1:0);
+    if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);
     if(err==ESP_OK){memcpy(s_home_utilities,actions,sizeof(s_home_utilities));s_home_utility_labels=labels;s_home_utility_border=border;}
     return err;
@@ -675,10 +794,10 @@ app_home_component_t app_settings_home_component(void) { return s_home_component
 uint8_t app_settings_home_goal_minutes(void) { return s_home_goal_minutes; }
 static esp_err_t home_preference_save(const char *key, uint8_t value) {
     nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    esp_err_t err = backup_nvs_open(NVS_NS, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
-    err = nvs_set_u8(h, key, value);
-    if (err == ESP_OK) err = nvs_commit(h);
+    err = backup_nvs_set_u8(h, key, value);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     return err;
 }
@@ -735,10 +854,10 @@ void app_settings_set_home_full_refresh(bool enabled) {
 
 static bool nvs_put_str(const char *key, const char *value) {
     nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    esp_err_t err = backup_nvs_open(NVS_NS, NVS_READWRITE, &h);
     if (err != ESP_OK) { ESP_LOGE(TAG, "save %s open: %s", key, esp_err_to_name(err)); return false; }
-    err = nvs_set_str(h, key, value);
-    if (err == ESP_OK) err = nvs_commit(h);
+    err = backup_nvs_set_str(h, key, value);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err != ESP_OK) ESP_LOGE(TAG, "save %s: %s", key, esp_err_to_name(err));
     return err == ESP_OK;
@@ -777,10 +896,10 @@ uint8_t app_settings_system_font_size(void) { return s_system_size; }
 void app_settings_set_system_font_size(uint8_t percent) {
     if (percent < 100 || percent > 202 || (percent % 10 && percent != 144 && percent != 202) || percent == s_system_size) return;
     nvs_handle_t h;
-    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
-    esp_err_t err=nvs_set_u8(h,NVS_KEY_SYS_SIZE,percent);
-    if(err==ESP_OK)err=nvs_set_u8(h,"sys_size_rev",2);
-    if(err==ESP_OK)err=nvs_commit(h);
+    if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
+    esp_err_t err=backup_nvs_set_u8(h,NVS_KEY_SYS_SIZE,percent);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,"sys_size_rev",2);
+    if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);
     if(err==ESP_OK)s_system_size=percent;
 }
@@ -802,9 +921,9 @@ void app_settings_set_bookmark_path(const char *path) {
     if(!path || (path[0] && (strncmp(path,"/sdcard/",8)||!ext||strcasecmp(ext,".png"))) ||
         strnlen(path,sizeof(s_bookmark))>=sizeof(s_bookmark)) return;
     nvs_handle_t h;
-    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
-    esp_err_t err=nvs_set_str(h,NVS_KEY_BOOKMARK,path);
-    if(err==ESP_OK)err=nvs_commit(h);
+    if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return;
+    esp_err_t err=backup_nvs_set_str(h,NVS_KEY_BOOKMARK,path);
+    if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);
     if(err==ESP_OK)strlcpy(s_bookmark,path,sizeof(s_bookmark));
 }
@@ -814,17 +933,17 @@ void app_settings_set_wallpaper_path(const char* path) {
         strnlen(path, sizeof(s_wallpaper)) >= sizeof(s_wallpaper)) return;
     strlcpy(s_wallpaper, path, sizeof(s_wallpaper));
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    nvs_set_str(h, NVS_KEY_WALLPAPER, s_wallpaper);
-    nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    backup_nvs_set_str(h, NVS_KEY_WALLPAPER, s_wallpaper);
+    settings_backup_commit(h);
     nvs_close(h);
 }
 
 static void nvs_put_u8(const char* key, uint8_t value) {
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    nvs_set_u8(h, key, value);
-    nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    backup_nvs_set_u8(h, key, value);
+    settings_backup_commit(h);
     nvs_close(h);
 }
 
@@ -869,9 +988,9 @@ bool app_settings_book_antialias(void) { return s_book_antialias; }
 bool app_settings_set_book_antialias(bool enabled) {
     if (enabled == s_book_antialias) return true;
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    esp_err_t err = nvs_set_u8(h, NVS_KEY_BOOK_AA, enabled ? 1 : 0);
-    if (err == ESP_OK) err = nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    esp_err_t err = backup_nvs_set_u8(h, NVS_KEY_BOOK_AA, enabled ? 1 : 0);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err == ESP_OK) s_book_antialias = enabled;
     return err == ESP_OK;
@@ -882,10 +1001,10 @@ bool app_settings_set_book_weight_fine(int8_t steps) {
     if(steps==s_book_weight_fine)return true;
     uint8_t legacy=(uint8_t)(steps/APP_BOOK_WEIGHT_SUBSTEPS+2);
     nvs_handle_t h;
-    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
-    esp_err_t err=nvs_set_u8(h,NVS_KEY_BOOK_WEIGHT_FINE,steps+APP_BOOK_WEIGHT_FINE_MAX);
-    if(err==ESP_OK)err=nvs_set_u8(h,NVS_KEY_BOOK_WEIGHT,legacy);
-    if(err==ESP_OK)err=nvs_commit(h);
+    if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
+    esp_err_t err=backup_nvs_set_u8(h,NVS_KEY_BOOK_WEIGHT_FINE,steps+APP_BOOK_WEIGHT_FINE_MAX);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,NVS_KEY_BOOK_WEIGHT,legacy);
+    if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);
     if(err==ESP_OK){s_book_weight=legacy;s_book_weight_fine=steps;}
     return err==ESP_OK;
@@ -910,9 +1029,9 @@ bool app_settings_set_book_background_path(const char *path) {
     if (!path || (path[0] && strncmp(path, "/sdcard/pictures/", 17)) ||
         strnlen(path, sizeof(s_book_background)) >= sizeof(s_book_background) || strstr(path, "/../")) return false;
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    esp_err_t err = nvs_set_str(h, NVS_KEY_BOOK_BACKGROUND, path);
-    if (err == ESP_OK) err = nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    esp_err_t err = backup_nvs_set_str(h, NVS_KEY_BOOK_BACKGROUND, path);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err != ESP_OK) return false;
     strlcpy(s_book_background, path, sizeof(s_book_background));
@@ -966,9 +1085,9 @@ uint32_t app_settings_action_menu(void){return s_action_menu;}
 esp_err_t app_settings_set_action_menu(uint32_t mask){
     if(mask&~APP_ACTION_MENU_ALLOWED)return ESP_ERR_INVALID_ARG;
     if(mask==s_action_menu)return ESP_OK;
-    nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
+    nvs_handle_t h;esp_err_t err=backup_nvs_open(NVS_NS,NVS_READWRITE,&h);
     if(err!=ESP_OK)return err;
-    err=nvs_set_u32(h,"action_menu",mask);if(err==ESP_OK)err=nvs_commit(h);
+    err=backup_nvs_set_u32(h,"action_menu",mask);if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);
     if(err==ESP_OK)s_action_menu=mask;
     return err;
@@ -976,9 +1095,9 @@ esp_err_t app_settings_set_action_menu(uint32_t mask){
 bool app_settings_power_action_menu(void){return s_power_action_menu;}
 esp_err_t app_settings_set_power_action_menu(bool enabled){
     if(enabled==s_power_action_menu)return ESP_OK;
-    nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
+    nvs_handle_t h;esp_err_t err=backup_nvs_open(NVS_NS,NVS_READWRITE,&h);
     if(err!=ESP_OK)return err;
-    err=nvs_set_u8(h,"power_menu",enabled);if(err==ESP_OK)err=nvs_commit(h);
+    err=backup_nvs_set_u8(h,"power_menu",enabled);if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);
     if(err==ESP_OK)s_power_action_menu=enabled;
     return err;
@@ -987,10 +1106,10 @@ app_ai_action_t app_settings_ai_short(void){return s_ai_short;}
 esp_err_t app_settings_set_ai_short(app_ai_action_t action){
     if((unsigned)action>=APP_AI_ACTION_COUNT)return ESP_ERR_INVALID_ARG;
     if(action==s_ai_short)return ESP_OK;
-    nvs_handle_t h;esp_err_t err=nvs_open(NVS_NS,NVS_READWRITE,&h);
+    nvs_handle_t h;esp_err_t err=backup_nvs_open(NVS_NS,NVS_READWRITE,&h);
     if(err!=ESP_OK)return err;
-    err=nvs_set_u8(h,"ai_short",(uint8_t)action);
-    if(err==ESP_OK)err=nvs_commit(h);
+    err=backup_nvs_set_u8(h,"ai_short",(uint8_t)action);
+    if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);if(err==ESP_OK)s_ai_short=action;return err;
 }
 #endif
@@ -1006,9 +1125,9 @@ bool app_settings_set_reader_key_action(unsigned key, app_reader_key_action_t ac
     if (key >= 3 || !app_settings_reader_key_action_allowed(key, action)) return false;
     if (s_reader_keys[key] == action) return true;
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    esp_err_t err = nvs_set_u8(h, s_reader_key_names[key], action);
-    if (err == ESP_OK) err = nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    esp_err_t err = backup_nvs_set_u8(h, s_reader_key_names[key], action);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err == ESP_OK) s_reader_keys[key] = action;
     return err == ESP_OK;
@@ -1020,9 +1139,9 @@ bool app_settings_set_reader_hold_action(app_reader_key_action_t action) {
     if (!app_settings_reader_key_action_allowed(3, action)) return false;
     if (s_reader_hold_action == action) return true;
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    esp_err_t err = nvs_set_u8(h, NVS_KEY_HOLD_ACTION, action);
-    if (err == ESP_OK) err = nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    esp_err_t err = backup_nvs_set_u8(h, NVS_KEY_HOLD_ACTION, action);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err == ESP_OK) s_reader_hold_action = action;
     return err == ESP_OK;
@@ -1034,11 +1153,11 @@ void app_settings_set_reader_key_preset(unsigned preset) {
     };
     if (preset < 1 || preset > 2) return;
     nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    esp_err_t err = backup_nvs_open(NVS_NS, NVS_READWRITE, &h);
     if (err != ESP_OK) return;
-    for (unsigned i = 0; i < 3 && err == ESP_OK; ++i) err = nvs_set_u8(h, s_reader_key_names[i], values[preset - 1][i]);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_HOLD_ACTION, preset == 1 ? APP_READER_KEY_HOME : APP_READER_KEY_REFRESH);
-    if (err == ESP_OK) err = nvs_commit(h);
+    for (unsigned i = 0; i < 3 && err == ESP_OK; ++i) err = backup_nvs_set_u8(h, s_reader_key_names[i], values[preset - 1][i]);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HOLD_ACTION, preset == 1 ? APP_READER_KEY_HOME : APP_READER_KEY_REFRESH);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err == ESP_OK) {
         memcpy(s_reader_keys, values[preset - 1], sizeof(s_reader_keys));
@@ -1055,9 +1174,9 @@ bool app_settings_set_volume_key_action(unsigned key, app_reader_key_action_t ac
     if (key >= 2 || !app_settings_reader_key_action_allowed(key, action)) return false;
     if (s_volume_keys[key] == action) return true;
     nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    esp_err_t err = nvs_set_u8(h, key == 0 ? "vol_down" : "vol_up", (uint8_t)action);
-    if (err == ESP_OK) err = nvs_commit(h);
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    esp_err_t err = backup_nvs_set_u8(h, key == 0 ? "vol_down" : "vol_up", (uint8_t)action);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err == ESP_OK) s_volume_keys[key] = action;
     return err == ESP_OK;
@@ -1076,9 +1195,9 @@ bool app_settings_set_control_hold(unsigned key,uint8_t action) {
     if(key==4)return app_settings_set_reader_hold_action(action==APP_CONTROL_HOLD_DEFAULT?APP_READER_KEY_HOME:action);
     if(s_control_holds[key]==action)return true;
     nvs_handle_t h;
-    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
-    esp_err_t err=nvs_set_u8(h,s_control_hold_names[key],action);
-    if(err==ESP_OK)err=nvs_commit(h);
+    if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
+    esp_err_t err=backup_nvs_set_u8(h,s_control_hold_names[key],action);
+    if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);if(err==ESP_OK)s_control_holds[key]=action;
     return err==ESP_OK;
 #else
@@ -1127,9 +1246,9 @@ int8_t app_settings_book_word_spacing(void){return s_book_word_spacing;}
 bool app_settings_set_book_word_spacing(int8_t px) {
     if(px < -10 || px>20)return false;
     if(px==s_book_word_spacing)return true;
-    nvs_handle_t h;if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
-    esp_err_t err=nvs_set_u8(h,"book_word_gap",px);
-    if(err==ESP_OK)err=nvs_commit(h);
+    nvs_handle_t h;if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
+    esp_err_t err=backup_nvs_set_u8(h,"book_word_gap",px);
+    if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);
     if(err!=ESP_OK)return false;
     s_book_word_spacing=px;return true;
@@ -1431,7 +1550,7 @@ static bool backup_home_valid(const settings_backup_home_t *v) {
 static unsigned backup_version(const settings_backup_v1_t *backup) {
     if (memcmp(backup->magic, "PICOSET", 7)) return 0;
     unsigned char c = backup->magic[7];
-    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : c == 'L' ? 21 : c == 'M' ? 22 : c == 'N' ? 23 : c == 'O' ? 24 : c == 'P' ? 25 : 0;
+    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : c == 'L' ? 21 : c == 'M' ? 22 : c == 'N' ? 23 : c == 'O' ? 24 : c == 'P' ? 25 : c == 'Q' ? 26 : c == 'R' ? 27 : 0;
 }
 
 static void backup_erase_secret(void *ptr, size_t size) {
@@ -1590,7 +1709,7 @@ static esp_err_t reader_backup_stage(nvs_handle_t h,const reader_backup_t *profi
     for(unsigned i=0;i<READER_BACKUP_FIELDS&&err==ESP_OK;++i) {
         uint8_t value=profile->values[i];
         if(!strcmp(s_reader_backup_fields[i].key,NVS_KEY_BOOK_TRACK))value+=192;
-        err=nvs_set_u8(h,s_reader_backup_fields[i].key,value);
+        err=backup_nvs_set_u8(h,s_reader_backup_fields[i].key,value);
     }
     return err;
 }
@@ -1613,11 +1732,74 @@ static bool backup_utilities_valid(const settings_backup_utilities_t *v,unsigned
     for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i)if((i==0&&version>=24?(v->actions[i]&(version>=25?0x3f:0x7f)):v->actions[i])>=APP_HOME_UTIL_COUNT)return false;
     return stored==backup_utilities_checksum(v);
 }
-esp_err_t app_settings_backup_save(void) {
+// V26 binds automatic recovery to the factory MAC; V27 also seals the backup preference.
+typedef struct { uint8_t magic[8], mac[6], reserved[2], checksum[4]; } backup_identity_t;
+#ifndef backup_device_mac
+static esp_err_t backup_device_mac(uint8_t mac[6]) {
+#ifdef ESP_PLATFORM
+    return esp_efuse_mac_get_default(mac);
+#else
+    const uint8_t host_mac[6] = {2, 0, 0, 0, 0, 1};
+    memcpy(mac, host_mac, sizeof(host_mac));
+    return ESP_OK;
+#endif
+}
+#endif
+static bool backup_mac_valid(const uint8_t mac[6]) {
+    uint8_t any = 0, all = 0xff;
+    for (unsigned i = 0; i < 6; ++i) { any |= mac[i]; all &= mac[i]; }
+    return any && all != 0xff && !(mac[0] & 1);
+}
+static uint32_t backup_identity_checksum(const backup_identity_t *identity) {
+    uint32_t hash = 2166136261u;
+    const uint8_t *bytes = (const uint8_t *)identity;
+    for (size_t i = 0; i < offsetof(backup_identity_t, checksum); ++i)
+        hash = (hash ^ bytes[i]) * 16777619u;
+    return hash;
+}
+static bool backup_identity_valid(const backup_identity_t *identity, unsigned version) {
+    uint32_t sum = 0;
+    for (unsigned i = 0; i < 4; ++i) sum |= (uint32_t)identity->checksum[i] << (8*i);
+    return !memcmp(identity->magic, "S31BIND1", 8) &&
+        (version >= 27 ? identity->reserved[0] <= 1 : !identity->reserved[0]) &&
+        !identity->reserved[1] && backup_mac_valid(identity->mac) &&
+        sum == backup_identity_checksum(identity);
+}
+
+typedef struct {
+    settings_backup_v1_t backup;
+    uint8_t extension[7];
+    settings_backup_profile_t profile;
+    settings_backup_keys_t keys;
+    settings_backup_hold_t hold;
+    settings_backup_indent_adjust_t adjust;
+    settings_backup_weight_t weight;
+    settings_backup_wifi_t wifi;
+    settings_backup_background_t background;
+    settings_backup_home_t home;
+    settings_backup_background_t bookmark;
+    settings_backup_indent_adjust_t word_spacing;
+    reader_backup_t reader;
+    settings_backup_utilities_t utilities;
+    uint8_t io[1024];
+    struct stat current;
+    uint32_t wifi_hash;
+    backup_identity_t identity;
+    uint8_t device_mac[6];
+} backup_workspace_t;
+
+static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     if (!backup_card_ready()) return ESP_ERR_INVALID_STATE;
-    settings_backup_v1_t backup = {0};
-    memcpy(backup.magic, "PICOSETP", sizeof(backup.magic));
-    uint8_t *f = backup.flags;
+
+    memcpy(work->backup.magic, "PICOSETR", sizeof(work->backup.magic));
+    memcpy(work->identity.magic, "S31BIND1", 8);
+    esp_err_t identity_err = backup_device_mac(work->identity.mac);
+    if (identity_err != ESP_OK) return identity_err;
+    if (!backup_mac_valid(work->identity.mac)) return ESP_ERR_INVALID_RESPONSE;
+    work->identity.reserved[0] = app_settings_autobackup_enabled() ? 1 : 0;
+    uint32_t identity_hash = backup_identity_checksum(&work->identity);
+    for (unsigned i = 0; i < 4; ++i) work->identity.checksum[i] = identity_hash >> (8*i);
+    uint8_t *f = work->backup.flags;
     f[BK_SLEEP] = s_sleep;
     f[BK_PICKUP] = s_pickup_wake;
     f[BK_SYS_SIZE] = s_system_size;
@@ -1637,102 +1819,242 @@ esp_err_t app_settings_backup_save(void) {
     f[BK_MARGIN] = s_book_margin;
     f[BK_PARAGRAPH] = s_book_para;
     f[BK_SHELF] = s_shelf_style;
-    strlcpy(backup.font, !strcmp(s_font, "builtin") ? "" : s_font, sizeof(backup.font));
-    strlcpy(backup.system_font, s_system_font, sizeof(backup.system_font));
-    strlcpy(backup.wallpaper, s_wallpaper, sizeof(backup.wallpaper));
-    strlcpy(backup.books_dir, s_books_dir, sizeof(backup.books_dir));
-    strlcpy(backup.fonts_dir, s_fonts_dir, sizeof(backup.fonts_dir));
-    backup_seal(&backup);
+    strlcpy(work->backup.font, !strcmp(s_font, "builtin") ? "" : s_font, sizeof(work->backup.font));
+    strlcpy(work->backup.system_font, s_system_font, sizeof(work->backup.system_font));
+    strlcpy(work->backup.wallpaper, s_wallpaper, sizeof(work->backup.wallpaper));
+    strlcpy(work->backup.books_dir, s_books_dir, sizeof(work->backup.books_dir));
+    strlcpy(work->backup.fonts_dir, s_fonts_dir, sizeof(work->backup.fonts_dir));
+    backup_seal(&work->backup);
     uint8_t idle_index = s_auto_lock_minutes == 1 ? 1 : s_auto_lock_minutes == 5 ? 2 : s_auto_lock_minutes == 10 ? 3 : 0;
-    uint8_t extension[7] = {s_book_indent, s_book_rule_offset, (s_staged_shutdown ? 1 : 0) | (idle_index << 1) | ((uint8_t)s_main_refresh << 3)};
-    uint32_t extension_hash = backup_shutdown_checksum(&backup, s_book_indent,
-                                                        s_book_rule_offset, extension[2]);
-    for (int i = 0; i < 4; ++i) extension[i + 3] = (uint8_t)(extension_hash >> (i * 8));
-    settings_backup_profile_t profile = {0};
-    strlcpy(profile.device_name, s_device_name, sizeof(profile.device_name));
-    strlcpy(profile.avatar, s_avatar, sizeof(profile.avatar));
-    strlcpy(profile.status_signature, s_status_signature, sizeof(profile.status_signature));
+    work->extension[0] = s_book_indent; work->extension[1] = s_book_rule_offset;
+    work->extension[2] = (s_staged_shutdown ? 1 : 0) | (idle_index << 1) | ((uint8_t)s_main_refresh << 3);
+    uint32_t extension_hash = backup_shutdown_checksum(&work->backup, s_book_indent,
+                                                        s_book_rule_offset, work->extension[2]);
+    for (int i = 0; i < 4; ++i) work->extension[i + 3] = (uint8_t)(extension_hash >> (i * 8));
+
+    strlcpy(work->profile.device_name, s_device_name, sizeof(work->profile.device_name));
+    strlcpy(work->profile.avatar, s_avatar, sizeof(work->profile.avatar));
+    strlcpy(work->profile.status_signature, s_status_signature, sizeof(work->profile.status_signature));
     // v5 及之后复用此字段的预留位；v7 在其后追加 WiFi 与阅读资料。
     // V5+ use reserved bits here; v7 appends WiFi/reading records, and v9 stores main mode in the extension.
-    profile.home_full_refresh = (s_home_full_refresh ? 1 : 0) |
+    work->profile.home_full_refresh = (s_home_full_refresh ? 1 : 0) |
                                 (s_reader_hide_images ? 2 : 0) |
                                 (s_shelf_recent_sort ? 4 : 0) |
                                 (s_ble_turner ? 8 : 0) |
                                 (s_reader_hold_refresh ? 16 : 0) |
                                 ((s_reader_turn_mode == 1) ? 32 : 0) |
                                 (app_settings_main_fast_refresh() ? 128 : 0);
-    uint32_t profile_hash = backup_profile_checksum(&backup, extension[0], extension[1], extension[2], &profile);
-    for (int i = 0; i < 4; ++i) profile.checksum[i] = (uint8_t)(profile_hash >> (i * 8));
+    uint32_t profile_hash = backup_profile_checksum(&work->backup, work->extension[0], work->extension[1], work->extension[2], &work->profile);
+    for (int i = 0; i < 4; ++i) work->profile.checksum[i] = (uint8_t)(profile_hash >> (i * 8));
 
-    settings_backup_keys_t keys = {0};
-    memcpy(keys.actions, s_reader_keys, sizeof(keys.actions));
-    uint32_t keys_hash = backup_keys_checksum(&keys);
-    for (unsigned i = 0; i < 4; ++i) keys.checksum[i] = (uint8_t)(keys_hash >> (8 * i));
-    settings_backup_hold_t hold = {.action = s_reader_hold_action};
-    uint32_t hold_hash = backup_hold_checksum(&hold);
-    for (unsigned i = 0; i < 4; ++i) hold.checksum[i] = (uint8_t)(hold_hash >> (8 * i));
-    settings_backup_indent_adjust_t adjust = {.encoded = s_book_indent_adjust};
-    uint32_t adjust_hash = backup_indent_adjust_checksum(&adjust);
-    for (unsigned i = 0; i < 4; ++i) adjust.checksum[i] = (uint8_t)(adjust_hash >> (8 * i));
-    settings_backup_weight_t weight = {.encoded = 128+s_book_weight_fine+APP_BOOK_WEIGHT_FINE_MAX};
-    uint32_t weight_hash = backup_weight_checksum(&weight);
-    for (unsigned i = 0; i < 4; ++i) weight.checksum[i] = (uint8_t)(weight_hash >> (8 * i));
-    settings_backup_wifi_t wifi = {0};
-    esp_err_t wifi_err = read_pico_transfer_export_wifi_backup(&wifi.credentials);
-    if (wifi_err != ESP_OK) { backup_erase_secret(&wifi, sizeof(wifi)); return wifi_err; }
-    backup_wifi_seal(&wifi);
-    settings_backup_background_t background = {0};
-    strlcpy(background.path, s_book_background, sizeof(background.path));
-    uint32_t background_hash = backup_background_checksum(&background);
-    for (unsigned i = 0; i < 4; ++i) background.checksum[i] = (uint8_t)(background_hash >> (8 * i));
+
+    memcpy(work->keys.actions, s_reader_keys, sizeof(work->keys.actions));
+    uint32_t keys_hash = backup_keys_checksum(&work->keys);
+    for (unsigned i = 0; i < 4; ++i) work->keys.checksum[i] = (uint8_t)(keys_hash >> (8 * i));
+    work->hold.action = s_reader_hold_action;
+    uint32_t hold_hash = backup_hold_checksum(&work->hold);
+    for (unsigned i = 0; i < 4; ++i) work->hold.checksum[i] = (uint8_t)(hold_hash >> (8 * i));
+    work->adjust.encoded = s_book_indent_adjust;
+    uint32_t adjust_hash = backup_indent_adjust_checksum(&work->adjust);
+    for (unsigned i = 0; i < 4; ++i) work->adjust.checksum[i] = (uint8_t)(adjust_hash >> (8 * i));
+    work->weight.encoded = 128+s_book_weight_fine+APP_BOOK_WEIGHT_FINE_MAX;
+    uint32_t weight_hash = backup_weight_checksum(&work->weight);
+    for (unsigned i = 0; i < 4; ++i) work->weight.checksum[i] = (uint8_t)(weight_hash >> (8 * i));
+
+    esp_err_t wifi_err = read_pico_transfer_export_wifi_backup(&work->wifi.credentials);
+    if (wifi_err != ESP_OK) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return wifi_err; }
+    backup_wifi_seal(&work->wifi);
+    work->wifi_hash = backup_wifi_checksum(&work->wifi);
+
+    strlcpy(work->background.path, s_book_background, sizeof(work->background.path));
+    uint32_t background_hash = backup_background_checksum(&work->background);
+    for (unsigned i = 0; i < 4; ++i) work->background.checksum[i] = (uint8_t)(background_hash >> (8 * i));
 
     FILE *file = fopen(BACKUP_TEMP, "wb");
-    if (!file) { backup_erase_secret(&wifi, sizeof(wifi)); return ESP_FAIL; }
-    bool ok = fwrite(&backup, 1, sizeof(backup), file) == sizeof(backup);
-    if (ok) ok = fwrite(extension, 1, sizeof(extension), file) == sizeof(extension);
-    if (ok) ok = fwrite(&profile, 1, sizeof(profile), file) == sizeof(profile);
-    if (ok) ok = fwrite(&keys, 1, sizeof(keys), file) == sizeof(keys);
-    if (ok) ok = fwrite(&hold, 1, sizeof(hold), file) == sizeof(hold);
-    if (ok) ok = fwrite(&adjust, 1, sizeof(adjust), file) == sizeof(adjust);
-    if (ok) ok = fwrite(&weight, 1, sizeof(weight), file) == sizeof(weight);
-    if (ok) ok = fwrite(&wifi, 1, sizeof(wifi), file) == sizeof(wifi);
-    if (ok) ok = fwrite(&background, 1, sizeof(background), file) == sizeof(background);
-    settings_backup_home_t home = {.component=s_home_component, .minutes=s_home_goal_minutes};
-    uint32_t home_hash = backup_home_checksum(&home);
-    for (unsigned i = 0; i < 4; ++i) home.checksum[i] = home_hash >> (8*i);
-    if (ok) ok = fwrite(&home, 1, sizeof(home), file) == sizeof(home);
-    settings_backup_background_t bookmark = {0};
-    strlcpy(bookmark.path,s_bookmark,sizeof(bookmark.path));
-    uint32_t bookmark_hash=backup_background_checksum(&bookmark);
-    for(unsigned i=0;i<4;++i)bookmark.checksum[i]=bookmark_hash>>(8*i);
-    if(ok)ok=fwrite(&bookmark,1,sizeof(bookmark),file)==sizeof(bookmark);
-    backup_erase_secret(&wifi, sizeof(wifi));
-    settings_backup_indent_adjust_t word_spacing={.encoded=s_book_word_spacing};
-    uint32_t word_hash=backup_indent_adjust_checksum(&word_spacing);
-    for(unsigned i=0;i<4;i++)word_spacing.checksum[i]=word_hash>>(8*i);
-    if(ok)ok=fwrite(&word_spacing,1,sizeof(word_spacing),file)==sizeof(word_spacing);
-    reader_backup_t reader;reader_backup_capture(&reader);
-    if(ok)ok=reader_backup_valid(&reader)&&fwrite(&reader,1,sizeof(reader),file)==sizeof(reader);
-    settings_backup_utilities_t utilities={0};memcpy(utilities.actions,s_home_utilities,sizeof(utilities.actions));
+    if (!file) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return ESP_FAIL; }
+    if (setvbuf(file, (char *)work->io, _IOFBF, sizeof(work->io)) != 0) {
+        fclose(file); (void)remove(BACKUP_TEMP); return ESP_FAIL;
+    }
+    bool ok = fwrite(&work->backup, 1, sizeof(work->backup), file) == sizeof(work->backup);
+    if (ok) ok = fwrite(work->extension, 1, sizeof(work->extension), file) == sizeof(work->extension);
+    if (ok) ok = fwrite(&work->profile, 1, sizeof(work->profile), file) == sizeof(work->profile);
+    if (ok) ok = fwrite(&work->keys, 1, sizeof(work->keys), file) == sizeof(work->keys);
+    if (ok) ok = fwrite(&work->hold, 1, sizeof(work->hold), file) == sizeof(work->hold);
+    if (ok) ok = fwrite(&work->adjust, 1, sizeof(work->adjust), file) == sizeof(work->adjust);
+    if (ok) ok = fwrite(&work->weight, 1, sizeof(work->weight), file) == sizeof(work->weight);
+    if (ok) ok = fwrite(&work->wifi, 1, sizeof(work->wifi), file) == sizeof(work->wifi);
+    if (ok) ok = fwrite(&work->background, 1, sizeof(work->background), file) == sizeof(work->background);
+    work->home.component = s_home_component; work->home.minutes = s_home_goal_minutes;
+    uint32_t home_hash = backup_home_checksum(&work->home);
+    for (unsigned i = 0; i < 4; ++i) work->home.checksum[i] = home_hash >> (8*i);
+    if (ok) ok = fwrite(&work->home, 1, sizeof(work->home), file) == sizeof(work->home);
+
+    strlcpy(work->bookmark.path,s_bookmark,sizeof(work->bookmark.path));
+    uint32_t bookmark_hash=backup_background_checksum(&work->bookmark);
+    for(unsigned i=0;i<4;++i)work->bookmark.checksum[i]=bookmark_hash>>(8*i);
+    if(ok)ok=fwrite(&work->bookmark,1,sizeof(work->bookmark),file)==sizeof(work->bookmark);
+    backup_erase_secret(&work->wifi, sizeof(work->wifi));
+    work->word_spacing.encoded = s_book_word_spacing;
+    uint32_t word_hash=backup_indent_adjust_checksum(&work->word_spacing);
+    for(unsigned i=0;i<4;i++)work->word_spacing.checksum[i]=word_hash>>(8*i);
+    if(ok)ok=fwrite(&work->word_spacing,1,sizeof(work->word_spacing),file)==sizeof(work->word_spacing);
+    reader_backup_capture(&work->reader);
+    if(ok)ok=reader_backup_valid(&work->reader)&&fwrite(&work->reader,1,sizeof(work->reader),file)==sizeof(work->reader);
+    memcpy(work->utilities.actions,s_home_utilities,sizeof(work->utilities.actions));
     /* v24 packs the hidden-label flag in the first action's unused high bit. */
-    if(!s_home_utility_labels)utilities.actions[0]|=0x80;
-    if(!s_home_utility_border)utilities.actions[0]|=0x40;
-    uint32_t utilities_hash=backup_utilities_checksum(&utilities);
-    for(unsigned i=0;i<4;++i)utilities.checksum[i]=utilities_hash>>(8*i);
-    if(ok)ok=fwrite(&utilities,1,sizeof(utilities),file)==sizeof(utilities);
+    if(!s_home_utility_labels)work->utilities.actions[0]|=0x80;
+    if(!s_home_utility_border)work->utilities.actions[0]|=0x40;
+    uint32_t utilities_hash=backup_utilities_checksum(&work->utilities);
+    for(unsigned i=0;i<4;++i)work->utilities.checksum[i]=utilities_hash>>(8*i);
+    if(ok)ok=fwrite(&work->utilities,1,sizeof(work->utilities),file)==sizeof(work->utilities);
+    if (ok) ok = fwrite(&work->identity, 1, sizeof(work->identity), file) == sizeof(work->identity);
     if (ok) ok = book_history_backup_write(file) == ESP_OK;
     if (ok) ok = fflush(file) == 0;
     if (ok) ok = fsync(fileno(file)) == 0;
     if (fclose(file) != 0) ok = false;
     bool rotated = false;
-    if (ok && remove(BACKUP_PREVIOUS) != 0 && errno != ENOENT) ok = false;
-    if (ok && rename(BACKUP_FILE, BACKUP_PREVIOUS) == 0) rotated = true;
-    else if (ok && errno != ENOENT) ok = false;
+    if (ok && stat(BACKUP_FILE, &work->current) == 0) {
+        if (remove(BACKUP_PREVIOUS) != 0 && errno != ENOENT) ok = false;
+        if (ok && rename(BACKUP_FILE, BACKUP_PREVIOUS) == 0) rotated = true;
+        else if (ok) ok = false;
+    } else if (ok && errno != ENOENT) ok = false;
     if (ok && rename(BACKUP_TEMP, BACKUP_FILE) != 0) ok = false;
     if (!ok && rotated) (void)rename(BACKUP_PREVIOUS, BACKUP_FILE);
-    if (ok && rotated) (void)remove(BACKUP_PREVIOUS);
+    // Retain the previous completed snapshot after a successful rotation.
     if (!ok) { (void)remove(BACKUP_TEMP); return ESP_FAIL; }
     return ESP_OK;
+}
+
+#if CONFIG_DPREADER_AUTO_RESTORE
+// 0 waiting, 1 started, 2 complete, 3 failed. Start is durable before profile writes.
+static esp_err_t backup_restore_mark(uint8_t state) {
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    if (state != 2) {
+        err = nvs_set_u8(h, "restore_state", state);
+        if (err == ESP_OK) err = nvs_set_u8(h, "backup_guard", 0);
+    } else {
+        err = nvs_set_u8(h, "backup_guard", 1);
+        if (err == ESP_OK) err = nvs_set_u8(h, "restore_state", 2);
+    }
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    if (err == ESP_OK) {
+        s_auto_backup.healthy = state == 2;
+        s_auto_backup.restore_pending = false;
+        s_auto_backup.restore_status = state == 2 ? APP_RESTORE_NORMAL : APP_RESTORE_BLOCKED;
+        s_auto_backup.saved = false;
+    }
+    return err;
+}
+#endif
+
+static esp_err_t backup_rearm_after_explicit_success(void) {
+#if CONFIG_DPREADER_AUTO_RESTORE
+    esp_err_t err = backup_restore_mark(2);
+    if (err == ESP_OK) s_auto_backup.failed = false;
+    return err;
+#elif CONFIG_DPREADER_AUTO_BACKUP
+    if (!s_auto_backup.healthy || s_auto_backup.failed) {
+        nvs_handle_t h;
+        esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+        if (err != ESP_OK) return err;
+        err = nvs_set_u8(h, "backup_guard", 1);
+        if (err == ESP_OK) err = nvs_commit(h);
+        nvs_close(h);
+        if (err != ESP_OK) return err;
+        s_auto_backup.healthy = true;
+        s_auto_backup.failed = false;
+        s_auto_backup.saved = false;
+    }
+#endif
+    return ESP_OK;
+}
+
+esp_err_t app_settings_backup_save(void) {
+#if CONFIG_DPREADER_AUTO_RESTORE
+    if (s_auto_backup.restore_status >= APP_RESTORE_NEED_MEDIA || s_auto_backup.restore_pending)
+        return ESP_ERR_INVALID_STATE;
+#endif
+    if (!backup_card_ready()) return ESP_ERR_INVALID_STATE;
+    backup_workspace_t *work = backup_alloc(sizeof(*work));
+    if (!work) return ESP_ERR_NO_MEM;
+    esp_err_t err = backup_save_workspace(work);
+    backup_erase_secret(work, sizeof(*work));
+    free(work);
+    return err == ESP_OK ? backup_rearm_after_explicit_success() : err;
+}
+
+bool app_settings_autobackup_enabled(void) {
+#if CONFIG_DPREADER_AUTO_BACKUP
+    return s_auto_backup.enabled;
+#else
+    return false;
+#endif
+}
+bool app_settings_autobackup_blocked(void) {
+#if CONFIG_DPREADER_AUTO_BACKUP
+    return !s_auto_backup.healthy || s_auto_backup.failed;
+#else
+    return true;
+#endif
+}
+esp_err_t app_settings_set_autobackup_enabled(bool enabled) {
+#if CONFIG_DPREADER_AUTO_BACKUP
+    if (s_auto_backup.enabled == enabled) return ESP_OK;
+    nvs_handle_t h;
+    esp_err_t err = backup_nvs_open(NVS_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = backup_nvs_set_u8(h, "auto_backup", enabled ? 1 : 0);
+    if (err == ESP_OK) err = settings_backup_commit(h);
+    nvs_close(h);
+    if (err == ESP_OK) {
+        s_auto_backup.enabled = enabled;
+        s_auto_backup.saved = false;
+    }
+    return err;
+#else
+    (void)enabled;
+    return ESP_ERR_INVALID_STATE;
+#endif
+}
+
+void app_settings_autobackup_media_changed(void) {
+#if CONFIG_DPREADER_AUTO_BACKUP
+    s_auto_backup.saved = false;
+#endif
+}
+
+esp_err_t app_settings_autobackup_checkpoint(void) {
+#if CONFIG_DPREADER_AUTO_BACKUP
+    if (!s_auto_backup.enabled) return ESP_OK;
+    if (!s_auto_backup.healthy || s_auto_backup.failed || !backup_card_ready())
+        return ESP_ERR_INVALID_STATE;
+    backup_workspace_t *work = backup_alloc(sizeof(*work));
+    if (!work) return ESP_ERR_NO_MEM;
+    esp_err_t err = read_pico_transfer_export_wifi_backup(&work->wifi.credentials);
+    uint32_t progress = book_progress_revision();
+    uint32_t revision = s_auto_backup.revision;
+    if (err == ESP_OK && !(s_auto_backup.saved && revision == s_auto_backup.saved_revision &&
+        progress == s_auto_backup.saved_progress &&
+        backup_wifi_checksum(&work->wifi) == s_auto_backup.saved_wifi &&
+        stat(BACKUP_FILE, &work->current) == 0 && S_ISREG(work->current.st_mode))) {
+        err = backup_save_workspace(work);
+        if (err == ESP_OK) {
+            s_auto_backup.saved_revision = revision;
+            s_auto_backup.saved_progress = progress;
+            s_auto_backup.saved_wifi = work->wifi_hash;
+            s_auto_backup.saved = true;
+        }
+    }
+    backup_erase_secret(work, sizeof(*work));
+    free(work);
+    if (err != ESP_OK) ESP_LOGW(TAG, "automatic backup failed: %s", esp_err_to_name(err));
+    return err;
+#else
+    return ESP_ERR_INVALID_STATE;
+#endif
 }
 
 static bool backup_path_valid(const char *path, size_t capacity) {
@@ -1783,40 +2105,41 @@ static bool backup_file_exists(const char *path, bool directory) {
     return stat(path, &st) == 0 && (directory ? S_ISDIR(st.st_mode) : S_ISREG(st.st_mode));
 }
 
-esp_err_t app_settings_backup_restore(void) {
-    if (!backup_card_ready()) return ESP_ERR_INVALID_STATE;
-    const char *source = BACKUP_FILE;
+static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *source,
+                                          bool apply, bool require_device) {
     FILE *file = fopen(source, "rb");
-    if (!file) { source = BACKUP_PREVIOUS; file = fopen(source, "rb"); }
     if (!file) return ESP_ERR_NOT_FOUND;
-    settings_backup_v1_t backup;
-    bool ok = fread(&backup, 1, sizeof(backup), file) == sizeof(backup);
-    unsigned version = ok ? backup_version(&backup) : 0;
-    settings_backup_hold_t hold = {.action = APP_READER_KEY_HOME};
+    if (setvbuf(file, (char *)work->io, _IOFBF, sizeof(work->io)) != 0) {
+        fclose(file); return ESP_FAIL;
+    }
+
+    bool ok = fread(&work->backup, 1, sizeof(work->backup), file) == sizeof(work->backup);
+    unsigned version = ok ? backup_version(&work->backup) : 0;
+    work->hold.action = APP_READER_KEY_HOME;
     uint8_t indent = 2, rule_offset = 4, staged_shutdown = 0;
-    settings_backup_indent_adjust_t adjust = {.encoded = 20}, word_spacing={0};
-    settings_backup_weight_t weight = {.encoded = 2};
+    work->adjust.encoded = 20;
+    work->weight.encoded = 2;
 #if KIIKO_BOARD_METALIO47
-    settings_backup_profile_t profile = {.device_name = "Metalio S31"};
+    strlcpy(work->profile.device_name, "Metalio S31", sizeof(work->profile.device_name));
 #else
-    settings_backup_profile_t profile = {.device_name = "kiikoread"};
+    strlcpy(work->profile.device_name, "kiikoread", sizeof(work->profile.device_name));
 #endif
-    settings_backup_keys_t keys = {.actions = {APP_READER_KEY_PREV, APP_READER_KEY_TOOLS, APP_READER_KEY_NEXT}};
-    settings_backup_wifi_t wifi = {0};
+    work->keys.actions[0] = APP_READER_KEY_PREV; work->keys.actions[1] = APP_READER_KEY_TOOLS; work->keys.actions[2] = APP_READER_KEY_NEXT;
+
     bool has_wifi = false;
-    settings_backup_background_t background = {0}, bookmark = {0};
-    settings_backup_home_t home = {.component=APP_HOME_FOLDER, .minutes=30};
+
+    work->home.component = APP_HOME_FOLDER; work->home.minutes = 30;
     app_main_refresh_mode_t main_refresh = APP_MAIN_REFRESH_NORMAL;
-    if (ok && !memcmp(backup.magic, "PICOSET2", 8)) {
+    if (ok && !memcmp(work->backup.magic, "PICOSET2", 8)) {
         uint8_t extension[5];
         ok = fread(extension, 1, sizeof(extension), file) == sizeof(extension);
         if (ok) {
             indent = extension[0];
             uint32_t stored = 0;
             for (int i = 0; i < 4; ++i) stored |= (uint32_t)extension[i + 1] << (i * 8);
-            ok = indent <= 3 && stored == backup_indent_checksum(&backup, indent);
+            ok = indent <= 3 && stored == backup_indent_checksum(&work->backup, indent);
         }
-    } else if (ok && !memcmp(backup.magic, "PICOSET3", 8)) {
+    } else if (ok && !memcmp(work->backup.magic, "PICOSET3", 8)) {
         uint8_t extension[6];
         ok = fread(extension, 1, sizeof(extension), file) == sizeof(extension);
         if (ok) {
@@ -1824,7 +2147,7 @@ esp_err_t app_settings_backup_restore(void) {
             uint32_t stored = 0;
             for (int i = 0; i < 4; ++i) stored |= (uint32_t)extension[i + 2] << (i * 8);
             ok = indent <= 3 && rule_offset <= 8 &&
-                 stored == backup_rule_offset_checksum(&backup, indent, rule_offset);
+                 stored == backup_rule_offset_checksum(&work->backup, indent, rule_offset);
         }
     } else if (ok && (version >= 4)) {
         uint8_t extension[7];
@@ -1833,115 +2156,125 @@ esp_err_t app_settings_backup_restore(void) {
             indent = extension[0]; rule_offset = extension[1]; staged_shutdown = extension[2];
             uint32_t stored = 0;
             for (int i = 0; i < 4; ++i) stored |= (uint32_t)extension[i + 3] << (i * 8);
-            ok = indent <= 3 && rule_offset <= 8 && staged_shutdown <= ((version >= 9) ? 23 : !memcmp(backup.magic, "PICOSET8", 8) ? 7 : 1) &&
-                 stored == backup_shutdown_checksum(&backup, indent, rule_offset, staged_shutdown);
+            ok = indent <= 3 && rule_offset <= 8 && staged_shutdown <= ((version >= 9) ? 23 : !memcmp(work->backup.magic, "PICOSET8", 8) ? 7 : 1) &&
+                 stored == backup_shutdown_checksum(&work->backup, indent, rule_offset, staged_shutdown);
         }
         if (ok && (version >= 5)) {
-            ok = fread(&profile, 1, sizeof(profile), file) == sizeof(profile);
+            ok = fread(&work->profile, 1, sizeof(work->profile), file) == sizeof(work->profile);
             if (ok) {
                 uint32_t stored = 0;
-                for (int i = 0; i < 4; ++i) stored |= (uint32_t)profile.checksum[i] << (i * 8);
-                ok = stored == backup_profile_checksum(&backup, indent, rule_offset,
-                                                        staged_shutdown, &profile) &&
-                     strnlen(profile.device_name, sizeof(profile.device_name)) < sizeof(profile.device_name) &&
-                     profile.device_name[0] &&
-                     strnlen(profile.status_signature, sizeof(profile.status_signature)) < sizeof(profile.status_signature) &&
+                for (int i = 0; i < 4; ++i) stored |= (uint32_t)work->profile.checksum[i] << (i * 8);
+                ok = stored == backup_profile_checksum(&work->backup, indent, rule_offset,
+                                                        staged_shutdown, &work->profile) &&
+                     strnlen(work->profile.device_name, sizeof(work->profile.device_name)) < sizeof(work->profile.device_name) &&
+                     work->profile.device_name[0] &&
+                     strnlen(work->profile.status_signature, sizeof(work->profile.status_signature)) < sizeof(work->profile.status_signature) &&
                      // 位6仍忽略旧实验模式；v9 在校验扩展内保存三种主页刷新模式。/ Bit 6 still ignores the retired experiment; v9 stores all three main modes in its checked extension.
-                     backup_path_valid(profile.avatar, sizeof(profile.avatar));
+                     backup_path_valid(work->profile.avatar, sizeof(work->profile.avatar));
             }
         }
     }
     if (ok && (version >= 9)) main_refresh = (app_main_refresh_mode_t)(staged_shutdown >> 3);
-    else if (ok && (profile.home_full_refresh & 128)) main_refresh = APP_MAIN_REFRESH_FAST;
+    else if (ok && (work->profile.home_full_refresh & 128)) main_refresh = APP_MAIN_REFRESH_FAST;
     if (ok && version >= 10)
-        ok = fread(&keys, 1, sizeof(keys), file) == sizeof(keys) && backup_keys_valid(&keys);
+        ok = fread(&work->keys, 1, sizeof(work->keys), file) == sizeof(work->keys) && backup_keys_valid(&work->keys);
     if (ok && version >= 11)
-        ok = fread(&hold, 1, sizeof(hold), file) == sizeof(hold) && backup_hold_valid(&hold);
+        ok = fread(&work->hold, 1, sizeof(work->hold), file) == sizeof(work->hold) && backup_hold_valid(&work->hold);
     if (ok && version >= 12)
-        ok = fread(&adjust, 1, sizeof(adjust), file) == sizeof(adjust) && backup_indent_adjust_valid(&adjust);
+        ok = fread(&work->adjust, 1, sizeof(work->adjust), file) == sizeof(work->adjust) && backup_indent_adjust_valid(&work->adjust);
     if (ok && version >= 13)
-        ok = fread(&weight, 1, sizeof(weight), file) == sizeof(weight) && backup_weight_valid(&weight) && (version>=17 || weight.encoded<=4);
+        ok = fread(&work->weight, 1, sizeof(work->weight), file) == sizeof(work->weight) && backup_weight_valid(&work->weight) && (version>=17 || work->weight.encoded<=4);
     long history_position = -1;
     has_wifi = ok && version >= 7;
-    if (has_wifi) ok = fread(&wifi, 1, sizeof(wifi), file) == sizeof(wifi) && backup_wifi_valid(&wifi);
-    if (ok && version >= 14) ok = fread(&background, 1, sizeof(background), file) == sizeof(background) &&
-        backup_background_valid(&background) && backup_path_valid(background.path, sizeof(background.path));
-    if (ok && version >= 16) ok = fread(&home, 1, sizeof(home), file) == sizeof(home) && backup_home_valid(&home);
-    if(ok && version>=18)ok=fread(&bookmark,1,sizeof(bookmark),file)==sizeof(bookmark)&&
-        backup_background_valid(&bookmark)&&backup_path_valid(bookmark.path,sizeof(bookmark.path));
-    if(ok&&version>=21)ok=fread(&word_spacing,1,sizeof(word_spacing),file)==sizeof(word_spacing)&&
-        (word_spacing.encoded<=20||word_spacing.encoded>=246)&&backup_word_spacing_valid(&word_spacing);
-    reader_backup_t reader={0};
-    if(ok&&version>=22)ok=fread(&reader,1,sizeof(reader),file)==sizeof(reader)&&reader_backup_valid(&reader);
-    settings_backup_utilities_t utilities={0};
-    if(ok&&version>=23)ok=fread(&utilities,1,sizeof(utilities),file)==sizeof(utilities)&&backup_utilities_valid(&utilities,version);
+    if (has_wifi) ok = fread(&work->wifi, 1, sizeof(work->wifi), file) == sizeof(work->wifi) && backup_wifi_valid(&work->wifi);
+    if (ok && has_wifi) work->wifi_hash = backup_wifi_checksum(&work->wifi);
+    if (ok && version >= 14) ok = fread(&work->background, 1, sizeof(work->background), file) == sizeof(work->background) &&
+        backup_background_valid(&work->background) && backup_path_valid(work->background.path, sizeof(work->background.path));
+    if (ok && version >= 16) ok = fread(&work->home, 1, sizeof(work->home), file) == sizeof(work->home) && backup_home_valid(&work->home);
+    if(ok && version>=18)ok=fread(&work->bookmark,1,sizeof(work->bookmark),file)==sizeof(work->bookmark)&&
+        backup_background_valid(&work->bookmark)&&backup_path_valid(work->bookmark.path,sizeof(work->bookmark.path));
+    if(ok&&version>=21)ok=fread(&work->word_spacing,1,sizeof(work->word_spacing),file)==sizeof(work->word_spacing)&&
+        (work->word_spacing.encoded<=20||work->word_spacing.encoded>=246)&&backup_word_spacing_valid(&work->word_spacing);
+
+    if(ok&&version>=22)ok=fread(&work->reader,1,sizeof(work->reader),file)==sizeof(work->reader)&&reader_backup_valid(&work->reader);
+
+    if(ok&&version>=23)ok=fread(&work->utilities,1,sizeof(work->utilities),file)==sizeof(work->utilities)&&backup_utilities_valid(&work->utilities,version);
     bool utility_labels=s_home_utility_labels,utility_border=s_home_utility_border;
-    if(ok&&version>=24){utility_labels=!(utilities.actions[0]&0x80);if(version>=25)utility_border=!(utilities.actions[0]&0x40);utilities.actions[0]&=version>=25?0x3f:0x7f;}
+    if(ok&&version>=24){utility_labels=!(work->utilities.actions[0]&0x80);if(version>=25)utility_border=!(work->utilities.actions[0]&0x40);work->utilities.actions[0]&=version>=25?0x3f:0x7f;}
+    if (ok && version >= 26)
+        ok = fread(&work->identity, 1, sizeof(work->identity), file) == sizeof(work->identity) &&
+            backup_identity_valid(&work->identity, version);
+    if (require_device) {
+        ok = ok && version >= 26 && backup_device_mac(work->device_mac) == ESP_OK &&
+            !memcmp(work->identity.mac, work->device_mac, sizeof(work->device_mac));
+    }
     bool has_history = ok && version >= 6;
     if (has_history) {
         history_position = ftell(file);
         ok = history_position >= 0 && book_history_backup_validate(file);
     } else if (ok) ok = fgetc(file) == EOF && !ferror(file);
     if (fclose(file) != 0) ok = false;
-    if (!ok || !backup_valid(&backup)) {
-        backup_erase_secret(&wifi, sizeof(wifi));
+    if (!ok || !backup_valid(&work->backup)) {
+        backup_erase_secret(&work->wifi, sizeof(work->wifi));
         return ESP_ERR_INVALID_RESPONSE;
     }
 
+    if (!apply) return ESP_OK;
+
     if(version<20) {
-        int px=version<19?(int)backup.flags[BK_TRACKING]*2-4:(int)backup.flags[BK_TRACKING]-4;
+        int px=version<19?(int)work->backup.flags[BK_TRACKING]*2-4:(int)work->backup.flags[BK_TRACKING]-4;
         if(px>APP_BOOK_TRACK_MAX)px=APP_BOOK_TRACK_MAX;
-        backup.flags[BK_TRACKING]=(uint8_t)(px-APP_BOOK_TRACK_MIN);
+        work->backup.flags[BK_TRACKING]=(uint8_t)(px-APP_BOOK_TRACK_MIN);
     }
-    backup.flags[BK_MARGIN] = backup.flags[BK_MARGIN] > 48 ? 48 : backup.flags[BK_MARGIN];
-    if (version < 15) backup.flags[BK_SHAKE] = 0; // 旧晃动标志不改变AA。/ Old shake flags never affect AA.
+    work->backup.flags[BK_MARGIN] = work->backup.flags[BK_MARGIN] > 48 ? 48 : work->backup.flags[BK_MARGIN];
+    if (version < 15) work->backup.flags[BK_SHAKE] = 0; // 旧晃动标志不改变AA。/ Old shake flags never affect AA.
     // 已删除组件的备份仍可恢复，其余字段不受影响。/ Restore retired widget backups without rejecting other preferences.
-    if (home.component == 3) home.component = APP_HOME_CLOCK;
+    if (work->home.component == 3) work->home.component = APP_HOME_CLOCK;
     // The backup contains paths, not the corresponding font or image bytes.
     // 备份只含资源路径；资源已被删除时回退到安全的内建选项。
-    if (backup.font[0] && !backup_file_exists(backup.font, false)) backup.font[0] = 0;
-    if (backup.system_font[0] && !backup_file_exists(backup.system_font, false)) backup.system_font[0] = 0;
-    if (backup.wallpaper[0] && !backup_file_exists(backup.wallpaper, false)) {
-        backup.wallpaper[0] = 0;
-        if (backup.flags[BK_LOCK] == 1) backup.flags[BK_LOCK] = 0;
+    if (!require_device && work->backup.font[0] && !backup_file_exists(work->backup.font, false)) work->backup.font[0] = 0;
+    if (!require_device && work->backup.system_font[0] && !backup_file_exists(work->backup.system_font, false)) work->backup.system_font[0] = 0;
+    if (work->backup.wallpaper[0] && !backup_file_exists(work->backup.wallpaper, false)) {
+        work->backup.wallpaper[0] = 0;
+        if (work->backup.flags[BK_LOCK] == 1) work->backup.flags[BK_LOCK] = 0;
     }
-    if (!backup.wallpaper[0] && backup.flags[BK_LOCK] == 1) backup.flags[BK_LOCK] = 0;
+    if (!work->backup.wallpaper[0] && work->backup.flags[BK_LOCK] == 1) work->backup.flags[BK_LOCK] = 0;
     // 已移除的书架样式保留旧编号的读取兼容，恢复时改为默认亚克力。
     // Accept retired IDs from old backups and restore the default acrylic style.
-    if (backup.flags[BK_SHELF] == 3 || backup.flags[BK_SHELF] == 4) backup.flags[BK_SHELF] = 2;
-    if (profile.avatar[0] && !backup_file_exists(profile.avatar, false)) profile.avatar[0] = 0;
-    if(!backup_file_exists(backup.books_dir,true))strlcpy(backup.books_dir,"/sdcard/books",sizeof(backup.books_dir));
-    if(!backup_file_exists(backup.fonts_dir,true))strlcpy(backup.fonts_dir,"/sdcard/fonts",sizeof(backup.fonts_dir));
+    if (work->backup.flags[BK_SHELF] == 3 || work->backup.flags[BK_SHELF] == 4) work->backup.flags[BK_SHELF] = 2;
+    if (work->profile.avatar[0] && !backup_file_exists(work->profile.avatar, false)) work->profile.avatar[0] = 0;
+    if(!backup_file_exists(work->backup.books_dir,true))strlcpy(work->backup.books_dir,"/sdcard/books",sizeof(work->backup.books_dir));
+    if(!backup_file_exists(work->backup.fonts_dir,true))strlcpy(work->backup.fonts_dir,"/sdcard/fonts",sizeof(work->backup.fonts_dir));
 
     nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
-    if (err != ESP_OK) { backup_erase_secret(&wifi, sizeof(wifi)); return err; }
-#define BACKUP_SET_U8(key, index) do { if (err == ESP_OK) err = nvs_set_u8(h, key, backup.flags[index]); } while (0)
-#define BACKUP_SET_STR(key, value) do { if (err == ESP_OK) err = nvs_set_str(h, key, value); } while (0)
-    for (unsigned i = 0; i < 3 && err == ESP_OK; ++i) err = nvs_set_u8(h, s_reader_key_names[i], keys.actions[i]);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_HOLD_ACTION, hold.action);
+    esp_err_t err = backup_nvs_open(NVS_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return err; }
+#define BACKUP_SET_U8(key, index) do { if (err == ESP_OK) err = backup_nvs_set_u8(h, key, work->backup.flags[index]); } while (0)
+#define BACKUP_SET_STR(key, value) do { if (err == ESP_OK) err = backup_nvs_set_str(h, key, value); } while (0)
+    for (unsigned i = 0; i < 3 && err == ESP_OK; ++i) err = backup_nvs_set_u8(h, s_reader_key_names[i], work->keys.actions[i]);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HOLD_ACTION, work->hold.action);
     BACKUP_SET_U8(NVS_KEY_SLEEP, BK_SLEEP);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_SHUTDOWN_MODE, staged_shutdown & 1);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_SHUTDOWN_MODE, staged_shutdown & 1);
     uint8_t idle_values[] = {0, 1, 5, 10};
     uint8_t idle_minutes = idle_values[(staged_shutdown >> 1) & 3];
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_AUTO_LOCK, idle_minutes);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BLE_TURNER, (profile.home_full_refresh & 8) != 0);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_HOLD_REFRESH, (profile.home_full_refresh & 16) != 0);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_VERTICAL_TURN, (profile.home_full_refresh & 32) != 0);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_AUTO_LOCK, idle_minutes);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_BLE_TURNER, (work->profile.home_full_refresh & 8) != 0);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HOLD_REFRESH, (work->profile.home_full_refresh & 16) != 0);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_VERTICAL_TURN, (work->profile.home_full_refresh & 32) != 0);
 
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_HOME_FULL, profile.home_full_refresh & 1);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_MAIN_REFRESH, (uint8_t)main_refresh);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_HOME_COMPONENT, home.component);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_HOME_GOAL, home.minutes);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_HIDE_IMAGES, (profile.home_full_refresh & 2) != 0);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_SHELF_RECENT, (profile.home_full_refresh & 4) != 0);
-    if (err == ESP_OK) err = nvs_set_str(h, NVS_KEY_DEVICE_NAME, profile.device_name);
-    if (err == ESP_OK) err = nvs_set_str(h, NVS_KEY_AVATAR, profile.avatar);
-    if (err == ESP_OK) err = nvs_set_str(h, NVS_KEY_STATUS_SIGNATURE, profile.status_signature);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HOME_FULL, work->profile.home_full_refresh & 1);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_MAIN_REFRESH, (uint8_t)main_refresh);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HOME_COMPONENT, work->home.component);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HOME_GOAL, work->home.minutes);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HIDE_IMAGES, (work->profile.home_full_refresh & 2) != 0);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_SHELF_RECENT, (work->profile.home_full_refresh & 4) != 0);
+    if (err == ESP_OK) err = backup_nvs_set_str(h, NVS_KEY_DEVICE_NAME, work->profile.device_name);
+    if (err == ESP_OK) err = backup_nvs_set_str(h, NVS_KEY_AVATAR, work->profile.avatar);
+    if (err == ESP_OK) err = backup_nvs_set_str(h, NVS_KEY_STATUS_SIGNATURE, work->profile.status_signature);
     BACKUP_SET_U8(NVS_KEY_PICKUP, BK_PICKUP);
     BACKUP_SET_U8(NVS_KEY_SYS_SIZE, BK_SYS_SIZE);
-    if(err==ESP_OK)err=nvs_set_u8(h,"sys_size_rev",2);
-    if(err==ESP_OK)err=nvs_set_u8(h,"book_word_gap",word_spacing.encoded);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,"sys_size_rev",2);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,"book_word_gap",work->word_spacing.encoded);
     BACKUP_SET_U8(NVS_KEY_SYS_CONTRAST, BK_SYS_CONTRAST);
     BACKUP_SET_U8(NVS_KEY_LOCK_STYLE, BK_LOCK);
     BACKUP_SET_U8(NVS_KEY_BOOK_PX, BK_BOOK_PX);
@@ -1950,63 +2283,68 @@ esp_err_t app_settings_backup_restore(void) {
     BACKUP_SET_U8(NVS_KEY_READER_TURN, BK_TURN);
     BACKUP_SET_U8(NVS_KEY_POWER_TURN, BK_POWER_TURN);
     BACKUP_SET_U8(NVS_KEY_IMMERSIVE, BK_IMMERSIVE);
-    if(err==ESP_OK)err=nvs_set_u8(h,NVS_KEY_BOOK_TRACK,192+backup.flags[BK_TRACKING]);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_INDENT, indent);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_INDENT_ADJUST, adjust.encoded);
-    int fine_weight=weight.encoded<=4?((int)weight.encoded-2)*APP_BOOK_WEIGHT_SUBSTEPS:(int)weight.encoded-128-APP_BOOK_WEIGHT_FINE_MAX;
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_WEIGHT, fine_weight/APP_BOOK_WEIGHT_SUBSTEPS+2);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_WEIGHT_FINE, fine_weight+APP_BOOK_WEIGHT_FINE_MAX);
-    const bool antialias = version < 15 || backup.flags[BK_SHAKE] == 0;
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_AA, antialias ? 1 : 0);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,NVS_KEY_BOOK_TRACK,192+work->backup.flags[BK_TRACKING]);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_BOOK_INDENT, indent);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_BOOK_INDENT_ADJUST, work->adjust.encoded);
+    int fine_weight=work->weight.encoded<=4?((int)work->weight.encoded-2)*APP_BOOK_WEIGHT_SUBSTEPS:(int)work->weight.encoded-128-APP_BOOK_WEIGHT_FINE_MAX;
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_BOOK_WEIGHT, fine_weight/APP_BOOK_WEIGHT_SUBSTEPS+2);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_BOOK_WEIGHT_FINE, fine_weight+APP_BOOK_WEIGHT_FINE_MAX);
+    const bool antialias = version < 15 || work->backup.flags[BK_SHAKE] == 0;
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_BOOK_AA, antialias ? 1 : 0);
     BACKUP_SET_U8(NVS_KEY_BOOK_RULE, BK_READING_LINE);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_BOOK_RULE_OFFSET, rule_offset);
-    if(backup.flags[BK_LINE_SPACING]>=100&&backup.flags[BK_LINE_SPACING]<=180)backup.flags[BK_LINE_SPACING]=backup.flags[BK_LINE_SPACING]>130?130:((backup.flags[BK_LINE_SPACING]+5)/10)*10;
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_BOOK_RULE_OFFSET, rule_offset);
+    if(work->backup.flags[BK_LINE_SPACING]>=100&&work->backup.flags[BK_LINE_SPACING]<=180)work->backup.flags[BK_LINE_SPACING]=work->backup.flags[BK_LINE_SPACING]>130?130:((work->backup.flags[BK_LINE_SPACING]+5)/10)*10;
     BACKUP_SET_U8(NVS_KEY_BOOK_LINE, BK_LINE_SPACING);
     BACKUP_SET_U8(NVS_KEY_BOOK_MARGIN, BK_MARGIN);
-    if(backup.flags[BK_PARAGRAPH]==100)backup.flags[BK_PARAGRAPH]=75;
+    if(work->backup.flags[BK_PARAGRAPH]==100)work->backup.flags[BK_PARAGRAPH]=75;
     BACKUP_SET_U8(NVS_KEY_BOOK_PARA, BK_PARAGRAPH);
     BACKUP_SET_U8(NVS_KEY_SHELF_STYLE, BK_SHELF);
-    if (err == ESP_OK) err = nvs_set_u8(h, NVS_KEY_SHELF_V22, 1);
-    if (background.path[0] && !backup_file_exists(background.path, false)) background.path[0] = 0;
-    BACKUP_SET_STR(NVS_KEY_BOOK_BACKGROUND, background.path);
-    BACKUP_SET_STR(NVS_KEY_FONT, backup.font);
-    BACKUP_SET_STR(NVS_KEY_SYS_FONT, backup.system_font);
-    if(bookmark.path[0] && !backup_file_exists(bookmark.path,false))bookmark.path[0]=0;
-    if(!bookmark.path[0] && backup.flags[BK_LOCK]==3)backup.flags[BK_LOCK]=0;
-    BACKUP_SET_STR(NVS_KEY_BOOKMARK, bookmark.path);
-    if(err==ESP_OK)err=nvs_set_u8(h,NVS_KEY_LOCK_STYLE,backup.flags[BK_LOCK]);
-    BACKUP_SET_STR(NVS_KEY_WALLPAPER, backup.wallpaper);
-    BACKUP_SET_STR(NVS_KEY_BOOKS_DIR, backup.books_dir);
-    BACKUP_SET_STR(NVS_KEY_FONTS_DIR, backup.fonts_dir);
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_SHELF_V22, 1);
+    if (work->background.path[0] && !backup_file_exists(work->background.path, false)) work->background.path[0] = 0;
+    BACKUP_SET_STR(NVS_KEY_BOOK_BACKGROUND, work->background.path);
+    BACKUP_SET_STR(NVS_KEY_FONT, work->backup.font);
+    BACKUP_SET_STR(NVS_KEY_SYS_FONT, work->backup.system_font);
+    if(work->bookmark.path[0] && !backup_file_exists(work->bookmark.path,false))work->bookmark.path[0]=0;
+    if(!work->bookmark.path[0] && work->backup.flags[BK_LOCK]==3)work->backup.flags[BK_LOCK]=0;
+    BACKUP_SET_STR(NVS_KEY_BOOKMARK, work->bookmark.path);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,NVS_KEY_LOCK_STYLE,work->backup.flags[BK_LOCK]);
+    BACKUP_SET_STR(NVS_KEY_WALLPAPER, work->backup.wallpaper);
+    BACKUP_SET_STR(NVS_KEY_BOOKS_DIR, work->backup.books_dir);
+    BACKUP_SET_STR(NVS_KEY_FONTS_DIR, work->backup.fonts_dir);
 #undef BACKUP_SET_U8
 #undef BACKUP_SET_STR
-    if(err==ESP_OK&&version>=22)err=reader_backup_stage(h,&reader);
-    if(version>=23)for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS&&err==ESP_OK;++i)err=nvs_set_u8(h,s_home_utility_keys[i],utilities.actions[i]);
-    if(err==ESP_OK&&version>=24)err=nvs_set_u8(h,"home_util_lbl",utility_labels?1:0);
-    if(err==ESP_OK&&version>=25)err=nvs_set_u8(h,"home_util_bdr",utility_border?1:0);
-    if (err == ESP_OK) err = nvs_commit(h);
+    if(err==ESP_OK&&version>=22)err=reader_backup_stage(h,&work->reader);
+    if(version>=23)for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS&&err==ESP_OK;++i)err=backup_nvs_set_u8(h,s_home_utility_keys[i],work->utilities.actions[i]);
+    if(err==ESP_OK&&version>=24)err=backup_nvs_set_u8(h,"home_util_lbl",utility_labels?1:0);
+    if(err==ESP_OK&&version>=25)err=backup_nvs_set_u8(h,"home_util_bdr",utility_border?1:0);
+    if (err == ESP_OK && version >= 27)
+        err = backup_nvs_set_u8(h, "auto_backup", work->identity.reserved[0]);
+    if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
-    if (err != ESP_OK) { backup_erase_secret(&wifi, sizeof(wifi)); return err; }
+    if (err != ESP_OK) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return err; }
+#if CONFIG_DPREADER_AUTO_BACKUP
+    if (version >= 27) s_auto_backup.enabled = work->identity.reserved[0] == 1;
+#endif
 
-    memcpy(s_reader_keys, keys.actions, sizeof(s_reader_keys));
-    s_reader_hold_action = hold.action;
+    memcpy(s_reader_keys, work->keys.actions, sizeof(s_reader_keys));
+    s_reader_hold_action = work->hold.action;
     s_book_weight = fine_weight/APP_BOOK_WEIGHT_SUBSTEPS+2;
     s_book_weight_fine = fine_weight;
     s_book_antialias = antialias;
-    const uint8_t *f = backup.flags;
+    const uint8_t *f = work->backup.flags;
     s_sleep = (app_sleep_mode_t)f[BK_SLEEP];
     s_staged_shutdown = (staged_shutdown & 1) != 0;
     s_auto_lock_minutes = idle_minutes;
-    s_ble_turner = (profile.home_full_refresh & 8) != 0;
-    s_reader_hold_refresh = (profile.home_full_refresh & 16) != 0;
-    s_reader_turn_mode = (profile.home_full_refresh & 32) != 0 ? 1 : 0;
-    s_home_full_refresh = (profile.home_full_refresh & 1) != 0;
+    s_ble_turner = (work->profile.home_full_refresh & 8) != 0;
+    s_reader_hold_refresh = (work->profile.home_full_refresh & 16) != 0;
+    s_reader_turn_mode = (work->profile.home_full_refresh & 32) != 0 ? 1 : 0;
+    s_home_full_refresh = (work->profile.home_full_refresh & 1) != 0;
     s_main_refresh = main_refresh;
-    s_reader_hide_images = (profile.home_full_refresh & 2) != 0;
-    s_shelf_recent_sort = (profile.home_full_refresh & 4) != 0;
-    strlcpy(s_device_name, profile.device_name, sizeof(s_device_name));
-    strlcpy(s_avatar, profile.avatar, sizeof(s_avatar));
-    strlcpy(s_status_signature, profile.status_signature, sizeof(s_status_signature));
+    s_reader_hide_images = (work->profile.home_full_refresh & 2) != 0;
+    s_shelf_recent_sort = (work->profile.home_full_refresh & 4) != 0;
+    strlcpy(s_device_name, work->profile.device_name, sizeof(s_device_name));
+    strlcpy(s_avatar, work->profile.avatar, sizeof(s_avatar));
+    strlcpy(s_status_signature, work->profile.status_signature, sizeof(s_status_signature));
     s_pickup_wake = f[BK_PICKUP];
     s_system_size = f[BK_SYS_SIZE];
     s_system_contrast = f[BK_SYS_CONTRAST];
@@ -2017,51 +2355,168 @@ esp_err_t app_settings_backup_restore(void) {
     s_reader_turn_effect = f[BK_TURN];
     s_reader_power_turn = f[BK_POWER_TURN];
     s_reader_immersive = f[BK_IMMERSIVE];
-    s_book_word_spacing=(int8_t)word_spacing.encoded;
+    s_book_word_spacing=(int8_t)work->word_spacing.encoded;
     s_book_tracking = f[BK_TRACKING];
     s_book_indent = indent;
-    s_book_indent_adjust = adjust.encoded;
+    s_book_indent_adjust = work->adjust.encoded;
     s_book_reading_line = f[BK_READING_LINE];
     s_book_rule_offset = rule_offset;
     s_book_line = f[BK_LINE_SPACING];
     s_book_margin = f[BK_MARGIN];
     s_book_para = f[BK_PARAGRAPH];
     s_shelf_style = f[BK_SHELF];
-    strlcpy(s_book_background, background.path, sizeof(s_book_background));
-    s_home_component = (app_home_component_t)home.component;
-    s_home_goal_minutes = home.minutes;
-    strlcpy(s_books_dir,backup.books_dir,sizeof(s_books_dir));
-    strlcpy(s_fonts_dir,backup.fonts_dir,sizeof(s_fonts_dir));
-    strlcpy(s_font, backup.font, sizeof(s_font));
-    strlcpy(s_system_font, backup.system_font, sizeof(s_system_font));
-    strlcpy(s_wallpaper, backup.wallpaper, sizeof(s_wallpaper));
-    strlcpy(s_bookmark,bookmark.path,sizeof(s_bookmark));
-    if(version>=22)reader_backup_apply(&reader);
-    if(version>=23)memcpy(s_home_utilities,utilities.actions,sizeof(s_home_utilities));
+    strlcpy(s_book_background, work->background.path, sizeof(s_book_background));
+    s_home_component = (app_home_component_t)work->home.component;
+    s_home_goal_minutes = work->home.minutes;
+    strlcpy(s_books_dir,work->backup.books_dir,sizeof(s_books_dir));
+    strlcpy(s_fonts_dir,work->backup.fonts_dir,sizeof(s_fonts_dir));
+    strlcpy(s_font, work->backup.font, sizeof(s_font));
+    strlcpy(s_system_font, work->backup.system_font, sizeof(s_system_font));
+    strlcpy(s_wallpaper, work->backup.wallpaper, sizeof(s_wallpaper));
+    strlcpy(s_bookmark,work->bookmark.path,sizeof(s_bookmark));
+    if(version>=22)reader_backup_apply(&work->reader);
+    if(version>=23)memcpy(s_home_utilities,work->utilities.actions,sizeof(s_home_utilities));
     if(version>=24)s_home_utility_labels=utility_labels;
     if(version>=25)s_home_utility_border=utility_border;
     if (has_history) {
         file = fopen(source, "rb");
-        if (!file) { backup_erase_secret(&wifi, sizeof(wifi)); return ESP_FAIL; }
+        if (!file) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return ESP_FAIL; }
+        if (setvbuf(file, (char *)work->io, _IOFBF, sizeof(work->io)) != 0) {
+            fclose(file); return ESP_FAIL;
+        }
         esp_err_t history_err = fseek(file, history_position, SEEK_SET) == 0
             ? book_history_backup_restore(file) : ESP_FAIL;
         if (fclose(file) != 0 && history_err == ESP_OK) history_err = ESP_FAIL;
-        if (history_err != ESP_OK) { backup_erase_secret(&wifi, sizeof(wifi)); return history_err; }
+        if (history_err != ESP_OK) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return history_err; }
     }
     if (has_wifi) {
-        esp_err_t wifi_err = read_pico_transfer_import_wifi_backup(&wifi.credentials);
-        backup_erase_secret(&wifi, sizeof(wifi));
+        esp_err_t wifi_err = read_pico_transfer_import_wifi_backup(&work->wifi.credentials);
+        backup_erase_secret(&work->wifi, sizeof(work->wifi));
         if (wifi_err != ESP_OK) return wifi_err;
     }
+    if (require_device) {
+        // Read back the reader settings before committing the completion journal.
+        esp_err_t verify = nvs_open(NVS_NS, NVS_READONLY, &h);
+        if (verify != ESP_OK) return verify;
+        uint8_t px = 0;
+        verify = nvs_get_u8(h, NVS_KEY_BOOK_PX, &px);
+        if (verify == ESP_OK && px != work->backup.flags[BK_BOOK_PX]) verify = ESP_ERR_INVALID_RESPONSE;
+        size_t size = sizeof(work->io);
+        if (verify == ESP_OK) verify = nvs_get_str(h, NVS_KEY_FONT, (char *)work->io, &size);
+        if (verify == ESP_OK && strcmp((char *)work->io, work->backup.font)) verify = ESP_ERR_INVALID_RESPONSE;
+        size = sizeof(work->io);
+        if (verify == ESP_OK) verify = nvs_get_str(h, NVS_KEY_SYS_FONT, (char *)work->io, &size);
+        if (verify == ESP_OK && strcmp((char *)work->io, work->backup.system_font)) verify = ESP_ERR_INVALID_RESPONSE;
+        nvs_close(h);
+        if (verify != ESP_OK) return verify;
+        if (has_wifi) {
+            verify = read_pico_transfer_export_wifi_backup(&work->wifi.credentials);
+            if (verify != ESP_OK || backup_wifi_checksum(&work->wifi) != work->wifi_hash)
+                return verify != ESP_OK ? verify : ESP_ERR_INVALID_RESPONSE;
+        }
+    }
     return ESP_OK;
+}
+
+esp_err_t app_settings_backup_restore(void) {
+    if (!backup_card_ready()) return ESP_ERR_INVALID_STATE;
+    backup_workspace_t *work = backup_alloc(sizeof(*work));
+    if (!work) return ESP_ERR_NO_MEM;
+    const char *source = BACKUP_FILE;
+    FILE *probe = fopen(source, "rb");
+    if (probe) fclose(probe); else source = BACKUP_PREVIOUS;
+#if CONFIG_DPREADER_AUTO_RESTORE
+    esp_err_t err = backup_restore_workspace(work, source, false, false);
+    if (err == ESP_OK) err = backup_restore_mark(1);
+    if (err == ESP_OK) {
+        backup_erase_secret(work, sizeof(*work));
+        err = backup_restore_workspace(work, source, true, false);
+    }
+#else
+    esp_err_t err = backup_restore_workspace(work, source, true, false);
+#endif
+    backup_erase_secret(work, sizeof(*work)); free(work);
+    if (err == ESP_OK) return backup_rearm_after_explicit_success();
+    return err;
+}
+
+bool app_settings_autorestore_pending(void) {
+#if CONFIG_DPREADER_AUTO_RESTORE
+    return s_auto_backup.restore_pending && !s_auto_backup.boot_checked;
+#else
+    return false;
+#endif
+}
+app_restore_status_t app_settings_autorestore_status(void) {
+#if CONFIG_DPREADER_AUTO_RESTORE
+    return s_auto_backup.restore_status;
+#else
+    return APP_RESTORE_NORMAL;
+#endif
+}
+esp_err_t app_settings_autorestore_boot(void) {
+#if CONFIG_DPREADER_AUTO_RESTORE
+    if (s_auto_backup.boot_checked) return ESP_ERR_INVALID_STATE;
+    s_auto_backup.boot_checked = true;
+    if (!s_auto_backup.restore_pending || s_auto_backup.failed)
+        return s_auto_backup.restore_status == APP_RESTORE_NORMAL ? ESP_OK : ESP_ERR_INVALID_STATE;
+    if (!backup_card_ready()) {
+        s_auto_backup.restore_status = APP_RESTORE_NEED_MEDIA;
+        return ESP_ERR_INVALID_STATE;
+    }
+    bool library_empty = false;
+    esp_err_t library_err = book_history_backup_empty(&library_empty);
+    if (library_err != ESP_OK || !library_empty) {
+        (void)backup_restore_mark(3);
+        s_auto_backup.restore_status = APP_RESTORE_BLOCKED;
+        return library_err != ESP_OK ? library_err : ESP_ERR_INVALID_STATE;
+    }
+    backup_workspace_t *work = backup_alloc(sizeof(*work));
+    if (!work) {
+        (void)backup_restore_mark(3);
+        s_auto_backup.restore_pending = false;
+        s_auto_backup.restore_status = APP_RESTORE_BLOCKED;
+        return ESP_ERR_NO_MEM;
+    }
+    const char *source = BACKUP_FILE;
+    esp_err_t err = backup_restore_workspace(work, source, false, true);
+    if (err != ESP_OK) {
+        backup_erase_secret(work, sizeof(*work));
+        source = BACKUP_PREVIOUS;
+        err = backup_restore_workspace(work, source, false, true);
+    }
+    if (err == ESP_OK) err = backup_restore_mark(1);
+    if (err == ESP_OK) {
+        backup_erase_secret(work, sizeof(*work));
+        err = backup_restore_workspace(work, source, true, true);
+    }
+    backup_erase_secret(work, sizeof(*work)); free(work);
+    if (err == ESP_OK) err = backup_restore_mark(2);
+    if (err != ESP_OK) {
+        (void)backup_restore_mark(3);
+        s_auto_backup.healthy = false;
+        s_auto_backup.failed = true;
+        s_auto_backup.restore_pending = false;
+        s_auto_backup.restore_status = APP_RESTORE_BLOCKED;
+        ESP_LOGW(TAG, "automatic restore blocked: %s", esp_err_to_name(err));
+        return err;
+    }
+    app_settings_init();
+    s_auto_backup.boot_checked = true;
+    s_auto_backup.restore_status = s_auto_backup.healthy && !s_auto_backup.failed ?
+        APP_RESTORE_DONE : APP_RESTORE_BLOCKED;
+    return s_auto_backup.restore_status == APP_RESTORE_DONE ? ESP_OK : ESP_ERR_INVALID_STATE;
+#else
+    return ESP_ERR_INVALID_STATE;
+#endif
 }
 
 static bool reader_edge_setting(bool *value,const char *key,bool on) {
     if(*value==on)return true;
     nvs_handle_t h;
-    if(nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
-    esp_err_t err=nvs_set_u8(h,key,on?1:0);
-    if(err==ESP_OK)err=nvs_commit(h);
+    if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
+    esp_err_t err=backup_nvs_set_u8(h,key,on?1:0);
+    if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);if(err==ESP_OK)*value=on;
     return err==ESP_OK;
 }

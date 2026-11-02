@@ -141,6 +141,12 @@ async function setup({responses = [], confirmations = [true], mode = 'ap', mkdir
   assert.equal(t.nodes.get('path').textContent, '/books');
   assert.match(t.state.gets.at(-1), /path=books/);
   const item = t.nodes.get('entries').children[0];
+  const download = item.children[1].children.at(-1);
+  assert.equal(download.textContent, 'Tải xuống');
+  assert.equal(download.href, '/download?path='+encodeURIComponent('books/封面.jpg'));
+  assert.equal(download.download, '封面.jpg');
+  assert.equal(folder.children[1].children.length, 3);
+  assert.match(html, /href="\/download\?path=dpreader_log.txt" download="dpreader_log.txt"/);
   const rename = item.children[1].children[0];
   rename.onclick();
   t.nodes.get('editorName').value = '新封面.jpg';

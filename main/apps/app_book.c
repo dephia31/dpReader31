@@ -612,6 +612,8 @@ bool app_book_request_resume(const char *path, bool fullscreen) {
     (void)fullscreen;
     return true;
 }
+bool app_book_progress_saved(void) { return !s_save_failed; }
+
 bool app_book_resume_context(char *path, size_t capacity, bool *fullscreen) {
     if (!s_text || !s_path[0] || s_view == SHELF || s_view == MANAGE || s_view == BULK ||
         !path || !fullscreen || strlen(s_path) >= capacity || s_save_failed) return false;

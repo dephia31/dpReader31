@@ -34,6 +34,10 @@ static const int *display_reader_text_waveform(void){return &E0470_WAVEFORM;}
 static struct{bool valid;}s_reader_panel_frame;
 static int s_online_fonts;
 static bool ui_online_fonts_present(int *fonts,app_ctx_t *ctx,app_redraw_t redraw){(void)fonts;(void)ctx;(void)redraw;assert(false);return false;}
+static bool s_notes_frame_pending,s_choice_frame;
+static struct {bool open;} s_reader_choice;
+static int epd_rotated_display_width(void){return 684;}
+static int epd_rotated_display_height(void){return 1216;}
 static bool s_reader_clock_pending,s_input_settle,s_shelf_feedback_pending,s_cover_batch_present_pending,s_shelf_page_pending;
 static bool s_reader_image_refresh_pending,s_reader_cleanup,s_reader_turn_pending,s_water_turn_pending,s_clear_confirm,s_reader_footer_pending,s_reader_text_frame;
 static bool s_reader_image_frame,s_reader_image_exit_pending,hide_images;

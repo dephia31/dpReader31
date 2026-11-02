@@ -31,7 +31,7 @@ int ttf_font_open_mem(unsigned char*p,size_t n,const char*l){(void)n;(void)l;fre
 static size_t safe_copy(char*d,const char*s,size_t n){size_t len=strlen(s);if(n){size_t k=len<n-1?len:n-1;memcpy(d,s,k);d[k]=0;}return len;}
 #undef strlcpy
 #define strlcpy safe_copy
-int kosync_compute_doc_md5(const char*p,char*out){(void)p;strcpy(out,"11111111111111111111111111111111");return ESP_OK;}
+int kosync_compute_doc_md5(const char*p,char out[33]){(void)p;strcpy(out,"11111111111111111111111111111111");return ESP_OK;}
 static int esp_read_mac(unsigned char*p,int n){(void)n;memset(p,1,6);return 0;}
 static const char*app_settings_device_name(void){return "dpReader test";}
 static const char*app_settings_kosync_user(void){return "test";}

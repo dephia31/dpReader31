@@ -160,3 +160,7 @@ CONFIG_FREERTOS_USE_TRACE_FACILITY=y
 
 # NVS页/键缓存优先PSRAM；调用栈仍在内部RAM。/ Prefer PSRAM for NVS page/key caches; retain internal calling stacks.
 CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM=y
+
+# User-selected default: automatic backup switch on; automatic restore remains opt-in.
+CONFIG_DPREADER_AUTO_BACKUP=y
+# CONFIG_DPREADER_AUTO_RESTORE is not set

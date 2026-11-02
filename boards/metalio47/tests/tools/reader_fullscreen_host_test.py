@@ -59,6 +59,10 @@ static void unlock_draw(void){assert(draw_locked);draw_locked=false;}
 static void invalidate_prep(void){}
 static EpdRect body_rect(void){return(EpdRect){0,0,684,100};}
 static size_t book_layout_page_start_offset(size_t page){return page*layout_span;}
+static const char *s_path="/sdcard/books/test.epub";
+static size_t s_file_size=1234;
+static size_t reader_page_offset(size_t page){return book_layout_page_start_offset(page);}
+static void kosync_state_touch(const char*path,size_t size,uint16_t chapter,uint32_t offset){assert(path==s_path&&size==s_file_size&&chapter==s_chapter&&offset==reader_page_offset(s_page));}
 static size_t book_layout_page_for_offset(size_t off){return off/layout_span;}
 static size_t book_layout_page_count(void){return (s_text_len+layout_span-1)/layout_span;}
 static bool book_layout_build_blocks(const char *text,size_t len,const void *blocks,size_t count,EpdRect r,int px){

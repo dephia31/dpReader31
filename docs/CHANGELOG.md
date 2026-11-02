@@ -1,5 +1,44 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.7-vn · 2026-11-02
+
+- Trang local hỗ trợ tải xuống tệp và lối tải log trực tiếp từ điện thoại.
+- Thêm công tắc tự sao lưu thiết lập mặc định bật, chỉ chạy trước Sleep và cập nhật firmware; giữ bản sao trước và khôi phục thủ công tương thích định dạng cũ. Tự khôi phục sau reboot chưa bật.
+- Dùng logo dpReader mới lúc khởi động; đồng bộ logo Red Studio trên trang local và Web Flasher.
+- Cải thiện thẻ Đọc tiếp trên Home và hiển thị nét đậm đúng hướng xoay.
+
+## dpReader 1.2.7RC9-vn · 2026-11-02
+
+- Trang truyền file local thêm tải xuống từng tệp trên thẻ nhớ và lối tải log hệ thống trực tiếp trong tab Thẻ nhớ, hỗ trợ lưu từ điện thoại. Truyền theo từng khối bằng buffer sẵn có.
+
+## dpReader 1.2.7RC8-vn · 2026-11-02
+
+- Chỉ tự sao lưu trước Sleep và trước cập nhật firmware; không ghi bản sao khi đóng sách hoặc rời Cài đặt. Giữ công tắc mặc định bật và thao tác sao lưu thủ công.
+
+## dpReader 1.2.7RC7-vn · 2026-11-02
+
+- Thêm công tắc Tự động sao lưu tại Sao lưu & Khôi phục, mặc định bật; giữ lựa chọn sau khởi động lại. Tắt công tắc không ảnh hưởng thao tác sao lưu/khôi phục thủ công.
+- Định dạng sao lưu V27 lưu cả lựa chọn công tắc; tiếp tục nhập được bản sao cũ và giữ chốt bảo vệ bản sao khi NVS thiếu/lỗi.
+
+## dpReader 1.2.7RC6-vn · 2026-11-02
+
+- Dùng logo dpReader và nét cuốn sách do người dùng cung cấp cho màn hình khởi động, căn giữa trên nền trắng.
+- Đồng bộ logo trắng/đỏ Red Studio trên Web Flasher và trang truyền file local; trang local nhúng sẵn ảnh để hoạt động không cần Internet.
+
+## dpReader 1.2.7RC5-vn · 2026-11-02
+
+- Sao lưu/khôi phục dùng buffer PSRAM trên S31; giữ bản sao trước và thêm nhận diện thiết bị trong định dạng V26. Vẫn nhập thủ công được bản sao cũ.
+- Bổ sung cơ chế tự sao lưu và tự khôi phục có chốt chống lặp; RC5 chưa bật tự động vì chưa nghiệm thu đỉnh SRAM trên thiết bị.
+
+## dpReader 1.2.7RC4-vn · 2026-11-01
+
+- Sửa các nét pixel lạ trên chữ Đọc tiếp ở Home khi màn hình xoay dọc; giữ cỡ chữ và thanh tiến độ mới.
+
+## dpReader 1.2.7RC3-vn · 2026-11-01
+
+- Tăng cỡ chữ tiến độ và làm đậm chữ Đọc tiếp trong thẻ sách ở Home.
+- Thanh tiến độ Home dùng nét chưa đọc mảnh và phần đã đọc đậm; chế độ refresh nhanh dùng nét chấm để tránh mất phần chưa đọc.
+
 ## dpReader 1.2.6-vn · 2026-11-01
 
 - KoSync EPUB dùng vị trí phần tử/ký tự trong chương và tỷ lệ đầy đủ thay vì phần trăm nguyên; hỗ trợ kéo đúng vị trí trong chương dài và giữ tương thích vị trí dpReader cũ.

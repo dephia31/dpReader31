@@ -154,6 +154,7 @@ idf_component_register(
     INCLUDE_DIRS "." "app" "apps" "font" "ui" "factory" "book"
     EMBED_FILES
         "assets/lock_4bpp.bin"
+        "assets/startup_logo_4bpp.bin"
         "assets/builtin.ttf"
         "assets/ui-hanzi.bin"
         "assets/display-test.png"

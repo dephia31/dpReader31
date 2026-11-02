@@ -325,6 +325,9 @@ static app_redraw_t upgrade_start_pending(void) {
     s_upgrade_job = UPGRADE_JOB_NONE;
     app_home_cover_mode_changed();
     app_book_cover_mode_changed();
+#if CONFIG_DPREADER_AUTO_BACKUP
+    if (downloading) (void)app_settings_autobackup_checkpoint();
+#endif
     esp_err_t error = downloading ? pico_online_download() : pico_online_check();
     pico_online_get_status(&s_update);
     if (error == ESP_OK) return APP_REDRAW_NONE;
@@ -1996,9 +1999,18 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     if (s_page == SETTINGS_CONFIG) {
         back_header(fb, "Sao lưu & Khôi phục cấu hình");
         section(fb, 248, "Nhanh chóng khôi phục cài đặt sau khi nạp lại firmware");
+#if CONFIG_DPREADER_AUTO_BACKUP
+        setting_toggle(fb, 299, "Tự động sao lưu",
+                       app_settings_autobackup_enabled() && app_settings_autobackup_blocked() ?
+                       "Tạm dừng: cần sao lưu/khôi phục thủ công một lần" :
+                       "Tự lưu trước Sleep và trước cập nhật firmware",
+                       app_settings_autobackup_enabled());
+        settings_line(fb, 60, 472, 23, "Thư mục gốc thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
+#else
         settings_card(fb, (EpdRect){36, 299, 612, 197}, 22, UI_GRAY_WHITE, 0x70);
         settings_line(fb, 60, 326, 26, "Thư mục gốc thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
         settings_line(fb, 60, 377, 23, "Cấu hình hệ thống và trình đọc sách", EPD_DRAW_ALIGN_LEFT, false);
+#endif
         ui_draw_button(fb, (EpdRect){36, 561, 612, 83}, "Sao lưu cấu hình hiện tại ra thẻ nhớ", false);
         ui_draw_button(fb, (EpdRect){36, 681, 612, 83},
                        s_config_confirm ? "Chạm lần nữa để xác nhận khôi phục cấu hình" : "Khôi phục cấu hình từ thẻ nhớ", false);
@@ -2016,7 +2028,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.6-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.7-vn", "ESP32-S31");
         ui_text_caption(fb,(EpdRect){56,294,572,54},22,v_line,EPD_DRAW_ALIGN_LEFT,false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -2417,6 +2429,12 @@ static void on_enter(app_ctx_t *ctx) {
     (void)ctx;
     pin_setup_close();
     s_notice[0] = 0;
+#if CONFIG_DPREADER_AUTO_RESTORE
+    if (app_settings_autorestore_status() >= APP_RESTORE_NEED_MEDIA)
+        snprintf(s_notice, sizeof(s_notice), "%s", app_settings_autorestore_status() == APP_RESTORE_NEED_MEDIA ?
+            "Lắp thẻ rồi khởi động lại để khôi phục dữ liệu." :
+            "Đã dừng tự khôi phục. Chọn Khôi phục cấu hình để xử lý.");
+#endif
     s_ble_feedback[0] = 0;
     bool ota_requested=s_request_ota;s_request_ota=false;
     s_page = SETTINGS_MAIN;
@@ -3390,7 +3408,17 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
 #endif
     if (s_page == SETTINGS_CONFIG) {
-
+#if CONFIG_DPREADER_AUTO_BACKUP
+        if (ui_rect_hit((EpdRect){36,299,612,126}, ev->x0, ev->y0)) {
+            s_config_confirm = false;
+            bool enabled = !app_settings_autobackup_enabled();
+            esp_err_t err = app_settings_set_autobackup_enabled(enabled);
+            snprintf(s_notice, sizeof(s_notice), "%s", err != ESP_OK ?
+                     "Không lưu được lựa chọn, vui lòng thử lại" : enabled ?
+                     "Đã bật tự động sao lưu" : "Đã tắt tự động sao lưu");
+            return APP_REDRAW_PAGE;
+        }
+#endif
         if (y >= 561 && y < 644) {
             s_config_confirm = false;
             esp_err_t err = app_settings_backup_save();

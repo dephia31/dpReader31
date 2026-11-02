@@ -952,6 +952,9 @@ static bool poll_media(app_ctx_t* ctx, const app_desc_t* current,
     *mounted = ready;
     if (ready) *invalidated = false;
     if (ready) { s_media_recovery_attempts = 0; s_media_recovery_after_ms = 0; }
+#if CONFIG_DPREADER_AUTO_BACKUP
+    if (gained || lost) app_settings_autobackup_media_changed();
+#endif
     if (gained || lost) { ui_avatar_invalidate(); (void)book_cover_jobs_quiesce(0); book_lock_collage_invalidate(); }
     if (gained && current->on_media_ready) current->on_media_ready(ctx);
     if (!lost) {

@@ -173,6 +173,20 @@ jobs:
           name: firmware-${{ matrix.board }}
           path: build/boards/packages/
 
+  data-protection-host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Backup, restore, download and test bundle regressions
+        run: |
+          python3 tools/auto_backup_host_test.py
+          python3 tools/transfer_download_host_test.py
+          python3 tools/test_test_bundle_export.py
+          python3 tools/home_resume_ink_rotation_host_test.py
+
   board-reader-tests:
     env:
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1

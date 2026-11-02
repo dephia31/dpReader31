@@ -40,6 +40,7 @@
 
 #include "app.h"
 #include "app_font_context.h"
+#include "app_content_open.h"
 #include "book_cover.h"
 #include "book_source.h"
 #include "book_lock_collage.h"
@@ -128,6 +129,15 @@ static bool s_lock_deep_ready;
 static bool s_lock_frame_cached;
 static cst836u_handle_t s_lock_sleep_touch;
 static bool s_lock_keys_restore_pending;
+#if CONFIG_DPREADER_AUTO_BACKUP
+static void sleep_backup_checkpoint(void) {
+    if (!app_settings_autobackup_enabled() || s_lock_io_pending || usb_storage_active() ||
+        pico_online_busy() || !read_pico_sd_io_ready() || !app_book_progress_saved()) return;
+    if (!(book_cover_jobs_quiesce(0) && ui_avatar_quiesce(0))) return;
+    (void)app_settings_autobackup_checkpoint();
+}
+#endif
+
 static void lock_restore_key_wake(void);
 static bool s_boot_from_deep, s_boot_power_wake, s_boot_power_on;
 void app_lock_capture_boot_wakeup(void) {
@@ -475,6 +485,10 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
     // Defer active mount/write transactions; absent or failed media is not active IO.
     esp_err_t media_state=read_pico_sd_get_info(&info);
     if(media_state==ESP_ERR_NOT_FINISHED || (media_state!=ESP_OK && info.mounted)) return media_state;
+#if CONFIG_DPREADER_AUTO_BACKUP
+    // After initial sleep/media checks, before parking the reader/card handles.
+    sleep_backup_checkpoint();
+#endif
     bool touch_asleep=false,sd_closed=false,lcd_stopped=false,keys_ready=false,rails_cut=false,pins_prepared=false;
     uint16_t saved_rails=0;
     bool key_irq=false,power_confirmed=false;
@@ -642,6 +656,9 @@ esp_err_t app_enter_host_sleep(app_sleep_mode_t mode) {
         if(restore_radios) { ble_pt_resume_after_sleep(); read_pico_transfer_resume_after_sleep(); }
         return ESP_ERR_INVALID_STATE;
     }
+#if CONFIG_DPREADER_AUTO_BACKUP
+    if (mode == APP_SLEEP_DEEP) sleep_backup_checkpoint();
+#endif
     (void)app_sync_time_to_pmu();
     app_lock_font_t saved_font = {0};
     app_font_begin_lock(&saved_font);

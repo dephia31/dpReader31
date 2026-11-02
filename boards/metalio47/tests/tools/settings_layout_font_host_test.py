@@ -59,9 +59,18 @@ static const ttf_font_item_t*ttf_font_item(int i){return i>=0&&i<3?&fonts[i]:NUL
 static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=r.y&&y<r.y+r.height;}
 static uint8_t scale=100;
 static bool write_fail;
+#define ESP_OK 0
+enum {SET_PICK_GRACE,SET_PICK_SIZE,SET_PICK_WAKE};
+static int picker=-1,s_settings_group,s_control_key,s_control_pick;
+static void settings_choice_open(int kind){picker=kind;}
+static bool settings_parent_open(int y){(void)y;assert(false);return false;}
+static char opened_font[192];
+static int ttf_font_open(const char*p){snprintf(opened_font,sizeof(opened_font),"%s",p);return 0;}
+static const char *ttf_font_path(void){return opened_font;}
+static void pico_boot_allow_font(void){}
 static uint8_t app_settings_system_font_size(void){return scale;}
 static unsigned ui_text_system_percent(void){return app_settings_system_font_size();}
-static void app_settings_set_system_font_size(uint8_t n){if(!write_fail)scale=n;}
+static __attribute__((unused)) void app_settings_set_system_font_size(uint8_t n){if(!write_fail)scale=n;}
 static char system_path[192]="/sdcard/fonts/Old.ttf",reader_path[192]="/sdcard/fonts/Reader.ttf";
 static unsigned reader_writes,system_activations;
 static const char*app_settings_system_font_path(void){return system_path;}
@@ -69,7 +78,6 @@ static const char*app_settings_font_path(void){return reader_path;}
 static void app_settings_set_system_font_path(const char*p){if(!write_fail)snprintf(system_path,sizeof(system_path),"%s",p);}
 static void app_settings_set_font_path(const char*p){++reader_writes;if(!write_fail)snprintf(reader_path,sizeof(reader_path),"%s",p);}
 static void app_font_activate_system(void){++system_activations;}
-static void ui_text_set_system_scale(bool b){assert(b);}
 static int s_font_page,s_main_scroll,s_style_scroll,s_ble_scroll,s_ble_learning;
 static bool s_font_sync_confirm,s_config_confirm,s_boot_pending,s_scroll_present_pending,s_reset_confirm,s_reset_pending;
 static char s_sd_notice[96],s_reset_notice[96],s_kosync_notice[96],s_opds_notice[96];
@@ -80,11 +88,11 @@ static bool pin_enabled=true,pin_available=true;
 static unsigned grace_code;
 static bool lock_pin_enabled(void){return pin_enabled;}
 static bool lock_pin_available(void){return pin_available;}
-static unsigned app_settings_pin_grace_code(void){return grace_code;}
-static void app_settings_set_pin_grace_code(unsigned n){grace_code=n;}
+static __attribute__((unused)) unsigned app_settings_pin_grace_code(void){return grace_code;}
+static __attribute__((unused)) void app_settings_set_pin_grace_code(unsigned n){grace_code=n;}
 static uint8_t wake_presses=1;
-static uint8_t app_settings_wake_presses(void){return wake_presses;}
-static void app_settings_set_wake_presses(uint8_t n){wake_presses=n;}
+static __attribute__((unused)) uint8_t app_settings_wake_presses(void){return wake_presses;}
+static __attribute__((unused)) void app_settings_set_wake_presses(uint8_t n){wake_presses=n;}
 static void ttf_font_scan(void){++font_scans;}
 static void app_transfer_request_wifi_setup(void){++wifi_requests;}
 static bool ble_pt_pop_raw(ble_pt_raw_t*p){(void)p;return false;}
@@ -108,7 +116,7 @@ unit+=r'''
 int main(void){
  app_ctx_t ctx={0};
  s_page=SETTINGS_LOCK_PIN;EpdRect gr=pin_grace_row();
- for(unsigned i=0;i<5;i++){assert(grace_tap(gr.x+1,gr.y+1)==APP_REDRAW_PAGE&&grace_code==(i+1)%5);}
+ assert(grace_tap(gr.x+1,gr.y+1)==APP_REDRAW_PAGE&&picker==SET_PICK_GRACE&&grace_code==0);
  assert(grace_tap(gr.x-1,gr.y+1)==APP_REDRAW_NONE&&grace_tap(gr.x,gr.y+gr.height)==APP_REDRAW_NONE);
  pin_enabled=false;assert(grace_tap(300,650)==APP_REDRAW_NONE);pin_enabled=true;
  pin_available=false;assert(grace_tap(300,650)==APP_REDRAW_NONE);pin_available=true;
@@ -119,18 +127,16 @@ int main(void){
    assert(l.size.y+l.size.height<l.preview_title&&l.preview.y+l.preview.height<l.font_title);
    assert(l.font_title<l.first&&l.first+l.slots*l.row_height<UI_NAV_TOP);
    for(int i=0;i<l.slots;++i){EpdRect r=system_font_item_rect(i);assert(r.y+r.height<UI_NAV_TOP);if(i)assert(system_font_item_rect(i-1).y+system_font_item_rect(i-1).height<r.y);}
-   assert(SETTINGS_WIRELESS_Y>=180+settings_profile_height()+70);
-   assert(SETTINGS_DISPLAY_Y>SETTINGS_WIRELESS_Y+3*SETTINGS_ROW_H);
-   assert(SETTINGS_PERSONAL_Y>SETTINGS_DISPLAY_Y+6*SETTINGS_ROW_H);
+   assert(SETTINGS_WIRELESS_Y==240&&SETTINGS_DISPLAY_Y==240&&SETTINGS_PERSONAL_Y==240);
    const int tops[]={SETTINGS_WIRELESS_Y,SETTINGS_DISPLAY_Y,SETTINGS_PERSONAL_Y,SETTINGS_CONTROLS_Y,SETTINGS_MAINTENANCE_Y};
-   const int counts[]={5,8,4,1,7};
-   const int destinations[][8]={{-1,SETTINGS_BLUETOOTH,SETTINGS_KOSYNC,SETTINGS_OPDS,SETTINGS_TIME},
+   const int counts[]={7,8,4,2,7};
+   const int destinations[][8]={{-1,SETTINGS_WIFI_TIMEOUT,SETTINGS_BLUETOOTH,SETTINGS_BLE_TIMEOUT,SETTINGS_KOSYNC,SETTINGS_OPDS,SETTINGS_TIME},
      {SETTINGS_SYSTEM_FONT,SETTINGS_SYSTEM_CONTRAST,SETTINGS_MAIN_REFRESH,-2,SETTINGS_AUTO_LOCK,-2,SETTINGS_POWER_SLEEP,SETTINGS_FRONTLIGHT},
      {SETTINGS_SHELF_STYLE,SETTINGS_LOCK_STYLE,SETTINGS_LOCK_PIN,-3},
-     {SETTINGS_CONTROLS},
+     {SETTINGS_CONTROLS,SETTINGS_ACTION_MENU},
      {SETTINGS_UPGRADE,SETTINGS_SD_RECOVERY,SETTINGS_CONFIG,SETTINGS_LOG_EXPORT,-4,SETTINGS_BOOT,SETTINGS_FACTORY_RESET}};
    for(int group=0;group<5;++group)for(int i=0;i<counts[group];++i){
-     s_page=SETTINGS_MAIN;int center=tops[group]+i*SETTINGS_ROW_H+SETTINGS_ROW_H/2;s_main_scroll=center-500;ctx.request_app=NULL;
+     s_settings_group=group;s_page=SETTINGS_MAIN;int center=tops[group]+i*SETTINGS_ROW_H+SETTINGS_ROW_H/2;s_main_scroll=center-500;ctx.request_app=NULL;
      main_tap(&ctx,300,500);
      if(destinations[group][i]>=0)assert((int)s_page==destinations[group][i]);
      else if(destinations[group][i]==-1)assert(ctx.request_app==&app_transfer);
@@ -139,12 +145,13 @@ int main(void){
      else assert(profile_edits>0);
      s_page=SETTINGS_MAIN;assert(main_tap(&ctx,10,500)==APP_REDRAW_NONE&&s_page==SETTINGS_MAIN);
    }
-   s_main_scroll=SETTINGS_SCROLL_MAX;s_page=SETTINGS_MAIN;
+   s_settings_group=4;s_main_scroll=SETTINGS_SCROLL_MAX;s_page=SETTINGS_MAIN;
    int last=SETTINGS_MAINTENANCE_Y+SETTINGS_MAINTENANCE_ROWS*SETTINGS_ROW_H-1-s_main_scroll;
    assert(last<UI_NAV_TOP&&main_tap(&ctx,300,last)==APP_REDRAW_PAGE&&s_page==SETTINGS_FACTORY_RESET);
  }
  scale=100;s_page=SETTINGS_SYSTEM_FONT;s_font_page=0;s_main_scroll=0;s_font_sync_confirm=false;
- for(int i=0;i<11;++i){EpdRect r=system_font_layout().size;assert(font_tap(300,r.y+r.height/2)==APP_REDRAW_PAGE);assert(scale==((i+1)%11)*10+100);}
+ EpdRect size_row=system_font_layout().size;
+ assert(font_tap(300,size_row.y+size_row.height/2)==APP_REDRAW_PAGE&&picker==SET_PICK_SIZE&&scale==100);
  EpdRect r=system_font_item_rect(1);
  assert(font_tap(300,r.y+r.height/2)==APP_REDRAW_PAGE&&s_font_sync_confirm);
  assert(!strcmp(system_path,fonts[0].path)&&!strcmp(reader_path,"/sdcard/fonts/Reader.ttf")&&!reader_writes&&system_activations==1);
@@ -156,9 +163,9 @@ int main(void){
  write_fail=false;assert(font_tap(481,720)==APP_REDRAW_PAGE&&!s_font_sync_confirm&&reader_writes==2&&!strcmp(reader_path,system_path));
  assert(font_tap(300,r.y+r.height/2)==APP_REDRAW_PAGE&&!s_font_sync_confirm);
  write_fail=true;unsigned before=system_activations;r=system_font_item_rect(2);
- assert(font_tap(300,r.y+r.height/2)==APP_REDRAW_PAGE&&!s_font_sync_confirm&&system_activations==before&&!strcmp(system_path,fonts[0].path));
+ assert(font_tap(300,r.y+r.height/2)==APP_REDRAW_PAGE&&!s_font_sync_confirm&&system_activations==before+1&&!strcmp(system_path,fonts[0].path));
  write_fail=false;assert(font_tap(300,r.y+r.height+7)==APP_REDRAW_NONE);
- puts("PASS: 11 scales, all current S31 destinations, reachable final row, font-size cycle, modal isolation, opt-in sync, no reading-font load and failed-save retry");
+ puts("PASS: 11 scales, all current S31 destinations, reachable final row, font-size choice dialog, modal isolation, opt-in sync, font load validation, rollback and failed-save retry");
 }
 '''
 with tempfile.TemporaryDirectory() as folder:

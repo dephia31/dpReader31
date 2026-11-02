@@ -6,10 +6,10 @@
 
 <p align="center">
   <a href="https://dephia31.github.io/dpReader31/"><img src="https://img.shields.io/badge/Web%20Flasher-C%E1%BA%ADp%20nh%E1%BA%ADt%20tr%E1%BB%B1c%20tuy%E1%BA%BFn%201--Click-success?style=for-the-badge&logo=googlechrome" alt="Web Flasher Trực Tuyến"></a>
-  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.2.6--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.2.7--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
 </p>
 
-**dpReader** (`v1.2.6-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
+**dpReader** (`v1.2.7-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
 
 > ⚡ **Nạp Firmware Trực Tuyến 1-Click (Không cần cài phần mềm):**  
 > Truy cập ngay **[Web Flasher chính thức](https://dephia31.github.io/dpReader31/)** trên trình duyệt Google Chrome hoặc Microsoft Edge để nạp firmware trực tiếp qua cáp USB-C. Tự động nhận diện phiên bản mới nhất, tự xóa `otadata` và tự khởi động lại máy sau khi nạp!
@@ -51,7 +51,7 @@
 
 - **Home:** thẻ Đọc tiếp, thẻ **Tiện Ích** và 4 sách từng đọc theo chiều ngang.
 - **Tiện Ích:** chọn 4 shortcut như Đọc tiếp, Thư viện, OPDS, KoSync, Cài đặt, Wi-Fi, Bluetooth, OTA hoặc Tệp tin. Có thể bật/tắt nhãn và viền; khi ẩn nhãn, icon lớn và căn đều.
-- **Sao lưu chung trên SD:** lưu cấu hình hệ thống, thiết lập đọc và Tiện Ích trong `dpReader-settings.backup`, tại **Cài đặt → Sao lưu & Khôi phục cấu hình**.
+- **Sao lưu chung trên SD:** lưu cấu hình hệ thống, thiết lập đọc và Tiện Ích trong `dpReader-settings.backup`, tại **Cài đặt → Sao lưu & Khôi phục cấu hình**. Xem [cách bảo vệ và khôi phục bản sao](docs/BACKUP_AND_RESTORE.md).
 - **Tệp tin:** nút **Xóa tất cả** xóa các tệp trong thư mục đang mở sau khi xác nhận, giữ các thư mục con.
 - **Cài đặt:** bố cục Đèn nền & Rung thống nhất, chú thích và hộp xác nhận OTA phù hợp hơn khi dùng chữ lớn.
 
@@ -193,6 +193,12 @@ Cài đặt `esptool` (`pip install esptool`), sau đó mở Terminal / Command 
 | `coredump` | `data` / `coredump` | `0xff0000` | `64 KB` (`0x10000`) | Lưu nhật ký coredump khi xảy ra lỗi |
 
 ---
+
+### Tải tệp và log từ trang local
+
+Mở trang truyền WiFi bằng địa chỉ hiển thị trên máy đọc, chọn tab **Thẻ nhớ**, rồi chọn **Tải xuống** cạnh tệp cần lưu. Thư mục được mở để duyệt; chỉ tệp có nút tải xuống.
+
+Để lấy log bằng điện thoại, trước hết chọn **Xuất log ra thẻ nhớ** trong Cài đặt trên máy đọc. Sau đó vào tab **Thẻ nhớ** trên trang local và chọn **Tải log hệ thống** để lưu `dpreader_log.txt`. Lối tải log luôn có sẵn, không cần tìm qua các trang danh sách. Đây là bản log đã xuất gần nhất; nếu chưa xuất hoặc đã xóa tệp, trang sẽ báo không tìm thấy. Trên trình duyệt mở bản xem trước, dùng menu tải xuống/chia sẻ để lưu vào Tệp của điện thoại.
 
 ## ☁️ Phần 3: Hướng dẫn Thiết lập Đồng bộ KOSync & Thư viện OPDS
 

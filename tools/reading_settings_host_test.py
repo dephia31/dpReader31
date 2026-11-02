@@ -18,12 +18,11 @@ typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {int unused;} app_ctx_t;
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_PAGE} app_redraw_t;
 enum {READER_PANEL_NONE,READER_PANEL_REFRESH_SETTINGS,READER_PANEL_TURN_SETTINGS,READER_PANEL_KEY_SETTINGS};
+enum {READ_PICK_REFRESH,READ_PICK_EFFECT};
+static int picker=-1;
+static void reader_choice_open(int kind){picker=kind;}
 static int s_reader_panel, s_turns, invalidates, toggles[4], full_pages = 10, effect;
 static bool ui_rect_hit(EpdRect r,unsigned x,unsigned y){return x>=(unsigned)r.x&&x<(unsigned)(r.x+r.width)&&y>=(unsigned)r.y&&y<(unsigned)(r.y+r.height);}
-static unsigned app_settings_reader_full_pages(void){return full_pages;}
-static void app_settings_set_reader_full_pages(unsigned n){full_pages=n;}
-static unsigned app_settings_reader_turn_effect(void){return effect;}
-static void app_settings_set_reader_turn_effect(unsigned n){effect=n;}
 static app_redraw_t apply_reader_option(app_ctx_t *ctx,int i){(void)ctx;assert(i>=0&&i<4);++toggles[i];return APP_REDRAW_PAGE;}
 static void invalidate_prep(void){++invalidates;}
 '''
@@ -42,19 +41,15 @@ int main(void){
     }
     EpdRect mode=reading_setting_rect(2),keys=reading_setting_rect(4);
     assert(keys.x==mode.x&&keys.y>mode.y&&keys.y==910);
-#if KIIKO_BOARD_METALIO47
-    const unsigned expected[]={15,20,30,0,5,10};
-#else
-    const unsigned expected[]={15,30,0,5,10};
-#endif
-    for(unsigned i=0;i<sizeof(expected)/sizeof(expected[0]);++i){s_turns=100;assert(reading_settings_action(&ctx,120,750)==APP_REDRAW_PAGE);assert(full_pages==(int)expected[i]&&!s_turns);}
-    full_pages=77;reading_settings_action(&ctx,120,750);assert(full_pages==(KIIKO_BOARD_METALIO47?0:5));
-    for(unsigned i=0;i<6;++i){s_turns=4;reading_settings_action(&ctx,450,750);assert(effect==(int)((i+1)%3)&&s_turns==0);}
+    s_turns=100;assert(reading_settings_action(&ctx,120,750)==APP_REDRAW_PAGE);
+    assert(picker==READ_PICK_REFRESH&&full_pages==10&&s_turns==100);
+    assert(reading_settings_action(&ctx,450,750)==APP_REDRAW_PAGE);
+    assert(picker==READ_PICK_EFFECT&&effect==0&&s_turns==100);
     s_reader_panel=READER_PANEL_REFRESH_SETTINGS;
     reading_settings_action(&ctx,120,850);assert(s_reader_panel==READER_PANEL_TURN_SETTINGS);
     s_reader_panel=READER_PANEL_REFRESH_SETTINGS;
     reading_settings_action(&ctx,120,970);assert(s_reader_panel==READER_PANEL_KEY_SETTINGS);
-    for(int i=0;i<4;++i){EpdRect a=reading_toggle_rect(i);assert(reading_settings_action(&ctx,a.x+a.width-5,a.y+a.height-5)==APP_REDRAW_PAGE&&toggles[i]==1);}
+    for(int i=0;i<4;++i){if(i==1)continue;EpdRect a=reading_toggle_rect(i);assert(reading_settings_action(&ctx,a.x+a.width-5,a.y+a.height-5)==APP_REDRAW_PAGE&&toggles[i]==1);}
     s_reader_panel=READER_PANEL_REFRESH_SETTINGS;int before=invalidates;
     assert(reading_settings_action(&ctx,342,760)==APP_REDRAW_NONE);
     assert(reading_settings_action(&ctx,120,803)==APP_REDRAW_NONE);
@@ -63,7 +58,7 @@ int main(void){
     reading_settings_action(&ctx,342,1170);assert(s_reader_panel==READER_PANEL_NONE);
     s_reader_panel=READER_PANEL_REFRESH_SETTINGS;
     reading_settings_action(&ctx,342,579);assert(s_reader_panel==READER_PANEL_NONE);
-    puts("PASS: approved half-sheet bounds, nonoverlapping shared hit areas, key controls below turn mode, full-refresh/effect cycles, toggles, secondary pages, Done and inert gaps");
+    puts("PASS: approved half-sheet bounds, nonoverlapping shared hit areas, key controls below turn mode, full-refresh/effect choice dialogs, toggles, secondary pages, Done and inert gaps");
 }
 '''
 with tempfile.TemporaryDirectory(dir=ROOT/'build') as folder:

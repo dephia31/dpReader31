@@ -396,6 +396,32 @@ static void label(uint8_t *fb,int x,int y,int px,const char *text,enum EpdFontFl
 static void label_on(uint8_t *fb,int x,int y,int px,const char *text,enum EpdFontFlags align,uint8_t gray,uint8_t background) {
     ui_text_fixed_context_aa_vc(fb,x,y,px,text,text,align,gray,background);
 }
+/* Match epd_draw_pixel's logical-to-framebuffer transform when reading ink. */
+static uint8_t home_ink_at(const uint8_t *fb,int x,int y) {
+    const EpdDisplay_t *display=epd_get_display();
+    int px=x,py=y;
+    switch(epd_get_rotation()) {
+        case EPD_ROT_PORTRAIT: px=display->width-y-1;py=x;break;
+        case EPD_ROT_INVERTED_LANDSCAPE: px=display->width-x-1;py=display->height-y-1;break;
+        case EPD_ROT_INVERTED_PORTRAIT: px=y;py=display->height-x-1;break;
+        default:break;
+    }
+    if((unsigned)px>=(unsigned)display->width || (unsigned)py>=(unsigned)display->height)return 255;
+    return epd_get_pixel(px,py,display->width,display->height,fb);
+}
+/* Add one pixel of ink to the left, retaining the existing alignment and face. */
+static void home_bold_label(uint8_t *fb,int x,int y,int px,const char *text,
+                            enum EpdFontFlags align,uint8_t background) {
+    label_on(fb,x,y,px,text,align,0,background);
+    int width=ui_text_fixed_width_px(px,text);
+    int left=align==EPD_DRAW_ALIGN_RIGHT?x-width:x;
+    for(int row=y-px;row<=y+px;++row)
+        for(int col=left;col<x+(align==EPD_DRAW_ALIGN_RIGHT?0:width);++col) {
+            uint8_t ink=home_ink_at(fb,col+1,row);
+            if(ink<home_ink_at(fb,col,row))
+                epd_draw_pixel(col,row,ink,fb);
+        }
+}
 // 三像素边线均向内加粗，保持点击及局部刷新边界。/ Three-pixel rules grow inward, preserving hit and dirty bounds.
 static void home_frame(uint8_t *fb,EpdRect box,int radius) {
     for(int i=0;i<3;++i)ui_draw_round_rect(fb,ui_inset_rect(box,i),radius>i?radius-i:0,0x30);
@@ -722,7 +748,7 @@ static void render_root(uint8_t *fb) {
         int x=side?648:36;epd_fill_circle(x,252,14,0xff,fb);circle_frame(fb,x,252,14);
         ui_fill_rect_fast((EpdRect){side?x:0,237,side?36:36,30},0xff,fb);
     }
-    label_on(fb,60,222,24,"Đọc tiếp",EPD_DRAW_ALIGN_LEFT,0x60,card_gray);
+    home_bold_label(fb,60,222,26,"Đọc tiếp",EPD_DRAW_ALIGN_LEFT,card_gray);
     if(s_excerpt[0]) {
         char quote[BOOK_EXCERPT_CAP+12];snprintf(quote,sizeof(quote),"“%s”",s_excerpt);
         int px=22;while(px>16&&ui_text_fixed_width_px(px,quote)>426)--px;
@@ -738,10 +764,16 @@ static void render_root(uint8_t *fb) {
         int rows=title_lines(fb,b->title,card_gray);
         if(b->author[0]) {char author[128];snprintf(author,sizeof(author),"%s",b->author);fit(author,25,358);label_on(fb,264,rows==2?406:367,25,author,EPD_DRAW_ALIGN_LEFT,0x50,card_gray);}
         snprintf(value,sizeof(value),"Đã đọc %u%%",b->has_progress?b->progress.pct:0);
-        label_on(fb,264,482,27,value,EPD_DRAW_ALIGN_LEFT,0x20,card_gray);
-        label_on(fb,622,482,24,"Đọc tiếp ›",EPD_DRAW_ALIGN_RIGHT,0,card_gray);
-        EpdRect track={264,511,358,7};ui_fill_round_rect(fb,track,3,0xcc);
-        track.width=358*(b->has_progress?b->progress.pct:0)/100;if(track.width)ui_fill_round_rect(fb,track,3,0x30);
+        label_on(fb,264,482,30,value,EPD_DRAW_ALIGN_LEFT,0x20,card_gray);
+        home_bold_label(fb,622,482,28,"Đọc tiếp ›",EPD_DRAW_ALIGN_RIGHT,card_gray);
+        EpdRect track={264,514,358,4};
+        if(app_settings_main_fast_refresh()) {
+            for(int x=track.x;x<track.x+track.width;x+=3)
+                ui_fill_rect_fast((EpdRect){x,track.y,1,track.height},UI_GRAY_BLACK,fb);
+        } else ui_fill_round_rect(fb,track,2,UI_GRAY_LIGHT);
+        unsigned pct=b->has_progress?b->progress.pct:0;if(pct>100)pct=100;
+        int filled=track.width*(int)pct/100;
+        if(filled)ui_fill_round_rect(fb,(EpdRect){track.x,511,filled,10},5,UI_GRAY_BLACK);
     } else label_on(fb,342,410,23,"Sau khi mở sách, bạn có thể đọc tiếp ngay tại đây",EPD_DRAW_ALIGN_CENTER,0x60,card_gray);
     HOME_STAGE("card_body");
     EpdRect utility_card={36,590,612,206};

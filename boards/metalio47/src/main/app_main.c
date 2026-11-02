@@ -56,6 +56,7 @@
 #include "app_font_context.h"
 #include "ui_kit.h"
 #include "ui_font.h"
+#include "assets/startup_logo.h"
 #include "vcom_setup.h"
 #include "debug_panel.h"
 #include "metalio_sleep.h"
@@ -108,8 +109,7 @@ static bool volume_key_held(void) {
     return pressed_first && pressed_again;
 }
 
-// 锁屏后备位图保留面板尺寸检查；冷启动改用现有内建字形绘制。
-// Keep the panel-size check for fallback lock art; draw the cold splash using existing built-in glyphs.
+// Keep the panel-size check for fallback lock art; the startup logo is a separate flash asset.
 static bool images_match_panel(void) {
     size_t lock_size = (size_t)(lock_4bpp_bin_end - lock_4bpp_bin_start);
     size_t expected = (size_t)epd_width() * epd_height() / 2;
@@ -121,36 +121,34 @@ static bool images_match_panel(void) {
     return false;
 }
 
+extern const uint8_t startup_logo_start[] asm("_binary_startup_logo_4bpp_bin_start");
+extern const uint8_t startup_logo_end[] asm("_binary_startup_logo_4bpp_bin_end");
+
 static void draw_startup_frame(uint8_t *framebuffer) {
     ui_clear_page(framebuffer);
     const int cx = epd_rotated_display_width() / 2;
     const int cy = epd_rotated_display_height() / 2;
-    static const char *const wordmark[] = {"d", "p", "R", "e", "a", "d", "e", "r"};
-    static const char *const caption[] = {"Đ", "a", "n", "g", " ", "k", "h", "ở", "i", " ", "đ", "ộ", "n", "g", ".", ".", "."};
-    const struct {
-        const char *text;
-        const char *const *letters;
-        int count, px, tracking, gray, center_y;
-    } lines[] = {
-        {"dpReader", wordmark, 8, 72, 2, 0, cy - 50},
-        {"Đang khởi động...", caption, 17, 24, 2, 7, cy + 20},
-    };
-    // 以实际字宽居中，疏朗品牌字距与浅灰提示形成层次，不引入新的字体或位图。
-    // Center measured advances; tracked branding and a muted caption add hierarchy without new fonts or bitmaps.
-    for (size_t row = 0; row < sizeof(lines) / sizeof(lines[0]); ++row) {
-        int above = 0, below = 0;
-        ui_font_measure_line_px(lines[row].px, lines[row].text, &above, &below);
-        int width = (lines[row].count - 1) * lines[row].tracking;
-        for (int i = 0; i < lines[row].count; ++i)
-            width += ui_font_text_width_px(lines[row].px, lines[row].letters[i]);
-        int x = cx - width / 2;
-        const int baseline = lines[row].center_y + (above - below) / 2;
-        for (int i = 0; i < lines[row].count; ++i) {
-            ui_font_draw_text_px(framebuffer, x, baseline, lines[row].px,
-                                lines[row].letters[i], EPD_DRAW_ALIGN_LEFT,
-                                lines[row].gray, 15, false);
-            x += ui_font_text_width_px(lines[row].px, lines[row].letters[i]) + lines[row].tracking;
+    const int width = DPREADER_STARTUP_LOGO_WIDTH, height = DPREADER_STARTUP_LOGO_HEIGHT;
+    const int left = cx - width / 2, top = cy - height / 2 - 25;
+    if ((size_t)(startup_logo_end - startup_logo_start) == (size_t)width * height / 2) {
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                const uint8_t packed = startup_logo_start[((size_t)y * width + x) / 2];
+                const uint8_t gray = x & 1 ? packed & 15 : packed >> 4;
+                if (gray != 15) epd_draw_pixel(left + x, top + y, gray * 17, framebuffer);
+            }
         }
+    }
+    static const char *const caption[] = {"Đ", "a", "n", "g", " ", "k", "h", "ở", "i", " ", "đ", "ộ", "n", "g", ".", ".", "."};
+    const int count = sizeof(caption) / sizeof(caption[0]), px = 24, tracking = 2;
+    int above = 0, below = 0, text_width = (count - 1) * tracking;
+    ui_font_measure_line_px(px, "Đang khởi động...", &above, &below);
+    for (int i = 0; i < count; ++i) text_width += ui_font_text_width_px(px, caption[i]);
+    int x = cx - text_width / 2;
+    const int baseline = cy + height / 2 + 25 + (above - below) / 2;
+    for (int i = 0; i < count; ++i) {
+        ui_font_draw_text_px(framebuffer, x, baseline, px, caption[i], EPD_DRAW_ALIGN_LEFT, 7, 15, false);
+        x += ui_font_text_width_px(px, caption[i]) + tracking;
     }
 }
 
@@ -191,6 +189,15 @@ void app_main(void) {
 
     read_pico_handle_t hw;
     if (read_pico_init(&hw) != ESP_OK) return;
+#if CONFIG_DPREADER_AUTO_RESTORE
+    if (app_settings_autorestore_pending()) {
+        read_pico_sd_info_t media = {0};
+        for (unsigned wait = 0; wait < 150 &&
+             read_pico_sd_get_info(&media) == ESP_ERR_NOT_FINISHED; ++wait)
+            vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    (void)app_settings_autorestore_boot();
+#endif
     crash_report_poll(true);
     rp_boot_mark("hw");
     print_memory_profile("display-and-board-ready");
@@ -254,7 +261,11 @@ void app_main(void) {
     rp_boot_mark("lock");
     const app_desc_t *first = app_home_page();
     pico_resume_t resume = {0};
-    if (pico_boot_take_resume(&resume)) {
+    if (
+#if CONFIG_DPREADER_AUTO_RESTORE
+        app_settings_autorestore_status() < APP_RESTORE_NEED_MEDIA &&
+#endif
+        pico_boot_take_resume(&resume)) {
         if (!resume.reader) first = app_at(resume.tab);
         else {
             // 挂载等待有界；恢复入口已消费，无卡或资源失败不会反复自动开书。
@@ -279,6 +290,9 @@ void app_main(void) {
         if(first==app_at(1) && resume.reader)app_font_activate_reading();
         else app_font_activate_system();
     }
+#if CONFIG_DPREADER_AUTO_RESTORE
+    if (app_settings_autorestore_status() >= APP_RESTORE_NEED_MEDIA) first = app_at(3);
+#endif
     rp_boot_mark("resume");
 #ifdef KIIKO_LOCAL_TRANSFER_START
     // Explicit unattended local tests only; preserve PIN and recovery gates.
