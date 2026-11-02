@@ -21,6 +21,7 @@ static int nvs_set_u8(int h,const char *n,uint8_t v){assert(h==1);++calls;if(fau
 static int nvs_commit(int h){assert(h==1);if(fault==4)return -1;stored=pending;revision=pending_revision;exists=1;++commits;return 0;}
 static void nvs_close(int h){assert(h==1);}
 '''+initial+'\n'
+u+='\n#define backup_nvs_open nvs_open\n#define backup_nvs_set_u8 nvs_set_u8\n#define backup_nvs_set_u32 nvs_set_u32\n#define backup_nvs_set_str nvs_set_str\n#define settings_backup_commit nvs_commit\n'
 for name in ('system_size_load','app_settings_system_font_size','app_settings_set_system_font_size'):
  u+=function(name,root/'main/settings.c')+'\n'
 u+='static _Bool s_system_text_scale=1;\n'+function('ui_text_system_percent',root/'main/ui/ui_kit.c')+'\n'+function('ui_text_effective_px',root/'main/ui/ui_kit.c')+'\n'

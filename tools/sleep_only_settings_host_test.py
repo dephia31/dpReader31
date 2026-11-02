@@ -45,6 +45,7 @@ static void read_pico_pmu_keys_resume(void){++resumes;}
 static void vTaskDelay(unsigned ms){assert(ms==20);++delays;}
 static int esp_sleep_disable_wakeup_source(int source){assert(source==99);return 0;}
 '''
+unit+='\n#define backup_nvs_open nvs_open\n#define backup_nvs_set_u8 nvs_set_u8\n#define backup_nvs_set_u32 nvs_set_u32\n#define backup_nvs_set_str nvs_set_str\n#define settings_backup_commit nvs_commit\n'
 unit+=next(line for line in (ROOT/'main/settings.h').read_text().splitlines() if line.startswith('#define APP_SLEEP_OFF_HOURS_DEFAULT '))+'\n'
 for name,path in [('sleep_policy_load','main/settings.c'),('app_settings_set_sleep_off_hours','main/settings.c'),('lock_restore_key_wake','boards/metalio47/src/main/sleep.c')]:unit+=function(name,ROOT/path)+'\n'
 assert 'sleep_policy_load();' in function('app_settings_init',ROOT/'main/settings.c')

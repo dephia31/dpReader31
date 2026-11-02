@@ -87,6 +87,7 @@ static int nvs_set_u8(int h,const char *key,uint8_t v){(void)h;assert(!strcmp(ke
 static int nvs_commit(int h){assert(h==1);return op();}
 static void nvs_close(int h){assert(h==1);++closed;}
 '''
+persist+='\n#define backup_nvs_open nvs_open\n#define backup_nvs_set_u8 nvs_set_u8\n#define backup_nvs_set_u32 nvs_set_u32\n#define backup_nvs_set_str nvs_set_str\n#define settings_backup_commit nvs_commit\n'
 for name in ['app_settings_action_menu','app_settings_set_action_menu','app_settings_power_action_menu','app_settings_set_power_action_menu','app_settings_ai_short','app_settings_set_ai_short']:persist+=function(name,ROOT/'main/settings.c')+'\n'
 persist+=r'''
 int main(void){

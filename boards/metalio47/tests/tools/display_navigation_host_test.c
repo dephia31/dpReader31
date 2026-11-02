@@ -308,7 +308,7 @@ int main(void) {
         assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);assert(full_calls==1&&power_ons==2);
     }
     // 设置/文件根页在三种全局模式下仅用DU20；清除灰区许可、保留底栏且不积累强刷。
-    // Settings/Files roots use only DU20 in all global modes, clearing gray bands while retaining navigation without cleanup debt.
+    // Settings/Files roots use DU20 between periodic whole-screen cleanup passes in all global modes.
     for(int mode=APP_MAIN_REFRESH_NORMAL;mode<=APP_MAIN_REFRESH_WATER;++mode){
         reset();main_mode=mode;
         for(int step=0;step<30;++step){
@@ -322,7 +322,8 @@ int main(void) {
             display_main_transition_monochrome();
             display_main_transition_gray_bands(acrylic,3);
             assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
-            assert(calls==step+1&&bw_calls==calls&&!gray_calls&&!allocations&&!water_calls&&!full_calls&&!nav_draws);
+            int cleanups=(step+1)/APP_UI_GC16_EVERY;
+            assert(calls==step+1&&bw_calls==calls-cleanups&&gray_calls==cleanups&&!allocations&&!water_calls&&full_calls==cleanups&&nav_draws==cleanups);
         }
         // 只规整front，重复调用幂等；back/panel和底栏必须保持，其他旋转不处理。
         // Front-only normalization is idempotent, preserving back/panel/navigation and ignoring unsupported rotations.

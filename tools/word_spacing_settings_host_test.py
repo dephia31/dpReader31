@@ -18,6 +18,7 @@ static int nvs_commit(int h){(void)h;if(fault==3)return -1;stored=pending;return
 static void nvs_close(int h){(void)h;}
 typedef struct {uint8_t encoded,checksum[4];} settings_backup_indent_adjust_t;
 '''
+u+='\n#define backup_nvs_open nvs_open\n#define backup_nvs_set_u8 nvs_set_u8\n#define backup_nvs_set_u32 nvs_set_u32\n#define backup_nvs_set_str nvs_set_str\n#define settings_backup_commit nvs_commit\n'
 for n in ['app_settings_book_word_spacing','app_settings_set_book_word_spacing','backup_indent_adjust_checksum','backup_indent_adjust_valid','backup_word_spacing_valid']:u+=function(n,r/'main/settings.c')+'\n'
 u+=r'''
 int main(void){

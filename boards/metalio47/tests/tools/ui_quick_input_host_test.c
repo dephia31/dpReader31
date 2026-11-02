@@ -54,8 +54,8 @@ int main(void){
  assert(feed(572,224,0,false,true,true,true)==UI_QUICK_NONE&&menu.open);
  assert(feed(572,104,1,true,false,true,true)==UI_QUICK_WARMTH&&menu.slider_value==100);
  ui_quick_menu_cancel_input(&menu);assert(feed(572,104,0,false,true,true,true)==UI_QUICK_NONE&&menu.open);
- for(int i=0;i<4;i++) {
-  static const ui_quick_action_t actions[]={UI_QUICK_WIFI,UI_QUICK_BLUETOOTH,UI_QUICK_FULL,UI_QUICK_FRONTLIGHT};
+ for(int i=0;i<UI_QUICK_BUTTON_COUNT;i++) {
+  static const ui_quick_action_t actions[]={UI_QUICK_WIFI,UI_QUICK_BLUETOOTH,UI_QUICK_KOSYNC,UI_QUICK_FULL,UI_QUICK_FRONTLIGHT};
   feed(UI_QUICK_CENTER_X(i),UI_QUICK_CENTER_Y(i),1,true,false,true,true);
   assert(feed(UI_QUICK_CENTER_X(i),UI_QUICK_CENTER_Y(i),0,false,true,true,true)==actions[i]);
  }
