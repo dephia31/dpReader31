@@ -37,4 +37,15 @@ assert len(blocks) == len(icons.ICONS)
 for name, block in zip(icons.ICONS, blocks):
     actual = bytes.fromhex(''.join(re.findall(r'0x([0-9a-fA-F]{2})', block)))
     assert actual == bytes(icons.pack_4bpp(icons.render_icon(name))), name
+# Simulate subpixel libc differences at the arc-to-device boundary.
+subpaths = icons.element_subpaths
+for name in icons.ICONS:
+    stable = bytes(icons.pack_4bpp(icons.render_icon(name)))
+    for epsilon in (-1e-12, 1e-12):
+        def perturbed(tag, attrs):
+            return [([(x + epsilon, y - epsilon) for x, y in points], closed)
+                    for points, closed in subpaths(tag, attrs)]
+        icons.element_subpaths = perturbed
+        assert stable == bytes(icons.pack_4bpp(icons.render_icon(name))), name
+        icons.element_subpaths = subpaths
 print(f"PASS: SVG numeric coordinates, visible bookmark plus, no corner dot, {len(blocks)} generated masks")

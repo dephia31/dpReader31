@@ -3,6 +3,7 @@
 """中文：用独立逐像素预期验证双板真实差分边界。/ English: Check both real difference implementations against a pixel oracle."""
 from pathlib import Path
 import argparse
+import json
 import subprocess
 import tempfile
 
@@ -91,7 +92,9 @@ int main(void){
 '''
 
 def run(board, directory, negative=False):
-    source = (ROOT/f'boards/{board}/src/components/epdiy/src/render.c').read_text()
+    path=ROOT/f'boards/{board}/src/components/epdiy/src/render.c'
+    if (ROOT/'.kiiko-source-view.json').exists():path=ROOT/'components/epdiy/src/render.c'
+    source = path.read_text()
     start = source.index('__attribute__((optimize("O3"))) static inline int _interlace_line_unaligned(')
     end = source.index('\nEpdRect epd_difference_image(\n', start)
     functions = source[start:end]
@@ -117,6 +120,9 @@ if __name__=='__main__':
     args=parser.parse_args()
     with tempfile.TemporaryDirectory() as temp:
         directory=Path(temp);(directory/'esp_attr.h').write_text('#define IRAM_ATTR\n')
-        for board in ('pico','metalio47'):
+        marker=ROOT/'.kiiko-source-view.json'
+        boards=[json.loads(marker.read_text())['board']] if marker.exists() else [b for b in ('pico','metalio47') if (ROOT/f'boards/{b}/src/components/epdiy/src/render.c').is_file()]
+        assert boards, 'No maintained board render source'
+        for board in boards:
             run(board,directory)
             if args.check_regression:run(board,directory,True)

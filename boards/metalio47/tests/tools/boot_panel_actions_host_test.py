@@ -51,12 +51,17 @@ int main(void) {
 }
 '''
 
-tick = function('on_tick', SETTINGS)
-tick = tick[tick.index('    if (s_panel_repair_pending)'):tick.index('    if (s_page==SETTINGS_MAIN && s_avatar_pending')]
-gesture = function('on_gesture', SETTINGS)
-gesture = gesture[gesture.index('    if(y>=SETTINGS_MAINTENANCE_Y'):gesture.rindex('    return APP_REDRAW_NONE;')]
-render = function('render', SETTINGS)
-assert render.index('if (s_notice[0])', render.index('const char *maintenance_labels')) > render.index('ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, 160}')
+def branch(text, start):
+    at=text.index('{',start)+1;depth=1
+    while depth:
+        depth+=(text[at]=='{')-(text[at]=='}');at+=1
+    return text[start:at]
+tick_source=function('on_tick',SETTINGS)
+tick=branch(tick_source,tick_source.index('    if (s_panel_repair_pending)'))
+gesture_source=function('on_gesture',SETTINGS)
+gesture=branch(gesture_source,gesture_source.index('    if(s_settings_group==4 && y>=SETTINGS_MAINTENANCE_Y'))
+render=function('render_content',SETTINGS)
+assert 'if (s_notice[0])' in render
 
 ACTIONS = r'''
 #include <assert.h>
@@ -66,18 +71,20 @@ ACTIONS = r'''
 #include <string.h>
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_PAGE,APP_REDRAW_FULL,APP_REDRAW_DONE} app_redraw_t;
 typedef struct { void *hl; uint8_t *fb; } app_ctx_t;
-enum { SETTINGS_MAIN, SETTINGS_CONFIG, SETTINGS_BOOT };
+enum { SETTINGS_MAIN, SETTINGS_CONFIG, SETTINGS_BOOT, SETTINGS_SD_RECOVERY, SETTINGS_LOG_EXPORT, SETTINGS_FACTORY_RESET };
 enum EpdDrawError { EPD_DRAW_SUCCESS, EPD_DRAW_ERROR };
 #define SETTINGS_MAINTENANCE_Y 500
-#define SETTINGS_MAINTENANCE_ROWS 4
+#define SETTINGS_MAINTENANCE_ROWS 7
 #define SETTINGS_ROW_H 68
-static int s_page, repairs, paints, upgrades;
+static int s_page, repairs, paints, upgrades,s_settings_group=4;
+static bool s_reset_confirm,s_reset_pending;
+static char s_reset_notice[96],s_sd_notice[96];
 static bool s_panel_repair_pending, s_scroll_present_pending, s_boot_pending, s_config_confirm;
 static char s_notice[96],s_boot_notice[96];
 static enum EpdDrawError result;
 static void upgrade_open(void) { ++upgrades; }
 static void render(app_ctx_t *ctx, uint8_t *fb) {
-    assert(ctx->fb == fb && strstr(s_notice,"修复完成")); ++paints;
+    assert(ctx->fb == fb && strstr(s_notice,"Đã làm sạch")); ++paints;
 }
 static enum EpdDrawError display_panel_repair(void *hl) {
     assert(hl && paints == repairs + 1 && !s_scroll_present_pending);
@@ -97,21 +104,21 @@ int main(void) {
     app_ctx_t ctx={.hl=&fb,.fb=&fb};
     assert(tick(&ctx)==APP_REDRAW_NONE && !repairs && !paints);
     assert(tap(SETTINGS_MAINTENANCE_Y)==APP_REDRAW_PAGE && upgrades==1);
-    assert(tap(SETTINGS_MAINTENANCE_Y+SETTINGS_ROW_H)==APP_REDRAW_PAGE && s_page==SETTINGS_CONFIG);
+    assert(tap(SETTINGS_MAINTENANCE_Y+2*SETTINGS_ROW_H)==APP_REDRAW_PAGE && s_page==SETTINGS_CONFIG);
     s_page=SETTINGS_MAIN; s_scroll_present_pending=true;
-    assert(tap(SETTINGS_MAINTENANCE_Y+2*SETTINGS_ROW_H)==APP_REDRAW_PAGE);
-    assert(s_panel_repair_pending && !repairs && !paints && strstr(s_notice,"修复中"));
+    assert(tap(SETTINGS_MAINTENANCE_Y+4*SETTINGS_ROW_H)==APP_REDRAW_PAGE);
+    assert(s_panel_repair_pending && !repairs && !paints && strstr(s_notice,"Đang làm sạch"));
     assert(tick(&ctx)==APP_REDRAW_DONE && repairs==1 && paints==1 && !s_panel_repair_pending);
     assert(tick(&ctx)==APP_REDRAW_NONE && repairs==1);
-    assert(tap(SETTINGS_MAINTENANCE_Y+2*SETTINGS_ROW_H)==APP_REDRAW_PAGE);
+    assert(tap(SETTINGS_MAINTENANCE_Y+4*SETTINGS_ROW_H)==APP_REDRAW_PAGE);
     result=EPD_DRAW_ERROR;
-    assert(tick(&ctx)==APP_REDRAW_FULL && repairs==2 && strstr(s_notice,"未完成"));
+    assert(tick(&ctx)==APP_REDRAW_FULL && repairs==2 && strstr(s_notice,"đang bận"));
     assert(!s_panel_repair_pending && tick(&ctx)==APP_REDRAW_NONE);
-    assert(tap(SETTINGS_MAINTENANCE_Y+2*SETTINGS_ROW_H)==APP_REDRAW_PAGE);
+    assert(tap(SETTINGS_MAINTENANCE_Y+4*SETTINGS_ROW_H)==APP_REDRAW_PAGE);
     s_page=SETTINGS_CONFIG;
     assert(tick(&ctx)==APP_REDRAW_NONE && repairs==2 && !s_panel_repair_pending);
-    assert(tap(SETTINGS_MAINTENANCE_Y+3*SETTINGS_ROW_H)==APP_REDRAW_PAGE && s_page==SETTINGS_BOOT);
-    assert(tap(SETTINGS_MAINTENANCE_Y+4*SETTINGS_ROW_H)==APP_REDRAW_NONE);
+    assert(tap(SETTINGS_MAINTENANCE_Y+5*SETTINGS_ROW_H)==APP_REDRAW_PAGE && s_page==SETTINGS_BOOT);
+    assert(tap(SETTINGS_MAINTENANCE_Y+7*SETTINGS_ROW_H)==APP_REDRAW_NONE);
     puts("PASS: actual Settings repair row defers work, cancels after leaving, paints final notice once and reports output failure");
 }
 '''

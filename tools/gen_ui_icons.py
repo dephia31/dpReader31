@@ -511,7 +511,8 @@ def render_icon(name: str) -> Image.Image:
         for points, closed in element_subpaths(tag, attrs):
             if not points:
                 continue
-            device = [(px * scale, py * scale) for px, py in points]
+            # Stabilize libc arc rounding before Pillow converts floats to pixel coordinates.
+            device = [(round(px * scale, 6), round(py * scale, 6)) for px, py in points]
             if len(device) == 1 or (
                 len(device) == 2
                 and math.dist(device[0], device[1]) < radius

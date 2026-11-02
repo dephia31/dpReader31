@@ -125,7 +125,7 @@ int main(void){
   assert(stored_para==app_settings_book_paragraph_spacing());
  }
  for(int target=0;target<APP_BOOK_PARAGRAPH_COUNT;++target){
-  int x=para.x+64+(target*(para.width-128)+5)/10;
+  int x=para.x+64+(target*(para.width-128)+(APP_BOOK_PARAGRAPH_COUNT-1)/2)/(APP_BOOK_PARAGRAPH_COUNT-1);
   if(x>=para.x+para.width-64)x=para.x+para.width-65;
   reader_slider_begin(3,x);reader_slider_commit(&ctx);
   assert(s_book_para==app_settings_book_paragraph_value(target)&&stored_para==s_book_para);
@@ -145,7 +145,7 @@ int main(void){
  reader_slider_begin(2,648);assert(s_reader_preview_line==131);
  reader_slider_begin(2,354);assert(s_reader_preview_line==129);
  assert(invalidations&&saves&&writes);
- puts("PASS: actual press/drag/commit for all 31 tracking and 11 paragraph stops, endpoint bounds, NVS encoding, anchored reflow and unchanged saved spacing on reflow failure");
+ puts("PASS: actual press/drag/commit for all 31 tracking and 12 paragraph stops, endpoint bounds, NVS encoding, anchored reflow and unchanged saved spacing on reflow failure");
 }
 '''
 with tempfile.TemporaryDirectory() as directory:

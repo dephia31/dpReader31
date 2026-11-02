@@ -45,19 +45,19 @@ unit += r'''
 int main(void){
  assert(visible_rows()==7);
  assert(tap(100,900,false)==1&&book_saves==1&&changed==1&&!scans);
- assert(!strcmp(book_path,s_dir)&&strstr(s_message,"已设为书籍目录"));
+ assert(!strcmp(book_path,s_dir)&&strstr(s_message,"Đã đặt làm thư mục sách"));
  assert(tap(500,900,false)==1&&font_saves==1&&scans==1&&!strcmp(font_path,s_dir));
  assert(s_counts[0]==13&&s_counts[2]==7);
  assert(!tap(100,874,false)&&!tap(100,951,false)&&!tap(100,1030,false)&&!tap(100,900,true));
- s_folder=0;assert(visible_rows()==8&&!tap(100,900,false));
+ s_folder=0;assert(visible_rows()==7&&!tap(100,900,false));
  s_view=FILE_VIEW_MOVE;assert(visible_rows()==7);s_view=FILE_VIEW_LIST;s_folder=3;
  int saves=book_saves+font_saves;
  snprintf(s_dir,sizeof(s_dir),"/sdcard");assert(tap(100,900,false)==1&&saves==book_saves+font_saves);
  snprintf(s_dir,sizeof(s_dir),"/sdcard/library");exists=false;assert(tap(500,900,false)==1&&saves==book_saves+font_saves);
  exists=true;is_dir=false;assert(tap(100,900,false)==1&&saves==book_saves+font_saves);
  is_dir=true;save_ok=false;int notified=changed+scans;
- assert(tap(100,900,false)==1&&strstr(s_message,"保存失败")&&changed+scans==notified);
- assert(tap(500,900,false)==1&&strstr(s_message,"保存失败")&&changed+scans==notified);
+ assert(tap(100,900,false)==1&&strstr(s_message,"Lưu thất bại")&&changed+scans==notified);
+ assert(tap(500,900,false)==1&&strstr(s_message,"Lưu thất bại")&&changed+scans==notified);
  puts("PASS: actual custom-root buttons validate folders, notify books/fonts only after saving, preserve seven rows and do not overlap pagination");
 }
 '''

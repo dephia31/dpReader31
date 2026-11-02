@@ -94,8 +94,8 @@ int main(void){
  memset(pixels,240,sizeof(pixels));ui_pager_draw(pixels,"0本书 · 01/01",0,1,true,-1);for(int a=0;a<4;++a)assert(!ink_in(ui_pager_rect(a)));check_outside();
  app_ctx_t ctx={pixels,NULL};s_view=FILE_VIEW_LIST;s_folder=-1;s_count=96;s_page=5;
  assert(file_pager_pages()==20);tap(&ctx,UI_PAGER_FIRST,0);tap(&ctx,UI_PAGER_PREVIOUS,0);tap(&ctx,UI_PAGER_NEXT,1);tap(&ctx,UI_PAGER_LAST,19);tap(&ctx,UI_PAGER_NEXT,19);tap(&ctx,UI_PAGER_PREVIOUS,18);
- assert(strstr(drawn_label,"共 20 页"));s_folder=3;assert(visible_rows()==7);
- s_folder=0;s_page=2;assert(file_pager_pages()==12);tap(&ctx,UI_PAGER_LAST,11);
+ assert(strstr(drawn_label," / 20"));s_folder=3;assert(visible_rows()==7);
+ s_folder=0;s_page=2;assert(file_pager_pages()==14);tap(&ctx,UI_PAGER_LAST,13);
  s_folder=3;s_view=FILE_VIEW_MOVE;s_page=1;assert(file_pager_pages()==14);tap(&ctx,UI_PAGER_LAST,13);tap(&ctx,UI_PAGER_FIRST,0);
  {
   assert(file_pager_top()==1006&&file_action_rect(0).y==875);
@@ -125,7 +125,7 @@ with tempfile.TemporaryDirectory() as folder:
     subprocess.run([str(exe)],check=True)
 
 file_source=files.read_text()
-assert '设为书籍目录' in file_source and '设为字体目录' in file_source
+assert 'Đặt làm thư mục sách' in file_source and 'Đặt làm thư mục phông' in file_source
 assert 'app_settings_set_books_dir' in file_source and 'app_settings_set_fonts_dir' in file_source
 assert 'return (end-214)/88;' in file_source
 assert '214 + row * 88' in file_source and file_source.count('(ev->y0 - 214) / 88')==2

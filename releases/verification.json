@@ -5,7 +5,7 @@
   "project": "Kiikoread_Metalio_S31",
   "version": "1.2.7-vn",
   "size": 4468400,
-  "sha256": "8ef6bb47bbb829c9b7187ca3c46b4db6978c9129bda204188211005dcbbfb249",
+  "sha256": "1273309cd258a2605dab71c5690fadaf681e45cc60b26420798acf06ac84cd5f",
   "partitions": {
     "nvs": [
       1,
