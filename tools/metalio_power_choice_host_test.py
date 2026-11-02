@@ -6,17 +6,14 @@ import os
 
 root = Path(__file__).resolve().parents[1]
 source = (root / 'main/apps/app_device_settings.c').read_text()
-# The maintained source still includes the Pico alternative; generated views omit it.
-start = source.index('    if (s_page == SETTINGS_POWER_SLEEP) {')
-end = source.find('\n#else', start)
-if end < 0:
-    end = source.index('    if (s_page == SETTINGS_BOOT)', start)
-paint = source[start:end]
-start = source.index('    if (s_page == SETTINGS_POWER_SLEEP) {', source.index('static app_redraw_t on_gesture'))
-end = source.find('\n#else', start)
-if end < 0:
-    end = source.index('    if (s_page == SETTINGS_CONFIG)', start)
-tap = source[start:end]
+# Extract exactly one branch, including in a preprocessed board view.
+def branch(start):
+    opening=source.index('{',start);depth=1;at=opening+1
+    while depth:
+        depth+=(source[at]=='{')-(source[at]=='}');at+=1
+    return source[start:at]
+paint=branch(source.index('    if (s_page == SETTINGS_POWER_SLEEP) {'))
+tap=branch(source.index('    if (s_page == SETTINGS_POWER_SLEEP) {',source.index('static app_redraw_t on_gesture')))
 assert 'SETTINGS_LOCK_SLEEP' not in source
 assert 'Sleep sau 5 phút' not in paint and 'Sleep sau 10 phút' not in paint
 assert 'app_settings_set_auto_lock_minutes' not in tap

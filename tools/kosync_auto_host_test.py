@@ -56,7 +56,8 @@ static const char *app_settings_kosync_user(void){return "test";}
 static const char *esp_err_to_name(int e){(void)e;return "test";}
 static int xTaskCreate(void (*fn)(void*),const char *name,int stack,void *arg,int priority,void *out){
  (void)name;(void)stack;(void)arg;(void)priority;(void)out;assert(!depth);++starts;
- if(creates_fail)return 0;worker=fn;return pdPASS;
+ if(creates_fail){return 0;}
+ worker=fn;return pdPASS;
 }
 static esp_err_t kosync_verify_account_impl(bool r,char *m,size_t c){(void)r;(void)m;(void)c;assert(!depth);++calls;return ESP_OK;}
 static esp_err_t kosync_push_book_progress_impl(const char *p,const book_progress_t *v,double r,char *m,size_t c){

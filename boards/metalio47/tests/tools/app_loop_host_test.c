@@ -126,9 +126,11 @@ enum EpdDrawError update_display_area_diff_with(EpdiyHighlevelState*h,const void
                a.height>0&&a.height<=236&&a.y>=106&&a.y+a.height<=342);
         ++slider_partial_draws;
     }
+    if(a.width!=UI_QUICK_SLIDER_WIDTH-4&&a.y>=76&&a.y<344&&a.x<=UI_QUICK_SLIDER_X(false)+2&&a.x+a.width>=UI_QUICK_SLIDER_X(false)+UI_QUICK_SLIDER_WIDTH-2&&m==MODE_DU)++slider_partial_draws;
+    if(a.width!=96&&a.y>=76&&a.y<344&&a.x<348&&m==MODE_DU)++button_partial_draws;
     if(a.width==96) {
         assert(w==&E0470_FOLLOW_WAVEFORM&&m==MODE_DU&&a.height==96);
-        assert((a.x==52||a.x==196)&&(a.y==104||a.y==236));
+        bool match=false;for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i)if(a.x==UI_QUICK_CENTER_X(i)-48&&a.y==UI_QUICK_CENTER_Y(i)-48)match=true;assert(match);
         ++button_partial_draws;
     }
     return update_display_area_with(h,w,m,a);
@@ -159,6 +161,7 @@ unsigned metalio_frontlight_position(bool warmth) {return warmth?light_warmth_po
 void metalio_frontlight_preview(unsigned b,unsigned w) {assert(b<=100&&w<=100);light_brightness=b;light_warmth=w;light_dirty=true;++light_previews;if(b)last_on=b;}
 void metalio_frontlight_preview_position(unsigned b,unsigned w) {assert(b<=240&&w<=240);metalio_frontlight_preview((b*100+120)/240,(w*100+120)/240);light_brightness_position=b;light_warmth_position=w;}
 void metalio_frontlight_commit(void) {if(light_dirty){++light_saves;light_dirty=false;}}
+void metalio_frontlight_adjust_position(bool warm,unsigned value){if(!warm&&value)light_enabled=true;metalio_frontlight_preview_position(warm?metalio_frontlight_position(false):value,warm?value:metalio_frontlight_position(true));}
 void metalio_frontlight_toggle(void) {light_enabled=!light_enabled;if(light_enabled&&!light_brightness){light_brightness=last_on;light_brightness_position=last_on*240/100;}light_dirty=true;metalio_frontlight_commit();}
 esp_err_t metalio_haptic_click(void) {++haptics;return ESP_OK;}
 static int ai_second_step=-1,ai_second_event;
@@ -195,7 +198,7 @@ void ble_pt_cancel_recent(void){++recent_cancels;}
 void ui_quick_menu_draw_status(uint8_t *fb){(void)fb;++status_draws;}
 void ui_quick_menu_end(void){}
 bool ui_quick_menu_restore(uint8_t *fb){fb[0]=0x11;return true;}
-bool ui_quick_menu_draw_button(uint8_t *fb,unsigned index,bool enabled,bool pressed,EpdRect *dirty) {(void)fb;(void)pressed;assert(index<4);assert(enabled==(index==0?transfer_status.mode==READ_PICO_TRANSFER_MODE_STA&&transfer_status.state!=READ_PICO_TRANSFER_STOPPED:index==1?ble_enabled:index==3?light_enabled:false));*dirty=(EpdRect){UI_QUICK_CENTER_X(index)-48,UI_QUICK_CENTER_Y(index)-48,96,96};++button_draws;return true;}
+bool ui_quick_menu_draw_button(uint8_t *fb,unsigned index,bool enabled,bool pressed,EpdRect *dirty) {(void)fb;(void)pressed;assert(index<UI_QUICK_BUTTON_COUNT);assert(enabled==(index==0?transfer_status.mode==READ_PICO_TRANSFER_MODE_STA&&transfer_status.state!=READ_PICO_TRANSFER_STOPPED:index==1?ble_enabled:index==4?light_enabled:false));*dirty=(EpdRect){UI_QUICK_CENTER_X(index)-48,UI_QUICK_CENTER_Y(index)-48,96,96};++button_draws;return true;}
 
 EpdRect ui_quick_button_rect(unsigned index) {return (EpdRect){UI_QUICK_CENTER_X(index)-46,UI_QUICK_CENTER_Y(index)-46,93,93};}
 EpdRect ui_quick_slider_change_rect(bool warmth,unsigned before,unsigned after) {int a=240-(int)before,b=240-(int)after,t=a<b?a:b,z=a>b?a:b;if(t<2)t=2;if(t>238)t=238;if(z<2)z=2;if(z>238)z=238;return (EpdRect){UI_QUICK_SLIDER_X(warmth)+2,104+t,112,z>t?z-t:0};}
@@ -653,7 +656,7 @@ int main(void) {
     assert(!wifi_starts&&!wifi_stops&&!touch_calls);
     assert(quick_opens==1&&button_partial_draws==2&&quick_draws==1);
     reset();add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    add(244,152,1,0);add(0,0,0,0);add(244,152,1,0);add(0,0,0,0);run();
+    add(186,152,1,0);add(0,0,0,0);add(186,152,1,0);add(0,0,0,0);run();
     assert(!ble_enabled&&!ble_resets&&recent_requests==1&&recent_cancels==1&&!touch_calls);
     assert(quick_opens==1&&quick_draws==1&&button_partial_draws==4&&status_partial_draws==2&&status_draws==2&&button_draws==4);
     reset();first.on_before_lock=before_lock;
@@ -689,12 +692,12 @@ int main(void) {
     reset();light_enabled=false;time_step=100000;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
     add(426,104,1,0);add(0,0,0,0);add(572,104,1,0);add(0,0,0,0);run();
-    assert(!light_enabled&&light_brightness==100&&light_warmth==100&&light_saves==2&&!touch_calls);
+    assert(light_enabled&&light_brightness==100&&light_warmth==100&&light_saves==2&&!touch_calls);
     assert(slider_partial_draws==2&&!slider_forced_draws);
     reset();time_step=100000;light_enabled=false;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
     add(426,342,1,0);add(426,341,1,0);add(0,0,0,0);add(0,0,0,0);run();
-    assert(!light_enabled&&light_brightness_position==1&&light_previews==1&&light_saves==1);
+    assert(light_enabled&&light_brightness_position==1&&light_previews==1&&light_saves==1);
     assert(slider_draws==2&&slider_partial_draws==2&&!slider_forced_draws);
     reset();time_step=100000;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
@@ -863,16 +866,16 @@ int main(void) {
     reset();enable_main_tabs();menu_on_tick=true;volume_step=1;volume_value=1;
     add(0,0,0,0);add(0,0,0,0);run();assert(volume_tab==-1&&!keys[2]);
     // 每次展开/收起仅一次区域推屏；选择只保存不执行，不穿透底页。
-    // One bounded presentation per open/close; selection only persists and never leaks to the page.
+    // One bounded presentation per open/close; selection executes once without changing the saved shortcut or leaking to the page.
     reset();ai_step=1;ai_event=METALIO_AI_LONG;
     add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
     assert(ai_open_calls==1&&!ai_restore_calls&&gl_areas==1&&fulls==1&&ticks==1);
     reset();ai_step=1;ai_event=METALIO_AI_LONG;
     add(0,0,0,0);add(0,0,0,0);add(600,500,1,0);add(0,0,0,0);run();
-    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==1&&ai_saved==APP_AI_FRONTLIGHT&&!light_saves&&!touch_calls&&!keys[0]&&fulls==2);
+    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==1&&ai_saved==APP_AI_REFRESH&&light_saves==1&&!touch_calls&&!keys[0]&&fulls==2);
     reset();ai_step=1;ai_event=METALIO_AI_LONG;ai_saved_error=1;
     add(0,0,0,0);add(0,0,0,0);add(600,500,1,0);add(0,0,0,0);run();
-    assert(ai_open_calls==1&&!ai_restore_calls&&gl_areas==2&&ai_saved==APP_AI_REFRESH&&!touch_calls);
+    assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==1&&ai_saved==APP_AI_REFRESH&&light_saves==1&&!touch_calls);
     reset();ai_step=1;ai_event=METALIO_AI_LONG;ai_oom=true;
     add(0,0,0,0);add(0,0,0,0);run();assert(!ai_open_calls&&!gl_areas&&fulls==1);
     reset();ai_step=1;ai_event=METALIO_AI_SHORT;
@@ -914,7 +917,7 @@ int main(void) {
     reset();ai_step=1;ai_event=METALIO_AI_LONG;time_step=30000000;idle_minutes=1;
     for(int i=0;i<5;++i)add(0,0,0,0);run();
     assert(ai_open_calls==1&&ai_restore_calls==1&&gl_areas==1&&fulls==2&&idle_locks==1);
-    puts("PASS: actual AI scheduler one open/close scan,underlay frozen,selection persists without executing,save/OOM fallback,short full/light actions and upload/update/PMU/online guards");
+    puts("PASS: actual AI scheduler one open/close scan,underlay frozen,selection executes once without saving,OOM fallback,short full/light actions and upload/update/PMU/online guards");
     puts("PASS: actual S31 volume events cycle all four roots, retain page-owned reader/child keys and reject online/power/menu input");
     puts("app_loop: 50 scheduler scenarios passed, including automatic lock, save callback, input reset and busy guards");
     return 0;
@@ -946,3 +949,9 @@ int nvs_get_u8(nvs_handle_t h,const char* key,uint8_t* v){(void)h;(void)key;*v=a
 int nvs_set_u8(nvs_handle_t h,const char* key,uint8_t v){(void)h;(void)key;af_store=v;return 0;}
 int nvs_commit(nvs_handle_t h){(void)h;return 0;}
 void nvs_close(nvs_handle_t h){(void)h;}
+
+/* Dependencies added to idle/status routes; inactive in scheduler scenarios. */
+const app_desc_t app_device_settings={0};
+bool ble_pt_connecting(void){return false;}
+void crash_report_poll(bool force){(void)force;}
+EpdRect ui_quick_menu_draw_notice(uint8_t*fb,const char*text){(void)fb;(void)text;return (EpdRect){24,348,636,34};}

@@ -14,7 +14,8 @@
 #include "app_config.h"
 #include "settings.h"
 #include "e0470_epaper_waveform.h"
-app_main_refresh_mode_t app_settings_main_refresh_mode(void) {return APP_MAIN_REFRESH_NORMAL;}
+static bool test_fast;
+app_main_refresh_mode_t app_settings_main_refresh_mode(void) {return test_fast?APP_MAIN_REFRESH_FAST:APP_MAIN_REFRESH_NORMAL;}
 // 所有真实推屏和欠载恢复都必须持有 OTA 互斥锁，包括递归兜底。
 // Every physical scan and underrun recovery must hold OTA exclusion, including recursive fallback.
 uint8_t app_settings_reader_turn_effect(void){return 0;}
@@ -29,7 +30,7 @@ void e0470_page_turn_release(void) {}
 static int turn_tick_us = 21000;
 void e0470_page_turn_set_tick_us(int us) { turn_tick_us = us; }
 int e0470_page_turn_tick_us(void) { return turn_tick_us; }
-bool app_settings_main_fast_refresh(void) {return false;}
+bool app_settings_main_fast_refresh(void) {return test_fast;}
 int epd_width(void) {return 1216;}
 int epd_height(void) {return 684;}
 enum EpdRotation epd_get_rotation(void) {return EPD_ROT_INVERTED_PORTRAIT;}
@@ -236,6 +237,7 @@ int main(void) {
 
     // 普通子页面一次输出柔和灰阶，第三次不驱动整页，达到原阈值仍用原表GC16。
     // Ordinary subpages use one soft-gray difference without third-page full output, retaining original-table GC16 at the threshold.
+    assert(update_display_full(&hl)==EPD_DRAW_SUCCESS); /* Start a new cleanup interval. */
     now_us += APP_UI_GC16_MIN_INTERVAL_US;
     for (int i = 0; i < APP_UI_FAST_GC16_EVERY - 1; ++i) {
         front[0]^=1;target[0]=front[0];
@@ -243,7 +245,7 @@ int main(void) {
         assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
         assert(last_mode == MODE_GL16 && last_scan == READ_PICO_EPD_SCAN_FULL);
         assert(waveform_at_draw == &soft_gray && hl.waveform == &E0470_WAVEFORM);
-        assert(full_draws == prior_full);
+        assert(full_draws == prior_full + (((i+1)%APP_UI_FAST_GL16_SETTLE_EVERY)==0));
     }
     front[0]^=1;target[0]=front[0];
     assert(update_display_fast_page(&hl) == EPD_DRAW_SUCCESS);
@@ -267,7 +269,7 @@ int main(void) {
         assert(update_display_image_gray(&hl)==EPD_DRAW_SUCCESS);
         assert(draws==before+1 && last_mode==MODE_GC16 && waveform_at_draw==&E0470_FULL_WAVEFORM);
         assert(correct_target_at_draw && !memcmp(front,target,FB_BYTES));
-        assert(display_system_binary_set(false)==(bool)binary);
+        assert(display_system_binary_set(false)==((bool)binary&&test_fast));
         assert(display_system_navigation_set(false)==(bool)nav);
     }
 
@@ -282,7 +284,7 @@ int main(void) {
         assert(update_display_reader_panel_fast(&hl,panel_area)==EPD_DRAW_SUCCESS);
         assert(last_mode==MODE_GL16&&waveform_at_draw==&panel37_wave&&full_draws==prior_full);
         assert(last_scan==READ_PICO_EPD_SCAN_FULL&&correct_target_at_draw&&!memcmp(front,target,FB_BYTES));
-        assert(display_system_binary_set(false)==(bool)binary&&display_system_navigation_set(false)==(bool)nav);
+        assert(display_system_binary_set(false)==((bool)binary&&test_fast)&&display_system_navigation_set(false)==(bool)nav);
     }
     assert(update_display_reader_panel(&hl,panel_area)==EPD_DRAW_SUCCESS&&waveform_at_draw==&E0470_WAVEFORM);
     panel37_available=false;
@@ -302,7 +304,7 @@ int main(void) {
         assert(update_display_reader_panel_gray4(&hl,panel_area,entry)==EPD_DRAW_SUCCESS&&waveform_at_draw==(entry?&panel4_entry_wave:&panel4_wave)&&last_mode==MODE_GL16);
         assert(correct_target_at_draw&&!memcmp(front,target,FB_BYTES)&&last_scan==READ_PICO_EPD_SCAN_FULL);
         assert(panel_entry_batches==prior_batches+(int)entry);
-        assert(display_system_binary_set(false)==(bool)binary&&display_system_navigation_set(false)==(bool)nav);
+        assert(display_system_binary_set(false)==((bool)binary&&test_fast)&&display_system_navigation_set(false)==(bool)nav);
     }
     next_draw_error=EPD_DRAW_OTHER_ERROR;
     assert(update_display_reader_panel_gray4(&hl,panel_area,true)==EPD_DRAW_OTHER_ERROR);
@@ -445,6 +447,7 @@ int main(void) {
     // 所有系统局部入口统一二值目标/DU20，整页计数不能偷偷改回灰阶。
     // All scoped local entries share binary targets/DU20; page counters cannot silently restore grays.
     no_change=false;next_draw_error=EPD_DRAW_SUCCESS;water_result=EPD_DRAW_SUCCESS;
+    test_fast=true;
     assert(!display_system_binary_set(true));
     int binary_clears=clears,binary_fulls=full_draws;
     for(int step=0;step<80;++step){
