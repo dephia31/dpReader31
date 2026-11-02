@@ -87,8 +87,8 @@
 
 | Tệp nhị phân | Kích thước | Mục đích sử dụng | Địa chỉ / Đường dẫn |
 | :--- | :--- | :--- | :--- |
-| **[`releases/dpReader_metalio47_firmware.bin`](releases/dpReader_metalio47_firmware.bin)** | `~3.82 MB` | Dùng để **cập nhật qua thẻ nhớ MicroSD** (từ ROM gốc hoặc từ `dpReader`) hoặc nạp nhanh phân vùng `ota_0`. | Thẻ nhớ SD hoặc `0x10000` |
-| **[`releases/dpReader_metalio47_full.bin`](releases/dpReader_metalio47_full.bin)** | `~3.88 MB` | File gộp toàn bộ 4 phân vùng (`bootloader` + `partition-table` + `otadata` + `firmware`) để nạp mới hoàn toàn hoặc cứu máy qua cáp USB-C. | `0x0` |
+| **[`releases/dpReader_metalio47_firmware.bin`](releases/dpReader_metalio47_firmware.bin)** | `4.47 MB` | Dùng để **cập nhật qua thẻ nhớ MicroSD** (từ ROM gốc hoặc từ `dpReader`) hoặc nạp nhanh phân vùng `ota_0`. | Thẻ nhớ SD hoặc `0x10000` |
+| **[`releases/dpReader_metalio47_full.bin`](releases/dpReader_metalio47_full.bin)** | `4.53 MB` | File gộp toàn bộ 4 phân vùng (`bootloader` + `partition-table` + `otadata` + `firmware`) để nạp mới hoàn toàn hoặc cứu máy qua cáp USB-C. | `0x0` |
 | **[`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)** | — | Mã kiểm tra toàn vẹn `SHA-256` của các bản build. | — |
 
 ---

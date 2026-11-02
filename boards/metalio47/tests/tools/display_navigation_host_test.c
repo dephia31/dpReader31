@@ -671,42 +671,42 @@ int main(void) {
     calls=gray_calls=gc_calls=full_calls=nav_draws=0;
     for (int step=1;step<=24;++step) {
         now_us+=3000000;gray_target((unsigned)step);begin(&owner_a);assert_final();
-        assert(hl.waveform==&E0470_WAVEFORM && !bw_calls && !allocations && !nav_draws);
-        bool cleanup=step%APP_UI_FAST_GC16_EVERY==0;
-        assert(last_area.y==0 && last_area.height==(cleanup?UI_NAV_MARKER_SCAN_END:UI_NAV_REFRESH_END));
-        assert(gray_calls==step && full_calls==step/APP_UI_FAST_GC16_EVERY && !water_calls);
-        assert(gc_calls==step/APP_UI_FAST_GC16_EVERY&&region_calls==gc_calls);
-        if(cleanup)assert(last_strong_area.y==0&&last_strong_area.height==UI_NAV_REFRESH_END);
-        assert(last_wave==(cleanup?&settings_soft:&main_water));
-        assert(last_mode==MODE_GL16);
+        int cleanups=step/APP_UI_GC16_EVERY;
+        assert(hl.waveform==&E0470_WAVEFORM && !bw_calls && !allocations && nav_draws==cleanups);
+        bool cleanup=step%APP_UI_GC16_EVERY==0;
+        assert(last_area.y==0 && last_area.height==(cleanup?W:UI_NAV_REFRESH_END));
+        assert(gray_calls==step && full_calls==cleanups && !water_calls);
+        assert(gc_calls==cleanups&&!region_calls);
+        assert(last_wave==(cleanup?&E0470_FULL_WAVEFORM:&main_water));
+        assert(last_mode==(cleanup?MODE_GC16:MODE_GL16));
         for(int y=0;y<H;++y)for(int x=UI_NAV_REFRESH_END/2;x<W/2;++x)assert(back[y*(W/2)+x]==0x73);
     }
-    int normal_before=calls;begin(&owner_a);assert(calls==normal_before);
+    int normal_before=calls,normal_nav_before=nav_draws;begin(&owner_a);assert(calls==normal_before);
     front[UI_NAV_REFRESH_END/2-1]=final[UI_NAV_REFRESH_END/2-1]=0x28;
     front[UI_NAV_MARKER_BOTTOM/2]=0;
     display_main_transition_arm(&owner_a,false,false);
     assert(update_display_area_diff_with(&hl,&E0470_WAVEFORM,MODE_GL16,
         (EpdRect){0,UI_NAV_REFRESH_END-11,H,24})==EPD_DRAW_SUCCESS);
-    assert_final();assert(calls==normal_before+1 && !nav_draws && last_mode==MODE_GL16);
+    assert_final();assert(calls==normal_before+1 && nav_draws==normal_nav_before && last_mode==MODE_GL16);
     assert(last_area.y+last_area.height==UI_NAV_REFRESH_END);
     display_main_transition_arm(&owner_a,false,false);
     assert(update_display_area_with(&hl,&E0470_WAVEFORM,MODE_GL16,
         (EpdRect){0,UI_NAV_REFRESH_END-11,H,24})==EPD_DRAW_SUCCESS);
-    assert_final();assert(full_calls==24/APP_UI_FAST_GC16_EVERY && !nav_draws && last_wave==&main_water && last_mode==MODE_GL16);
+    assert_final();assert(full_calls==24/APP_UI_GC16_EVERY && nav_draws==normal_nav_before && last_wave==&main_water && last_mode==MODE_GL16);
     display_main_transition_arm(&owner_a,false,false);
-    assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(nav_draws==1);
+    assert(update_display_full(&hl)==EPD_DRAW_SUCCESS);assert_final();assert(nav_draws==normal_nav_before+1);
     // 周期整理分配失败后的柔和回退不清零计数；下一张变化页重试，成功后才重新计数。
-    // A soft fallback after cleanup allocation failure retains debt; retry on the next changed page and reset only after success.
+    // Periodic cleanup uses the full waveform without a region allocation; success resets the count.
     reset();main_mode=APP_MAIN_REFRESH_NORMAL;
     for(int step=1;step<APP_UI_FAST_GC16_EVERY;++step){
         now_us+=3000000;gray_target((unsigned)step);begin(&owner_a);assert_final();
     }
     now_us+=3000000;gray_target(APP_UI_FAST_GC16_EVERY);region_unavailable=1;
-    begin(&owner_a);assert_final();assert(region_calls==1&&!gc_calls&&!full_calls&&!clears);
+    begin(&owner_a);assert_final();assert(!region_calls&&gc_calls==1&&full_calls==1&&!clears);
     region_unavailable=0;gray_target(APP_UI_FAST_GC16_EVERY+1);begin(&owner_a);assert_final();
-    assert(region_calls==2&&gc_calls==1&&full_calls==1&&!clears);
+    assert(!region_calls&&gc_calls==1&&full_calls==1&&!clears);
     gray_target(APP_UI_FAST_GC16_EVERY+2);begin(&owner_a);assert_final();
-    assert(region_calls==2&&gc_calls==1&&full_calls==1);
+    assert(!region_calls&&gc_calls==1&&full_calls==1);
     // 普通柔和输出在内容或横条扫描失败时从白底重建，绝不提交半帧。
     // Soft ordinary output rebuilds from white after a body or marker scan failure instead of committing an intermediate frame.
     for(int stage=0;stage<1;++stage){
@@ -732,9 +732,10 @@ int main(void) {
         now_us+=3000000;gray_target((unsigned)step);display_main_transition_arm(&owner_a,false,true);
         display_main_transition_gray_bands(&shelf_art,1);
         assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
-        assert(last_strong_area.y==192&&last_strong_area.height==800&&!nav_draws&&!clears&&calls==step&&region_calls==step);
+        int cleanups=step/APP_UI_GC16_EVERY;
+        assert(last_strong_area.y==192&&last_strong_area.height==800&&nav_draws==cleanups&&!clears&&calls==step&&region_calls==step-cleanups);
     }
-    assert(gc_calls==24/APP_UI_FAST_GC16_EVERY);protect_shelf_chrome=false;
+    assert(gc_calls==24/APP_UI_GC16_EVERY);protect_shelf_chrome=false;
     // 设置页复用书架入口：160以上题头柔和，列表白底与灰阶同轮；普通周期整理仍不驱动外围/底栏。
     // Settings reuse shelf entry: soft chrome above160, simultaneous white-list/grays, and periodic cleanup stays off chrome/navigation.
     // 真实hl_update不得把显式设置柔和表替换回普通主页表；该调用不分配、不强刷。
@@ -753,11 +754,12 @@ int main(void) {
             display_main_transition_arm(&owner_a,origin==1,true);
             display_main_transition_gray_bands(&settings_content,1);
             assert(update_display_fast_page(&hl)==EPD_DRAW_SUCCESS);assert_final();
-            assert(region_calls==step&&calls==step&&!clears&&!nav_draws&&!allocations);
+            int cleanups=step/APP_UI_GC16_EVERY;
+            assert(region_calls==step-cleanups&&calls==step&&!clears&&nav_draws==cleanups&&!allocations);
             assert(last_strong_area.y==160&&last_strong_area.height==928);
-            assert(last_area.y==0&&last_area.height==UI_NAV_MARKER_SCAN_END);
+            assert(last_area.y==0&&last_area.height==(step%APP_UI_GC16_EVERY==0?W:UI_NAV_MARKER_SCAN_END));
         }
-        assert(gc_calls==24/APP_UI_FAST_GC16_EVERY);
+        assert(gc_calls==24/APP_UI_GC16_EVERY);
     }
     reset();main_mode=APP_MAIN_REFRESH_NORMAL;gray_target(3);region_unavailable=1;
     display_main_transition_arm(&owner_a,false,true);display_main_transition_gray_bands(&settings_content,1);

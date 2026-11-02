@@ -24,6 +24,8 @@ int main(void) {
     assert(!memcmp(s_home_utilities,chosen,4));
     assert(app_settings_backup_save()==ESP_OK);
     f=fopen(BACKUP_FILE,"rb");assert(f);unsigned char bytes[4096];size_t len=fread(bytes,1,sizeof(bytes),f);assert(feof(f));fclose(f);
+    /* Strip the V26+ identity before constructing historical V23/V24 tails. */
+    memmove(bytes+len-sizeof(backup_identity_t)-8,bytes+len-8,8);len-=sizeof(backup_identity_t);
     /* A v23 backup has the same block size but no label flag. */
     settings_backup_utilities_t legacy;memcpy(&legacy,bytes+len-16,sizeof(legacy));legacy.actions[0]&=0x3f;
     uint32_t legacy_hash=backup_utilities_checksum(&legacy);for(unsigned i=0;i<4;++i)legacy.checksum[i]=legacy_hash>>(8*i);

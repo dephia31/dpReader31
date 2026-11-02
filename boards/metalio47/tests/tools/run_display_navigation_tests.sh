@@ -22,7 +22,7 @@ cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
 build/book-tests/navigation-waveform
 
 cc -std=c11 -Wall -Wextra -Werror -g -fsanitize=address,undefined \
-    -Imain -Itools/waveform_host_stubs -Icomponents/epdiy/include -Icomponents/epdiy/src \
+    -Imain -Itools/settings_backup_stubs -Itools/waveform_host_stubs -Icomponents/epdiy/include -Icomponents/epdiy/src \
     -Icomponents/e0470_epaper_waveform/include -Icomponents/e0470_epaper_waveform/waveforms -Icomponents/e0470_epaper_waveform/metalio \
     tools/reader_waveform_host_test.c main/display_reader_waveform.c \
     components/e0470_epaper_waveform/e0470_epaper_waveform.c \
