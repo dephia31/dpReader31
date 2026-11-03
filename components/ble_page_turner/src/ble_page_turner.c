@@ -1659,6 +1659,11 @@ static esp_err_t start_locked(void) {
         return ESP_ERR_NO_MEM;
     }
     s_running = true;
+    // 仅排队；host ready和UI首帧门禁由poll/主循环执行，无新增任务。
+    // Queue only; host readiness and the UI frame gate are enforced by poll/the loop, without another task.
+    s_reconnect_failures=0;
+    s_reconnect_at=(uint32_t)(esp_timer_get_time()/1000);
+    if(s_bond_count && !s_reconnect_addr[0])atomic_store(&s_recent_requested,true);
     ESP_LOGI(TAG, "started, %u bond(s)", (unsigned)s_bond_count);
     // 配对策略摘要：日志里一眼就能看出这一版报的是什么能力、分发哪些密钥，
     // 免得对着一串失败码猜固件是哪一版。

@@ -1806,12 +1806,6 @@ void app_loop_run(const app_loop_config_t* config) {
         } else {
             last_ble_active_ms = ctx.now_ms;
         }
-#if KIIKO_BOARD_METALIO47
-        ble_pt_sync(app_settings_ble_turner());
-#else
-        ble_pt_sync(app_settings_ble_turner() && !wifi_busy);
-#endif
-        ble_pt_poll();
         if (s_quick.open || ai_overlay_open() || quick_input_owned) {
             // 覆盖层期间丢弃页内蓝牙输入，关闭后不重放翻页或学习事件。
             // Discard page BLE input while covered, without replaying turns or learning edges after closing.
@@ -1989,6 +1983,19 @@ void app_loop_run(const app_loop_config_t* config) {
         }
 #else
 #endif
+        // 开书、页面tick和推屏优先；只延后启用，不停止已经工作的翻页器。
+        // Book open, page ticks and presentation win; defer startup without stopping an active remote.
+        bool radio_ready=!ctx.request_app&&!ctx.request_menu&&!ctx.request_return&&
+            !touch.touched&&!power_dialog_open&&!usb_storage_active()&&!pico_online_busy()&&
+            (current!=&app_book || app_book_background_radio_ready());
+        if(!app_settings_ble_turner() || radio_ready) {
+#if KIIKO_BOARD_METALIO47
+        ble_pt_sync(app_settings_ble_turner());
+#else
+        ble_pt_sync(app_settings_ble_turner() && !wifi_busy);
+#endif
+        ble_pt_poll();
+        }
         // Nhịp chờ thích ứng: 8ms khi thao tác, 40ms khi nhàn rỗi đọc trang sách tĩnh.
         // Adaptive tick delay: 8ms during active touch/input, 40ms when reading static pages.
 #if KIIKO_BOARD_METALIO47

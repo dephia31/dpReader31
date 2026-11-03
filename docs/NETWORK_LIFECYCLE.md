@@ -51,3 +51,12 @@ rời trang. Timeout WiFi rảnh không kết thúc phiên duyệt đang mở. N
 được người dùng bật trước khi vào OPDS, đóng OPDS không tự tắt kết nối đó.
 Kết nối thất bại vẫn được dọn để cho phép thử lại; Sleep dùng quy trình tạm
 dừng/khôi phục radio vốn có, không giữ radio chạy xuyên giấc ngủ.
+
+Khi Bluetooth được bật và stack khởi động lại (gồm khởi động máy hoặc sau
+Sleep), máy tự yêu cầu kết nối thiết bị đã lưu gần nhất nếu chưa có mục tiêu
+kết nối được giữ lại. Không có thiết bị đã lưu thì không tự quét thiết bị lạ.
+Yêu cầu chỉ chạy sau khi host sẵn sàng; bước khởi động/poll nền nằm sau mở
+sách, tick trang, chuyển trang và hiển thị. Yêu cầu mở sách, chờ thẻ, dàn trang
+hoặc chưa có trang đọc được hiển thị thành công sẽ trì hoãn BLE. Tắt Bluetooth
+vẫn được xử lý; liên kết đang hoạt động không bị dừng chỉ vì mở sách mới.
+Không thêm task dò riêng hoặc chờ ghép đôi đồng bộ trong đường mở sách.

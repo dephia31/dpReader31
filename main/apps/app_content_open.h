@@ -50,3 +50,6 @@ esp_err_t app_toggle_network(bool bluetooth);
 void app_device_settings_request_ota(void);
 bool app_book_request_home_sync(const char *path);
 void app_book_request_kosync(app_ctx_t *ctx);
+
+/// Reader open/layout/display must finish before background radio startup.
+bool app_book_background_radio_ready(void);

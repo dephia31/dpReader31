@@ -414,6 +414,7 @@ static unsigned s_chapter_lead_row_height;
 // 竖排首页为题头预留的列宽；横排为 0。/ Columns reserved for a vertical heading; 0 horizontally.
 static unsigned s_chapter_lead_width;
 static char s_font_path[192];
+static bool s_reader_display_ready;
 static char* s_text;
 bool app_book_reader_body_visible(void) {
     return s_view == READING && s_text && s_reader_panel == READER_PANEL_NONE && !s_clear_confirm && !book_notes_active();
@@ -4801,6 +4802,7 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
     if (err==EPD_DRAW_SUCCESS && reader_status_visible() &&
         (redraw==APP_REDRAW_PAGE || redraw==APP_REDRAW_FULL || s_reader_cleanup))
         s_reader_clock_minute=frame_minute;
+    s_reader_display_ready=err==EPD_DRAW_SUCCESS && s_view==READING && s_text;
     s_reader_text_frame = err == EPD_DRAW_SUCCESS && s_view == READING && s_text &&
         s_reader_panel == READER_PANEL_NONE && !s_toolbar && !s_clear_confirm &&
         book_layout_page_image_count(s_page) == 0 && !app_settings_book_background_path()[0];
@@ -4923,6 +4925,7 @@ static void track_ticket_stats(app_ctx_t* ctx) {
     if (s_stats_pending_ms >= 30000) flush_ticket_stats();
 }
 static void free_book(void) {
+    s_reader_display_ready=false;
     kosync_state_commit(s_path);
     book_notes_reset();
     reader_font_recovery_reset();
@@ -9039,6 +9042,13 @@ static app_redraw_t reader_font_recovery_tick(app_ctx_t *ctx) {
     app_restart_host();
     return APP_REDRAW_DONE;
 }
+// 后台射频只能在打开请求和实际首帧完成后开始，不占用开书内存窗口。
+// Admit background radio only after open requests and the actual first frame complete.
+bool app_book_background_radio_ready(void) {
+    if(s_requested_open[0] || s_scan_pending || s_fonts_reload_pending)return false;
+    return s_view!=READING || (s_text && s_reader_display_ready && s_presented_view==READING);
+}
+
 static app_redraw_t on_tick(app_ctx_t* ctx) {
     if(s_view!=OPDS && opds_session_active())opds_session_end();
     if(app_settings_simple_ui()&&(s_view==SHELF||s_view==BULK)) {
@@ -9250,6 +9260,7 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
     return clock;
 }
 static void before_lock(app_ctx_t* ctx) {
+    s_reader_display_ready=false;
     s_reader_choice.open=false;
     book_notes_cancel();
 #if KIIKO_BOARD_METALIO47

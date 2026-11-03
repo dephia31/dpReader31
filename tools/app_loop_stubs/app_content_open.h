@@ -20,3 +20,5 @@ bool app_book_ai_bookmark(void);
 
 static inline app_redraw_t app_book_handle_key_action(app_ctx_t *ctx,int action){(void)ctx;(void)action;return APP_REDRAW_NONE;}
 static inline void app_book_request_kosync(app_ctx_t *ctx){(void)ctx;}
+
+static inline bool app_book_background_radio_ready(void){return true;}

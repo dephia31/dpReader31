@@ -48,6 +48,7 @@ static unsigned s_cover_dirty_mask,s_cover_present_mask;
 static int64_t s_reader_clock_minute,s_reader_clock_painted_minute,s_du_ms;
 static const char *s_text="text";
 static EpdRect s_area={0,0,684,1216},s_du_area;
+static bool s_reader_display_ready;
 static bool prefetch_returned,s_save_failed,save_failure;static unsigned s_unsaved,save_calls;
 static void reader_prefetch_end(bool started){assert(!started);prefetch_returned=true;}
 static int calls,selected,fail,rendered,prepares,images,tick;static unsigned s_turns;
@@ -107,7 +108,7 @@ for name in ('reader_area','progress_rect'):
  unit+=function(name,root/'main/apps/app_book.c')+'\n'
 unit+=function('present',root/'main/apps/app_book.c')
 unit+=r'''
-static void reset(void){prefetch_returned=s_save_failed=save_failure=false;s_unsaved=save_calls=0;
+static void reset(void){s_reader_display_ready=false;prefetch_returned=s_save_failed=save_failure=false;s_unsaved=save_calls=0;
  calls=selected=rendered=prepares=fail=images=tick=0;background=test_panel_short=hide_images=immersive=false;s_view=s_presented_view=READING;
  s_reader_image_frame=s_reader_image_exit_pending=false;
  s_reader_panel=READER_PANEL_NONE;s_mode=MODE_GL16;
@@ -188,11 +189,11 @@ int main(void){
  s_reader_clock_painted_minute=321;
  present(&ctx,APP_REDRAW_AREA);assert(calls==1&&selected==13&&s_reader_clock_minute==321&&!s_reader_clock_pending);
  reset();ctx.request_app=true;present(&ctx,APP_REDRAW_AREA);assert(calls==0);ctx.request_app=false;
- reset();s_unsaved=8;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1&&!s_unsaved);
+ reset();s_unsaved=8;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1&&!s_unsaved&&s_reader_display_ready);
  reset();s_unsaved=7;present(&ctx,APP_REDRAW_AREA);assert(!save_calls&&s_unsaved==7);
  reset();s_unsaved=8;save_failure=true;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1&&s_save_failed&&s_unsaved==8);
  calls=0;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1);
- reset();s_unsaved=8;fail=1;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1&&!s_reader_text_frame);
+ reset();s_unsaved=8;fail=1;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1&&!s_reader_text_frame&&!s_reader_display_ready);
  puts("PASS: S31 text/ripple and single platform image/exit outputs with fused progress; full GC48 cleanup priority, failed-frame history, panels, clock and cancellation guards");
 }
 '''

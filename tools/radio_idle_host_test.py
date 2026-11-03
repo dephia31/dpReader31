@@ -5,7 +5,7 @@ import subprocess,tempfile
 ROOT=Path(__file__).resolve().parents[1]
 source=(ROOT/'main/app/app_loop.c').read_text()
 a=source.index('        read_pico_transfer_status_t transfer;\n        read_pico_transfer_get_status(&transfer);',source.index('WiFi 在 C6'))
-b=source.index('#if KIIKO_BOARD_METALIO47\n        ble_pt_sync',a)
+b=source.index('        if (s_quick.open || ai_overlay_open() || quick_input_owned)',a)
 code=r'''
 #include <assert.h>
 #include <stdbool.h>
