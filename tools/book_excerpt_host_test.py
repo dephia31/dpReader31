@@ -16,6 +16,7 @@ unit=r'''
 #include <errno.h>
 #include "book_excerpt.h"
 #include "book_index_cache.h"
+static bool app_settings_simple_ui(void){return false;}
 static unsigned writes;
 static const char *mapped(const char *path,char *out){
  assert(!strncmp(path,"/sdcard",7));assert(strlen(path)+strlen(TEST_ROOT)<1024);
