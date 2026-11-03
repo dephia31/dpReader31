@@ -69,6 +69,7 @@ bool metalio_frontlight_enabled(void);
 unsigned metalio_frontlight_position(bool warmth);
 void metalio_frontlight_preview_position(unsigned brightness, unsigned warmth);
 void metalio_frontlight_restore(void);
+void metalio_frontlight_schedule_poll(void);
 void metalio_frontlight_save(unsigned brightness, unsigned warmth);
 void metalio_frontlight_preview(unsigned brightness, unsigned warmth);
 void metalio_frontlight_toggle(void);

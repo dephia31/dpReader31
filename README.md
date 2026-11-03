@@ -60,6 +60,11 @@ tự thay đổi lựa chọn đó. Chỉ công tắc Giao diện đơn giản �
 Xóa toàn bộ NVS/flash hoặc phần mềm cũ không hỗ trợ tùy chọn này nằm ngoài phạm
 vi bảo đảm; firmware không thể suy ra dữ liệu đã bị xóa hoàn toàn.
 
+S31 có lịch bật/tắt hằng ngày riêng cho đèn trắng và đèn ấm tại
+**Cài đặt → Hiển thị → Đèn nền & Rung**. Mỗi lịch có giờ bật, giờ tắt và độ sáng;
+Sleep vẫn tắt đèn, khi thức lại áp dụng khung giờ hiện tại. Xem
+[hướng dẫn cài đặt](docs/CAI_DAT.md#lịch-bậttắt-đèn-trắng-và-đèn-ấm-s31).
+
 Quy tắc bật/tắt WiFi, Bluetooth và bảo vệ tác vụ đang chạy xem
 [NETWORK_LIFECYCLE.md](docs/NETWORK_LIFECYCLE.md).
 

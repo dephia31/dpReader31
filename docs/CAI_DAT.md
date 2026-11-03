@@ -37,3 +37,28 @@ Trong **Điều khiển → Phím cứng & Cử chỉ**, hai công tắc độc 
 Thanh độ sáng trong bảng nhanh và Cài đặt cũng bật lại đèn khi chọn mức lớn hơn 0. Phím AI hoàn tất chống dội khi thả để các lần nhấn giữ tiếp theo hoạt động; nhấn giữ không chạy thêm nhấn ngắn.
 
 Máy tự lấy giờ khi rảnh qua Wi-Fi đã lưu, lưu giờ vào RTC và hiển thị UTC+7. Cần mạng Internet để lấy giờ mới. Khi chưa kết nối, tác vụ có thể tạm kết nối mạng để đồng bộ; không chạy trong lúc truyền file, cập nhật hoặc các trạng thái đang chiếm kết nối. Đồng bộ khi đang online theo chu kỳ một giờ, khi offline theo chu kỳ sáu giờ; lỗi có thời gian chờ trước khi thử lại.
+
+## Lịch bật/tắt đèn trắng và đèn ấm (S31)
+
+Vào **Hiển thị → Đèn nền & Rung → Lịch đèn trắng / Lịch đèn ấm**.
+Mỗi kênh có công tắc lịch, giờ bật, giờ tắt và độ sáng riêng 1–100%.
+Chọn giờ rồi phút, sau đó **Lưu lịch** để áp dụng; **Hủy** hoặc quay lại bỏ
+các chỉnh sửa chưa lưu. Hai giờ phải khác nhau. Lịch lặp hằng ngày theo giờ
+Việt Nam (GMT+7), mặc định tắt. Ví dụ đèn ấm bật 20:00, tắt 06:00 sáng hôm sau.
+
+Lịch dùng giờ RTC của máy, không bật WiFi hoặc gọi NTP riêng. Nếu đồng hồ chưa
+hợp lệ, lịch chờ đến khi giờ được đặt hoặc đồng bộ. Khi máy đang thức, lịch
+được xét khoảng mỗi giây và chỉ đổi đèn khi đến mốc. Nếu bỏ lỡ nhiều mốc hoặc
+đổi giờ, máy áp dụng khung hiện tại, không phát lại từng mốc đã qua.
+
+Khóa/Sleep luôn tắt cả hai đèn. Lịch không đánh thức máy và không bật đèn trong
+các lần kiểm tra nền khi đang ngủ. Khi thức lại, máy áp dụng khung giờ hiện tại.
+Chỉnh độ sáng/nhiệt màu hoặc bật/tắt thủ công có hiệu lực đến mốc lịch kế tiếp
+hoặc đến lần Sleep/wake. Tắt công tắc lịch dừng tự động hóa của kênh đó và giữ
+mức đèn hiện tại để người dùng tiếp tục chỉnh tay.
+
+Hai kênh cùng bật vẫn chia sẻ trần công suất đèn hiện có; nếu tổng mức yêu cầu
+vượt trần, hai mức được giảm theo tỷ lệ. Lịch không tạo task/timer riêng và
+không ghi flash mỗi lần đến mốc; cấu hình chỉ ghi khi người dùng lưu.
+Lịch lưu tại máy trong nhóm đèn nền và bị xóa bởi khôi phục cài đặt gốc;
+chưa đưa vào định dạng sao lưu cấu hình hiện tại.

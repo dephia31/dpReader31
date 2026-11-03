@@ -8,7 +8,7 @@ unit='#include <assert.h>\n#include <stdbool.h>\n#include <stdio.h>\ntypedef str
 for f in ['upgrade_confirm_button','frontlight_row_rect']:unit+=function(f,source)+'\n'
 unit+=r'''
 int main(void){for(int online=0;online<2;++online){EpdRect a=upgrade_confirm_button(online,true),b=upgrade_confirm_button(online,false);assert(a.x==60&&a.width==564&&a.height==80&&b.width==564&&b.height==80);assert(b.y+b.height<a.y&&a.y+a.height<=1064);}
- int bottom=0;for(int i=0;i<4;++i){EpdRect r=frontlight_row_rect(i);assert(r.x==36&&r.width==612&&r.height==80&&r.y>=bottom&&r.y+r.height<=844);bottom=r.y+r.height;}
+ int bottom=0;int order[]={0,1,2,4,5,3};for(int i=0;i<6;++i){EpdRect r=frontlight_row_rect(order[i]);assert(r.x==36&&r.width==612&&r.height==80&&r.y>=bottom&&r.y+r.height<=884);bottom=r.y+r.height;}
  puts("PASS real OTA confirm/cancel and frontlight rows: full-width80px controls, no overlap or footer intrusion");}
 '''
 with tempfile.TemporaryDirectory() as folder:

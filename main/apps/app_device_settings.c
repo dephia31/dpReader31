@@ -103,6 +103,7 @@ static ui_online_fonts_t s_online_fonts;
 #include "opds_client.h"
 #if KIIKO_BOARD_METALIO47
 #include "metalio_hw.h"
+#include "metalio_light_schedule.h"
 #else
 #include "soc/rtc_cntl_reg.h"
 #endif
@@ -132,7 +133,7 @@ typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_WIFI_TIMEOUT, SETTINGS_BLE
 #endif
                SETTINGS_BLUETOOTH, SETTINGS_BLE_SCAN,
 #if KIIKO_BOARD_METALIO47
-               SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT, SETTINGS_FRONTLIGHT,
+               SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT, SETTINGS_FRONTLIGHT, SETTINGS_LIGHT_SCHEDULE,
                SETTINGS_CONTROLS, SETTINGS_ACTION_MENU } settings_page_t;
 #else
                SETTINGS_LOCK_PIN, SETTINGS_PIN_ENTRY, SETTINGS_TEXT_EDIT,
@@ -878,8 +879,21 @@ static void controls_row(uint8_t *fb,int y,const char *label,const char *value) 
     ui_draw_icon(fb,625,y+40,24,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
 }
 #if KIIKO_BOARD_METALIO47
+static bool s_schedule_warm;
+static metalio_light_schedule_t s_schedule_draft;
+static char s_schedule_notice[96];
+static EpdRect schedule_row_rect(int i) {return (EpdRect){36,264+i*118,612,80};}
+static void schedule_open(bool warm) {
+    s_schedule_warm=warm;s_schedule_draft=metalio_light_schedule_get(warm);
+    s_schedule_notice[0]=0;s_page=SETTINGS_LIGHT_SCHEDULE;
+}
+static void schedule_summary(bool warm,char *out,size_t size) {
+    metalio_light_schedule_t s=metalio_light_schedule_get(warm);
+    if(!s.enabled)snprintf(out,size,"Tắt");
+    else snprintf(out,size,"%02u:%02u – %02u:%02u",s.on_minute/60,s.on_minute%60,s.off_minute/60,s.off_minute%60);
+}
 static EpdRect frontlight_row_rect(int index) {
-    static const int tops[]={264,382,500,702};
+    static const int tops[]={244,344,444,804,544,644};
     return (EpdRect){36,tops[index],612,80};
 }
 #endif
@@ -1247,10 +1261,31 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         snprintf(value,sizeof(value),"%u%%",metalio_warmth());
         controls_row(fb,frontlight_row_rect(1).y,"Ánh sáng ấm",value);
         controls_row(fb,frontlight_row_rect(2).y,"Bật đèn nền",metalio_frontlight_enabled()?"Bật":"Tắt");
-        section(fb,642,"Phản hồi");
+        schedule_summary(false,value,sizeof(value));
+        controls_row(fb,frontlight_row_rect(4).y,"Lịch đèn trắng",value);
+        schedule_summary(true,value,sizeof(value));
+        controls_row(fb,frontlight_row_rect(5).y,"Lịch đèn ấm",value);
+        section(fb,760,"Phản hồi");
         controls_row(fb,frontlight_row_rect(3).y,"Rung khi chạm",metalio_haptic_enabled()?"Bật":"Tắt");
-        ui_text_caption(fb,(EpdRect){54,844,576,128},22,
+        ui_text_caption(fb,(EpdRect){54,910,576,112},22,
             "Chạm từng mục để thay đổi. Độ sáng và ánh sáng ấm được lưu riêng.",EPD_DRAW_ALIGN_LEFT,false);
+        settings_navigation(fb);return;
+    }
+    if(s_page==SETTINGS_LIGHT_SCHEDULE) {
+        ui_clear_page(fb);ui_nav_status(fb);back_header(fb,s_schedule_warm?"Lịch đèn ấm":"Lịch đèn trắng");
+        section(fb,204,"Lặp lại hằng ngày · Giờ Việt Nam");
+        controls_row(fb,schedule_row_rect(0).y,"Bật lịch",s_schedule_draft.enabled?"Bật":"Tắt");
+        char value[24];snprintf(value,sizeof(value),"%02u:%02u",s_schedule_draft.on_minute/60,s_schedule_draft.on_minute%60);
+        controls_row(fb,schedule_row_rect(1).y,"Giờ bật",value);
+        snprintf(value,sizeof(value),"%02u:%02u",s_schedule_draft.off_minute/60,s_schedule_draft.off_minute%60);
+        controls_row(fb,schedule_row_rect(2).y,"Giờ tắt",value);
+        snprintf(value,sizeof(value),"%u%%",s_schedule_draft.level);
+        controls_row(fb,schedule_row_rect(3).y,"Độ sáng riêng",value);
+        ui_text_caption(fb,(EpdRect){54,714,576,92},20,
+            "Hỗ trợ lịch qua nửa đêm. Sleep luôn tắt đèn. Chỉnh tay có hiệu lực đến mốc lịch tiếp theo.",EPD_DRAW_ALIGN_LEFT,false);
+        ui_text_box(fb,(EpdRect){54,812,576,36},20,s_schedule_notice,EPD_DRAW_ALIGN_LEFT,false);
+        ui_draw_button(fb,(EpdRect){36,858,612,78},"Lưu lịch",true);
+        ui_draw_button(fb,(EpdRect){36,956,612,78},"Hủy",false);
         settings_navigation(fb);return;
     }
     if(s_page==SETTINGS_ACTION_MENU) {
@@ -2028,7 +2063,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.9RC12-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.9RC14-vn", "ESP32-S31");
         ui_text_caption(fb,(EpdRect){56,294,572,54},22,v_line,EPD_DRAW_ALIGN_LEFT,false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -2343,7 +2378,7 @@ static bool settings_gray_preview(void) {
     return s_page==SETTINGS_WALLPAPER_PREVIEW||s_page==SETTINGS_SHELF_STYLE;
 }
 #endif
-enum {SET_PICK_SIZE,SET_PICK_WAKE,SET_PICK_GRACE,SET_PICK_HOURS,SET_PICK_YEAR,SET_PICK_MONTH,SET_PICK_DAY,SET_PICK_HOUR,SET_PICK_MINUTE,SET_PICK_BRIGHTNESS,SET_PICK_WARMTH};
+enum {SET_PICK_SIZE,SET_PICK_WAKE,SET_PICK_GRACE,SET_PICK_HOURS,SET_PICK_YEAR,SET_PICK_MONTH,SET_PICK_DAY,SET_PICK_HOUR,SET_PICK_MINUTE,SET_PICK_BRIGHTNESS,SET_PICK_WARMTH,SET_PICK_LIGHT_ON_HOUR,SET_PICK_LIGHT_ON_MINUTE,SET_PICK_LIGHT_OFF_HOUR,SET_PICK_LIGHT_OFF_MINUTE,SET_PICK_LIGHT_LEVEL};
 static ui_choice_t s_setting_choice;
 static const uint8_t s_ui_sizes[]={100,110,120,130,140,144,150,160,170,180,190,200,202};
 static void settings_choice_label(int kind,int index,char *out,size_t size) {
@@ -2352,6 +2387,10 @@ static void settings_choice_label(int kind,int index,char *out,size_t size) {
     else if(kind==SET_PICK_HOURS)snprintf(out,size,"%d giờ",index+1);
     else if(kind>=SET_PICK_YEAR&&kind<=SET_PICK_MINUTE)snprintf(out,size,"%d",index+(kind==SET_PICK_YEAR?2024:kind==SET_PICK_MONTH||kind==SET_PICK_DAY?1:0));
 #if KIIKO_BOARD_METALIO47
+    else if(kind>=SET_PICK_LIGHT_ON_HOUR&&kind<=SET_PICK_LIGHT_LEVEL) {
+        if(kind==SET_PICK_LIGHT_LEVEL)snprintf(out,size,"%d%%",index+1);
+        else snprintf(out,size,"%02d",index);
+    }
     else if(kind==SET_PICK_BRIGHTNESS||kind==SET_PICK_WARMTH)snprintf(out,size,"%u%%",index<11?(unsigned)index*10:kind==SET_PICK_BRIGHTNESS?metalio_brightness():metalio_warmth());
 #endif
     else {static const char *const names[]={"Tắt","5 phút","1 giờ","8 giờ","24 giờ"};snprintf(out,size,"%s",names[index]);}
@@ -2371,6 +2410,14 @@ static void settings_choice_open(int kind) {
         int i=kind-SET_PICK_YEAR;current=values[i];count=counts[i];title=titles[i];
     }
 #if KIIKO_BOARD_METALIO47
+    if(kind>=SET_PICK_LIGHT_ON_HOUR&&kind<=SET_PICK_LIGHT_LEVEL) {
+        bool off=kind==SET_PICK_LIGHT_OFF_HOUR||kind==SET_PICK_LIGHT_OFF_MINUTE;
+        unsigned value=off?s_schedule_draft.off_minute:s_schedule_draft.on_minute;
+        bool minute=kind==SET_PICK_LIGHT_ON_MINUTE||kind==SET_PICK_LIGHT_OFF_MINUTE;
+        count=minute?60:24;current=minute?value%60:value/60;
+        title=off?(minute?"Phút tắt đèn":"Giờ tắt đèn"):(minute?"Phút bật đèn":"Giờ bật đèn");
+        if(kind==SET_PICK_LIGHT_LEVEL){count=100;current=s_schedule_draft.level-1;title="Độ sáng của đèn theo lịch";}
+    }
     if(kind==SET_PICK_BRIGHTNESS||kind==SET_PICK_WARMTH){unsigned value=kind==SET_PICK_BRIGHTNESS?metalio_brightness():metalio_warmth();count=11+(value%10?1:0);current=value%10?11:value/10;title=kind==SET_PICK_BRIGHTNESS?"Độ sáng":"Tỷ lệ ánh sáng ấm";}
 #endif
     ui_choice_begin(&s_setting_choice,kind,title,count,current);
@@ -2394,6 +2441,17 @@ static app_redraw_t settings_choice_gesture(const ui_gesture_event_t *ev) {
         *values[i]=index+(i==0?2024:i==1||i==2?1:0);if(s_day>days_in_month(s_year,s_month))s_day=days_in_month(s_year,s_month);ok=true;
     }
 #if KIIKO_BOARD_METALIO47
+    if(s_setting_choice.kind>=SET_PICK_LIGHT_ON_HOUR&&s_setting_choice.kind<=SET_PICK_LIGHT_LEVEL) {
+        int kind=s_setting_choice.kind;
+        if(kind==SET_PICK_LIGHT_LEVEL)s_schedule_draft.level=index+1;
+        else {
+            uint16_t *value=kind>=SET_PICK_LIGHT_OFF_HOUR?&s_schedule_draft.off_minute:&s_schedule_draft.on_minute;
+            bool minute=kind==SET_PICK_LIGHT_ON_MINUTE||kind==SET_PICK_LIGHT_OFF_MINUTE;
+            *value=minute?(*value/60)*60+index:index*60+*value%60;
+            if(!minute){settings_choice_open(kind+1);return APP_REDRAW_PAGE;}
+        }
+        s_schedule_notice[0]=0;ok=true;
+    }
     if(s_setting_choice.kind==SET_PICK_BRIGHTNESS||s_setting_choice.kind==SET_PICK_WARMTH){
         bool warmth=s_setting_choice.kind==SET_PICK_WARMTH;unsigned value=index<11?(unsigned)index*10:warmth?metalio_warmth():metalio_brightness();
         metalio_frontlight_adjust_position(warmth,value*METALIO_FRONTLIGHT_RANGE/100);metalio_frontlight_commit();ok=true;
@@ -3045,11 +3103,29 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     if (tab >= 0) { ui_nav_request(ctx, tab); return APP_REDRAW_NONE; }
     int y = ev->y0;
 #if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_LIGHT_SCHEDULE) {
+        if(y<190 || ui_rect_hit((EpdRect){36,956,612,78},ev->x0,y)){s_page=SETTINGS_FRONTLIGHT;return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(schedule_row_rect(0),ev->x0,y)){s_schedule_draft.enabled=!s_schedule_draft.enabled;return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(schedule_row_rect(1),ev->x0,y)){settings_choice_open(SET_PICK_LIGHT_ON_HOUR);return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(schedule_row_rect(2),ev->x0,y)){settings_choice_open(SET_PICK_LIGHT_OFF_HOUR);return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(schedule_row_rect(3),ev->x0,y)){settings_choice_open(SET_PICK_LIGHT_LEVEL);return APP_REDRAW_PAGE;}
+        if(ui_rect_hit((EpdRect){36,858,612,78},ev->x0,y)) {
+            if(s_schedule_draft.on_minute==s_schedule_draft.off_minute)
+                snprintf(s_schedule_notice,sizeof(s_schedule_notice),"Giờ bật và giờ tắt phải khác nhau");
+            else if(metalio_light_schedule_save(s_schedule_warm,&s_schedule_draft)!=ESP_OK)
+                snprintf(s_schedule_notice,sizeof(s_schedule_notice),"Lưu thất bại, vui lòng thử lại");
+            else {metalio_frontlight_restore();s_page=SETTINGS_FRONTLIGHT;}
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
     if(s_page==SETTINGS_FRONTLIGHT) {
         if(y<190) {s_page=SETTINGS_MAIN;return APP_REDRAW_PAGE;}
         if(ui_rect_hit(frontlight_row_rect(0),ev->x0,y)){settings_choice_open(SET_PICK_BRIGHTNESS);return APP_REDRAW_PAGE;}
         if(ui_rect_hit(frontlight_row_rect(1),ev->x0,y)){settings_choice_open(SET_PICK_WARMTH);return APP_REDRAW_PAGE;}
         if(ui_rect_hit(frontlight_row_rect(2),ev->x0,y)){metalio_frontlight_toggle();return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(frontlight_row_rect(4),ev->x0,y)){schedule_open(false);return APP_REDRAW_PAGE;}
+        if(ui_rect_hit(frontlight_row_rect(5),ev->x0,y)){schedule_open(true);return APP_REDRAW_PAGE;}
         if(ui_rect_hit(frontlight_row_rect(3),ev->x0,y)){metalio_haptic_set_enabled(!metalio_haptic_enabled());return APP_REDRAW_PAGE;}
         return APP_REDRAW_NONE;
     }
@@ -3737,6 +3813,9 @@ static app_redraw_t on_key(app_ctx_t *ctx, int key) {
     }
     if (s_page == SETTINGS_PROFILE) { s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
     if (s_page == SETTINGS_TIME_EDIT) { s_page = SETTINGS_TIME; return APP_REDRAW_PAGE; }
+#if KIIKO_BOARD_METALIO47
+    if(s_page==SETTINGS_LIGHT_SCHEDULE){s_page=SETTINGS_FRONTLIGHT;return APP_REDRAW_PAGE;}
+#endif
     if (s_page != SETTINGS_MAIN) { s_page = SETTINGS_MAIN; (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved); settings_prepare_profile(); return APP_REDRAW_PAGE; }
     if(s_settings_group>=0){(void)settings_parent_back();return APP_REDRAW_PAGE;}
     ui_nav_request(ctx, 0);

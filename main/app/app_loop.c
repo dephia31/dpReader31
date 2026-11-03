@@ -1164,6 +1164,7 @@ void app_loop_run(const app_loop_config_t* config) {
             last_network_poll_ms = ctx.now_ms;
             read_pico_transfer_service_poll();
 #if KIIKO_BOARD_METALIO47
+            metalio_frontlight_schedule_poll();
             read_pico_transfer_status_t clock_network;
             read_pico_transfer_get_status(&clock_network);
             bool clock_allowed=current!=&app_book || !app_book_reader_body_visible() || clock_network.network_ready;

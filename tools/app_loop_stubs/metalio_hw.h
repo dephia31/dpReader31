@@ -16,3 +16,5 @@ int metalio_take_ai(void);
 void metalio_ai_clear(void);
 
 void metalio_frontlight_adjust_position(bool warm,unsigned value);
+
+static inline void metalio_frontlight_schedule_poll(void) {}

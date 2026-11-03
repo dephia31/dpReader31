@@ -14,6 +14,7 @@ unit=r'''
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
 #include <stdio.h>
 #include <string.h>
 typedef int esp_err_t;
@@ -25,7 +26,10 @@ typedef int nvs_handle_t;
 #define LEDC_CHANNEL_0 0
 #define LEDC_CHANNEL_1 1
 #define METALIO_FRONTLIGHT_RANGE 240
-static bool fl_ready=true,light_enabled=true,light_dirty;
+static bool fl_ready=true,light_enabled=true,light_dirty,light_suspended;
+static time_t light_schedule_checked;
+static void metalio_light_schedule_invalidate(void) {}
+static bool metalio_light_schedule_apply(time_t t,unsigned*w,unsigned*a){(void)t;(void)w;(void)a;return false;}
 static uint8_t saved_brightness=30,saved_warmth=50,last_on_brightness=30;
 static uint16_t brightness_position=72,warmth_position=120,last_on_position=72;
 static unsigned duties[2],updates,writes,commits;
@@ -55,7 +59,7 @@ void metalio_frontlight_preview_position(unsigned,unsigned);
 void metalio_frontlight_commit(void);
 '''
 for name in ('metalio_frontlight','metalio_brightness','metalio_warmth','metalio_frontlight_enabled',
-             'metalio_frontlight_position','frontlight_apply_position','metalio_frontlight_restore','frontlight_load','metalio_frontlight_save',
+             'metalio_frontlight_position','frontlight_apply_position','frontlight_schedule_update','metalio_frontlight_schedule_poll','metalio_frontlight_restore','frontlight_load','metalio_frontlight_save',
              'metalio_frontlight_preview_position',
              'metalio_frontlight_preview','metalio_frontlight_adjust_position','metalio_frontlight_toggle','metalio_frontlight_commit'):
     unit+=function(name)

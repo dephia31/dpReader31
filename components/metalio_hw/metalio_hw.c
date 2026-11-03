@@ -3,6 +3,8 @@
  * English: Use one new I2C bus for S31 peripherals and shut TPS down on errors.
  */
 #include "metalio_hw.h"
+#include "metalio_light_schedule.h"
+#include <time.h>
 #include "metalio_sleep.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
@@ -42,6 +44,8 @@ static uint8_t last_on_brightness=30;
 static uint16_t brightness_position=72,warmth_position=120,last_on_position=72;
 static bool light_enabled=true;
 static bool light_dirty;
+static bool light_suspended;
+static time_t light_schedule_checked;
 static atomic_bool haptic_enabled=true;
 static atomic_bool haptic_stopped;
 static SemaphoreHandle_t haptic_mutex;
@@ -353,6 +357,7 @@ esp_err_t metalio_tps_on(int mv) {
 void metalio_frontlight(unsigned brightness,unsigned warmth) {
     if (!fl_ready) return;
     if (brightness == 0) {
+        light_suspended=true;metalio_light_schedule_invalidate();
         ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
         ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
         return;
@@ -457,7 +462,33 @@ static void frontlight_apply_position(unsigned brightness,unsigned warmth) {
     ledc_set_duty(LEDC_LOW_SPEED_MODE,LEDC_CHANNEL_1,total*warmth/METALIO_FRONTLIGHT_RANGE);
     ledc_update_duty(LEDC_LOW_SPEED_MODE,LEDC_CHANNEL_1);
 }
+static void frontlight_schedule_update(void) {
+    unsigned total=light_enabled?brightness_position:0;
+    unsigned warm=total*warmth_position/METALIO_FRONTLIGHT_RANGE;
+    unsigned white=total-warm;
+    if(!metalio_light_schedule_apply(time(NULL),&white,&warm))return;
+    total=white+warm;
+    // Both scheduled channels share the existing half-scale power ceiling.
+    brightness_position=total>METALIO_FRONTLIGHT_RANGE?METALIO_FRONTLIGHT_RANGE:total;
+    if(total)warmth_position=(warm*METALIO_FRONTLIGHT_RANGE+total/2)/total;
+    light_enabled=total!=0;
+    saved_brightness=(brightness_position*100+METALIO_FRONTLIGHT_RANGE/2)/METALIO_FRONTLIGHT_RANGE;
+    saved_warmth=(warmth_position*100+METALIO_FRONTLIGHT_RANGE/2)/METALIO_FRONTLIGHT_RANGE;
+    if(brightness_position){last_on_position=brightness_position;last_on_brightness=saved_brightness;}
+}
+void metalio_frontlight_schedule_poll(void) {
+    if(light_suspended)return;
+    time_t now=time(NULL);
+    if(now==light_schedule_checked)return;
+    light_schedule_checked=now;
+    unsigned before=brightness_position, warmth=warmth_position;bool enabled=light_enabled;
+    frontlight_schedule_update();
+    if(before!=brightness_position || warmth!=warmth_position || enabled!=light_enabled)
+        frontlight_apply_position(light_enabled?brightness_position:0,warmth_position);
+}
 void metalio_frontlight_restore(void) {
+    light_suspended=false;
+    frontlight_schedule_update();
     frontlight_apply_position(light_enabled?brightness_position:0,warmth_position);
 }
 // 兼容旧版以亮度0表示关闭的设置；新开关独立保存，重启/唤醒不能擅自开灯。
