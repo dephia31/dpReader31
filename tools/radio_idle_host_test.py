@@ -16,6 +16,8 @@ typedef struct{int state;}read_pico_transfer_status_t;
 static struct{int64_t now_ms;}ctx;
 static int app_device_settings,other;
 static int64_t last_wifi_active_ms,last_ble_active_ms;
+static bool opds_open;
+static bool opds_session_active(void){return opds_open;}
 static bool job,sync_job,ota,usb,bt,connected,connecting,scanning,admit;
 static uint32_t generation,last_network_generation;
 static uint32_t read_pico_transfer_network_generation(void){return generation;}
@@ -40,13 +42,14 @@ static void tick(int *current){
 '''+source[a:b]+r'''
 }
 static void reset(void){ctx.now_ms=120001;last_wifi_active_ms=last_ble_active_ms=1;status.state=READY;
- generation=last_network_generation=0;wifi_timeout=ble_timeout=1;stop_requests=stops=0;job=sync_job=ota=usb=connected=connecting=scanning=false;admit=bt=true;
+ opds_open=false;generation=last_network_generation=0;wifi_timeout=ble_timeout=1;stop_requests=stops=0;job=sync_job=ota=usb=connected=connecting=scanning=false;admit=bt=true;
 }
 int main(void){
  for(int kind=0;kind<5;++kind){reset();job=kind==0;sync_job=kind==1;ota=kind==2;usb=kind==3;if(kind==4)status.state=READ_PICO_TRANSFER_UPLOADING;
   tick(&other);assert(!stop_requests&&bt&&last_wifi_active_ms==ctx.now_ms);
  }
  reset();tick(&other);assert(stops==1&&status.state==READ_PICO_TRANSFER_STOPPED&&bt);
+ reset();opds_open=true;tick(&other);assert(!stop_requests);opds_open=false;ctx.now_ms+=60001;tick(&other);assert(stops==1);
  reset();generation=2;tick(&other);assert(!stop_requests&&last_wifi_active_ms==ctx.now_ms);
  ctx.now_ms+=60001;tick(&other);assert(stops==1);
  reset();admit=false;tick(&other);assert(stop_requests==1&&!stops&&status.state==READY);

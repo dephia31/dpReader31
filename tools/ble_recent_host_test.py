@@ -32,6 +32,7 @@ static atomic_bool s_recent_requested;
 static bool s_link_up,s_connecting;
 static char s_reconnect_addr[18],s_pending_addr[18];
 static uint32_t s_reconnect_at,s_retry_after_ms;
+static unsigned s_reconnect_failures;
 static char s_start_failure[160],s_failure[128];
 static int commits,handles,connects,connect_error,boot_tries;
 static char connected_addr[18];

@@ -50,6 +50,7 @@
  */
 
 #include "kosync_client.h"
+#include "opds_client.h"
 #include "app_loop.h"
 #if KIIKO_BOARD_METALIO47
 #include "anti_fade.h"
@@ -1776,7 +1777,7 @@ void app_loop_run(const app_loop_config_t* config) {
             last_wifi_active_ms = ctx.now_ms;
         }
         if (wifi_running) {
-            if (wifi_transferring) {
+            if (wifi_transferring || opds_session_active()) {
                 last_wifi_active_ms = ctx.now_ms;
             } else {
                 unsigned wifi_timeout = app_settings_wifi_timeout_minutes();
@@ -1990,6 +1991,10 @@ void app_loop_run(const app_loop_config_t* config) {
 #endif
         // Nhịp chờ thích ứng: 8ms khi thao tác, 40ms khi nhàn rỗi đọc trang sách tĩnh.
         // Adaptive tick delay: 8ms during active touch/input, 40ms when reading static pages.
+#if KIIKO_BOARD_METALIO47
+        cst836u_wait_sample(config->tp,(uint32_t)current_tick_ms);
+#else
         vTaskDelay(pdMS_TO_TICKS(current_tick_ms));
+#endif
     }
 }

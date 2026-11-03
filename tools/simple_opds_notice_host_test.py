@@ -22,6 +22,7 @@ static int E0470_WAVEFORM,stage,s_view,s_opds_page,s_opds_depth,fetches,draws;
 static bool simple,oom,network_fail;
 static opds_feed_t *s_opds_feed;
 static char s_opds_url[256],s_opds_status[128];
+static void opds_session_begin(void){}
 static bool app_settings_simple_ui(void){return simple;}
 static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,int gray){assert(fb&&r.width==540&&r.height==176&&radius==24&&gray==255);stage=1;}
 static void ui_draw_control_frame(uint8_t *fb,EpdRect r,int radius,int gray){assert(fb&&r.y==464&&radius==24&&gray==0&&stage==1);stage=2;}

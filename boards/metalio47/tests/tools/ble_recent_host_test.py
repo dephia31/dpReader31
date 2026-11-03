@@ -32,6 +32,7 @@ static atomic_bool s_recent_requested;
 static bool s_link_up,s_connecting;
 static char s_reconnect_addr[18],s_pending_addr[18];
 static uint32_t s_reconnect_at,s_retry_after_ms;
+static unsigned s_reconnect_failures;
 static char s_start_failure[160],s_failure[128];
 static int commits,handles,connects,connect_error,boot_tries;
 static char connected_addr[18];
@@ -62,8 +63,8 @@ int main(void){
  bond_add(a,"A",0);assert(commits==4&&!strcmp(s_bonds[2].addr,a));
  for(int n=0;n<100;++n)bond_add(a,"A",0);assert(commits==4);
  memset(s_bonds,0,sizeof(s_bonds));s_bond_count=0;bonds_load();assert(s_bond_count==3&&!strcmp(s_bonds[2].addr,a)&&!handles);
- ble_pt_reconnect_recent();ble_pt_reconnect_recent();assert(!connects);
- reconnect_recent_requested();assert(connects==1&&!strcmp(connected_addr,a)&&!strcmp(s_reconnect_addr,a)&&s_reconnect_at==123);
+ s_reconnect_failures=3;ble_pt_reconnect_recent();ble_pt_reconnect_recent();assert(!connects);
+ reconnect_recent_requested();assert(connects==1&&!strcmp(connected_addr,a)&&!strcmp(s_reconnect_addr,a)&&s_reconnect_at==123&&!s_reconnect_failures);
  reconnect_recent_requested();assert(connects==1);
  s_link_up=true;ble_pt_reconnect_recent();reconnect_recent_requested();assert(connects==1);s_link_up=false;
  s_connecting=true;ble_pt_reconnect_recent();reconnect_recent_requested();assert(connects==1);s_connecting=false;
@@ -81,7 +82,7 @@ int main(void){
 }
 '''
 poll=function('poll_locked');assert poll.index('if (!s_running) return;')<poll.index('reconnect_recent_requested();')
-assert 'BLE_PT_RECONNECT_MS' in poll and '!s_scanning' in poll
+assert 'reconnect_delay_ms(s_reconnect_failures)' in poll and '!s_scanning' in poll
 with tempfile.TemporaryDirectory(prefix='kiiko-ble-recent-') as tmp:
  p=Path(tmp);(p/'esp_err.h').write_text('#pragma once\ntypedef int esp_err_t;\nenum {ESP_OK,ESP_FAIL};\n');(p/'test.c').write_text(unit)
  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-fsanitize=address,undefined','-I'+tmp,'-I'+str(root/'components/ble_page_turner/include'),str(p/'test.c'),'-o',str(p/'test')],check=True)

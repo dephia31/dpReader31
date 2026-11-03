@@ -23,6 +23,9 @@ static bool kosync_busy(void){return false;}
 #include <pthread.h>
 #include <time.h>
 #include "reader_page_cache.h"
+#include "metalio_cover_cache.h"
+metalio_cover_stats_t metalio_cover_cache_stats(void){return (metalio_cover_stats_t){0};}
+void metalio_cover_cache_trim(size_t budget){(void)budget;assert(false);}
 typedef struct{int x,y,width,height;}EpdRect;
 typedef struct{bool touched;}touch_t;
 typedef struct{bool consumed,request_app,request_menu,request_return;touch_t *touch;}app_ctx_t;

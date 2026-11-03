@@ -163,6 +163,8 @@ int cst836u_get_info(void* h,cst836u_info_t* i) {(void)h;(void)i;return 0;}
 const char* esp_err_to_name(int e) {(void)e;return "test";}
 int64_t esp_timer_get_time(void) {return time_offset+(int64_t)(step+1)*time_step;}
 void vTaskDelay(int ms) {(void)ms;if (++step>=sample_count) longjmp(done,1);}
+void cst836u_wait_sample(void *h,unsigned timeout_ms){(void)h;vTaskDelay((int)timeout_ms);}
+
 bool continuous_du_init(void) {return true;}
 void display_request_full_refresh(void) {++wake_clean_requests;}
 void guard_draw_result(EpdiyHighlevelState* h,enum EpdDrawError e) {(void)h;assert(e==0);}

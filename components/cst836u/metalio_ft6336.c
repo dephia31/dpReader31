@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 struct cst836u_dev_t {
-    cst836u_config_t cfg; cst836u_mode_t mode; TaskHandle_t task;
+    cst836u_config_t cfg; cst836u_mode_t mode; TaskHandle_t task,consumer;
     portMUX_TYPE lock; cst836u_touch_t sample,press; bool pending_press; esp_err_t error;
     SemaphoreHandle_t io_lock;
     bool irq_ready;
@@ -54,8 +54,10 @@ static void feed(void *arg) {
             h->sample=t;
         }
         h->error=err;
+        TaskHandle_t consumer=h->consumer;
         portEXIT_CRITICAL(&h->lock);
         xSemaphoreGive(h->io_lock);
+        if(consumer)xTaskNotifyGive(consumer);
         if (err==ESP_OK && t.touched && !was_down) {
             unsigned rx=((t.raw[3]&15)<<8)|t.raw[4], ry=((t.raw[5]&15)<<8)|t.raw[6];
             ESP_LOGI("metalio_touch","press raw=(%u,%u) screen=(%u,%u)",rx,ry,t.x,t.y);
@@ -109,7 +111,7 @@ fail:
 }
 esp_err_t cst836u_read(cst836u_handle_t h,cst836u_touch_t *out) {
     if (!h || !out) return ESP_ERR_INVALID_ARG;
-    portENTER_CRITICAL(&h->lock); *out=h->pending_press?h->press:h->sample;
+    portENTER_CRITICAL(&h->lock); h->consumer=xTaskGetCurrentTaskHandle(); *out=h->pending_press?h->press:h->sample;
     h->pending_press=false; esp_err_t err=h->error; portEXIT_CRITICAL(&h->lock); return err;
 }
 esp_err_t cst836u_deinit(cst836u_handle_t h) {
@@ -165,3 +167,11 @@ bool cst836u_int_asserted(cst836u_handle_t h) { return cst836u_int_level(h)==0; 
 gpio_num_t cst836u_int_gpio(cst836u_handle_t h) { return h?h->cfg.int_gpio:GPIO_NUM_NC; }
 const char *cst836u_mode_name(cst836u_mode_t mode) { return mode==CST836U_MODE_DEEPSLEEP?"sleep":"normal"; }
 const char *cst836u_event_name(uint8_t event) { return event==0?"down":event==1?"up":event==2?"contact":"reserved"; }
+
+void cst836u_wait_sample(cst836u_handle_t h,uint32_t timeout_ms) {
+    TaskHandle_t self=xTaskGetCurrentTaskHandle();
+    if(!h){vTaskDelay(pdMS_TO_TICKS(timeout_ms));return;}
+    portENTER_CRITICAL(&h->lock);bool owner=h->consumer==self;portEXIT_CRITICAL(&h->lock);
+    if(owner)(void)ulTaskNotifyTake(pdTRUE,pdMS_TO_TICKS(timeout_ms));
+    else vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+}

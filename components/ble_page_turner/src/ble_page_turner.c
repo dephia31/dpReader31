@@ -208,6 +208,10 @@ static char s_start_failure[160];
 // switching it off is not immediately undone by the retry.
 static char s_reconnect_addr[18];
 static uint32_t s_reconnect_at;
+static unsigned s_reconnect_failures;
+static uint32_t reconnect_delay_ms(unsigned failures) {
+    return failures>=4?60000u:(4000u<<failures);
+}
 // 快捷按钮只排队；在既有生命周期/网络内存闸门放行后，由poll发起一次异步连接。
 // Quick input only queues; poll starts one asynchronous connect after existing lifecycle/network memory gates allow it.
 static atomic_bool s_recent_requested;
@@ -1245,6 +1249,7 @@ static int gap_cb(struct ble_gap_event *event, void *arg) {
             }
             s_conn_handle = event->connect.conn_handle;
             s_link_up = true;
+            s_reconnect_failures=0;
             s_connecting = false;  // 链路已建立，"连接中"到此为止 / the link exists, so stop saying "connecting"
             // 链路建立、加密、发现、订阅各打一行：带上时间戳就能看出卡在哪一步。
             // One line each for link up, encryption, discovery and subscription: with timestamps
@@ -1502,6 +1507,7 @@ static void reconnect_recent_requested(void) {
     if(!atomic_exchange(&s_recent_requested,false)||s_link_up||s_connecting||!s_bond_count)return;
     const ble_pt_bond_t *recent=&s_bonds[s_bond_count-1];
     snprintf(s_reconnect_addr,sizeof(s_reconnect_addr),"%s",recent->addr);
+    s_reconnect_failures=0;
     s_reconnect_at=(uint32_t)(esp_timer_get_time()/1000);
     // 复用异步连接/扫描取消和原有4秒重试，不等待配对、不扫描未知外设。
     // Reuse asynchronous connect/scan cancellation and the existing four-second retry; never wait for pairing or scan unknown peers.
@@ -1957,8 +1963,9 @@ static void poll_locked(void) {
     // fight, which shows up as an unstable connection (CrossMux guards with !scanning_ too).
     if (!s_link_up && !s_connecting && !s_scanning && s_reconnect_addr[0]) {
         const uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
-        if (now - s_reconnect_at >= BLE_PT_RECONNECT_MS) {
+        if (now - s_reconnect_at >= reconnect_delay_ms(s_reconnect_failures)) {
             s_reconnect_at = now;
+            if(s_reconnect_failures<4)++s_reconnect_failures;
             char addr[18];
             snprintf(addr, sizeof(addr), "%s", s_reconnect_addr);
             if (ble_pt_connect(addr) == ESP_OK)

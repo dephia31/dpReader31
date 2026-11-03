@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "reader_page_cache.h"
+#include "metalio_cover_cache.h"
 #include "esp_heap_caps.h"
 #include <assert.h>
 #include <stdio.h>
@@ -7,6 +8,10 @@
 #include <string.h>
 static size_t available=16u*1024u*1024u,largest=16u*1024u*1024u;
 static bool oom;
+static size_t cover_bytes;static unsigned cover_trims;
+metalio_cover_stats_t metalio_cover_cache_stats(void){return (metalio_cover_stats_t){.bytes=cover_bytes};}
+void metalio_cover_cache_trim(size_t budget){assert(!budget);++cover_trims;available+=cover_bytes;largest+=cover_bytes;cover_bytes=0;}
+
 void *heap_caps_malloc(size_t n,unsigned caps){assert(caps==3);return oom?NULL:malloc(n);}
 void *heap_caps_calloc(size_t n,size_t m,unsigned caps){assert(caps==3);return oom?NULL:calloc(n,m);}
 size_t heap_caps_get_free_size(unsigned caps){assert(caps==3);return available;}
@@ -37,6 +42,9 @@ int main(void){
  assert(reader_page_cache_bytes()==4u*BYTES);
  reader_page_cache_clear();assert(!reader_page_cache_bytes());
  assert(!reader_page_cache_begin(0,1,BYTES,0));
+ available=2u*1024u*1024u;largest=16u*1024u*1024u;cover_bytes=1024u*1024u;
+ assert(reader_page_cache_begin(0,1,BYTES,0)&&cover_trims==1&&!cover_bytes);
+ reader_page_cache_clear();
  available=16u*1024u*1024u;
  assert(!reader_page_cache_begin(0,1,0,0)&&!reader_page_cache_begin(0,1,1024u*1024u+1,0));
  assert(reader_page_cache_store(0,9,pixels,BYTES,0));

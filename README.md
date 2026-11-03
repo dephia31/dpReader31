@@ -305,3 +305,5 @@ python3 -m esptool --chip esp32s31 merge-bin \
 
 ## 📄 Giấy phép (License)
 Dựa trên nền tảng mã nguồn mở `Metalio-S31-kiikoread` (Apache-2.0 / Personal Study License). Phiên bản **dpReader** được tùy biến và tối ưu hóa dành cho cộng đồng người dùng máy đọc sách E-ink tại Việt Nam.
+
+Thiết kế tác vụ nền và giới hạn tiết kiệm năng lượng khi đọc: [READING_POWER.md](docs/READING_POWER.md).

@@ -7,7 +7,7 @@ không được giành hoặc tắt radio của tác vụ đang chạy. Bộ b�
 hoặc cấp phát heap riêng.
 
 Kết nối WiFi tạm do một tác vụ tự mở được đóng khi tác vụ hoàn tất, lỗi hoặc bị
-hủy. Nếu tác vụ dùng kết nối thuần WiFi đã được người dùng bật, nó không tự đóng
+hủy, ngoại trừ phiên duyệt OPDS được mô tả dưới đây. Nếu tác vụ dùng kết nối thuần WiFi đã được người dùng bật, nó không tự đóng
 kết nối đó. Kết nối thủ công tiếp tục theo công tắc và thời gian chờ đã cài;
 thời gian chờ bằng 0 vẫn có nghĩa là không tự tắt do rảnh.
 Chạm đọc sách hoặc lật trang không gia hạn thời gian WiFi rảnh. Tác vụ mạng
@@ -43,3 +43,11 @@ Khi đang đọc nội dung sách và WiFi chưa kết nối, lịch chỉnh gi�
 trì hoãn để tránh tự bật radio giữa phiên đọc. Rời nội dung sách hoặc có WiFi
 đang kết nối sẽ cho phép kiểm tra lịch cũ; các chức năng mạng vẫn có đường
 chỉnh giờ riêng khi cần.
+
+OPDS giữ WiFi trong suốt thời gian giao diện duyệt còn mở, qua các lần lấy danh
+mục, phân trang, làm mới và tải sách. Mỗi yêu cầu trả quyền I/O sau khi đóng
+HTTP/file, nhưng kết nối do OPDS tự bật chỉ được dọn khi đóng giao diện hoặc
+rời trang. Timeout WiFi rảnh không kết thúc phiên duyệt đang mở. Nếu WiFi đã
+được người dùng bật trước khi vào OPDS, đóng OPDS không tự tắt kết nối đó.
+Kết nối thất bại vẫn được dọn để cho phép thử lại; Sleep dùng quy trình tạm
+dừng/khôi phục radio vốn có, không giữ radio chạy xuyên giấc ngủ.

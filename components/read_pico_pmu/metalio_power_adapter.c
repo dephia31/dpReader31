@@ -19,7 +19,7 @@ static bool ready,held,long_sent,candidate;
 static bool keys_paused;
 static uint32_t key_epoch;
 static uint32_t s_lock_key_serial;
-static int64_t candidate_since,down_since,battery_at;
+static int64_t candidate_since,down_since,battery_at,gauge_at;
 static bool charger_initialized;
 static int64_t charger_retry_at,charge_valid_at;
 static read_pico_pmu_key_action_t action;
@@ -209,7 +209,12 @@ static void battery(void) {
         (void)charger_init(); charger_retry_at=now+30000000;
     }
     const bool was_charging=(state.flags&PMU_STATUS_CHARGING_ACTIVE)!=0;
-    uint8_t r[2]; state.flags &= ~(PMU_STATUS_BATTERY_VALID|PMU_STATUS_CHARGING_ACTIVE); state.quick_ok=false;
+    uint8_t r[2]; state.flags &= ~PMU_STATUS_CHARGING_ACTIVE; state.quick_ok=false;
+    // SOC/电压15秒采样；充电状态仍每2秒，失败的SOC下次立即重试。
+    // Sample SOC/voltage every15s; retain2s charging checks and retry invalid gauge data next time.
+    if (!gauge_at || now<gauge_at || now-gauge_at>=15000000 || !(state.flags&PMU_STATUS_BATTERY_VALID)) {
+    gauge_at=now;
+    state.flags &= ~PMU_STATUS_BATTERY_VALID;
     if (metalio_read(0x55,0x08,r,2)==ESP_OK) {
         unsigned mv=r[0]|r[1]<<8;
         if (mv>=2500 && mv<=5000) {
@@ -219,6 +224,7 @@ static void battery(void) {
             if (metalio_read(0x55,0x2c,r,2)==ESP_OK && (soc=(unsigned)(r[0]|r[1]<<8))<=100) state.soc_permille=soc*10;
             else state.flags &= ~PMU_STATUS_BATTERY_VALID;
         }
+    }
     }
     // 官方BQ27220说明：0x0C为有符号mA，±5mA死区；VBUS_STAT因关闭DPDM不能判断插电。
     // Vendor BQ27220 guidance:0x0C is signed mA with a±5mA deadband; disabled DPDM makes VBUS_STAT unsuitable for detecting input.

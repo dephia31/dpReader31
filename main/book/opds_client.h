@@ -34,6 +34,11 @@ typedef struct {
     opds_entry_t entries[OPDS_MAX_ENTRIES]; ///< Danh sách các mục
 } opds_feed_t;
 
+/// UI-owned browsing session: retain self-started WiFi between requests; close only after synchronous work returns.
+void opds_session_begin(void);
+void opds_session_end(void);
+bool opds_session_active(void);
+
 typedef void (*opds_progress_cb_t)(size_t received_bytes, size_t total_bytes, void *user_ctx);
 
 /* UI-thread-only observer; requests are synchronous. Must not start/stop network.

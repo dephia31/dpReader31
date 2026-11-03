@@ -4,6 +4,7 @@
  */
 #include "reader_page_cache.h"
 #include "metalio_memory.h"
+#include "metalio_cover_cache.h"
 #include <stdlib.h>
 #include <string.h>
 #define FRAME_SLOTS KIIKO_BOARD_PAGE_CACHE_SLOTS
@@ -38,7 +39,12 @@ uint8_t *reader_page_cache_begin(size_t page,uint32_t generation,size_t bytes,si
     if(!chosen)return NULL;
     if(chosen->bytes!=bytes){free(chosen->pixels);memset(chosen,0,sizeof(*chosen));}
     if(!chosen->pixels){
-        if(!metalio_cache_can_grow(bytes))return NULL;
+        // 内存紧张先回收可重建封面，保留正文与字形热缓存。
+        // Reclaim rebuildable cover rasters on pressure, retaining hot body and glyph caches.
+        if(!metalio_cache_can_grow(bytes)) {
+            if(metalio_cover_cache_stats().bytes)metalio_cover_cache_trim(0);
+            if(!metalio_cache_can_grow(bytes))return NULL;
+        }
         chosen->pixels=heap_caps_malloc(bytes,METALIO_PSRAM);
         if(!chosen->pixels)return NULL;
     }

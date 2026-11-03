@@ -39,6 +39,8 @@ int xSemaphoreTake(SemaphoreHandle_t,uint32_t);
 int xSemaphoreGive(SemaphoreHandle_t);
 void vSemaphoreDelete(SemaphoreHandle_t);
 int xTaskCreate(void(*)(void*),const char*,unsigned,void*,unsigned,TaskHandle_t*);
+TaskHandle_t xTaskGetCurrentTaskHandle(void);
+void vTaskDelay(uint32_t);
 void vTaskDelete(TaskHandle_t);
 void xTaskNotifyGive(TaskHandle_t);
 void vTaskNotifyGiveFromISR(TaskHandle_t,BaseType_t*);
@@ -68,6 +70,8 @@ int xSemaphoreTake(SemaphoreHandle_t s,uint32_t n){assert(n==portMAX_DELAY&&!s->
 int xSemaphoreGive(SemaphoreHandle_t s){assert(s->locked);s->locked=false;return 1;}
 void vSemaphoreDelete(SemaphoreHandle_t s){assert(!s->locked);mutexes--;free(s);}
 int xTaskCreate(void(*f)(void*),const char*n,unsigned stack,void*a,unsigned p,TaskHandle_t*out){assert(f&&n&&stack==3072&&p==5);if(fail_task)return 0;*out=a;return 1;}
+TaskHandle_t xTaskGetCurrentTaskHandle(void){return (void*)123;}
+void vTaskDelay(uint32_t ticks){wait_ticks=ticks;}
 void vTaskDelete(TaskHandle_t t){assert(t);deleted++;}
 void xTaskNotifyGive(TaskHandle_t t){assert(t);notifications++;}
 void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t*h){assert(t);notifications++;*h=0;}
@@ -95,6 +99,10 @@ int main(void){
  handler(handler_arg);assert(notifications==1);
  contact(1,0);level=0;once(h);assert(wait_ticks==10);
  assert(cst836u_read(h,&out)==0&&out.touched&&out.x==341&&out.y==608);
+ assert(h->consumer==(void*)123);int notified=notifications;
+ once(h);assert(notifications==notified+1);
+ if(!setjmp(waited))cst836u_wait_sample(h,40);assert(wait_ticks==40);
+ cst836u_wait_sample(NULL,8);assert(wait_ticks==8);
  contact(1,2);raw[4]=90;once(h);assert(cst836u_read(h,&out)==0&&out.x==346);
  contact(0,0);level=1;once(h);assert(wait_ticks==portMAX_DELAY&&cst836u_read(h,&out)==0&&!out.touched);
  contact(1,0);once(h);contact(0,0);once(h);

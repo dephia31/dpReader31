@@ -27,7 +27,7 @@ unit=r'''
 #define portEXIT_CRITICAL(x) ((void)(x))
 typedef int esp_err_t;
 static struct {bool quick_ok,status_ok;uint32_t flags;unsigned battery_mv,soc_permille,charge_state;}state;
-static int64_t battery_at,clock_us;
+static int64_t battery_at,clock_us,gauge_at;
 static bool charger_initialized=true;
 static int64_t charger_retry_at,charge_valid_at;
 static int64_t esp_timer_get_time(void){return clock_us;}
@@ -58,7 +58,7 @@ unit+=hardware[hardware.index('static struct {uint16_t stable,candidate;'):hardw
 for name in ('metalio_volume_sample','metalio_take_volume','metalio_volume_clear'):
     unit+=function('components/metalio_hw/metalio_hw.c',name)
 unit+=r'''
-static void sample(void){clock_us+=2000000;battery();}
+static void sample(void){gauge_at=0;clock_us+=2000000;battery();}
 int main(void){
  (void)esp_err_to_name;
  // Preserve every unrelated bit and exercise read/write/readback faults before accepting initialization.
@@ -81,6 +81,8 @@ int main(void){
  }
  soc=37;for(mv=2500;mv<=5000;mv+=100){sample();assert((state.flags&PMU_STATUS_BATTERY_VALID)&&state.soc_permille==370);}
  mv=4000;fail_reg=0x2c;sample();assert(!(state.flags&PMU_STATUS_BATTERY_VALID));fail_reg=-1;soc=65;sample();
+ int cadence_before=reads;clock_us+=2000000;battery();assert(reads==cadence_before+4);
+ clock_us+=15000000;cadence_before=reads;battery();assert(reads==cadence_before+6);
  int before=reads;clock_us+=1999999;battery();assert(reads==before);clock_us++;battery();assert(reads>before);
  for(unsigned stage=0;stage<4;stage++){
   raw=stage<<3;ctrl=0x20;otg=0;sample();assert(!!(state.flags&PMU_STATUS_CHARGING_ACTIVE)==(stage!=0));

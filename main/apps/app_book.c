@@ -1821,6 +1821,7 @@ static void opds_open_notice(app_ctx_t *ctx) {
     guard_draw_result(ctx->hl,update_display_area_diff_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,box));
 }
 static void opds_open_catalog(app_ctx_t *ctx) {
+    opds_session_begin();
     if(app_settings_simple_ui())opds_open_notice(ctx);
     if (!s_opds_feed) {
         s_opds_feed = heap_caps_calloc(1, sizeof(opds_feed_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -7577,6 +7578,7 @@ static app_redraw_t action_at(app_ctx_t* ctx, uint16_t x, uint16_t y) {
                     snprintf(s_opds_status, sizeof(s_opds_status), "Có %u mục", (unsigned)s_opds_feed->count);
                 }
             } else {
+                opds_session_end();
                 s_view = IMPORT;
             }
             return APP_REDRAW_PAGE;
@@ -7902,6 +7904,7 @@ static void on_enter(app_ctx_t* ctx) {
 static void reader_edge_light_cancel(void);
 #endif
 static void book_on_exit(app_ctx_t* ctx) {
+    opds_session_end();
     opds_set_network_observer(NULL,NULL);
     if(app_settings_simple_ui()){free(s_opds_feed);s_opds_feed=NULL;}
     s_requested_home_sync=false;
@@ -8826,7 +8829,7 @@ static app_redraw_t on_key(app_ctx_t* ctx, int key) {
         if (s_batch_confirm) { s_batch_confirm = false; return APP_REDRAW_PAGE; }
         if (s_view == MANAGE || s_view == BULK || s_view == IMPORT || s_view == OPDS) {
             if (s_view == BULK) return bulk_finish(ctx);
-            if (s_view == OPDS) { s_view = IMPORT; return APP_REDRAW_PAGE; }
+            if (s_view == OPDS) { opds_session_end(); s_view = IMPORT; return APP_REDRAW_PAGE; }
             s_view = SHELF; return APP_REDRAW_PAGE;
         }
         if (s_view == SHELF) { ui_nav_request(ctx, 0); return APP_REDRAW_NONE; }
@@ -9013,6 +9016,7 @@ static app_redraw_t reader_font_recovery_tick(app_ctx_t *ctx) {
     return APP_REDRAW_DONE;
 }
 static app_redraw_t on_tick(app_ctx_t* ctx) {
+    if(s_view!=OPDS && opds_session_active())opds_session_end();
     if(app_settings_simple_ui()&&(s_view==SHELF||s_view==BULK)) {
         s_scan_pending=false;ctx->request_app=app_at(5);return APP_REDRAW_NONE;
     }

@@ -25,6 +25,16 @@
 #include <unistd.h>
 
 static const char *TAG = "opds";
+// UI线程持有浏览会话；每个HTTP请求仍独立保护实际I/O。
+// UI owns the browsing session; each HTTP request independently guards actual I/O.
+static bool s_session_active,s_session_owns_wifi;
+void opds_session_begin(void) { s_session_active=true; }
+bool opds_session_active(void) { return s_session_active; }
+void opds_session_end(void) {
+    bool stop=s_session_owns_wifi;
+    s_session_active=false;s_session_owns_wifi=false;
+    if(stop)read_pico_transfer_network_request_stop();
+}
 static void (*s_network_observer)(void *);
 static void *s_network_context;
 void opds_set_network_observer(void (*observer)(void *),void *context) {
@@ -378,6 +388,7 @@ static esp_err_t opds_acquire_network(bool *started_by_us, char *msg, size_t msg
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     read_pico_transfer_stop();
+    s_session_owns_wifi=false;
     *started_by_us = false;
     if(!read_pico_transfer_network_shareable()){if(msg&&msg_cap)snprintf(msg,msg_cap,"WiFi đang được trang truyền file sử dụng");return ESP_ERR_INVALID_STATE;}
     if (msg && msg_cap) snprintf(msg, msg_cap, "Không thể kết nối WiFi đã lưu");
@@ -385,7 +396,10 @@ static esp_err_t opds_acquire_network(bool *started_by_us, char *msg, size_t msg
 }
 
 static void opds_release_network(bool started_by_us) {
-    if (started_by_us) read_pico_transfer_stop();
+    if (started_by_us) {
+        if(s_session_active)s_session_owns_wifi=true;
+        else read_pico_transfer_stop();
+    }
 }
 
 typedef struct {

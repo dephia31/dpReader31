@@ -90,6 +90,10 @@ esp_err_t cst836u_init(i2c_master_bus_handle_t bus_handle, const cst836u_config_
                        cst836u_handle_t* handle);
 esp_err_t cst836u_deinit(cst836u_handle_t handle);
 
+#if KIIKO_BOARD_METALIO47
+/// 等待新采样或原有调度截止；UI单一消费者，未注册则按超时等待。/ Wait for a new sample or scheduler deadline; one UI consumer, timed fallback before registration.
+void cst836u_wait_sample(cst836u_handle_t h, uint32_t timeout_ms);
+#endif
 esp_err_t cst836u_read(cst836u_handle_t h, cst836u_touch_t* touch);
 esp_err_t cst836u_get_info(cst836u_handle_t h, cst836u_info_t* info);
 
