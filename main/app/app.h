@@ -172,6 +172,8 @@ struct app_desc_s {
     /// 每轮都调，页面自己判断到不到刷新间隔。
     /// / Called every tick; the page decides if its interval has elapsed.
     app_redraw_t (*on_tick)(app_ctx_t* ctx);
+    /// Opt-in: next monotonic tick deadline; 0 keeps the legacy wait. No IO/allocation/blocking.
+    int64_t (*next_tick_ms)(app_ctx_t* ctx);
     /// APP_REDRAW_AREA 要刷的区域。/ Area for APP_REDRAW_AREA.
     EpdRect (*area_hint)(app_ctx_t* ctx);
     /// 同一份实现挂多个 app 时用来区分（加速度计的读数页与诊断页共享绘制代码）。

@@ -147,6 +147,7 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <sys/time.h>
 #include <stdatomic.h>
 #include <unistd.h>
 
@@ -9261,6 +9262,43 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
 #endif
     return clock;
 }
+#if KIIKO_BOARD_METALIO47
+static int64_t reader_next_tick_ms(app_ctx_t *ctx) {
+    if(s_view!=READING || !s_text || !s_reader_display_ready || s_presented_view!=READING ||
+       s_toolbar || s_clear_confirm || s_reader_panel!=READER_PANEL_NONE || s_reader_choice.open ||
+       s_requested_open[0] || s_scan_pending || s_fonts_reload_pending || s_background_prepare_pending ||
+       s_reader_tap.pending || s_chapter_jump_undo.valid || s_indent_hold.active || s_zoom_active || s_reader_clock_pending || book_notes_active() ||
+       s_font_choice_pending || s_font_recovery_pending || s_font_restart_pending || s_save_failed ||
+       s_reader_notice[0] || app_settings_kosync_auto() ||
+       strcmp(s_font_path,ttf_font_path()) || app_settings_book_background_path()[0] ||
+       book_layout_page_image_count(s_page) ||
+       (app_settings_lock_style()==0 && !s_ticket_cover_done))return 0;
+    bool warming=(s_turn_direction>=0 && s_page+3>=book_layout_page_count() && s_chapter+1<book_chapter_count()) ||
+                 (s_turn_direction<0 && s_page<3 && s_chapter);
+    if(warming && !s_chapter_warm_done)return 0;
+    // Never wait for the prefetch worker or allocate from the wait planner.
+    if(!s_draw_lock || xSemaphoreTake(s_draw_lock,0)!=pdTRUE)return 0;
+    size_t targets[3]={s_page+1,s_page+2,s_page?s_page-1:SIZE_MAX};
+    uint32_t generation=book_layout_generation();bool ready=true;
+    for(unsigned i=0;i<3;i++)if(targets[i]<book_layout_page_count() &&
+        (book_layout_page_image_count(targets[i]) || !reader_page_cache_find(targets[i],generation,fb_bytes())))ready=false;
+    xSemaphoreGive(s_draw_lock);
+    if(!ready)return 0;
+    int64_t next=ctx->now_ms+1000;
+    struct timeval wall;
+    if(gettimeofday(&wall,NULL)==0 && wall.tv_sec>=1704067200) {
+        int64_t minute=ctx->now_ms+60000-(wall.tv_sec%60)*1000-wall.tv_usec/1000;
+        if(minute<next)next=minute;
+    }
+    if(s_stats_pending_ms<30000 && ctx->now_ms>=s_stats_activity_ms && ctx->now_ms-s_stats_activity_ms<300000) {
+        int64_t stats=ctx->now_ms+30000-s_stats_pending_ms;
+        if(stats<next)next=stats;
+        int64_t stop=s_stats_activity_ms+300000;
+        if(stop<next)next=stop;
+    }
+    return next;
+}
+#endif
 static void before_lock(app_ctx_t* ctx) {
     s_reader_display_ready=false;
     s_reader_choice.open=false;
@@ -9307,4 +9345,7 @@ const app_desc_t app_book = {
     .wants_pinch = wants_pinch, .on_pinch = on_pinch,
     .on_power_short = on_power_short,
     .on_tick = on_tick, .area_hint = area_hint,
+#if KIIKO_BOARD_METALIO47
+    .next_tick_ms = reader_next_tick_ms,
+#endif
 };

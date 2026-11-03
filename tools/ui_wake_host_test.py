@@ -40,7 +40,7 @@ int main(void){
  assert(!metalio_ui_wake_wait(0));
  metalio_ui_wake_post(METALIO_UI_WAKE_KEY);metalio_ui_wake_post(METALIO_UI_WAKE_BLE);metalio_ui_wake_post(METALIO_UI_WAKE_KEY);
  assert(metalio_ui_wake_wait(8)==(METALIO_UI_WAKE_KEY|METALIO_UI_WAKE_BLE));assert(!metalio_ui_wake_wait(0));
- before_wait=post_at_wait;assert(metalio_ui_wake_wait(40)==METALIO_UI_WAKE_BLE);
+ before_wait=post_at_wait;assert(metalio_ui_wake_wait(200)==METALIO_UI_WAKE_BLE&&last_ticks==200);
  // Notifications coalesce wakeups only; real payload remains separately counted.
  pthread_t threads[4];for(unsigned i=0;i<4;i++)assert(!pthread_create(threads+i,NULL,producer,(void*)(uintptr_t)i));
  unsigned received=0;

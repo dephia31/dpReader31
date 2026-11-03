@@ -37,3 +37,11 @@ bool anti_fade_due(int64_t now_ms,int64_t last_input_ms,bool blocked){
     if(!minutes||now_ms<last_input_ms||now_ms-last_input_ms<interval||now_ms-s_last_refresh_ms<interval)return false;
     s_last_refresh_ms=now_ms;return true;
 }
+
+int64_t anti_fade_next_ms(int64_t now_ms,int64_t last_input_ms) {
+    unsigned minutes=anti_fade_minutes();
+    if(!minutes)return INT64_MAX;
+    if(!s_clock_ready || now_ms<s_last_refresh_ms || now_ms<last_input_ms)return now_ms;
+    int64_t base=s_last_refresh_ms>last_input_ms?s_last_refresh_ms:last_input_ms;
+    return base+(int64_t)minutes*60000;
+}

@@ -54,3 +54,7 @@ metalio_ui_wake_stats_t metalio_ui_wake_stats(void) {
     portENTER_CRITICAL(&lock);metalio_ui_wake_stats_t copy=stats;portEXIT_CRITICAL(&lock);
     return copy;
 }
+
+uint32_t metalio_ui_wake_pending(void) {
+    portENTER_CRITICAL(&lock);uint32_t bits=pending;portEXIT_CRITICAL(&lock);return bits;
+}

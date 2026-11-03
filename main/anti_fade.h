@@ -22,3 +22,6 @@ void anti_fade_set_minutes(unsigned minutes);
 /// 正常主循环调用：阻塞/唤醒/输入后重新等待完整间隔，不创建定时唤醒。
 /// Poll from the normal loop; blocked states, wake and input defer a full interval without scheduling wakeups.
 bool anti_fade_due(int64_t now_ms,int64_t last_input_ms,bool blocked);
+
+/// Next monotonic deadline, or INT64_MAX when disabled.
+int64_t anti_fade_next_ms(int64_t now_ms,int64_t last_input_ms);

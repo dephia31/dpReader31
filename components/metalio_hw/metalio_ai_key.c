@@ -44,3 +44,7 @@ bool metalio_ai_sampling_pending(void) {
     portEXIT_CRITICAL(&ai_lock);
     return pending;
 }
+
+bool metalio_ai_events_pending(void) {
+    portENTER_CRITICAL(&ai_lock);bool pending=ai.count!=0;portEXIT_CRITICAL(&ai_lock);return pending;
+}

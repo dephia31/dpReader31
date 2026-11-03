@@ -120,3 +120,6 @@ void metalio_poweroff(void);
 
 /// User adjustment: positive brightness enables the light; warmth alone preserves its switch.
 void metalio_frontlight_adjust_position(bool warmth,unsigned position);
+
+bool metalio_ai_events_pending(void);
+bool metalio_volume_events_pending(void);

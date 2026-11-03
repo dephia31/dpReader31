@@ -713,3 +713,7 @@ void metalio_hold_for_deep_sleep(void) {
         gpio_set_level(pins[i],0); gpio_set_direction(pins[i],GPIO_MODE_OUTPUT); gpio_hold_en(pins[i]);
     }
 }
+
+bool metalio_volume_events_pending(void) {
+    portENTER_CRITICAL(&volume_lock);bool pending=volume_count!=0;portEXIT_CRITICAL(&volume_lock);return pending;
+}

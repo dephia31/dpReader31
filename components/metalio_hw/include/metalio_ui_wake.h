@@ -17,3 +17,5 @@ void metalio_ui_wake_post(uint32_t reasons);
 uint32_t metalio_ui_wake_wait(uint32_t timeout_ms);
 void metalio_ui_wake_iteration(void);
 metalio_ui_wake_stats_t metalio_ui_wake_stats(void);
+
+uint32_t metalio_ui_wake_pending(void);

@@ -18,3 +18,6 @@ void metalio_ai_clear(void);
 void metalio_frontlight_adjust_position(bool warm,unsigned value);
 
 static inline void metalio_frontlight_schedule_poll(void) {}
+
+static inline bool metalio_ai_events_pending(void){return false;}
+static inline bool metalio_volume_events_pending(void){return false;}

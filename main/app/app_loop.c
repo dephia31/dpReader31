@@ -50,6 +50,7 @@
  */
 
 #include "metalio_ui_wake.h"
+#include "app_wait.h"
 #include "kosync_client.h"
 #include "opds_client.h"
 #include "app_loop.h"
@@ -1093,6 +1094,7 @@ void app_loop_run(const app_loop_config_t* config) {
     uint32_t last_network_generation = read_pico_transfer_network_generation();
     int64_t last_ble_active_ms = last_input_ms;
     int current_tick_ms = LOOP_TICK_ACTIVE_MS;
+    uint32_t wake_reasons=0;
     uint32_t last_ble_input = ble_pt_input_serial();
     unsigned idle_minutes = app_settings_auto_lock_minutes();
     unsigned cover_policy = (unsigned)app_settings_main_refresh_mode() | ((unsigned)app_settings_system_contrast() << 8);
@@ -1606,7 +1608,7 @@ void app_loop_run(const app_loop_config_t* config) {
 #if KIIKO_BOARD_METALIO47
         if (!app_sd_recovery_busy() &&
             (quick_lock_requested || (read_pico_pmu_ready() && !current->holds_pmu && !usb_storage_active()
-            && ctx.now_ms - last_lock_poll_ms >= APP_LOCK_POLL_MS))) {
+            && ((wake_reasons&METALIO_UI_WAKE_KEY) || ctx.now_ms - last_lock_poll_ms >= APP_LOCK_POLL_MS)))) {
 #else
         if (quick_lock_requested || (read_pico_pmu_ready() && !current->holds_pmu && !usb_storage_active()
             && ctx.now_ms - last_lock_poll_ms >= APP_LOCK_POLL_MS)) {
@@ -2006,7 +2008,31 @@ void app_loop_run(const app_loop_config_t* config) {
         // Nhịp chờ thích ứng: 8ms khi thao tác, 40ms khi nhàn rỗi đọc trang sách tĩnh.
         // Adaptive tick delay: 8ms during active touch/input, 40ms when reading static pages.
 #if KIIKO_BOARD_METALIO47
-        (void)metalio_ui_wake_wait((uint32_t)current_tick_ms);
+        bool input_pending=metalio_ui_wake_pending()!=0 || metalio_ai_events_pending() ||
+            metalio_volume_events_pending();
+        bool can_extend=!input_pending && current==&app_book && current->next_tick_ms &&
+            current_tick_ms==LOOP_TICK_IDLE_MS && ctx.now_ms-last_input_ms>=400 && err==ESP_OK && !touch.touched && !gesture.active &&
+            !pinching && !pinch_input_owned && !pinch_drain && held_key<0 &&
+            !menu_open && !power_dialog_open && !s_quick.open && !quick_input_owned && !ai_overlay_open() &&
+            !ui_click_feedback_active() && !ui_click_feedback_nav_pending() && !feedback.updates &&
+            !ctx.consumed && !s_action_menu_requested && !idle_blocked && !ctx.request_app && !ctx.request_menu && !ctx.request_return &&
+            !app_sd_recovery_busy() && !usb_storage_active() && !app_download_active() &&
+            !pico_online_busy() && !kosync_busy() && !app_settings_ble_turner() &&
+            ctx.now_ms>=s_lock_ignore_until_ms;
+        read_pico_transfer_status_t wait_network;
+        read_pico_transfer_get_status(&wait_network);
+        can_extend=can_extend && wait_network.state==READ_PICO_TRANSFER_STOPPED && !read_pico_transfer_network_busy();
+        int64_t page_deadline=can_extend?current->next_tick_ms(&ctx):0;
+        int64_t deadlines[]={page_deadline,read_pico_pmu_ready()?last_lock_poll_ms+APP_LOCK_POLL_MS:INT64_MAX,
+            last_media_poll_ms+MEDIA_POLL_INTERVAL_MS,last_network_poll_ms+500,
+            last_font_retry_ms+FONT_RETRY_INTERVAL_MS,
+            idle_minutes?last_input_ms+(int64_t)idle_minutes*60000:INT64_MAX,
+            anti_fade_next_ms(ctx.now_ms,last_input_ms)};
+        // Re-read elapsed monotonic time after rendering; never extend a deadline by scan time.
+        int64_t wait_now=esp_timer_get_time()/1000;
+        uint32_t wait_ms=app_wait_ms(wait_now,(uint32_t)current_tick_ms,can_extend&&page_deadline>0,
+                                   input_pending,deadlines,sizeof(deadlines)/sizeof(deadlines[0]));
+        wake_reasons=metalio_ui_wake_wait(wait_ms);
 #else
         vTaskDelay(pdMS_TO_TICKS(current_tick_ms));
 #endif
