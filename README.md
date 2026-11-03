@@ -65,6 +65,9 @@ S31 có lịch bật/tắt hằng ngày riêng cho đèn trắng và đèn ấm 
 Sleep vẫn tắt đèn, khi thức lại áp dụng khung giờ hiện tại. Xem
 [hướng dẫn cài đặt](docs/CAI_DAT.md#lịch-bậttắt-đèn-trắng-và-đèn-ấm-s31).
 
+Tài liệu kỹ thuật vòng UI chờ sự kiện/deadline và bảo vệ tốc độ lật trang:
+[UI_EVENT_DEADLINE.md](docs/UI_EVENT_DEADLINE.md).
+
 Quy tắc bật/tắt WiFi, Bluetooth và bảo vệ tác vụ đang chạy xem
 [NETWORK_LIFECYCLE.md](docs/NETWORK_LIFECYCLE.md).
 

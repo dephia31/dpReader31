@@ -1,5 +1,7 @@
 # Tác vụ nền trong phiên đọc
 
+Thiết kế và hợp đồng bảo trì của vòng UI xem [UI_EVENT_DEADLINE.md](UI_EVENT_DEADLINE.md).
+
 Trình đọc giữ cache bốn trang và cache chữ để tránh dựng lại nội dung khi lật.
 Khi thiếu chỗ để cấp thêm cache trang, hệ thống có thể thu hồi các raster bìa có
 thể dựng lại trước khi từ chối cấp phát. Trang đang đọc, lịch sử framebuffer
