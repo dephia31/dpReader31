@@ -139,6 +139,7 @@ static void sleep_backup_checkpoint(void) {
 #endif
 
 static void lock_restore_key_wake(void);
+static bool s_lock_power_wake_pending;
 static bool s_boot_from_deep, s_boot_power_wake, s_boot_power_on;
 void app_lock_capture_boot_wakeup(void) {
     s_boot_power_on=esp_reset_reason()==ESP_RST_POWERON;
@@ -445,7 +446,13 @@ static void lock_restore_key_wake(void) {
         vTaskDelay(pdMS_TO_TICKS(20));
     }
     s_lock_keys_restore_pending=err!=ESP_OK;
-    if(!s_lock_keys_restore_pending)read_pico_pmu_keys_resume();
+    if(!s_lock_keys_restore_pending) {
+        read_pico_pmu_keys_resume();
+        if(s_lock_power_wake_pending) {
+            read_pico_pmu_latch_power_wakeup();
+            s_lock_power_wake_pending=false;
+        }
+    }
     else ESP_LOGE(TAG,"S31 sleep input restore pending: %s",esp_err_to_name(err));
 }
 
@@ -569,10 +576,11 @@ static esp_err_t lock_light_sleep_once(sc7a20h_handle_t acc,cst836u_handle_t tou
     }
     if(keys_ready) {
         metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_KEYS);
+        if(power_confirmed)s_lock_power_wake_pending=true;
         lock_restore_key_wake();
         // 只补记已确认且在恢复期间松开的真实按键；共享IRQ本身不提供解锁授权。
         // Retain only a confirmed press released during restoration; a shared IRQ alone cannot authorize unlock.
-        if(power_confirmed&&!s_lock_keys_restore_pending) read_pico_pmu_latch_power_wakeup();
+        // A confirmed press stays pending across failed input restoration.
     }
     const int64_t restore_at=esp_timer_get_time();
     metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_SD);

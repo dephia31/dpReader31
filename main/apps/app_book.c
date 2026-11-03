@@ -8167,6 +8167,18 @@ static app_redraw_t paint_control(app_ctx_t* ctx, EpdRect rect) {
 // Horizontal swipes work in both tap modes; vertical mode also keeps vertical swipes.
 // 从屏幕底部120px上滑呼出工具栏；其他面板保留自己的滑动，正文中部仍按翻页模式解释。
 // Open tools from the bottom 120px; other panels keep their own swipes and mid-body gestures retain turn semantics.
+static bool reader_quick_swipe(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
+    if(s_view!=READING || !s_text || s_reader_panel!=READER_PANEL_NONE || s_toolbar ||
+       s_clear_confirm || s_scan_pending || s_zoom_active || ctx->consumed ||
+       ev->type!=UI_GESTURE_SWIPE_D || ev->x0>=UI_LOCK_WIDTH || ev->y0>=UI_LOCK_HEIGHT)
+        return false;
+    s_reader_tap.pending=false;
+    s_pressed_control=s_reader_slider=-1;
+    s_stats_activity_ms=ctx->now_ms;
+    ctx->user_activity=true;
+    ctx->request_quick_menu=true;
+    return true;
+}
 static bool reader_tools_swipe(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     if (s_view != READING || !s_text || s_reader_panel != READER_PANEL_NONE ||
         s_clear_confirm || s_scan_pending || ctx->consumed || ev->type != UI_GESTURE_SWIPE_U ||
@@ -8542,6 +8554,7 @@ static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) 
             return APP_REDRAW_PAGE;
         }
     }
+    if (reader_quick_swipe(ctx,ev)) return APP_REDRAW_NONE;
     if (reader_tools_swipe(ctx, ev)) return APP_REDRAW_PAGE;
     bool jump_handled=false;
     app_redraw_t jump_redraw=reader_chapter_jump_gesture(ctx,ev,&jump_handled);

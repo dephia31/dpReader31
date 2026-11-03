@@ -84,6 +84,8 @@ typedef struct {
     const struct app_desc_s* request_app;
     /// 本轮末打开菜单；切页请求优先。/ Open the menu at tick end; page requests take priority.
     bool request_menu;
+    /// Open the shared quick layer after a page-owned gesture.
+    bool request_quick_menu;
     /// 返回最近切页来源；菜单来源直接恢复菜单，无历史打开当前所属菜单；优先于其它请求。
     /// Return to the latest page origin and its menu; no history opens the current menu leaf. Overrides other requests.
     bool request_return;

@@ -33,8 +33,8 @@
  * User revision: ordinary main screens also retain navigation and move only its marker locally; fast acrylic uses a regular one-pixel checkerboard in the same output as cached covers. Ordinary/water retain grays; initial entry and unlock still draw complete navigation.
  * 冻结：返回消费最近切页来源，恢复原页及菜单位置，不跳固定首页。
  * Frozen: Return consumes the latest page origin, restoring its page and menu position.
- * 用户采用顶部快捷层：仅顶部32px起手下滑72px才接管，覆盖时冻结页内输入/轮询，WiFi直接连接最近保存网络/再次断开，蓝牙开启并异步连接最近成功的翻页器，全刷和锁屏复用原路径。用户要求三个模式均真实灰阶并加深轮廓；关闭还原顶部底图并局部整理，不修改底栏。
- * User adopts the top quick layer: capture only a 72px downward swipe starting within the top 32px; suspend page input/ticks while covered. WiFi connects saved credentials or disconnects on the next tap; Bluetooth enables and queues a connection to the most recently successful turner. Reuse full refresh and lock. Per the user, all modes retain grays with clearer outlines. Closing restores the bounded top underlay and locally settles it, retaining navigation.
+ * 用户采用顶部快捷层：顶部32px起手下滑72px或正文内下滑时接管，覆盖时冻结页内输入/轮询，WiFi直接连接最近保存网络/再次断开，蓝牙开启并异步连接最近成功的翻页器，全刷和锁屏复用原路径。用户要求三个模式均真实灰阶并加深轮廓；关闭还原顶部底图并局部整理，不修改底栏。
+ * User adopts the top quick layer: capture a 72px downward swipe starting within the top 32px, or a downward reader-body gesture; suspend page input/ticks while covered. WiFi connects saved credentials or disconnects on the next tap; Bluetooth enables and queues a connection to the most recently successful turner. Reuse full refresh and lock. Per the user, all modes retain grays with clearer outlines. Closing restores the bounded top underlay and locally settles it, retaining navigation.
  * 用户修订：快捷层只在展开/收起重绘顶部；圆键按下立即局部DU反馈，状态变化不重排底页或生成玻璃。
  * User revision: only opening/closing repaints the top; key presses receive immediate local DU feedback without underlay re-layout or glass regeneration.
  * 用户2026-10-19修订：下拉菜单锁屏前先收起并还原底页；点全刷自动收起，仅对还原后的页面全刷。
@@ -653,7 +653,19 @@ static app_redraw_t dispatch_page_gesture(app_ctx_t *ctx,const app_desc_t *app,c
             ctx->request_back_ripple=false;
         return redraw;
     }
-    return app->on_gesture(ctx,event);
+    app_redraw_t redraw=app->on_gesture(ctx,event);
+    if(ctx->request_quick_menu) {
+        ctx->request_quick_menu=false;
+        if(!ctx->request_app && !ctx->request_return && app->render && !app->holds_pmu &&
+           !usb_storage_active() && !pico_online_busy()) {
+            ui_quick_menu_reset(&s_quick);
+            s_quick.open=true;
+            ctx->consumed=ctx->user_activity=true;
+            quick_present(ctx,app,false);
+            return APP_REDRAW_DONE;
+        }
+    }
+    return redraw;
 }
 
 typedef struct {
@@ -1191,6 +1203,7 @@ void app_loop_run(const app_loop_config_t* config) {
         // A load may have captured navigation after the prior switch. Consume it at the normal boundary.
 
         ctx.request_menu = false;
+        ctx.request_quick_menu = false;
         ctx.request_return = false;
         ctx.request_back_ripple = false;
         bool selected_from_menu = false;

@@ -65,3 +65,5 @@ chưa đưa vào định dạng sao lưu cấu hình hiện tại.
 
 Nếu đọc cấu hình lịch đèn bị lỗi, máy không lưu đè lịch chưa đọc được. Mở lại
 trang lịch hoặc thử Lưu để đọc lại; vòng nền không tự lặp việc đọc NVS lỗi.
+
+Trong nội dung sách, vuốt xuống mở bảng cài đặt nhanh giống thao tác kéo từ cạnh trên. Vuốt cạnh chỉnh đèn, phóng ảnh, chọn văn bản và các bảng công cụ đang mở giữ thao tác riêng.

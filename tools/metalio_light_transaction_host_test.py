@@ -30,7 +30,7 @@ enum {METALIO_SLEEP_TRACE_BEFORE_SLEEP=4,METALIO_SLEEP_TRACE_SD=7,METALIO_SLEEP_
 static void metalio_sleep_trace_phase(unsigned phase){assert(phase>=4&&phase<=14);}
 static unsigned irq_after,sleep_count_for_irq;
 static int read_pico_ioe_int_level(void){return irq_after&&sleep_count_for_irq>=irq_after?0:1;}
-static bool s_lock_keys_restore_pending;
+static bool s_lock_keys_restore_pending,s_lock_power_wake_pending;
 static bool s_lock_io_pending,s_lock_io_no_media,usb,busy,online,queued,allow_key,keys,rails,pins,lcd,touch,media,usb_at_timer,slow_media,confirmed;
 static unsigned sleeps,stop_after,usb_after,timers,cut,restore,closes,mounts,resume,keys_restored,latches;
 static unsigned fail_at,operation;
@@ -70,7 +70,8 @@ static void vTaskDelay(unsigned ms){clock_us+=(int64_t)ms*1000;}
 static void metalio_release_light_sleep_pins(void){pins=false;}
 static int esp_sleep_disable_wakeup_source(int s){assert(s==ESP_SLEEP_WAKEUP_TIMER);++timers;return ESP_OK;}
 static int metalio_sleep_restore_rails(uint16_t s){assert(s==123);rails=false;++restore;return fail()?-2:ESP_OK;}
-static void lock_restore_key_wake(void){keys=false;++keys_restored;}
+static void read_pico_pmu_latch_power_wakeup(void);
+static void lock_restore_key_wake(void){s_lock_keys_restore_pending=false;keys=false;++keys_restored;if(s_lock_power_wake_pending){read_pico_pmu_latch_power_wakeup();s_lock_power_wake_pending=false;}}
 static void read_pico_pmu_latch_power_wakeup(void){assert(!keys);queued=true;++latches;}
 static int read_pico_sd_remount(void){assert(!rails&&!pins);++mounts;media=true;return ESP_OK;}
 static int lock_resume_media_io(unsigned wait){assert(wait==500&&(!closes||media)&&!lcd&&!touch);++resume;s_lock_io_pending=slow_media;return slow_media?ESP_ERR_NOT_FINISHED:ESP_OK;}
