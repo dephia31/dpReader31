@@ -29,12 +29,15 @@ int main(void){
  assert(!read_pico_transfer_network_busy());
  for(int i=0;i<200;++i){
   atomic_store(&work_finished,false);atomic_store(&stops,0);
-  assert(read_pico_transfer_network_begin());assert(read_pico_transfer_network_begin());assert(!read_pico_transfer_network_background_busy());
+  uint32_t before=read_pico_transfer_network_generation();
+  assert(read_pico_transfer_network_begin());assert(read_pico_transfer_network_generation()==before+1);
+  assert(read_pico_transfer_network_begin());assert(read_pico_transfer_network_generation()==before+1);assert(!read_pico_transfer_network_background_busy());
   pthread_t thread;assert(!pthread_create(&thread,NULL,other_task,NULL));assert(!pthread_join(thread,NULL));
   assert(failure()==-7);assert(read_pico_transfer_network_busy());
   read_pico_transfer_network_end();assert(!atomic_load(&stops));
   atomic_store(&work_finished,true);read_pico_transfer_network_end();
   assert(atomic_load(&stops)==1&&!read_pico_transfer_network_busy());
+  assert(read_pico_transfer_network_generation()==before+2);
  }
  assert(failure()==-7&&!read_pico_transfer_network_busy());
  read_pico_transfer_network_request_stop();assert(atomic_load(&stops)==2&&!read_pico_transfer_network_busy());

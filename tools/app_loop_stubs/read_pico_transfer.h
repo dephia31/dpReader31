@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #pragma once
 #include <stdbool.h>
+#include <stdint.h>
+static inline uint32_t read_pico_transfer_network_generation(void){return 0;}
 static inline bool read_pico_transfer_network_begin(void){return true;}
 static inline void read_pico_transfer_network_end(void){}
 static inline bool read_pico_transfer_network_busy(void){return false;}

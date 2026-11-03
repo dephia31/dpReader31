@@ -17,6 +17,8 @@ static struct{int64_t now_ms;}ctx;
 static int app_device_settings,other;
 static int64_t last_wifi_active_ms,last_ble_active_ms;
 static bool job,sync_job,ota,usb,bt,connected,connecting,scanning,admit;
+static uint32_t generation,last_network_generation;
+static uint32_t read_pico_transfer_network_generation(void){return generation;}
 static unsigned wifi_timeout,ble_timeout,stop_requests,stops;
 static read_pico_transfer_status_t status;
 #define TAG "test"
@@ -38,13 +40,15 @@ static void tick(int *current){
 '''+source[a:b]+r'''
 }
 static void reset(void){ctx.now_ms=120001;last_wifi_active_ms=last_ble_active_ms=1;status.state=READY;
- wifi_timeout=ble_timeout=1;stop_requests=stops=0;job=sync_job=ota=usb=connected=connecting=scanning=false;admit=bt=true;
+ generation=last_network_generation=0;wifi_timeout=ble_timeout=1;stop_requests=stops=0;job=sync_job=ota=usb=connected=connecting=scanning=false;admit=bt=true;
 }
 int main(void){
  for(int kind=0;kind<5;++kind){reset();job=kind==0;sync_job=kind==1;ota=kind==2;usb=kind==3;if(kind==4)status.state=READ_PICO_TRANSFER_UPLOADING;
   tick(&other);assert(!stop_requests&&bt&&last_wifi_active_ms==ctx.now_ms);
  }
  reset();tick(&other);assert(stops==1&&status.state==READ_PICO_TRANSFER_STOPPED&&bt);
+ reset();generation=2;tick(&other);assert(!stop_requests&&last_wifi_active_ms==ctx.now_ms);
+ ctx.now_ms+=60001;tick(&other);assert(stops==1);
  reset();admit=false;tick(&other);assert(stop_requests==1&&!stops&&status.state==READY);
  reset();wifi_timeout=0;tick(&other);assert(!stop_requests&&bt);
  for(int kind=0;kind<4;++kind){reset();status.state=READ_PICO_TRANSFER_STOPPED;job=kind==0;connected=kind==1;connecting=kind==2;scanning=kind==3;
@@ -60,3 +64,8 @@ with tempfile.TemporaryDirectory() as tmp:
  p=Path(tmp);(p/'test.c').write_text(code)
  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
+
+# Reader input must not reset radio idle time anywhere in the scheduler.
+assert 'last_input_ms = ctx.now_ms; last_wifi_active_ms' not in source
+input_block=source[source.index('if (err == ESP_OK && (touch.touched || released))'):source.index('if (ctx.now_ms - last_network_poll_ms')]
+assert 'last_wifi_active_ms =' not in input_block

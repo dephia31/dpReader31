@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #pragma once
 #include <stdbool.h>
+#include <stdint.h>
 /* Reentrant on the owner task. Another job must retry, never preempt active I/O.
  * No task, heap or persisted preference is created by this guard. */
 bool read_pico_transfer_network_begin(void);
@@ -16,3 +17,6 @@ static inline void transfer_network_guard_end(transfer_network_guard_t *guard) {
 #define TRANSFER_NETWORK_GUARD_OR_RETURN(result) \
     transfer_network_guard_t network_scope __attribute__((cleanup(transfer_network_guard_end)))={read_pico_transfer_network_begin()}; \
     if(!network_scope.held)return result
+
+/// 已接纳会话边界的代次；捕获两次UI轮询间已结束的作业。/ Accepted session generation, including jobs completed between UI polls.
+uint32_t read_pico_transfer_network_generation(void);

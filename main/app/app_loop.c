@@ -1087,6 +1087,7 @@ void app_loop_run(const app_loop_config_t* config) {
     int64_t last_network_poll_ms = 0;
     int64_t last_input_ms = esp_timer_get_time() / 1000;
     int64_t last_wifi_active_ms = last_input_ms;
+    uint32_t last_network_generation = read_pico_transfer_network_generation();
     int64_t last_ble_active_ms = last_input_ms;
     int current_tick_ms = LOOP_TICK_ACTIVE_MS;
     uint32_t last_ble_input = ble_pt_input_serial();
@@ -1154,7 +1155,6 @@ void app_loop_run(const app_loop_config_t* config) {
 #endif
         if (err == ESP_OK && (touch.touched || released)) {
             last_input_ms = ctx.now_ms;
-            last_wifi_active_ms = ctx.now_ms;
             current_tick_ms = LOOP_TICK_ACTIVE_MS;
         } else if (!touch.touched && ctx.now_ms - last_input_ms >= 400 && held_key < 0 && !s_quick.open && !ai_overlay_open()) {
             current_tick_ms = LOOP_TICK_IDLE_MS;
@@ -1761,6 +1761,13 @@ void app_loop_run(const app_loop_config_t* config) {
         read_pico_transfer_get_status(&transfer);
         const bool wifi_running = (transfer.state != READ_PICO_TRANSFER_STOPPED);
         const bool wifi_transferring = (transfer.state == READ_PICO_TRANSFER_UPLOADING || read_pico_transfer_network_busy() || kosync_busy() || pico_online_busy() || app_download_active());
+        // 仅网络会话推进空闲时钟，阅读触摸不延长射频驻留。
+        // Only network sessions advance the idle clock; reading touches do not retain the radio.
+        uint32_t network_generation = read_pico_transfer_network_generation();
+        if (network_generation != last_network_generation) {
+            last_network_generation = network_generation;
+            last_wifi_active_ms = ctx.now_ms;
+        }
         if (wifi_running) {
             if (wifi_transferring) {
                 last_wifi_active_ms = ctx.now_ms;
@@ -1814,7 +1821,7 @@ void app_loop_run(const app_loop_config_t* config) {
             if (redraw == APP_REDRAW_PAGE || redraw == APP_REDRAW_FULL) held_key = -1;
             present_page(&ctx, current, &gesture, redraw);
         }
-        if (ctx.user_activity) { last_input_ms = ctx.now_ms; last_wifi_active_ms = ctx.now_ms; ctx.user_activity = false; }
+        if (ctx.user_activity) { last_input_ms = ctx.now_ms; ctx.user_activity = false; }
         // 充电插拔不属于用户输入，不打断锁屏/触摸或覆盖层，只更新已显示的状态栏。
         // Cable changes are not user input; update the drawn header alone without disturbing locks/touch/overlays.
         if (!power_dialog_open && !s_quick.open && !quick_input_owned && !menu_open &&

@@ -10,6 +10,9 @@ Kết nối WiFi tạm do một tác vụ tự mở được đóng khi tác v�
 hủy. Nếu tác vụ dùng kết nối thuần WiFi đã được người dùng bật, nó không tự đóng
 kết nối đó. Kết nối thủ công tiếp tục theo công tắc và thời gian chờ đã cài;
 thời gian chờ bằng 0 vẫn có nghĩa là không tự tắt do rảnh.
+Chạm đọc sách hoặc lật trang không gia hạn thời gian WiFi rảnh. Tác vụ mạng
+đang chạy và phiên vừa hoàn tất vẫn gia hạn thời gian chờ, kể cả khi kết thúc
+giữa hai lần giao diện kiểm tra trạng thái.
 
 Yêu cầu dừng một phiên thuần WiFi trong lúc tác vụ nền đang dùng được giữ lại,
 để chủ tác vụ dọn radio sau khi kết thúc. Không ngắt HTTP giữa chừng. Tác vụ nền
