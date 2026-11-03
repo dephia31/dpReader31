@@ -69,14 +69,14 @@ enum {READ_PICO_TRANSFER_STOPPED,READ_PICO_TRANSFER_STARTING,READ_PICO_TRANSFER_
 enum {READ_PICO_TRANSFER_MODE_AP,READ_PICO_TRANSFER_MODE_STA};
 typedef struct {int state,mode;bool network_ready;} read_pico_transfer_status_t;
 static read_pico_transfer_status_t network;
-static uint64_t stored;
+static uint64_t stored,attempt_stored;
 static uint32_t pending;
 static int jobs,task_ok=1,pmu_syncs,saves,worker_result,credential_reads;
 static bool creds=true;
 static void (*job)(void *);
 static int nvs_open(const char *ns,int mode,int *h){(void)mode;assert(!strcmp(ns,"mt_clock"));*h=1;return ESP_OK;}
-static int nvs_get_u64(int h,const char *k,uint64_t *v){(void)h;(void)k;*v=stored;return ESP_OK;}
-static int nvs_set_u64(int h,const char *k,uint64_t v){(void)h;(void)k;stored=v;++saves;return ESP_OK;}
+static int nvs_get_u64(int h,const char *k,uint64_t *v){(void)h;(void)k;*v=!strcmp(k,"last_try")?attempt_stored:stored;return ESP_OK;}
+static int nvs_set_u64(int h,const char *k,uint64_t v){(void)h;(void)k;if(!strcmp(k,"last_try"))attempt_stored=v;else{stored=v;++saves;}return ESP_OK;}
 static int nvs_commit(int h){(void)h;return ESP_OK;}
 static void nvs_close(int h){(void)h;}
 static bool read_pico_transfer_take_time_sync(uint32_t *v){*v=pending;pending=0;return *v!=0;}
@@ -93,7 +93,7 @@ assert 'sync_time_run(utc_seconds, true, true)' in function('read_pico_transfer_
 scheduler+='\n'.join(x for x in (root/'main/time_service.c').read_text().splitlines() if not x.startswith('#include'))
 scheduler+=r'''
 static void reset(void){
- s_loaded=false;s_last_sync=0;s_next_attempt_us=15000000;atomic_store(&s_running,false);
+ s_loaded=false;s_last_sync=s_last_attempt=attempt_stored=0;s_next_attempt_us=15000000;atomic_store(&s_running,false);
  stored=pending=jobs=pmu_syncs=saves=credential_reads=worker_result=0;task_ok=1;creds=true;mono=15000000;
  network=(read_pico_transfer_status_t){READ_PICO_TRANSFER_READY,READ_PICO_TRANSFER_MODE_STA,true};
 }
@@ -101,18 +101,24 @@ int main(void){
  reset();app_time_service_poll(false);assert(!jobs&&!s_loaded);app_time_service_poll(true);assert(jobs==1);
  app_time_service_poll(true);assert(jobs==1);job(NULL);assert(!atomic_load(&s_running));
  app_time_service_poll(true);assert(pmu_syncs==1&&saves==1&&stored==(uint64_t)wall&&jobs==1);
- mono+=3600000000LL;wall+=3600;app_time_service_poll(true);assert(jobs==2); // online hourly
- network=(read_pico_transfer_status_t){READ_PICO_TRANSFER_READY,READ_PICO_TRANSFER_MODE_STA,true};
- app_time_service_poll(true);assert(jobs==2);job(NULL);app_time_service_poll(true);assert(pmu_syncs==2);
- reset();stored=wall-21600;app_time_service_poll(true);assert(jobs==1); // overdue offline
- reset();stored=wall-3599;app_time_service_poll(true);assert(!jobs);
+ mono+=3600000000LL;wall+=3600;app_time_service_poll(true);assert(jobs==1);
+ mono+=82800000000LL;wall+=82800;app_time_service_poll(true);assert(jobs==2);job(NULL);app_time_service_poll(true);assert(pmu_syncs==2);
+ reset();stored=wall-86400;app_time_service_poll(true);assert(jobs==1);
+ reset();stored=wall-86399;app_time_service_poll(true);assert(!jobs);
+
  for(int state=1;state<=4;++state){reset();network.state=state;network.mode=READ_PICO_TRANSFER_MODE_AP;network.network_ready=true;app_time_service_poll(true);assert(!jobs);}
- reset();network.state=READ_PICO_TRANSFER_STOPPED;app_time_service_poll(true);assert(!jobs&&!credential_reads);mono+=21600000000LL;app_time_service_poll(true);assert(!jobs&&!credential_reads);
+ reset();network.state=READ_PICO_TRANSFER_STOPPED;app_time_service_poll(true);assert(!jobs&&!credential_reads);network.state=READ_PICO_TRANSFER_READY;mono+=300000000LL;wall+=300;app_time_service_poll(true);assert(!jobs&&!credential_reads);
+ // A reboot with valid RTC preserves the consumed offline opportunity.
+ s_loaded=false;s_last_attempt=0;s_next_attempt_us=15000000;mono=15000000;app_time_service_poll(true);assert(!jobs);
+ mono+=86400000000LL;wall+=86400;app_time_service_poll(true);assert(jobs==1);job(NULL);
  reset();task_ok=0;app_time_service_poll(true);assert(!jobs&&!atomic_load(&s_running));
- task_ok=1;app_time_service_poll(true);assert(!jobs);mono+=CLOCK_RETRY_US;app_time_service_poll(true);assert(jobs==1);
+ task_ok=1;app_time_service_poll(true);assert(!jobs);mono+=CLOCK_RETRY_US;wall+=86400;app_time_service_poll(true);assert(jobs==1);
  reset();worker_result=ESP_FAIL;app_time_service_poll(true);job(NULL);app_time_service_poll(true);assert(!pmu_syncs&&!saves&&jobs==1);
+ mono+=300000000LL;wall+=300;app_time_service_poll(true);assert(jobs==1);
+ s_loaded=false;s_last_attempt=0;s_next_attempt_us=15000000;mono=15000000;app_time_service_poll(true);assert(jobs==1);
+ mono+=86400000000LL;wall+=86400;app_time_service_poll(true);assert(jobs==2);job(NULL);
  pending=wall;app_time_service_poll(false);assert(pending);app_time_service_poll(true);assert(!pending&&pmu_syncs==1&&saves==1);
- puts("PASS: actual S31 scheduler hourly online, offline never starts WiFi, idle gating, single temporary worker, AP/upload exclusion, offline suppression/OOM/error backoff and real-sync-only PMU/NVS handoff");
+ puts("PASS: actual S31 daily scheduler, offline/failure consumes day even across reboot, idle gating, single temporary worker, AP/upload exclusion, offline suppression/OOM/error no short retry and real-sync-only PMU/NVS handoff");
 }
 '''
 lease=common+r'''

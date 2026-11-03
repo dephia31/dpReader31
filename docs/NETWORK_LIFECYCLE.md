@@ -80,8 +80,9 @@ không hẹn kết nối lại. Mở khóa chỉ trả chốt sau khi trang đã
 phần tài nguyên còn sót nếu cần. Người dùng bật WiFi hoặc tác vụ mạng được gọi
 rõ ràng mới mở kết nối. Bluetooth vẫn có chính sách khôi phục riêng.
 
-Trên S31, NTP tự động chỉ dùng STA đã kết nối: tối đa một lượt mỗi giờ khi
-thành công, lỗi thử lại sau ít nhất 5 phút và chỉ khi máy rảnh. Không tự bật
+Trên S31, NTP tự động chỉ dùng STA đã kết nối: mỗi 24 giờ xét một lượt khi máy rảnh.
+Nếu offline thì bỏ lượt ngày đó; lỗi NTP cũng không thử lại trong chu kỳ.
+Mốc lượt đã xét được lưu riêng khi giờ RTC hợp lệ, tránh lặp sau khởi động lại. Không tự bật
 WiFi khi offline, sau Sleep hoặc khi đang khóa. Task chỉnh giờ có stack 6144
 byte, chỉ tồn tại trong lượt chỉnh giờ rồi tự xóa; không giữ SNTP thường trú.
 Chỉnh giờ thủ công vẫn được phép mở kết nối tạm và dọn khi hoàn tất.

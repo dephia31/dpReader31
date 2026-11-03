@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0
- * 中文：S3 RTC 离线走时；在线每小时校准，离线每六小时短连已保存 WiFi。
- * English: S3 RTC keeps offline time; calibrate hourly online or briefly every six hours offline.
+ * 中文：RTC 离线走时；S31每日仅在已有联网时校准，跳过后不重试。
+ * English: RTC keeps offline time; S31 calibrates daily on existing WiFi, without retries.
  */
 #include "time_service.h"
 #include <stdatomic.h>
@@ -16,9 +16,15 @@
 
 #define CLOCK_VALID_MIN 1704067200ULL
 #define CLOCK_VALID_MAX 4102444799ULL
+#if KIIKO_BOARD_METALIO47
+#define CLOCK_ONLINE_INTERVAL 86400ULL
+#define CLOCK_RETRY_US (86400LL * 1000000)
+static uint64_t s_last_attempt;
+#else
 #define CLOCK_ONLINE_INTERVAL 3600ULL
-#define CLOCK_OFFLINE_INTERVAL (6ULL * 3600)
 #define CLOCK_RETRY_US (5LL * 60 * 1000000)
+#endif
+#define CLOCK_OFFLINE_INTERVAL (6ULL * 3600)
 static atomic_bool s_running;
 static bool s_loaded;
 static uint64_t s_last_sync;
@@ -43,8 +49,14 @@ void app_time_service_poll(bool idle) {
         if (nvs_open("kiiko_clock", NVS_READONLY, &handle) == ESP_OK) {
 #endif
             if (nvs_get_u64(handle, "last_ntp", &s_last_sync) != ESP_OK) s_last_sync = 0;
+#if KIIKO_BOARD_METALIO47
+            if (nvs_get_u64(handle, "last_try", &s_last_attempt) != ESP_OK) s_last_attempt = 0;
+#endif
             nvs_close(handle);
         }
+#if KIIKO_BOARD_METALIO47
+        if (s_last_attempt < CLOCK_VALID_MIN || s_last_attempt > CLOCK_VALID_MAX) s_last_attempt = 0;
+#endif
         if (s_last_sync < CLOCK_VALID_MIN || s_last_sync > CLOCK_VALID_MAX) s_last_sync = 0;
         s_loaded = true;
     }
@@ -66,6 +78,21 @@ void app_time_service_poll(bool idle) {
     }
     const int64_t monotonic = esp_timer_get_time();
     if (atomic_load(&s_running) || monotonic < s_next_attempt_us) return;
+#if KIIKO_BOARD_METALIO47
+    time_t checked_at = time(NULL);
+    uint64_t last = s_last_sync > s_last_attempt ? s_last_sync : s_last_attempt;
+    if (last && checked_at >= (time_t)last && (uint64_t)checked_at - last < CLOCK_ONLINE_INTERVAL) return;
+    // Consume today's opportunity even offline or on failure. No reconnect/retry job.
+    s_next_attempt_us = monotonic + CLOCK_RETRY_US;
+    if (checked_at >= (time_t)CLOCK_VALID_MIN && checked_at <= (time_t)CLOCK_VALID_MAX) {
+        s_last_attempt = (uint64_t)checked_at;
+        nvs_handle_t handle;
+        if (nvs_open("mt_clock", NVS_READWRITE, &handle) == ESP_OK) {
+            if (nvs_set_u64(handle, "last_try", s_last_attempt) == ESP_OK) (void)nvs_commit(handle);
+            nvs_close(handle);
+        }
+    }
+#endif
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
     bool online = status.state == READ_PICO_TRANSFER_READY &&
