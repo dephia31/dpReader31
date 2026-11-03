@@ -58,15 +58,15 @@ vẫn giữ nhịp dự phòng cũ đến khi có đầy đủ hợp đồng tư
 Input đang có trong chốt hoặc hàng đợi AI/âm lượng khiến thời gian chờ
 bằng0, không ngủ giữa các input đã xếp hàng. Input mới ngắt semaphore đang chờ;
 phím nguồn có sự kiện được kiểm tra ngay thay vì chờ kỳ200ms. Trong lúc giữ/
-debounce phím hoặc chạm, sampler vẫn chạy nhịp cũ. Chưa bật PM/DFS, chưa có
+debounce phím hoặc chạm, sampler vẫn chạy nhịp cũ. Chưa có
 số đo dòng pin/độ trễ phần cứng hoặc khẳng định mọi trang đều giảm số wakeup.
 
-CPU vẫn dùng320MHz; PM/DFS/automatic light sleep không được bật thêm. Đường
-hiển thị S31 chưa có bộ khóa PM đầy đủ cho scan/TPS/DMA trong cây này; bật DFS
-cần kiểm tra clock ngoại vi, underrun và độ trễ thức dậy trên thiết bị trước.
-Không dùng quy trình lock-Sleep để thay thế một khoảng chờ UI ngắn. Đồng hồ
-hiển thị theo phút và anti-fade tiếp tục theo lựa chọn đã lưu, không tự thay
-chu kỳ hoặc tắt nhằm đạt số tiết kiệm điện.
+Bản thử từRC22 giữ CPU tối đa320MHz khi xử lý; chỉ cho phép SDK xuống160MHz
+trong cửa sổ đọc tĩnh đủ điều kiện. Có khóa xuyên giao dịch màn hình/I²C/SD/
+worker và lấy lại khóa trước khi báo input. Không bật automatic light sleep
+hoặc tickless; chi tiết, đường lỗi và cách đo xem [CPU_POWER_POLICY.md](CPU_POWER_POLICY.md).
+Đồng hồ theo phút và anti-fade giữ lựa chọn đã lưu. Hiệu quả pin và độ trễ
+chuyển xung chưa được đo trên thiết bị.
 
 Host tests và build kiểm tra logic, giới hạn bộ nhớ và đường lỗi; chúng không
 đo dòng pin, độ trễ quang học, peak SRAM hay xác nhận chất lượng trên thiết bị.

@@ -7,6 +7,7 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 out = root / 'build/sd-media-test'
 out.mkdir(parents=True, exist_ok=True)
+(out/'metalio_cpu.h').write_text((root/'tools/sd_probe_stubs/metalio_cpu.h').read_text())
 for name in ('driver/sdmmc_host.h', 'esp_log.h', 'esp_vfs_fat.h',
              'freertos/FreeRTOS.h', 'freertos/task.h', 'read_pico_board.h',
              'sdmmc_cmd.h', 'esp_err.h', 'esp_heap_caps.h', 'esp_timer.h'):
@@ -17,6 +18,8 @@ for name in ('ff.h','diskio_sdmmc.h'):
     (out/name).write_text((root/'tools/sd_probe_stubs'/name).read_text())
 source = r'''
 #include <assert.h>
+#define METALIO_CPU_GUARD_OR_RETURN(...) ((void)0)
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -32,7 +32,7 @@ static int action,key_lock,last_wait;static int64_t now;
 static jmp_buf stop;
 static int gpio_get_level(int pin){assert(pin==61);return !pin_down;}
 static bool metalio_volume_sampling_pending(void){return false;}
-static void keys(void){metalio_ai_sample(pin_down,now);}
+static void keys(void){if(metalio_ai_sample(pin_down,now))metalio_ui_wake_post(METALIO_UI_WAKE_KEY);}
 static void ulTaskNotifyTake(int clear,int wait){assert(clear==1);last_wait=wait;longjmp(stop,1);}
 '''+function('key_feed',R/'components/read_pico_pmu/metalio_power_adapter.c')+r'''
 static int sample(bool down,int64_t time){pin_down=down;now=time;if(!setjmp(stop))key_feed(NULL);return last_wait;}

@@ -11,7 +11,7 @@ enum {
 typedef struct {
     uint32_t iterations,posts,waits,event_wakes,timeouts,empty_wakes,reasons;
 } metalio_ui_wake_stats_t;
-/* One UI consumer. Producers publish payload before posting, from task context. */
+/* One UI consumer. Producers publish payload before posting, from task context, outside critical sections. */
 void metalio_ui_wake_init(void);
 void metalio_ui_wake_post(uint32_t reasons);
 uint32_t metalio_ui_wake_wait(uint32_t timeout_ms);

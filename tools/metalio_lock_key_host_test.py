@@ -6,7 +6,8 @@ ROOT=Path(__file__).resolve().parents[1]
 unit=(ROOT/'components/read_pico_pmu/include/power_double_click.h').read_text().replace('#pragma once','')+r'''
 #include <assert.h>
 enum {METALIO_UI_WAKE_KEY=2,METALIO_UI_WAKE_BLE=4,METALIO_UI_WAKE_PREP=8};
-static void metalio_ui_wake_post(unsigned bits){(void)bits;}
+static int critical_depth;static unsigned wake_posts;
+static void metalio_ui_wake_post(unsigned bits){assert(!critical_depth&&bits==METALIO_UI_WAKE_KEY);++wake_posts;}
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -14,8 +15,8 @@ static void metalio_ui_wake_post(unsigned bits){(void)bits;}
 #define ESP_OK 0
 #define ESP_ERR_INVALID_STATE -2
 #define pdMS_TO_TICKS(x) (x)
-#define portENTER_CRITICAL(x) ((void)(x))
-#define portEXIT_CRITICAL(x) ((void)(x))
+#define portENTER_CRITICAL(x) ((void)(x),++critical_depth)
+#define portEXIT_CRITICAL(x) ((void)(x),--critical_depth)
 enum {READ_PICO_PMU_KEY_NONE,READ_PICO_PMU_KEY_SHORT,READ_PICO_PMU_KEY_LONG};
 typedef int read_pico_pmu_key_action_t;
 typedef int esp_err_t;
@@ -35,7 +36,8 @@ static void metalio_volume_clear(void){++drains;}
 #define GPIO_NUM_61 61
 #define METALIO_AI_KEY_GPIO GPIO_NUM_61
 static int gpio_get_level(int pin){assert(pin==61);return 1;}
-static void metalio_ai_sample(bool down,int64_t ms){assert(!down);(void)ms;}
+static bool forced_ai;
+static bool metalio_ai_sample(bool down,int64_t ms){assert(!down);(void)ms;bool queued=forced_ai;forced_ai=false;return queued;}
 static void metalio_ai_clear(void){}
 static int read_pico_pmu_poll(void){return poll_error;}
 static const typeof(state) *read_pico_pmu_get(void){return &state;}
@@ -52,7 +54,7 @@ unit+=function('metalio_confirm_power_key',ROOT/'components/metalio_hw/metalio_h
 unit+=function('app_lock_wait_key_idle',ROOT/'main/sleep.c')+'\n'
 unit+=r'''
 static void sample(bool down,int ms){inputs=down?0x7fff:0xffff;clock_us=(int64_t)ms*1000;keys();}
-static void reset(void){s_wake_click=(power_double_click_t){0};held=long_sent=candidate=keys_paused=false;key_epoch=s_lock_key_serial=0;candidate_since=down_since=clock_us=0;state.key_state=0;action=io_error=poll_error=drains=0;inputs=0xffff;input_reads=fail_read=release_read=0;}
+static void reset(void){forced_ai=false;wake_posts=0;assert(!critical_depth);s_wake_click=(power_double_click_t){0};held=long_sent=candidate=keys_paused=false;key_epoch=s_lock_key_serial=0;candidate_since=down_since=clock_us=0;state.key_state=0;action=io_error=poll_error=drains=0;inputs=0xffff;input_reads=fail_read=release_read=0;}
 int main(void){
  reset();sample(true,0);sample(false,10);sample(false,40);assert(!held&&!read_pico_pmu_take_key_wakeup());
  // Short clicks wake on the debounced release, not a stale held level.
@@ -101,6 +103,7 @@ int main(void){
   if(i<2)fail_read=i+1;else if(i==2)release_read=2;else inputs=0xfffe;
   assert(!metalio_confirm_power_key()&&!s_lock_key_serial&&!action);
  }
+ reset();forced_ai=true;io_error=-1;sample(false,100);assert(wake_posts==1&&!critical_depth);
  puts("PASS: production S31 short/long wake consumption, no held-level duplicate, queued click during collage, shared-IRQ independent release and failed-poll timeout");
 }
 '''

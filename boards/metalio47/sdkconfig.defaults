@@ -105,10 +105,10 @@ CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 CONFIG_SPIRAM_SPEED_200M=y
 CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=65536
-# S31 的 CPU 频率只有 40/240/320 三档（components/esp_system/port/soc/esp32s31/Kconfig.cpu）。
+# S31 启动频率Kconfig提供40/240/320；运行时PM另支持160MHz（rtc_clk.c）。
 # 旧行写的是 MHZ_300，该符号不存在，IDF 会当未知符号丢弃，实际一直跑 320MHz；
 # 这里显式写 320，与厂家固件一致，也避免再出现静默失效的配置行。
-# S31 offers only 40/240/320 MHz (esp32s31/Kconfig.cpu). The old MHZ_300 line named a
+# S31 startup Kconfig offers40/240/320MHz; runtime PM also supports160MHz. The old MHZ_300 line named a
 # symbol that does not exist, so IDF dropped it as unknown and the chip ran at 320 MHz
 # anyway. State 320 explicitly, matching the vendor firmware and removing the silent no-op.
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_320=y
@@ -164,3 +164,7 @@ CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM=y
 # User-selected default: automatic backup switch on; automatic restore remains opt-in.
 CONFIG_DPREADER_AUTO_BACKUP=y
 # CONFIG_DPREADER_AUTO_RESTORE is not set
+
+# Local S31 DFS: runtime pins320 except eligible static-reader waits; no auto light sleep.
+CONFIG_PM_ENABLE=y
+CONFIG_PM_DFS_INIT_AUTO=n

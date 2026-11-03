@@ -3,6 +3,7 @@
  * Separate static semaphore avoids consuming touch/renderer task notifications.
  */
 #include "metalio_ui_wake.h"
+#include "metalio_cpu.h"
 #include <stdbool.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -31,7 +32,9 @@ void metalio_ui_wake_post(uint32_t reasons) {
     pending|=reasons;++stats.posts;
     SemaphoreHandle_t target=wake_signal;
     portEXIT_CRITICAL(&lock);
-    if(target && empty)xSemaphoreGive(target);
+    // Publish pending first: idle admission rechecks it under the CPU policy lock.
+    // Restore the UI max-clock pin before signaling its consumer.
+    if(target){(void)metalio_cpu_wake();if(empty)xSemaphoreGive(target);}
 }
 uint32_t metalio_ui_wake_wait(uint32_t timeout_ms) {
     configASSERT(wake_signal);

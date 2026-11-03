@@ -8,6 +8,13 @@ from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1];book=root/'main/apps/app_book.c'
 unit=r'''
 #include <assert.h>
+#define ESP_OK 0
+#include <stdatomic.h>
+static atomic_uint cpu_leases;
+typedef struct {int error;}metalio_cpu_guard_t;
+static metalio_cpu_guard_t metalio_cpu_guard_begin(void){atomic_fetch_add(&cpu_leases,1);return (metalio_cpu_guard_t){0};}
+static void metalio_cpu_guard_end(metalio_cpu_guard_t*p){(void)p;assert(atomic_fetch_sub(&cpu_leases,1)>0);}
+
 enum {METALIO_UI_WAKE_KEY=2,METALIO_UI_WAKE_BLE=4,METALIO_UI_WAKE_PREP=8};
 static void metalio_ui_wake_post(unsigned bits){(void)bits;}
 
@@ -99,6 +106,10 @@ static int s_px=48;
 '''
 for name in ['lock_draw','unlock_draw','invalidate_prep','reader_prefetch_step','reader_prefetch_buffer','prep_task','kick_prep','reader_prefetch_end','reader_prefetch_resume','reader_prefetch_idle']:
  unit+=function(name,book)+'\n'
+prep=function('prep_task',book)
+assert prep.index('lock_draw();')<prep.index('metalio_cpu_guard_begin()')<prep.index('metalio_cpu_guard_end(&cpu_scope)')<prep.rindex('unlock_draw();')<prep.rindex('xSemaphoreGive(s_prep_done);')
+exit_code=function('book_on_exit',book)
+assert exit_code.index('atomic_store_explicit(&s_prep_stop,true')<exit_code.index('lock_draw();')<exit_code.index('metalio_task_delete(s_prep_task)')<exit_code.index('unlock_draw();')<exit_code.index('free_book();')
 assert 'reader_prefetch_end(prep);' in function('present',book)
 assert 'reader_prefetch_resume(s_page)' in function('paint_reading',book)
 opening=function('open_book_impl',book)
@@ -108,7 +119,7 @@ assert opening.rfind('lock_draw();',0,retire)>opening.rfind('unlock_draw();',0,r
 assert retire<opening.index('copy_text(s_path,')
 
 unit+=r'''
-static void destroy_worker(void){if(s_prep_task){vTaskDelete(s_prep_task);s_prep_task=NULL;}if(s_prep_done){vSemaphoreDelete(s_prep_done);s_prep_done=NULL;}if(s_draw_lock){vSemaphoreDelete(s_draw_lock);s_draw_lock=NULL;}}
+static void destroy_worker(void){assert(atomic_load(&cpu_leases)==0);if(s_prep_task){vTaskDelete(s_prep_task);s_prep_task=NULL;}if(s_prep_done){vSemaphoreDelete(s_prep_done);s_prep_done=NULL;}if(s_draw_lock){vSemaphoreDelete(s_draw_lock);s_draw_lock=NULL;}}
 static void wait_row(unsigned count){pthread_mutex_lock(&row_lock);while(row_entries<count)pthread_cond_wait(&row_cond,&row_lock);pthread_mutex_unlock(&row_lock);}
 static void *end_presentation(void *unused){(void)unused;reader_prefetch_end(true);return NULL;}
 int main(void){touch_t touch={0};app_ctx_t ctx={.touch=&touch};

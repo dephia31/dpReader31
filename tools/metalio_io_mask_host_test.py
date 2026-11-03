@@ -5,6 +5,8 @@ from home_cover_cache_host_test import function
 r=Path(__file__).resolve().parents[1]
 u=r'''
 #include <assert.h>
+#define METALIO_CPU_GUARD_OR_RETURN(...) ((void)0)
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -73,6 +73,7 @@ typedef StaticSemaphore_t *SemaphoreHandle_t;
 SemaphoreHandle_t xSemaphoreCreateBinaryStatic(StaticSemaphore_t*);int xSemaphoreGive(SemaphoreHandle_t);int xSemaphoreTake(SemaphoreHandle_t,int);
 ''')
  (p/'freertos/task.h').write_text('#pragma once\n')
+ (p/'metalio_cpu.h').write_text('#pragma once\nstatic inline int metalio_cpu_wake(void){return 0;}\n')
  (p/'test.c').write_text(unit)
  subprocess.run(['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror','-fsanitize=undefined','-pthread','-I'+str(p),'-I'+str(root/'components/metalio_hw/include'),'-I'+str(root/'components/metalio_hw'),str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)

@@ -36,6 +36,7 @@
  * User reports Home/reader ghosting on2026-10-29: all root modes share periodic full-panel vendor GC, replacing BW exclusion and soft body-only cleanup; local feedback remains uncounted.
  */
 
+#include "metalio_cpu.h"
 #include "display.h"
 #include "read_pico_board.h"
 #include "ota_online.h"
@@ -928,6 +929,7 @@ static bool display_needs_full(void) { return s_full_refresh_requested; }
 enum EpdDrawError update_display_mode(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -941,6 +943,7 @@ enum EpdDrawError update_display_mode(
 enum EpdDrawError update_display_mode_diff(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -952,6 +955,7 @@ enum EpdDrawError update_display_mode_diff(
 }
 
 enum EpdDrawError update_display_fast_page(EpdiyHighlevelState* hl) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -965,6 +969,7 @@ enum EpdDrawError update_display_fast_page(EpdiyHighlevelState* hl) {
 enum EpdDrawError update_display_from_white_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode
 ) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -976,6 +981,7 @@ enum EpdDrawError update_display_from_white_with(
 }
 
 enum EpdDrawError update_display_from_white(EpdiyHighlevelState* hl) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -987,6 +993,7 @@ enum EpdDrawError update_display_from_white(EpdiyHighlevelState* hl) {
 }
 
 enum EpdDrawError update_display_white(EpdiyHighlevelState* hl) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     s_full_refresh_requested = false;
@@ -998,6 +1005,7 @@ enum EpdDrawError update_display_white(EpdiyHighlevelState* hl) {
 }
 
 enum EpdDrawError update_display_full(EpdiyHighlevelState* hl) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = update_display_full_unlocked(hl);
@@ -1011,6 +1019,7 @@ enum EpdDrawError update_display_full(EpdiyHighlevelState* hl) {
 // User-triggered Settings repair only; reuse S31 clear, never Pico blind-drive parameters.
 enum EpdDrawError display_panel_repair(EpdiyHighlevelState* hl) {
     if(!hl||!hl->front_fb||!hl->back_fb)return EPD_DRAW_INVALID_CROP;
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
     continuous_du_reset();s_full_refresh_requested=false;
@@ -1031,6 +1040,7 @@ enum EpdDrawError display_panel_repair(EpdiyHighlevelState* hl) {
 }
 
 enum EpdDrawError update_display_image_gray(EpdiyHighlevelState* hl) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     // 专用图片出口不继承调用方的系统黑白策略，包含失败恢复也保留原始灰阶。
@@ -1049,6 +1059,7 @@ enum EpdDrawError update_display_image_gray(EpdiyHighlevelState* hl) {
 enum EpdDrawError update_display_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode
 ) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -1063,6 +1074,7 @@ enum EpdDrawError update_display_area_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode,
     EpdRect area
 ) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -1077,6 +1089,7 @@ enum EpdDrawError update_display_area_diff_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode,
     EpdRect area
 ) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -1088,6 +1101,7 @@ enum EpdDrawError update_display_area_diff_with(
 }
 
 enum EpdDrawError update_display_click_feedback(EpdiyHighlevelState* hl,EpdRect area) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
     // 控件只扫自身；显示成功后还原未消费的主页许可，不缓存或回放页面像素。
@@ -1114,6 +1128,7 @@ enum EpdDrawError update_display_area_full_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode,
     EpdRect area
 ) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -1126,6 +1141,7 @@ enum EpdDrawError update_display_area_full_with(
 
 enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect area,
                                              e0470_turn_dir_t dir) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
@@ -1140,6 +1156,7 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
 // One synchronous band shares ripple gray pulses/timing, with no stagger or second output.
 enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area,
                                              e0470_turn_dir_t dir) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     int prior_tick=e0470_page_turn_tick_us();
@@ -1190,6 +1207,7 @@ static bool transition_gray_changed(EpdiyHighlevelState* hl, EpdRect area) {
 }
 
 enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl,EpdRect area) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
     const bool binary=s_system_binary;
@@ -1214,6 +1232,7 @@ enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl,EpdRect
 }
 
 void guard_draw_result(EpdiyHighlevelState* hl, enum EpdDrawError result) {
+    METALIO_CPU_GUARD_OR_RETURN();
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     guard_draw_result_unlocked(hl, result);
@@ -1224,6 +1243,7 @@ void guard_draw_result(EpdiyHighlevelState* hl, enum EpdDrawError result) {
 // 图形面板恢复原厂完整灰阶，不量化、不借文字短表；每次区域定稿修正中灰历史。
 // Graphical panels retain complete vendor grays without text quantization; settle the region each time to correct midgray history.
 enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect area) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
     const bool binary=s_system_binary;
@@ -1241,6 +1261,7 @@ enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect ar
 // Only verified same-body panels/sliders use this route; font reflow and manual cleaning retain48-phase owners.
 static bool s_reader_panel37_failed;
 enum EpdDrawError update_display_reader_panel_fast(EpdiyHighlevelState* hl,EpdRect area) {
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
     const bool binary=s_system_binary;
@@ -1265,6 +1286,7 @@ enum EpdDrawError update_display_reader_panel_fast(EpdiyHighlevelState* hl,EpdRe
 enum EpdDrawError update_display_reader_panel_gray4(EpdiyHighlevelState* hl,EpdRect area,bool erase_underlay) {
     if(!display_reader_fast_panels_enabled())return update_display_reader_panel_fast(hl,area);
     static bool failed;
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
     bool held=pico_online_display_begin();
     const bool binary=s_system_binary;s_system_binary=false;

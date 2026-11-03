@@ -4,6 +4,7 @@
  */
 #include "metalio_ui_wake.h"
 #include "metalio_hw.h"
+#include "metalio_cpu.h"
 #include "metalio_light_schedule.h"
 #include <time.h>
 #include "metalio_sleep.h"
@@ -89,6 +90,7 @@ static esp_err_t get_device(uint8_t address, i2c_master_dev_handle_t *dev) {
     *dev=devices[address]; return ESP_OK;
 }
 esp_err_t metalio_read(uint8_t a,uint8_t r,void *data,size_t n) {
+    METALIO_CPU_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!mutex || !data || !n) return ESP_ERR_INVALID_STATE;
     if (xSemaphoreTake(mutex,pdMS_TO_TICKS(100))!=pdTRUE) return ESP_ERR_TIMEOUT;
     i2c_master_dev_handle_t dev;
@@ -102,6 +104,7 @@ esp_err_t metalio_read(uint8_t a,uint8_t r,void *data,size_t n) {
     xSemaphoreGive(mutex); return err;
 }
 esp_err_t metalio_write(uint8_t a,uint8_t r,const void *data,size_t n) {
+    METALIO_CPU_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!mutex || !data || !n || n>16) return ESP_ERR_INVALID_ARG;
     if (xSemaphoreTake(mutex,pdMS_TO_TICKS(100))!=pdTRUE) return ESP_ERR_TIMEOUT;
     uint8_t bytes[17]; bytes[0]=r; memcpy(bytes+1,data,n);
@@ -114,6 +117,7 @@ esp_err_t metalio_write8(uint8_t a,uint8_t r,uint8_t value) { return metalio_wri
 // 同一端口的多位在持锁状态一次写入，避免马达/前光任务覆盖TPS位。
 // Write a masked port atomically under the shared lock; preserve motor/frontlight bits.
 static esp_err_t metalio_io_mask(unsigned port,uint8_t mask,uint8_t value) {
+    METALIO_CPU_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if(!ioe||port>1)return ESP_ERR_INVALID_STATE;
     if(xSemaphoreTake(mutex,pdMS_TO_TICKS(100))!=pdTRUE)return ESP_ERR_TIMEOUT;
     uint8_t next=(outputs[port]&~mask)|(value&mask);
@@ -127,6 +131,7 @@ esp_err_t metalio_io_set(unsigned pin,bool high) {
     return metalio_io_mask(pin/8,bit,high?bit:0);
 }
 esp_err_t metalio_io_read(uint16_t *inputs) {
+    METALIO_CPU_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!ioe || !inputs) return ESP_ERR_INVALID_STATE;
     if (xSemaphoreTake(mutex,pdMS_TO_TICKS(100))!=pdTRUE) return ESP_ERR_TIMEOUT;
     // 一次自增读取出两个端口，代替两次独立事务：按键采样最热的路径少一半总线时间。

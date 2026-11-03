@@ -50,6 +50,7 @@
  */
 
 #include "metalio_ui_wake.h"
+#include "metalio_cpu.h"
 #include "app_wait.h"
 #include "kosync_client.h"
 #include "opds_client.h"
@@ -1042,6 +1043,7 @@ bool app_poll_main_navigation(app_ctx_t *ctx) {
 }
 
 void app_loop_run(const app_loop_config_t* config) {
+    (void)metalio_cpu_init();
     metalio_ui_wake_init();
     s_media_recovery_attempts = 0; s_media_recovery_after_ms = 0;
     s_presented_main = NULL;
@@ -2032,7 +2034,9 @@ void app_loop_run(const app_loop_config_t* config) {
         int64_t wait_now=esp_timer_get_time()/1000;
         uint32_t wait_ms=app_wait_ms(wait_now,(uint32_t)current_tick_ms,can_extend&&page_deadline>0,
                                    input_pending,deadlines,sizeof(deadlines)/sizeof(deadlines[0]));
+        (void)metalio_cpu_idle_begin(can_extend&&page_deadline>0,wait_ms);
         wake_reasons=metalio_ui_wake_wait(wait_ms);
+        (void)metalio_cpu_wake();
 #else
         vTaskDelay(pdMS_TO_TICKS(current_tick_ms));
 #endif

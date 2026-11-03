@@ -7,6 +7,7 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 out = root / 'build/sd-media-test'
 out.mkdir(parents=True, exist_ok=True)
+(out/'metalio_cpu.h').write_text((root/'tools/sd_probe_stubs/metalio_cpu.h').read_text())
 for name in ('driver/sdmmc_host.h', 'esp_log.h', 'esp_vfs_fat.h',
              'freertos/FreeRTOS.h', 'freertos/task.h', 'read_pico_board.h',
              'esp_timer.h', 'sdmmc_cmd.h', 'esp_err.h', 'esp_heap_caps.h', 'metalio_hw.h', 'esp_attr.h', 'esp_system.h',

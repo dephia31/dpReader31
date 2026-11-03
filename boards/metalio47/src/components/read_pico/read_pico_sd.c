@@ -9,6 +9,7 @@
  * S31 has no CD pin: confirm CMD13 loss, close consumers, then recover asynchronously; intentional unmounts remain suspended.
  */
 
+#include "metalio_cpu.h"
 #include "read_pico_sd.h"
 #include "metalio_hw.h"
 
@@ -154,6 +155,7 @@ static void publish_info(const read_pico_sd_info_t* info) {
 }
 
 static esp_err_t fill_space(read_pico_sd_info_t *info) {
+    METALIO_CPU_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     uint64_t total = 0, available = 0;
     esp_err_t err = esp_vfs_fat_info(SD_MOUNT_POINT, &total, &available);
     // 出错或损坏的计数不等于「卡已满」，也不能发生无符号减法下溢。
@@ -271,6 +273,7 @@ done:
 }
 
 static esp_err_t mount_card(bool format_if_failed) {
+    METALIO_CPU_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     filesystem_unreadable = false;
     if (card != NULL) return ESP_OK;
 
@@ -366,6 +369,7 @@ static esp_err_t mount_card(bool format_if_failed) {
 }
 
 static esp_err_t close_card(void) {
+    METALIO_CPU_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (card != NULL) {
         esp_err_t err = esp_vfs_fat_sdcard_unmount(SD_MOUNT_POINT, card);
         if (err != ESP_OK) {
@@ -526,7 +530,9 @@ esp_err_t read_pico_sd_remount(void) {
 // Background read-only CMD13 detects bus loss without a FAT scan; lifecycle operations wait for this owner.
 static void health_task(void *arg) {
     (void)arg;
-    esp_err_t err = sdmmc_get_status(card);
+    metalio_cpu_guard_t cpu_scope=metalio_cpu_guard_begin();
+    esp_err_t err = cpu_scope.error==ESP_OK?sdmmc_get_status(card):cpu_scope.error;
+    metalio_cpu_guard_end(&cpu_scope);
     int64_t now = esp_timer_get_time() / 1000;
     portENTER_CRITICAL(&state_lock);
     if (!media_invalidated && cached_info.mounted) {
@@ -615,6 +621,7 @@ esp_err_t read_pico_sd_start_manual_recovery(void) {
 }
 
 esp_err_t read_pico_sd_sync(void) {
+    METALIO_CPU_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     read_pico_sd_info_t previous;
     (void)read_pico_sd_get_info(&previous);
     if (!begin_operation()) return ESP_ERR_NOT_FINISHED;
@@ -637,6 +644,7 @@ esp_err_t read_pico_sd_sync(void) {
 }
 
 esp_err_t read_pico_sd_format(void) {
+    METALIO_CPU_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     read_pico_sd_info_t current;
     (void)read_pico_sd_get_info(&current);
     portENTER_CRITICAL(&state_lock);

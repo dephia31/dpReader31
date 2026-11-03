@@ -42,7 +42,7 @@ int metalio_take_volume(void);
 /// Vendor AI/BOOT input GPIO61,25ms debounce and500ms hold; release after a hold never produces a tap.
 #define METALIO_AI_KEY_GPIO GPIO_NUM_61
 enum { METALIO_AI_NONE, METALIO_AI_SHORT, METALIO_AI_LONG };
-void metalio_ai_sample(bool down,int64_t now_ms);
+bool metalio_ai_sample(bool down,int64_t now_ms);
 int metalio_take_ai(void);
 /// Continue polling through press and release debounce, even after the physical pin rises.
 bool metalio_ai_sampling_pending(void);

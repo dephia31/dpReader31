@@ -4,7 +4,7 @@ Phạm vi: Metalio E-ink 4 Plus / ESP32-S31, mã nguồn firmware hiện tại. 
 
 | Trạng thái | Hành vi thực tế | Kiểu hao pin dự kiến |
 | --- | --- | --- |
-| Đang đọc / Home, chưa khóa | CPU và các tài nguyên giao diện vẫn hoạt động; đèn, Wi-Fi, BLE tùy cài đặt. Build hiện tại không bật `CONFIG_PM_ENABLE`. | Vẫn tiêu thụ pin khi màn hình đứng yên. Đèn và phiên mạng làm tăng tiêu thụ; hình không đổi không đồng nghĩa CPU đã ngủ. |
+| Đang đọc / Home, chưa khóa | CPU và các tài nguyên giao diện vẫn hoạt động; đèn, Wi-Fi, BLE tùy cài đặt. Từ RC22 bật PM để cho phép CPU 160 MHz trong lượt chờ đọc tĩnh đủ điều kiện, giữ 320 MHz khi hoạt động; không bật tự ngủ nhẹ. | Vẫn tiêu thụ pin khi màn hình đứng yên. Đèn và phiên mạng làm tăng tiêu thụ; hình không đổi không đồng nghĩa CPU đã ngủ. |
 | Khóa / ngủ nhẹ | Tắt đèn, ngừng radio, tạm dừng file/font, ngừng LCD, cho cảm ứng ngủ, hạ hai rail qua IO expander rồi gọi light sleep. Giữ RAM và ngữ cảnh để trở lại trang đang đọc. Có lát timer tối đa 60 giây để kiểm tra USB/đường đánh thức. | Thấp hơn trạng thái hoạt động, nhưng RAM và mạch đánh thức vẫn cần điện; timer/đánh thức giả có thể tạo các đợt tăng dòng. |
 | Ngủ nhẹ n giờ rồi tắt nguồn | Chọn 1–24 giờ, mặc định 1 giờ. Đây là lựa chọn mặc định S31. Khóa thường cũng dùng quy trình theo số giờ đã chọn. Hết thời gian: lưu/đồng bộ cần thiết rồi thử tắt nguồn phần cứng. Nếu tắt nguồn chưa thành công, giữ khóa/ngủ nhẹ và thử lại; không tự công bố đã tắt. | n giờ đầu là hao pin ngủ nhẹ; sau khi tắt nguồn thành công là mức chờ thấp hơn. Thời gian giữ RAM tùy số giờ đã chọn. |
 | Ngắt nguồn hoàn toàn | Lựa chọn trong menu Tắt nguồn; lưu tiến độ/checkpoint, đồng bộ RTC, đóng I/O, tắt đèn/nguồn màn rồi gọi điều khiển nguồn S31. Bật lại bằng nút nguồn và khởi động lại. | Dự kiến thấp nhất trong các trạng thái nghỉ: mạch nguồn/RTC và tự xả pin vẫn tồn tại, không được coi là 0 mA tuyệt đối. |
@@ -21,3 +21,5 @@ Lưu ý về tên chế độ:
 Chưa có cơ sở để công bố mA, % pin/ngày hoặc số ngày chờ. Để có số đó cần đo dòng tại pin, rút USB, cùng độ sáng/cấu hình radio, tách bốn mốc: đang đọc, vừa khóa, sau thời gian đã chọn, tắt nguồn. Với dòng trung bình đo được `I` mA và dung lượng sử dụng thực `C` mAh: hao pin lý tưởng mỗi ngày xấp xỉ `24 × I / C × 100%`; đây chỉ là phép quy đổi, không thay thế phép đo.
 
 Mã nguồn đối chiếu: [ngủ/khóa S31](../boards/metalio47/src/main/sleep.c), [điều khiển rail và nguồn](../components/metalio_hw/metalio_hw.c), [điều kiện USB](../components/metalio_hw/metalio_usb.c), [giao diện chọn chế độ](../main/apps/app_device_settings.c), [khóa tự động](../main/app/app_loop.c).
+
+Chính sách và giới hạn thử CPU xem [CPU_POWER_POLICY.md](CPU_POWER_POLICY.md).

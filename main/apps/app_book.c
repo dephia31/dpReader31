@@ -127,6 +127,7 @@
 #if KIIKO_BOARD_METALIO47
 #if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
 #include "metalio_ui_wake.h"
+#include "metalio_cpu.h"
 #include "book_notes_ui.h"
 #include "metalio_task.h"
 #include "esp_attr.h"
@@ -4236,9 +4237,12 @@ static void prep_task(void *arg) {
     for(;;){
         ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
         lock_draw();
+        metalio_cpu_guard_t cpu_scope=metalio_cpu_guard_begin();
+        if(cpu_scope.error!=ESP_OK){unlock_draw();xSemaphoreGive(s_prep_done);metalio_ui_wake_post(METALIO_UI_WAKE_PREP);continue;}
         while(!atomic_load_explicit(&s_prep_stop,memory_order_acquire)){
             if(reader_prefetch_step()!=0)break;
         }
+        metalio_cpu_guard_end(&cpu_scope);
         unlock_draw();
         xSemaphoreGive(s_prep_done);
         metalio_ui_wake_post(METALIO_UI_WAKE_PREP);
@@ -7921,6 +7925,14 @@ static void book_on_exit(app_ctx_t* ctx) {
     reader_edge_light_cancel();
 #endif
     const int64_t exit_started=esp_timer_get_time();
+    // A worker may own a CPU lease: stop under the draw barrier before deletion/free.
+    atomic_store_explicit(&s_prep_stop,true,memory_order_release);
+    lock_draw();
+    if(s_prep_task){
+        ESP_LOGI(TAG,"book_prep stack free %u",(unsigned)uxTaskGetStackHighWaterMark(s_prep_task));
+        metalio_task_delete(s_prep_task);s_prep_task=NULL;
+    }
+    unlock_draw();
 #if KIIKO_BOARD_METALIO47
     if(s_reader_panel==READER_PANEL_ONLINE_FONTS)ui_online_fonts_close(&s_online_fonts);
 #endif
@@ -7966,10 +7978,6 @@ static void book_on_exit(app_ctx_t* ctx) {
     free(s_next_fb);
 #endif
     s_next_fb = NULL;
-    if(s_prep_task){
-        ESP_LOGI(TAG,"book_prep stack free %u",(unsigned)uxTaskGetStackHighWaterMark(s_prep_task));
-        metalio_task_delete(s_prep_task);s_prep_task=NULL;
-    }
     if(s_prep_done){vSemaphoreDelete(s_prep_done);s_prep_done=NULL;}
     if (s_draw_lock) { vSemaphoreDelete(s_draw_lock); s_draw_lock = NULL; }
     ESP_LOGI(TAG,"reader exit local elapsed_ms=%lld",(long long)((esp_timer_get_time()-exit_started)/1000));

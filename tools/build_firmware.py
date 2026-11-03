@@ -317,13 +317,13 @@ def build_one(board, args):
     if board == 'metalio47' and (work / 'sdkconfig').exists():
         # 旧缓存不能关闭S31供屏的缓存安全保证；其余选项保留。/ Migrate old S31 caches to cache-safe feeding, retaining every unrelated option.
         path = work / 'sdkconfig'
-        required = ('CONFIG_LCD_RGB_ISR_IRAM_SAFE', 'CONFIG_GDMA_CTRL_FUNC_IN_IRAM')
+        required = ('CONFIG_LCD_RGB_ISR_IRAM_SAFE', 'CONFIG_GDMA_CTRL_FUNC_IN_IRAM', 'CONFIG_PM_ENABLE')
         lines = [line for line in path.read_text().splitlines()
                  if not any(line.startswith(key + '=') or line == '# ' + key + ' is not set'
                             for key in required)]
         # 显式迁移旧配置：使用本轮S31原厂对照策略，避免旧sdkconfig掩盖defaults。
         # Migrate old sdkconfig explicitly so it cannot hide the S31 comparison profile.
-        transfer={'CONFIG_ESP_MAIN_TASK_STACK_SIZE':'24576','CONFIG_TINYUSB_MSC_BUFSIZE':'16384','CONFIG_LWIP_TCP_WND_DEFAULT':'65535',
+        transfer={'CONFIG_PM_DFS_INIT_AUTO':'n','CONFIG_ESP_MAIN_TASK_STACK_SIZE':'24576','CONFIG_TINYUSB_MSC_BUFSIZE':'16384','CONFIG_LWIP_TCP_WND_DEFAULT':'65535',
                   'CONFIG_LWIP_TCP_RECVMBOX_SIZE':'64','CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM':'6',
                   'CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM':'64','CONFIG_ESP_WIFI_RX_BA_WIN':'12',
                   'CONFIG_ESP_WIFI_STATIC_TX_BUFFER':'y','CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER':'n',

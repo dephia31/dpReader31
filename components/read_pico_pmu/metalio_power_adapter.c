@@ -75,9 +75,12 @@ static void keys(void) {
     // 独立GPIO先采样，扩展口读错不吞AI键；暂停事务仍由epoch及清队列保护。
     // Sample the dedicated pin before I2C, so a failed expander read cannot swallow AI input.
     bool ai_down=gpio_get_level(METALIO_AI_KEY_GPIO)==0;
+    bool ai_queued=false;
     portENTER_CRITICAL(&key_lock);
-    if(!keys_paused&&epoch==key_epoch)metalio_ai_sample(ai_down,esp_timer_get_time()/1000);
+    if(!keys_paused&&epoch==key_epoch)ai_queued=metalio_ai_sample(ai_down,esp_timer_get_time()/1000);
     portEXIT_CRITICAL(&key_lock);
+    // PM wake can block briefly; never call it under the key epoch spinlock.
+    if(ai_queued)metalio_ui_wake_post(METALIO_UI_WAKE_KEY);
     uint16_t inputs;
     if (metalio_io_read(&inputs)!=ESP_OK) return;
     int64_t now=esp_timer_get_time()/1000; bool down=!(inputs&(1u<<15));

@@ -15,7 +15,8 @@ host; chưa có số đo pin, độ trễ quang học hoặc nghiệm thu trên 
 - Kiểm tra điều kiện chờ không dựng trang, không cấp phát, không đọc file và
   không chờ worker. Khóa cache chỉ được thử với timeout 0.
 - Giữ cache trang/font, cách raster, đường quét màn hình và thứ tự ưu tiên
-  mở sách → hiển thị → tác vụ radio. Không bật PM/DFS hoặc thay waveform/VCOM.
+  mở sách → hiển thị → tác vụ radio. Planner không tự đổi clock hoặc waveform/VCOM;
+  từRC22, chính sách CPU riêng sử dụng cửa sổ chờ, xem [CPU_POWER_POLICY.md](CPU_POWER_POLICY.md).
 
 Trần 200 ms là thời gian UI **có thể chờ khi không có input**, không phải
 khoảng nghỉ bắt buộc giữa hai lần lật trang. Độ trễ tổng vẫn gồm lấy mẫu,
@@ -147,8 +148,9 @@ Nhịp lấy mẫu/chống dội và ngưỡng nhấn giữ của các phím kh�
   Trạng thái đang bị chặn phải giữ nhịp dự phòng hoặc cung cấp hạn thử lại rõ ràng.
 - Chỉ nối wake source chưa đủ để kéo dài chờ: phải kiểm tra pending payload,
   công việc chạy ngay và tất cả hạn thời gian liên quan của ngữ cảnh đó.
-- Chờ trên semaphore không đồng nghĩa CPU đã ngủ sâu. CPU vẫn 320 MHz và PM
-  chưa bật; giảm lượt UI chạy không phải số đo mức tiết kiệm pin.
+- Chờ trên semaphore không đồng nghĩa CPU đã ngủ sâu. TừRC22 có chính sách
+  cho phép idle160/active320MHz; chưa bật tự ngủ nhẹ. Giảm lượt UI chạy hoặc
+  cho phép hạ xung không phải số đo mức tiết kiệm pin.
 - Không dùng cơ chế này để đánh thức máy trong khóa/Sleep. Vòng khóa/PIN có
   quy trình riêng; WiFi, lịch đèn và bảo vệ OTA vẫn theo chính sách của chúng.
 
