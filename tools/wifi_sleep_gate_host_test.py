@@ -21,7 +21,7 @@ static int s_lock,task=1,owner,depth,admissions;
 bool read_pico_transfer_network_begin(void){if(owner&&owner!=task)return false;owner=task;++depth;++admissions;return true;}
 void read_pico_transfer_network_end(void){assert(owner==task&&depth);if(!--depth)owner=0;}
 void read_pico_transfer_network_request_stop(void){assert(0);}
-static bool s_sleep_paused,s_sleep_blocked,s_sleep_resume_requested,s_sleep_shutdown,s_shutdown_only;
+static bool s_sleep_blocked,s_sleep_resume_requested,s_shutdown_only;
 static int64_t s_sleep_resume_retry,now;
 typedef struct {const char *root_dir;bool network_only;int mode;}read_pico_transfer_cfg_t;
 typedef struct{int state,last_error;unsigned sta_count;bool network_ready;char url[64];}read_pico_transfer_status_t;
@@ -81,7 +81,7 @@ static void vTaskDelete(void*p){(void)p;}
 worker=function('worker',r/'boards/metalio47/src/main/ota_online.c').replace('s_status->','ota_status.')
 u+=worker+'\n'
 u+=r'''
-static void reset(void){s_sleep_paused=s_sleep_blocked=s_sleep_resume_requested=s_sleep_shutdown=s_shutdown_only=false;s_started=s_wifi=true;s_status.state=READ_PICO_TRANSFER_READY;s_cfg=(read_pico_transfer_cfg_t){"/books",true,1};s_netif=(void*)1;s_http=s_events=s_ip_events=NULL;s_upload_active=s_stopping=false;now=s_sleep_resume_retry=0;owner=depth=0;task=1;stop_error=deinit_error=http_error=start_error=stop_calls=deinit_calls=http_calls=starts=0;cancel_ok=true;}
+static void reset(void){s_sleep_blocked=s_sleep_resume_requested=s_shutdown_only=false;s_started=s_wifi=true;s_status.state=READ_PICO_TRANSFER_READY;s_cfg=(read_pico_transfer_cfg_t){"/books",true,1};s_netif=(void*)1;s_http=s_events=s_ip_events=NULL;s_upload_active=s_stopping=false;now=s_sleep_resume_retry=0;owner=depth=0;task=1;stop_error=deinit_error=http_error=start_error=stop_calls=deinit_calls=http_calls=starts=0;cancel_ok=true;}
 int main(void){
  reset();admissions=0;read_pico_transfer_resume_service();assert(!admissions);
  reset();owner=2;depth=1;assert(!read_pico_transfer_pause_for_sleep()&&!stop_calls&&!s_sleep_blocked&&s_wifi); // OTA owns network
@@ -100,8 +100,8 @@ int main(void){
 
  reset();task=2;ota_status.busy=true;s_download=false;worker(NULL);assert(checks==1&&!stop_calls&&!ota_status.busy&&s_wifi&&!owner);
  reset();task=2;ota_status.busy=true;s_download=true;worker(NULL);assert(downloads==1&&!stop_calls&&!ota_status.busy&&s_wifi&&!owner);
- reset();s_started=s_wifi=false;s_netif=NULL;deinit_error=ESP_FAIL;assert(temp_time_cleanup()==ESP_FAIL&&s_wifi&&s_netif&&s_shutdown_only&&s_ble_network_reserved);deinit_error=0;assert(read_pico_transfer_pause_for_sleep()&&!s_wifi&&!s_sleep_paused);
- reset();s_started=s_wifi=false;s_netif=NULL;deinit_error=ESP_FAIL;assert(temp_scan_cleanup()==ESP_FAIL&&s_wifi&&s_netif&&s_shutdown_only&&s_ble_network_reserved);deinit_error=0;assert(read_pico_transfer_pause_for_sleep()&&!s_wifi&&!s_sleep_paused);
+ reset();s_started=s_wifi=false;s_netif=NULL;deinit_error=ESP_FAIL;assert(temp_time_cleanup()==ESP_FAIL&&s_wifi&&s_netif&&s_shutdown_only&&s_ble_network_reserved);deinit_error=0;assert(read_pico_transfer_pause_for_sleep()&&!s_wifi);
+ reset();s_started=s_wifi=false;s_netif=NULL;deinit_error=ESP_FAIL;assert(temp_scan_cleanup()==ESP_FAIL&&s_wifi&&s_netif&&s_shutdown_only&&s_ble_network_reserved);deinit_error=0;assert(read_pico_transfer_pause_for_sleep()&&!s_wifi);
  puts("PASS temporary NTP/scan failed deinit retains driver/netif/BLE lease until confirmed stop, without restoring a temporary session");
  puts("PASS actual OTA check/download workers retain ownership against concurrent Sleep/restore requests");
  puts("PASS WiFi Sleep: OTA owner/upload exclusion, unlock without reconnect, HTTP/stop/deinit failures retry without false OFF, no reconnect polling and newer-session protection");}

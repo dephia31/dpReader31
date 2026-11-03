@@ -88,6 +88,16 @@ static atomic_uint s_network_users;
 static atomic_bool s_sleep_suspended;
 static char s_sleep_peer[18],s_conn_addr[18],s_reconnect_addr[18];
 static atomic_bool s_running;
+static atomic_bool s_host_ready,s_host_exited=true,s_stop_active,s_stop_done,s_recent_requested;
+static int s_stop_result;static bool s_stop_timeout_logged,s_network_peer_pending;
+static uint32_t s_stop_budget_ms=2000,s_reconnect_at;static int64_t s_host_started_ms;
+static unsigned s_reconnect_failures,s_bond_count;static char s_network_peer[18];
+static bool metalio_radio_reserved(void){return atomic_load(&s_network_users)||atomic_load(&s_sleep_suspended);}
+
+static void on_host_reset(int reason){(void)reason;}
+static void stop_worker(void*);
+static void vTaskDelete(void*p){(void)p;}
+
 static bool s_connected=true,s_connecting,s_scanning,s_link_up;
 static uint16_t s_conn_handle;
 static uint32_t s_stable_since;
@@ -112,12 +122,13 @@ static size_t heap_caps_get_largest_free_block(int c){(void)c;return largest_int
 static int init_count,deinit_count,stop_count,task_count,init_error,task_error,stop_error;
 static esp_err_t nimble_port_init(void){++init_count;return init_error;}
 static esp_err_t nimble_port_deinit(void){++deinit_count;return ESP_OK;}
-static int nimble_port_stop(void){++stop_count;return stop_error;}
+static int nimble_port_stop(void){++stop_count;if(!stop_error)atomic_store(&s_host_exited,true);return stop_error;}
 static void host_task(void*p){(void)p;}
 static void on_sync(void){}
 static void bonds_load(void){}
-static struct {void(*sync_cb)(void);int sm_io_cap,sm_bonding,sm_mitm,sm_sc,sm_our_key_dist,sm_their_key_dist;}ble_hs_cfg;
+static struct {void(*sync_cb)(void);void(*reset_cb)(int);int sm_io_cap,sm_bonding,sm_mitm,sm_sc,sm_our_key_dist,sm_their_key_dist;}ble_hs_cfg;
 static int xTaskCreatePinnedToCore(void(*fn)(void*),const char*name,int stack,void*param,int priority,void**handle,int core){
+ if(!strcmp(name,"ble_stop")){assert(fn==stop_worker&&stack==4096&&!handle);if(task_error)return 0;fn(NULL);return pdPASS;}
  assert(fn==host_task && !strcmp(name,"nimble_host") && stack==CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE && !param && priority==21 && core==0);
  ++task_count;if(task_error)return 0;*handle=(void*)1;return pdPASS;
 }
@@ -144,7 +155,7 @@ static void nvs_close(nvs_handle_t h){assert(h==1);binding_handles--;}
 for name in ('lifecycle_take','lifecycle_give','ble_pt_input_serial','key_push','raw_push','frame_of','frame_same',
              'frame_idle','raw_release','raw_frame','extract_primary_code',
              'usage_to_special','emit_usage','ingest_report','ble_pt_pop_key','ble_pt_pop_raw',
-             'ble_pt_learn_begin','ble_pt_bind','ble_pt_binding','start_locked','stop_locked','ble_pt_start','ble_pt_stop',
+             'ble_pt_learn_begin','ble_pt_bind','ble_pt_binding','network_resume_peer','start_locked','stop_worker','stop_locked','ble_pt_start','ble_pt_stop',
              'ble_pt_network_acquire','ble_pt_network_release','ble_pt_suspend_for_sleep','ble_pt_resume_after_sleep','scan_cb','ble_pt_device_count',
              'ble_pt_device','ble_pt_action_for_frame','ble_pt_action_for_usage'):
     unit += '\n' + function(BLE, name)
@@ -235,7 +246,7 @@ int main(void){
  // 第一次按下就学得会，不需要先来一条松开报告。
  // The very first press learns, with no release report before it.
  s_ble_learning=1;ingest_report(hw_prev,8);
- assert(ble_receive_feedback()&&!s_ble_learning&&strstr(s_ble_feedback,"上一页"));
+ assert(ble_receive_feedback()&&!s_ble_learning&&strstr(s_ble_feedback,"Trang trước"));
  ble_pt_frame_t bound={0};
  assert(ble_pt_binding(BLE_PT_ACTION_PREV,&bound)&&bound.len==8&&bound.bytes[1]==0xb1);
  assert(ble_pt_action_for_frame(&bound)==BLE_PT_ACTION_PREV);
@@ -284,19 +295,19 @@ int main(void){
   assert(ble_pt_binding(BLE_PT_ACTION_PREV,&learned)&&learned.len==len);
   assert(learned.bytes[len==9?3:2]==0x4b&&learned.bytes[0]==(len==9?7:0));
   format_bound_key(&learned,label,sizeof(label));assert(!strcmp(label,len==9?"07 4B":"4B"));
-  assert(strstr(s_ble_feedback,"识别成功")&&strstr(s_ble_feedback,"上一页"));
+  assert(strstr(s_ble_feedback,"Nhận diện thành công")&&strstr(s_ble_feedback,"Trang trước"));
   report(len,len==9?7:0,0x4b);assert(!ble_receive_feedback());
   report(len,len==9?7:0,0);assert(!s_held_usage&&!ble_receive_feedback());
   s_ble_feedback[0]=0;s_ble_learning=2;report(len,len==9?7:0,0x4e);
-  assert(ble_receive_feedback()&&!s_ble_learning&&strstr(s_ble_feedback,"下一页"));
+  assert(ble_receive_feedback()&&!s_ble_learning&&strstr(s_ble_feedback,"Trang sau"));
   ble_pt_frame_t learned_next={0};
   assert(ble_pt_binding(BLE_PT_ACTION_NEXT,&learned_next)&&learned_next.bytes[len==9?3:2]==0x4e);
  }
  reset_input();s_has_keyboard_page=false;s_preferred_byte=0xFF;
  s_ble_learning=2;binding_error=3;report(8,0,0x4e);
- assert(ble_receive_feedback()&&strstr(s_ble_feedback,"保存失败")&&!s_ble_learning);
+ assert(ble_receive_feedback()&&strstr(s_ble_feedback,"lưu thất bại")&&!s_ble_learning);
  reset_input();s_has_keyboard_page=false;s_preferred_byte=0xFF;
- report(8,0,0x4b);assert(ble_receive_feedback()&&strstr(s_ble_feedback,"已收到"));
+ report(8,0,0x4b);assert(ble_receive_feedback()&&strstr(s_ble_feedback,"Đã nhận"));
  // 有界队列、断连和松开不造成误绑定。/ Bound queues and ignore releases or disconnected input.
  reset_input();s_has_keyboard_page=false;s_preferred_byte=0xFF;
  for(int n=0;n<100;n++){uint8_t burst[8]={0};burst[2]=(n%2)?0x4b:0;ingest_report(burst,8);}
@@ -313,19 +324,23 @@ int main(void){
  free_internal=150*1024;largest_internal=60*1024;free_psram=2*1024*1024;
  task_error=1;assert(ble_pt_start()==ESP_ERR_NO_MEM && !s_running && task_count==1 && deinit_count==1);
  task_error=0;assert(ble_pt_start()==ESP_OK && s_running);
- stop_error=1;int stopped_before=stop_count;
- assert(ble_pt_network_acquire()==ESP_OK&&s_running&&atomic_load(&s_network_users)==1&&stop_count==stopped_before);stop_error=0;
- assert(ble_pt_network_acquire()==ESP_OK&&s_running&&atomic_load(&s_network_users)==2);
- ble_pt_network_release();ble_pt_network_release();ble_pt_network_release();assert(!atomic_load(&s_network_users)&&s_running);
- assert(ble_pt_stop(2000)==ESP_OK&&!s_running);assert(ble_pt_network_acquire()==ESP_OK);
- assert(ble_pt_start()==ESP_OK);ble_pt_network_release();assert(ble_pt_stop(2000)==ESP_OK);
- atomic_flag_test_and_set(&s_lifecycle);assert(ble_pt_start()==ESP_ERR_TIMEOUT && !s_running);lifecycle_give();
+ // SDK stop error quarantines the live stack until reboot; it must not be restarted.
+ stop_error=1;assert(ble_pt_network_acquire()==ESP_FAIL&&s_running&&!atomic_load(&s_network_users)&&atomic_load(&s_stop_active));
+ assert(ble_pt_start()==ESP_ERR_INVALID_STATE);
+ // Simulate a fresh boot after the quarantined failure.
+ stop_error=0;atomic_store(&s_stop_active,false);atomic_store(&s_stop_done,false);
+ assert(ble_pt_stop(2000)==ESP_OK&&!s_running);
+ assert(ble_pt_start()==ESP_OK);assert(ble_pt_network_acquire()==ESP_OK&&!s_running&&atomic_load(&s_network_users)==1);
+ assert(ble_pt_network_acquire()==ESP_OK&&atomic_load(&s_network_users)==2);
+ assert(ble_pt_start()==ESP_ERR_INVALID_STATE);
+ ble_pt_network_release();ble_pt_network_release();ble_pt_network_release();assert(!atomic_load(&s_network_users));
+ assert(ble_pt_start()==ESP_OK);assert(ble_pt_stop(2000)==ESP_OK);
+ atomic_flag_test_and_set(&s_lifecycle);assert(ble_pt_start()==ESP_ERR_TIMEOUT);lifecycle_give();
  for(int n=0;n<100;n++){assert(ble_pt_start()==ESP_OK);assert(ble_pt_network_acquire()==ESP_OK);ble_pt_network_release();}
- assert(s_running && !atomic_load(&s_network_users));assert(ble_pt_stop(2000)==ESP_OK);
+ assert(!s_running&&!atomic_load(&s_network_users));
  assert(ble_pt_start()==ESP_OK);s_link_up=true;strcpy(s_conn_addr,"AA:BB:CC:DD:EE:FF");
- stop_error=1;assert(ble_pt_suspend_for_sleep()==ESP_FAIL&&!atomic_load(&s_sleep_suspended)&&s_running);stop_error=0;
  assert(ble_pt_suspend_for_sleep()==ESP_OK&&atomic_load(&s_sleep_suspended)&&!s_running);
- assert(!strcmp(s_sleep_peer,"AA:BB:CC:DD:EE:FF"));assert(ble_pt_suspend_for_sleep()==ESP_OK);
+ assert(!strcmp(s_sleep_peer,"AA:BB:CC:DD:EE:FF")&&ble_pt_suspend_for_sleep()==ESP_OK);
  assert(ble_pt_start()==ESP_ERR_INVALID_STATE);ble_pt_resume_after_sleep();assert(!atomic_load(&s_sleep_suspended)&&!strcmp(s_reconnect_addr,"AA:BB:CC:DD:EE:FF"));
  assert(ble_pt_start()==ESP_OK);assert(ble_pt_stop(2000)==ESP_OK);
  atomic_flag_test_and_set(&s_lifecycle);assert(ble_pt_suspend_for_sleep()==ESP_ERR_TIMEOUT);lifecycle_give();
@@ -346,3 +361,7 @@ with tempfile.TemporaryDirectory(prefix='pico-ble-test-') as directory:
     subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-fsanitize=address,undefined',
                     '-I'+str(work),'-I'+str(ROOT/'components/ble_page_turner/include'),str(work/'test.c'),'-o',str(work/'test')],check=True)
     subprocess.run([str(work/'test')],check=True)
+
+# Aggregate the asynchronous timeout and saved-peer regressions using current production functions.
+for test in ('ble_lifecycle_bounded_host_test.py','ble_sleep_gate_host_test.py','ble_recent_host_test.py'):
+    subprocess.run(['python3',str(ROOT/'tools'/test)],check=True)

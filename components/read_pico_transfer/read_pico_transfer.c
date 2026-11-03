@@ -606,7 +606,7 @@ static read_pico_transfer_status_t s_status;
 static read_pico_transfer_cfg_t s_cfg;
 static char s_root[160];
 static bool s_shutdown_only;
-static bool s_sleep_blocked,s_sleep_resume_requested,s_sleep_shutdown;
+static bool s_sleep_blocked,s_sleep_resume_requested;
 static int64_t s_sleep_resume_retry;
 bool read_pico_transfer_sleep_blocked(void) {
     portENTER_CRITICAL(&s_lock);bool blocked=s_sleep_blocked;portEXIT_CRITICAL(&s_lock);return blocked;
@@ -2167,9 +2167,7 @@ bool read_pico_transfer_pause_for_sleep(void) {
     read_pico_transfer_get_status(&status);
     if (status.state == READ_PICO_TRANSFER_UPLOADING || s_upload_active) return false;
     portENTER_CRITICAL(&s_lock);s_sleep_blocked=true;s_sleep_resume_requested=false;portEXIT_CRITICAL(&s_lock);
-    s_sleep_shutdown=true;
     bool stopped=read_pico_transfer_try_stop_if_idle();
-    s_sleep_shutdown=false;
     return stopped && !s_started && !s_wifi && !s_http && !s_netif;
 }
 
@@ -2191,13 +2189,11 @@ void read_pico_transfer_resume_service(void) {
     if(!s_sleep_blocked && (s_started || s_wifi || s_http || s_netif)) {
         s_sleep_resume_requested=false;return;
     }
-    s_sleep_shutdown=true;
     read_pico_transfer_stop();
     if(s_started || s_wifi || s_http || s_netif) {
-        s_sleep_shutdown=false;s_sleep_resume_retry=esp_timer_get_time()+5000000;return;
+        s_sleep_resume_retry=esp_timer_get_time()+5000000;return;
     }
     portENTER_CRITICAL(&s_lock);s_sleep_blocked=false;portEXIT_CRITICAL(&s_lock);
-    s_sleep_shutdown=false;
     s_sleep_resume_requested=false;s_sleep_resume_retry=0;
 }
 

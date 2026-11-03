@@ -62,3 +62,6 @@ vượt trần, hai mức được giảm theo tỷ lệ. Lịch không tạo ta
 không ghi flash mỗi lần đến mốc; cấu hình chỉ ghi khi người dùng lưu.
 Lịch lưu tại máy trong nhóm đèn nền và bị xóa bởi khôi phục cài đặt gốc;
 chưa đưa vào định dạng sao lưu cấu hình hiện tại.
+
+Nếu đọc cấu hình lịch đèn bị lỗi, máy không lưu đè lịch chưa đọc được. Mở lại
+trang lịch hoặc thử Lưu để đọc lại; vòng nền không tự lặp việc đọc NVS lỗi.

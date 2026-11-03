@@ -13,9 +13,9 @@ u=r'''
 #include <time.h>
 #include "metalio_light_schedule.h"
 #include "nvs.h"
-static uint8_t disk[15],staged[15];static bool present;static int fail_open,fail_set,fail_commit,writes,commits;
-int nvs_open(const char*n,int mode,int*h){assert(!strcmp(n,"metalio_light"));if(fail_open)return ESP_FAIL;*h=1;if(mode==NVS_READWRITE)memcpy(staged,disk,15);return ESP_OK;}
-int nvs_get_blob(int h,const char*k,void*b,size_t*n){assert(h==1&&!strcmp(k,"schedule"));if(!present)return ESP_FAIL;assert(*n==15);memcpy(b,disk,15);*n=15;return ESP_OK;}
+static uint8_t disk[15],staged[15];static bool present;static int fail_open,fail_set,fail_commit,fail_read,opens,writes,commits;
+int nvs_open(const char*n,int mode,int*h){assert(!strcmp(n,"metalio_light"));++opens;if(fail_open)return ESP_FAIL;*h=1;if(mode==NVS_READWRITE)memcpy(staged,disk,15);return ESP_OK;}
+int nvs_get_blob(int h,const char*k,void*b,size_t*n){assert(h==1&&!strcmp(k,"schedule"));if(fail_read)return ESP_FAIL;if(!present)return ESP_ERR_NVS_NOT_FOUND;assert(*n==15);memcpy(b,disk,15);*n=15;return ESP_OK;}
 int nvs_set_blob(int h,const char*k,const void*b,size_t n){assert(h==1&&!strcmp(k,"schedule")&&n==15);++writes;if(fail_set)return ESP_FAIL;memcpy(staged,b,15);return ESP_OK;}
 int nvs_commit(int h){assert(h==1);++commits;if(fail_commit)return ESP_FAIL;memcpy(disk,staged,15);present=true;return ESP_OK;}
 void nvs_close(int h){assert(h==1);}
@@ -42,9 +42,9 @@ for name in ['metalio_frontlight','metalio_brightness','metalio_warmth','metalio
 u+=r'''
 static time_t stamp(int day,int minute){return (time_t)1704067200+day*86400+minute*60-7*3600;}
 static void reset(void){
- present=loaded=false;memset(disk,0,15);memset(seen,0,sizeof(seen));
+ present=loaded=load_attempted=false;load_error=0;memset(disk,0,15);memset(seen,0,sizeof(seen));
  schedules[0]=(metalio_light_schedule_t){false,420,1080,30};schedules[1]=(metalio_light_schedule_t){false,1080,1380,30};
- fail_open=fail_set=fail_commit=writes=commits=0;light_suspended=light_enabled=light_dirty=false;
+ fail_open=fail_set=fail_commit=fail_read=opens=writes=commits=0;light_suspended=light_enabled=light_dirty=false;
  brightness_position=72;warmth_position=120;duties[0]=duties[1]=0;wall=stamp(10,0);light_schedule_checked=0;
 }
 static void schedule(bool warm,int on,int off,int level){metalio_light_schedule_t s={true,on,off,level};assert(metalio_light_schedule_save(warm,&s)==ESP_OK);}
@@ -82,12 +82,24 @@ int main(void){
  assert(metalio_light_schedule_get(false).level==prior.level);
  loaded=false;schedules[0].enabled=false;assert(metalio_light_schedule_get(false).enabled&&metalio_light_schedule_get(false).level==prior.level);
  disk[0]=255;loaded=false;schedules[0].enabled=false;assert(!metalio_light_schedule_get(false).enabled);
+ // A failed read cannot authorize saving defaults over the peer channel.
+ reset();schedule(false,420,1080,80);loaded=false;load_attempted=false;
+ schedules[0]=(metalio_light_schedule_t){false,420,1080,30};fail_open=1;
+ unsigned white=0,warm=0;int reads_before=opens;for(int i=0;i<30;i++)assert(!metalio_light_schedule_apply(wall,&white,&warm));assert(opens==reads_before+1);
+ metalio_light_schedule_t edit={true,1200,360,40};int before=writes;
+ assert(metalio_light_schedule_save(true,&edit)!=ESP_OK&&writes==before&&disk[1]==1);
+ fail_open=0;assert(metalio_light_schedule_save(true,&edit)==ESP_OK&&disk[1]==1&&schedules[0].level==80);
+ loaded=false;load_attempted=false;fail_read=1;before=writes;
+ assert(metalio_light_schedule_save(true,&edit)!=ESP_OK&&writes==before);fail_read=0;
+ assert(metalio_light_schedule_get(false).enabled&&schedules[0].level==80);
+ disk[0]=255;loaded=false;load_attempted=false;before=writes;
+ assert(metalio_light_schedule_save(true,&edit)!=ESP_OK&&writes==before); // Unknown/corrupt formats stay untouched.
  puts("PASS actual daily channels: boundaries/midnight/manual override/Sleep maintenance/wake/clock jumps/no periodic PWM or flash/total power cap/NVS faults and reboot");
 }
 '''
 with tempfile.TemporaryDirectory() as t:
     p=Path(t)
-    (p/'esp_err.h').write_text('#pragma once\ntypedef int esp_err_t;\n#define ESP_OK 0\n#define ESP_FAIL -1\n#define ESP_ERR_INVALID_ARG 2\n')
+    (p/'esp_err.h').write_text('#pragma once\ntypedef int esp_err_t;\n#define ESP_OK 0\n#define ESP_FAIL -1\n#define ESP_ERR_INVALID_ARG 2\n#define ESP_ERR_INVALID_STATE 3\n#define ESP_ERR_NVS_NOT_FOUND 4\n')
     (p/'nvs.h').write_text('#pragma once\n#include <stddef.h>\ntypedef int nvs_handle_t;\n#define NVS_READONLY 0\n#define NVS_READWRITE 1\nint nvs_open(const char*,int,int*);int nvs_get_blob(int,const char*,void*,size_t*);int nvs_set_blob(int,const char*,const void*,size_t);int nvs_commit(int);void nvs_close(int);\n')
     (p/'test.c').write_text(u)
     subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-I'+str(p),'-I'+str(root/'components/metalio_hw/include'),'-I'+str(root/'components/metalio_hw'),str(p/'test.c'),'-o',str(p/'test')],check=True)
