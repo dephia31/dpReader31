@@ -2,6 +2,7 @@
  * 中文：新 I2C 驱动统一管理 S31 外设；失败时关闭 TPS，不保留调试供电。
  * English: Use one new I2C bus for S31 peripherals and shut TPS down on errors.
  */
+#include "metalio_ui_wake.h"
 #include "metalio_hw.h"
 #include "metalio_light_schedule.h"
 #include <time.h>
@@ -218,6 +219,7 @@ bool metalio_confirm_power_key(void) {
 bool metalio_boot_power_key(void) { return boot_power_key; }
 static struct {uint16_t stable,candidate;int64_t since,down_at[2];bool armed[2],long_sent[2];} volume_keys={.stable=0xffff,.candidate=0xffff};
 void metalio_volume_sample(uint16_t inputs,int64_t now_ms) {
+    bool queued=false;
     inputs|=~((1u<<8)|(1u<<9));
     portENTER_CRITICAL(&volume_lock);
     if(inputs!=volume_keys.candidate){volume_keys.candidate=inputs;volume_keys.since=now_ms;}
@@ -235,11 +237,12 @@ void metalio_volume_sample(uint16_t inputs,int64_t now_ms) {
                 volume_keys.armed[i]=true;
             } else if(!down)volume_keys.armed[i]=true;
             if(down&&volume_keys.armed[i]&&!volume_keys.long_sent[i]&&now_ms-volume_keys.down_at[i]>=500){event=sign*2;volume_keys.long_sent[i]=true;}
-            if(event&&volume_count<8){volume_events[(volume_head+volume_count)%8]=event;++volume_count;}
+            if(event&&volume_count<8){volume_events[(volume_head+volume_count)%8]=event;++volume_count;queued=true;}
         }
     }
     volume_sampling_pending=inputs!=0xffff||volume_keys.stable!=0xffff||volume_keys.candidate!=volume_keys.stable;
     portEXIT_CRITICAL(&volume_lock);
+    if(queued)metalio_ui_wake_post(METALIO_UI_WAKE_KEY);
 }
 bool metalio_volume_sampling_pending(void) {
     portENTER_CRITICAL(&volume_lock);

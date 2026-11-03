@@ -61,6 +61,7 @@ UNIT = r'''
 static jmp_buf waited;
 static uint32_t wait_ticks;
 static uint8_t raw[15];
+static int ui_wakes;
 static int read_error,write_error,irq_error,level=1,notifications,reads,resets,removed,disabled,deleted,mutexes;
 static bool fail_task,fail_mutex;
 static void(*handler)(void*);static void *handler_arg;
@@ -85,6 +86,8 @@ int gpio_get_level(int p){assert(p==5);return level;}
 esp_err_t metalio_read(uint8_t a,uint8_t r,void*out,size_t n){assert(a==0x38);if(read_error)return read_error;
  if(r==0){assert(n==15);memcpy(out,raw,n);reads++;}else {assert(n==1);*(uint8_t*)out=r==0xa3?0x64:r==0x9f?0x26:2;}return 0;}
 esp_err_t metalio_write8(uint8_t a,uint8_t r,uint8_t v){assert(a==0x38&&(r==0xa4||r==0xa5));assert(v==0||v==3);return write_error;}
+void metalio_ui_wake_post(uint32_t bits){assert(bits==1);++ui_wakes;}
+uint32_t metalio_ui_wake_wait(uint32_t ms){wait_ticks=ms;longjmp(waited,1);}
 static int reset_pin(void){resets++;return 0;}
 #include "DRIVER"
 static void once(cst836u_handle_t h){if(!setjmp(waited))feed(h);assert(!h->io_lock->locked);}
@@ -99,8 +102,8 @@ int main(void){
  handler(handler_arg);assert(notifications==1);
  contact(1,0);level=0;once(h);assert(wait_ticks==10);
  assert(cst836u_read(h,&out)==0&&out.touched&&out.x==341&&out.y==608);
- assert(h->consumer==(void*)123);int notified=notifications;
- once(h);assert(notifications==notified+1);
+ assert(h->consumer==(void*)123);int notified=ui_wakes;
+ once(h);assert(ui_wakes==notified+1);
  if(!setjmp(waited))cst836u_wait_sample(h,40);assert(wait_ticks==40);
  cst836u_wait_sample(NULL,8);assert(wait_ticks==8);
  contact(1,2);raw[4]=90;once(h);assert(cst836u_read(h,&out)==0&&out.x==346);
@@ -123,6 +126,7 @@ int main(void){
 with tempfile.TemporaryDirectory() as directory:
     p = Path(directory)
     (p/'stub.h').write_text(STUB)
+    (p/'metalio_ui_wake.h').write_text('#pragma once\n#include <stdint.h>\n#define METALIO_UI_WAKE_TOUCH 1\nvoid metalio_ui_wake_post(uint32_t);uint32_t metalio_ui_wake_wait(uint32_t);\n')
     for name in ('driver/gpio.h','driver/i2c_master.h','esp_err.h','metalio_hw.h','freertos/FreeRTOS.h','freertos/task.h','freertos/semphr.h','esp_log.h'):
         f=p/name;f.parent.mkdir(parents=True,exist_ok=True);f.write_text('#include "stub.h"\n')
     (p/'test.c').write_text(UNIT.replace('DRIVER',str(ROOT/'components/cst836u/metalio_ft6336.c')))

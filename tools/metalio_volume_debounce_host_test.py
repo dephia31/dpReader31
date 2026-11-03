@@ -5,6 +5,10 @@ from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1]
 unit=r'''
 #include <assert.h>
+enum {METALIO_UI_WAKE_KEY=2,METALIO_UI_WAKE_BLE=4,METALIO_UI_WAKE_PREP=8};
+static unsigned wake_posts;
+static void metalio_ui_wake_post(unsigned bits){assert(bits==METALIO_UI_WAKE_KEY);++wake_posts;}
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -66,7 +70,7 @@ int main(void){
  metalio_volume_sample(both,now+1000);metalio_volume_sample(both,now+1030);
  metalio_volume_sample(both,now+1700);assert(!metalio_take_volume());
  metalio_volume_sample(0xffff,now+1800);metalio_volume_sample(0xffff,now+1830);assert(!metalio_take_volume());
- puts("PASS: both volume keys: release-only shorts,one500ms hold,no short after hold,chord/clear cancellation,IRQ sampling through hold/debounce");
+ assert(wake_posts>=8);puts("PASS: both volume keys: release-only shorts,one500ms hold,no short after hold,chord/clear cancellation,IRQ sampling through hold/debounce");
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

@@ -31,11 +31,19 @@ thêm thời gian của lần hiển thị đó; Sleep/thoát sách vẫn lưu b
 vẫn giữ dữ liệu chờ và thử lại theo chính sách cũ. Thống kê vẫn flush theo
 chu kỳ30giây tích lũy để giữ giới hạn mất dữ liệu hiện có.
 
-Task lấy mẫu cảm ứng thông báo trực tiếp cho UI. UI chờ thông báo hoặc timeout
-8/40ms cũ, giúp nhận mẫu mới sớm mà không kéo dài deadline phím/BLE/gesture.
-Đây là chờ có đánh thức theo sự kiện với timeout dự phòng; chưa phải cơ chế
-ngủ vô hạn khi đứng yên và không có tuyên bố giảm số wakeup idle tương ứng.
-Không thêm task hoặc cache framebuffer cho cơ chế này.
+Cảm ứng, sự kiện phím nguồn/AI/âm lượng, dữ liệu BLE đã vào hàng đợi và hoàn
+thành worker chuẩn bị trang cùng báo một chốt đánh thức UI. Chốt dùng semaphore
+nhị phân cấp phát tĩnh và bit lý do; dữ liệu phím vẫn nằm trong hàng đợi gốc,
+không bị gộp cùng thông báo. Không dùng chung task notification với sampler
+hoặc renderer, không tạo task/heap riêng. Sự kiện đến trước khi UI chờ vẫn
+được giữ. Có bộ đếm vòng lặp, post, lượt chờ, lượt thức có sự kiện, timeout
+và lượt thức rỗng qua `metalio_ui_wake_stats()` để lấy chênh lệch khi đo.
+
+UI vẫn giữ timeout dự phòng8/40ms, gồm các trang chưa có hợp đồng deadline.
+Đây mới là bước đầu nối nguồn đánh thức, chưa giảm nhịp kiểm tra khi đứng yên.
+Các đường hoàn tất SD/USB/mạng/ảnh và deadline từng trang/dịch vụ còn cần
+chuyển đổi trước khi kéo dài thời gian chờ. Trong lúc giữ/debounce phím hoặc
+chạm, sampler vẫn chạy theo nhịp cũ; không kéo dài chờ IRQ khi đang giữ.
 
 CPU vẫn dùng320MHz; PM/DFS/automatic light sleep không được bật thêm. Đường
 hiển thị S31 chưa có bộ khóa PM đầy đủ cho scan/TPS/DMA trong cây này; bật DFS

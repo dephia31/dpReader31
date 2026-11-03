@@ -2,11 +2,13 @@
  * 中文：AI侧键去抖和有界事件队列，不复位、不触碰下载选择/休眠唤醒配置。
  * English: Debounce AI edges into a bounded queue, without resets, USB routing or sleep-wakeup configuration.
  */
+#include "metalio_ui_wake.h"
 #include "metalio_hw.h"
 #include "freertos/FreeRTOS.h"
 static portMUX_TYPE ai_lock=portMUX_INITIALIZER_UNLOCKED;
 static struct {bool candidate,stable,armed,long_sent;int64_t changed,down_at;int events[8];unsigned head,count;} ai;
 void metalio_ai_sample(bool down,int64_t now_ms) {
+    bool queued=false;
     portENTER_CRITICAL(&ai_lock);
     if(down!=ai.candidate){ai.candidate=down;ai.changed=now_ms;}
     if(now_ms<ai.changed){ai.changed=now_ms;ai.armed=false;}
@@ -22,8 +24,9 @@ void metalio_ai_sample(bool down,int64_t now_ms) {
             event=METALIO_AI_LONG;ai.long_sent=true;
         }
     }
-    if(event && ai.count<8){ai.events[(ai.head+ai.count)%8]=event;++ai.count;}
+    if(event && ai.count<8){ai.events[(ai.head+ai.count)%8]=event;++ai.count;queued=true;}
     portEXIT_CRITICAL(&ai_lock);
+    if(queued)metalio_ui_wake_post(METALIO_UI_WAKE_KEY);
 }
 int metalio_take_ai(void) {
     portENTER_CRITICAL(&ai_lock);

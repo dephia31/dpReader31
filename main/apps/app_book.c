@@ -126,6 +126,7 @@
  */
 #if KIIKO_BOARD_METALIO47
 #if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#include "metalio_ui_wake.h"
 #include "book_notes_ui.h"
 #include "metalio_task.h"
 #include "esp_attr.h"
@@ -4239,6 +4240,7 @@ static void prep_task(void *arg) {
         }
         unlock_draw();
         xSemaphoreGive(s_prep_done);
+        metalio_ui_wake_post(METALIO_UI_WAKE_PREP);
     }
 }
 static bool kick_prep(void) {

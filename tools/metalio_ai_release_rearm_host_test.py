@@ -7,6 +7,10 @@ from home_cover_cache_host_test import function
 R=Path(__file__).resolve().parents[1]
 u=r'''
 #include <assert.h>
+enum {METALIO_UI_WAKE_KEY=2,METALIO_UI_WAKE_BLE=4,METALIO_UI_WAKE_PREP=8};
+static unsigned wake_posts;
+static void metalio_ui_wake_post(unsigned bits){assert(bits==METALIO_UI_WAKE_KEY);++wake_posts;}
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -46,7 +50,7 @@ int main(void){
  sample(true,13000);sample(true,13030);sample(false,13100);sample(false,13130);assert(metalio_take_ai()==METALIO_AI_SHORT);++shorts;
  sample(true,14000);sample(true,14030);metalio_ai_clear();sample(true,14600);assert(!metalio_take_ai());assert(sample(false,14700)==10);sample(false,14730);assert(!metalio_take_ai());
  sample(true,15000);sample(true,15030);sample(true,15530);assert(metalio_take_ai()==METALIO_AI_LONG);sample(false,15600);sample(false,15630);assert(!metalio_take_ai());
- assert(shorts==1);puts("PASS actual AI sampler+IRQ wait:12 holds alternate light off/on, release debounce continues after GPIO high, no duplicate/short after hold, clear-held suppression and rearm");}
+ assert(shorts==1&&wake_posts==14);puts("PASS actual AI sampler+IRQ wait:12 holds alternate light off/on, release debounce continues after GPIO high, no duplicate/short after hold, clear-held suppression and rearm");}
 '''
 with tempfile.TemporaryDirectory() as d:
  p=Path(d);(p/'test.c').write_text(u);subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',str(p/'test.c'),'-o',str(p/'test')],check=True);subprocess.run([str(p/'test')],check=True)

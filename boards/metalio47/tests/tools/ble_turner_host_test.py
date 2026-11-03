@@ -36,6 +36,9 @@ def function(path, name):
 
 unit = r'''
 #include <assert.h>
+enum {METALIO_UI_WAKE_KEY=2,METALIO_UI_WAKE_BLE=4,METALIO_UI_WAKE_PREP=8};
+static void metalio_ui_wake_post(unsigned bits){(void)bits;}
+
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>

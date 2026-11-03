@@ -8,6 +8,9 @@ from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1];book=root/'main/apps/app_book.c'
 unit=r'''
 #include <assert.h>
+enum {METALIO_UI_WAKE_KEY=2,METALIO_UI_WAKE_BLE=4,METALIO_UI_WAKE_PREP=8};
+static void metalio_ui_wake_post(unsigned bits){(void)bits;}
+
 #define metalio_task_create_pinned xTaskCreatePinnedToCore
 #define metalio_task_create_pinned_internal internal_create
 #define metalio_task_delete vTaskDelete

@@ -2,6 +2,7 @@
  * 中文：FT6336U 转为 RC90 事件，后台保存短按以跨越刷屏等待。
  * English: FT6336U feeds RC90 events; retain short taps across display updates.
  */
+#include "metalio_ui_wake.h"
 #include "cst836u.h"
 #include "metalio_hw.h"
 #include "metalio_touch_decode.h"
@@ -54,10 +55,9 @@ static void feed(void *arg) {
             h->sample=t;
         }
         h->error=err;
-        TaskHandle_t consumer=h->consumer;
         portEXIT_CRITICAL(&h->lock);
         xSemaphoreGive(h->io_lock);
-        if(consumer)xTaskNotifyGive(consumer);
+        if(normal)metalio_ui_wake_post(METALIO_UI_WAKE_TOUCH);
         if (err==ESP_OK && t.touched && !was_down) {
             unsigned rx=((t.raw[3]&15)<<8)|t.raw[4], ry=((t.raw[5]&15)<<8)|t.raw[6];
             ESP_LOGI("metalio_touch","press raw=(%u,%u) screen=(%u,%u)",rx,ry,t.x,t.y);
@@ -172,6 +172,6 @@ void cst836u_wait_sample(cst836u_handle_t h,uint32_t timeout_ms) {
     TaskHandle_t self=xTaskGetCurrentTaskHandle();
     if(!h){vTaskDelay(pdMS_TO_TICKS(timeout_ms));return;}
     portENTER_CRITICAL(&h->lock);bool owner=h->consumer==self;portEXIT_CRITICAL(&h->lock);
-    if(owner)(void)ulTaskNotifyTake(pdTRUE,pdMS_TO_TICKS(timeout_ms));
+    if(owner)(void)metalio_ui_wake_wait(timeout_ms);
     else vTaskDelay(pdMS_TO_TICKS(timeout_ms));
 }

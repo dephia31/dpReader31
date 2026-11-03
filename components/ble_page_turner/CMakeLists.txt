@@ -6,5 +6,5 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "src/ble_
 idf_component_register(
     SRCS ${kiiko_selected_sources}
     INCLUDE_DIRS "include"
-    REQUIRES bt nvs_flash esp_timer read_pico
+    REQUIRES bt nvs_flash esp_timer read_pico metalio_hw
 )

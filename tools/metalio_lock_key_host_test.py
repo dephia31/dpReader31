@@ -5,6 +5,9 @@ from home_cover_cache_host_test import function
 ROOT=Path(__file__).resolve().parents[1]
 unit=(ROOT/'components/read_pico_pmu/include/power_double_click.h').read_text().replace('#pragma once','')+r'''
 #include <assert.h>
+enum {METALIO_UI_WAKE_KEY=2,METALIO_UI_WAKE_BLE=4,METALIO_UI_WAKE_PREP=8};
+static void metalio_ui_wake_post(unsigned bits){(void)bits;}
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

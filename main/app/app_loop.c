@@ -49,6 +49,7 @@
  * User revision2026-10-21: children retain gray navigation; content right-swipes reuse reading recognition without left-edge or extra angle restrictions. Keyboards keep their gestures; back reuses cleanup and one board-local LTR ripple.
  */
 
+#include "metalio_ui_wake.h"
 #include "kosync_client.h"
 #include "opds_client.h"
 #include "app_loop.h"
@@ -1040,6 +1041,7 @@ bool app_poll_main_navigation(app_ctx_t *ctx) {
 }
 
 void app_loop_run(const app_loop_config_t* config) {
+    metalio_ui_wake_init();
     s_media_recovery_attempts = 0; s_media_recovery_after_ms = 0;
     s_presented_main = NULL;
     s_nav_contact_down=s_nav_polled=false;
@@ -1121,6 +1123,7 @@ void app_loop_run(const app_loop_config_t* config) {
 #endif
 
     while (true) {
+        metalio_ui_wake_iteration();
 #if KIIKO_BOARD_METALIO47
         crash_report_poll(!usb_storage_active() && !pico_online_busy() && current!=&app_transfer);
 #endif
@@ -2003,7 +2006,7 @@ void app_loop_run(const app_loop_config_t* config) {
         // Nhịp chờ thích ứng: 8ms khi thao tác, 40ms khi nhàn rỗi đọc trang sách tĩnh.
         // Adaptive tick delay: 8ms during active touch/input, 40ms when reading static pages.
 #if KIIKO_BOARD_METALIO47
-        cst836u_wait_sample(config->tp,(uint32_t)current_tick_ms);
+        (void)metalio_ui_wake_wait((uint32_t)current_tick_ms);
 #else
         vTaskDelay(pdMS_TO_TICKS(current_tick_ms));
 #endif

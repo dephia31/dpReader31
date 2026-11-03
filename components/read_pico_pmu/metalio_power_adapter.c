@@ -2,6 +2,7 @@
  * 中文：BQ27220、PCF8563 和电源键接入 RC90，不访问 CW32 寄存器。
  * English: BQ27220, PCF8563 and the power key adapt RC90 without CW32 access.
  */
+#include "metalio_ui_wake.h"
 #include "read_pico_pmu.h"
 #include "power_double_click.h"
 #include "metalio_hw.h"
@@ -82,6 +83,8 @@ static void keys(void) {
     int64_t now=esp_timer_get_time()/1000; bool down=!(inputs&(1u<<15));
     portENTER_CRITICAL(&key_lock);
     if (keys_paused || epoch!=key_epoch) { portEXIT_CRITICAL(&key_lock); return; }
+    read_pico_pmu_key_action_t before=action;
+    uint32_t serial_before=s_lock_key_serial;
     if (down!=candidate) { candidate=down; candidate_since=now; }
     if (candidate!=held && now-candidate_since>=25) {
         held=candidate;
@@ -94,7 +97,9 @@ static void keys(void) {
     }
     if (held && !long_sent && now-down_since>=700) { action=READ_PICO_PMU_KEY_LONG; s_wake_click=(power_double_click_t){0}; long_sent=true; }
     state.key_state=held?1:0;
+    bool changed=action!=before || s_lock_key_serial!=serial_before;
     portEXIT_CRITICAL(&key_lock);
+    if(changed)metalio_ui_wake_post(METALIO_UI_WAKE_KEY);
     metalio_volume_sample(inputs,now);
 }
 // 仅观察真实去抖短按，不消费双击或清空队列。/ Observe debounced short releases without consuming wake clicks.

@@ -17,6 +17,7 @@
  */
 
 #if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#include "metalio_ui_wake.h"
 #include "esp_attr.h"
 // 仅普通任务访问的CPU数据；锁和ISR数据保留内部RAM。/ Task-only CPU data; locks and ISR data stay internal.
 #define CPU_STATE_RAM EXT_RAM_BSS_ATTR
@@ -420,20 +421,23 @@ uint32_t ble_pt_input_serial(void) {
 }
 static void key_push(const ble_pt_event_t *ev) {
     ble_pt_crumb(BLE_PT_CRUMB_KEY_PUSH);
+    bool queued=false;
     portENTER_CRITICAL(&s_ring_lock);
     ++s_input_serial;
     const uint8_t next = (uint8_t)((s_keys.head + 1) % KEY_RING_LEN);
     if (next != s_keys.tail) {
         s_keys.items[s_keys.head] = *ev;
-        s_keys.head = next;
+        s_keys.head = next;queued=true;
     }
     portEXIT_CRITICAL(&s_ring_lock);
+    if(queued)metalio_ui_wake_post(METALIO_UI_WAKE_BLE);
 }
 
 // 一次按下只有在它的释放还有位置时才入环，环满就整对丢弃，绝不只丢释放。
 // A press only enters with room left for its release; a full ring drops the whole pair, never a
 // release alone.
 static void raw_push(bool pressed, const ble_pt_frame_t *frame) {
+    bool queued=false;
     portENTER_CRITICAL(&s_ring_lock);
     if (pressed) ++s_input_serial;
     const uint8_t used = (uint8_t)((s_raws.head - s_raws.tail + RAW_RING_LEN) % RAW_RING_LEN);
@@ -443,9 +447,10 @@ static void raw_push(bool pressed, const ble_pt_frame_t *frame) {
         slot->frame = *frame;
         slot->pressed = pressed;
         slot->at_ms = (uint32_t)(esp_timer_get_time() / 1000);
-        s_raws.head = (uint8_t)((s_raws.head + 1) % RAW_RING_LEN);
+        s_raws.head = (uint8_t)((s_raws.head + 1) % RAW_RING_LEN);queued=true;
     }
     portEXIT_CRITICAL(&s_ring_lock);
+    if(queued)metalio_ui_wake_post(METALIO_UI_WAKE_BLE);
 }
 
 /* ---- 整帧身份 / Whole-frame identity ---- */
