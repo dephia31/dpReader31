@@ -91,3 +91,5 @@ Kiểm tra cập nhật, tải/ghi firmware OTA và file đang truyền giữ qu
 mạng đến hết dọn HTTP/file. Khóa thủ công và tự động phải hoãn khi OTA bận,
 kể cả cửa sổ worker chưa kịp chạy; timeout WiFi và khôi phục sau Sleep không
 được ngắt chủ mạng. Hủy OTA do người dùng vẫn dùng đường hủy riêng của OTA.
+
+So sánh OTA nhận dạng cả phiên bản thử `X.Y.ZRCn-vn` và hậu tố cũ `X.Y.Z-rcn`. Bản chính thức cùng số nền mới hơn mọi RC của số nền đó; RC tăng theo số, không theo thứ tự chữ. Các RC đã cài trước bản sửa bộ so sánh vẫn cần cập nhật một lần bằng TF/USB vì logic kiểm tra chạy trong firmware hiện tại.

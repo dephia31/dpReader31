@@ -57,6 +57,9 @@ jobs:
           python3 tools/book_sync_position_host_test.py
           python3 tools/kosync_state_host_test.py
           python3 tools/kosync_wire_host_test.py
+          mkdir -p build/book-tests
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -Itools/ota_stubs -Imain -I/usr/include/cjson tools/ota_release_host_test.c main/ota_release.c -lcjson -o build/book-tests/ota-release
+          build/book-tests/ota-release
           python3 tools/kosync_progress_host_test.py
           python3 tools/kosync_auto_host_test.py
           python3 tools/action_menu_host_test.py
