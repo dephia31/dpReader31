@@ -371,8 +371,9 @@ app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc,uint32_t timeo
         lock_hint_service();
         // USB阻止浅睡时也必须停止BLE；失败继续有界重试，不带活动BLE进入低功耗。
         // Stop BLE even when USB prevents light sleep; retry failures without sleeping with an active host.
+        bool wifi_stopped=read_pico_transfer_pause_for_sleep();
         bool ble_stopped=ble_pt_suspend_for_sleep()==ESP_OK;
-        if (ble_stopped && !s_lock_hint.pending_at && !s_lock_hint.until && s_lock_sleep_touch && !pickup && !metalio_usb_blocks_sleep()) {
+        if (wifi_stopped && ble_stopped && !s_lock_hint.pending_at && !s_lock_hint.until && s_lock_sleep_touch && !pickup && !metalio_usb_blocks_sleep()) {
             if(off_at && esp_timer_get_time()>=off_retry_at && s_lock_deep_ready) {
                 if(s_lock_frame_cached && !lock_pin_enabled() && !frame_marked)
                     frame_marked=pico_boot_mark_frame_cached()==ESP_OK;
@@ -810,7 +811,7 @@ void enter_lock_and_sleep(
     EpdiyHighlevelState* hl, int64_t* ignore_until_ms, sc7a20h_handle_t acc, cst836u_handle_t touch,
     bool reader_background
 ) {
-    if(kosync_busy()) {
+    if(pico_online_busy()) {
         s_lock_feedback_started=false;
         metalio_frontlight_restore();
         return;
@@ -824,6 +825,7 @@ void enter_lock_and_sleep(
     // this function returns, and the user can lock again after the transfer.
     bool radio_paused = read_pico_transfer_pause_for_sleep();
     if (!radio_paused) {
+        read_pico_transfer_resume_after_sleep();
         metalio_frontlight_restore();
         pico_boot_clear_resume();
         ESP_LOGW(TAG, "lock postponed while transfer is busy");

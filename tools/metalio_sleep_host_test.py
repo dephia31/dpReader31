@@ -74,11 +74,11 @@ static void vTaskDelay(int ms){assert(ms==30||ms==100);scheduler_yields++;clock_
 static void app_settings_set_last_wake(unsigned source){last_wake=source;}
 '''
 unit+='static void lock_resume_service(void){}\n'
-unit+='\nstatic bool ble_fail;static unsigned ble_checks;static int ble_pt_suspend_for_sleep(void){++ble_checks;return ble_fail?-1:ESP_OK;}\n'
+unit+='\nstatic bool ble_fail;static unsigned ble_checks;static bool wifi_fail;static unsigned wifi_checks;static bool read_pico_transfer_pause_for_sleep(void){++wifi_checks;return !wifi_fail;}static int ble_pt_suspend_for_sleep(void){++ble_checks;return ble_fail?-1:ESP_OK;}\n'
 unit+=function('app_light_sleep_wait_timed',root/'main/sleep.c')
 unit+=function('lock_wait_for_unlock',root/'boards/metalio47/src/main/sleep.c')+'\n'
 unit+=r'''
-static void reset(void){ble_fail=false;ble_checks=0;hours=1;quiesce_failures=0;hint_window=false;s_lock_hint.pending_at=s_lock_hint.until=0;clock_us=0;recover_at=key_at=plug_at=-1;frontlight_calls=motion_reads=sensor_on=sensor_off=reconnects=scheduler_yields=0;pickup=usb=powered=stale_motion=false;light_calls=deep_calls=cached_marks=0;light_step=0;deep_success=false;cached_error=0;pin=s_lock_frame_cached=s_lock_io_pending=false;light_key=light_fail=s_lock_deep_ready=false;s_lock_sleep_touch=NULL;s_lock_keys_restore_pending=false;}
+static void reset(void){ble_fail=wifi_fail=false;ble_checks=wifi_checks=0;hours=1;quiesce_failures=0;hint_window=false;s_lock_hint.pending_at=s_lock_hint.until=0;clock_us=0;recover_at=key_at=plug_at=-1;frontlight_calls=motion_reads=sensor_on=sensor_off=reconnects=scheduler_yields=0;pickup=usb=powered=stale_motion=false;light_calls=deep_calls=cached_marks=0;light_step=0;deep_success=false;cached_error=0;pin=s_lock_frame_cached=s_lock_io_pending=false;light_key=light_fail=s_lock_deep_ready=false;s_lock_sleep_touch=NULL;s_lock_keys_restore_pending=false;}
 static void settled(void){assert(frontlight_calls==(last_wake==APP_WAKE_NONE?1:2));}
 int main(void){
  reset();s_lock_sleep_touch=(void*)1;s_lock_deep_ready=true;quiesce_failures=1;key_at=100000;
@@ -131,6 +131,8 @@ int main(void){
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&ble_checks>1&&!light_calls&&!deep_calls);
  reset();usb=true;s_lock_sleep_touch=(void*)1;key_at=500000;
  assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&ble_checks>1&&!light_calls);
+ reset();wifi_fail=true;s_lock_sleep_touch=(void*)1;key_at=500000;
+ assert(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_KEY&&wifi_checks>1&&!light_calls&&!deep_calls);
  puts("PASS: production S31 configured-hour actual wait handoff model, no early power-off, PIN/art checkpoint boundaries, key priority, USB exclusion, power-off refusal then bounded retry, transient light recovery");
 }
 '''

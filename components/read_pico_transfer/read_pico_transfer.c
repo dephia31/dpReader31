@@ -607,7 +607,12 @@ static read_pico_transfer_cfg_t s_cfg;
 static char s_root[160];
 static read_pico_transfer_cfg_t s_sleep_cfg;
 static char s_sleep_root[160];
-static bool s_sleep_paused;
+static bool s_shutdown_only;
+static bool s_sleep_paused,s_sleep_blocked,s_sleep_resume_requested,s_sleep_shutdown;
+static int64_t s_sleep_resume_retry;
+bool read_pico_transfer_sleep_blocked(void) {
+    portENTER_CRITICAL(&s_lock);bool blocked=s_sleep_blocked;portEXIT_CRITICAL(&s_lock);return blocked;
+}
 static httpd_handle_t s_http;
 static esp_netif_t *s_netif;
 static esp_event_handler_instance_t s_events, s_ip_events;
@@ -659,7 +664,7 @@ extern const char upload_end[] asm("_binary_upload_html_end");
 
 bool read_pico_transfer_network_shareable(void) {
     portENTER_CRITICAL(&s_lock);
-    bool allowed=s_status.state==READ_PICO_TRANSFER_STOPPED||s_cfg.network_only;
+    bool allowed=!s_sleep_blocked && (s_status.state==READ_PICO_TRANSFER_STOPPED||s_cfg.network_only);
     portEXIT_CRITICAL(&s_lock);return allowed;
 }
 void read_pico_transfer_get_status(read_pico_transfer_status_t *out) {
@@ -905,15 +910,24 @@ static esp_err_t sync_time_impl(uint32_t *utc_seconds) {
     err=sync_network_time(utc_seconds);
 time_cleanup:
     ESP_LOGI("time_sync","temporary stage=%s result=%s",stage,esp_err_to_name(err));
-    if (wifi_started) esp_wifi_stop();
+    bool retained_driver=false;
+    esp_err_t stopped=wifi_started?esp_wifi_stop():ESP_OK;
     if (ip_handler) esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, ip_handler);
     if (wifi_handler) esp_event_handler_instance_unregister(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_handler);
-    if (wifi_initialized) esp_wifi_deinit();
+    if (wifi_initialized) {
+        esp_err_t closed=esp_wifi_deinit();
+        if(closed!=ESP_OK && closed!=ESP_ERR_WIFI_NOT_INIT) {
+            s_wifi=true;s_started=wifi_started&&stopped!=ESP_OK&&stopped!=ESP_ERR_WIFI_NOT_STARTED;
+            s_netif=netif;s_loop_owned=loop_owned;netif=NULL;loop_owned=false;
+            s_ble_network_reserved=true;s_shutdown_only=true;retained_driver=true;err=closed;
+            portENTER_CRITICAL(&s_lock);s_status.state=READ_PICO_TRANSFER_ERROR;s_status.last_error=closed;portEXIT_CRITICAL(&s_lock);
+        }
+    }
     if (netif) esp_netif_destroy_default_wifi(netif);
     if (loop_owned) esp_event_loop_delete_default();
     vEventGroupDelete(s_time_events); s_time_events = NULL;
     clear_secret(&wifi, sizeof(wifi));
-    ble_pt_network_release();
+    if(!retained_driver)ble_pt_network_release();
 
     return err;
 }
@@ -929,6 +943,7 @@ static esp_err_t sync_time_online_impl(uint32_t *utc_seconds) {
 
 static esp_err_t sync_time_run(uint32_t *utc_seconds, bool online_only, bool automatic) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    if(read_pico_transfer_sleep_blocked())return ESP_ERR_INVALID_STATE;
     if(!read_pico_transfer_network_shareable())return ESP_ERR_INVALID_STATE;
     if (!utc_seconds) return ESP_ERR_INVALID_ARG;
     *utc_seconds = 0;
@@ -975,6 +990,7 @@ bool read_pico_transfer_take_time_sync(uint32_t *utc_seconds) {
 
 esp_err_t read_pico_transfer_scan_wifi(read_pico_transfer_network_t out[READ_PICO_TRANSFER_SCAN_MAX], size_t *count) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    if(read_pico_transfer_sleep_blocked())return ESP_ERR_INVALID_STATE;
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     if (!out || !count) return ESP_ERR_INVALID_ARG;
     memset(out, 0, sizeof(*out) * READ_PICO_TRANSFER_SCAN_MAX); *count = 0;
@@ -1077,13 +1093,17 @@ cleanup:
             vTaskDelay(pdMS_TO_TICKS(80));
             deinit_err = esp_wifi_deinit();
         }
-        if (deinit_err != ESP_OK) ESP_LOGW("transfer", "wifi scan deinit: %s", esp_err_to_name(deinit_err));
+        if (deinit_err != ESP_OK && deinit_err!=ESP_ERR_WIFI_NOT_INIT) {
+            s_wifi=true;s_started=started;s_netif=scan_netif;s_loop_owned=loop_owned;
+            scan_netif=NULL;loop_owned=false;s_ble_network_reserved=true;s_shutdown_only=true;err=deinit_err;
+            portENTER_CRITICAL(&s_lock);s_status.state=READ_PICO_TRANSFER_ERROR;s_status.last_error=deinit_err;portEXIT_CRITICAL(&s_lock);
+        }
     }
     if (scan_netif) esp_netif_destroy_default_wifi(scan_netif);
     if (loop_owned) (void)esp_event_loop_delete_default();
     if (err != ESP_OK) { memset(out, 0, sizeof(*out) * READ_PICO_TRANSFER_SCAN_MAX); *count = 0; }
     ESP_LOGI("transfer", "wifi scan result=%s count=%u", esp_err_to_name(err), (unsigned)*count);
-    ble_pt_network_release();
+    if(!s_shutdown_only)ble_pt_network_release();
     release_config();
     return err;
 }
@@ -2139,7 +2159,7 @@ bool read_pico_transfer_try_stop_if_idle(void) {
     bool accepted = admission_stop(&s_stopping, s_upload_active);
     portEXIT_CRITICAL(&s_lock);
     if (accepted) read_pico_transfer_stop();
-    return accepted;
+    return accepted && !s_started && !s_wifi && !s_http && !s_netif;
 }
 
 bool read_pico_transfer_pause_for_sleep(void) {
@@ -2147,24 +2167,50 @@ bool read_pico_transfer_pause_for_sleep(void) {
     if (!cancel_time_sync(false)) return false;
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
-    if (status.state == READ_PICO_TRANSFER_STOPPED) return true;
-    if (status.state == READ_PICO_TRANSFER_UPLOADING) return false;
-    read_pico_transfer_cfg_t saved = s_cfg;
-    if (saved.root_dir) {
-        strlcpy(s_sleep_root, saved.root_dir, sizeof(s_sleep_root));
-        saved.root_dir = s_sleep_root;
+    if (status.state == READ_PICO_TRANSFER_UPLOADING || s_upload_active) return false;
+    if(!s_shutdown_only && !s_sleep_paused && (s_wifi || s_started || s_http || s_netif)) {
+        s_sleep_cfg=s_cfg;
+        if(s_cfg.root_dir) {
+            strlcpy(s_sleep_root,s_cfg.root_dir,sizeof(s_sleep_root));
+            s_sleep_cfg.root_dir=s_sleep_root;
+        }
+        s_sleep_paused=true;
     }
-    if (!read_pico_transfer_try_stop_if_idle()) return false;
-    s_sleep_cfg = saved;
-    s_sleep_paused = true;
-    return true;
+    portENTER_CRITICAL(&s_lock);s_sleep_blocked=true;s_sleep_resume_requested=false;portEXIT_CRITICAL(&s_lock);
+    s_sleep_shutdown=true;
+    bool stopped=read_pico_transfer_try_stop_if_idle();
+    s_sleep_shutdown=false;
+    return stopped && !s_started && !s_wifi && !s_http && !s_netif;
 }
 
+// 解锁只排队，不在字体/书籍恢复和首帧之前创建无线任务。
+// Unlock queues only; never create radio tasks before font/book restoration and the first frame.
 void read_pico_transfer_resume_after_sleep(void) {
-    if (!s_sleep_paused) return;
-    s_sleep_paused = false;
-    esp_err_t err = read_pico_transfer_start(&s_sleep_cfg);
-    if (err != ESP_OK) ESP_LOGW("transfer", "resume after sleep: %s", esp_err_to_name(err));
+    portENTER_CRITICAL(&s_lock);
+    if(s_sleep_blocked || s_sleep_paused)s_sleep_resume_requested=true;
+    portEXIT_CRITICAL(&s_lock);
+}
+void read_pico_transfer_resume_service(void) {
+    // 无恢复请求不取得网络所有权，避免空轮询延长WiFi空闲计时。
+    // A no-op poll must not acquire ownership and extend the WiFi idle clock.
+    if(!s_sleep_resume_requested || esp_timer_get_time()<s_sleep_resume_retry)return;
+    TRANSFER_NETWORK_GUARD_OR_RETURN();
+    if(!s_sleep_resume_requested)return;
+    // 已解锁后另一个显式会话取得网络，不得用旧恢复请求拆掉它。
+    // A new explicit session after unlock supersedes the saved restore; never tear it down.
+    if(!s_sleep_blocked && (s_started || s_wifi || s_http || s_netif)) {
+        s_sleep_paused=false;s_sleep_resume_requested=false;return;
+    }
+    s_sleep_shutdown=true;
+    read_pico_transfer_stop();
+    if(s_started || s_wifi || s_http || s_netif) {
+        s_sleep_shutdown=false;s_sleep_resume_retry=esp_timer_get_time()+5000000;return;
+    }
+    portENTER_CRITICAL(&s_lock);s_sleep_blocked=false;portEXIT_CRITICAL(&s_lock);
+    esp_err_t err=s_sleep_paused?read_pico_transfer_start(&s_sleep_cfg):ESP_OK;
+    s_sleep_shutdown=false;
+    if(err==ESP_OK){s_sleep_paused=false;s_sleep_resume_requested=false;s_sleep_resume_retry=0;}
+    else {s_sleep_resume_retry=esp_timer_get_time()+5000000;ESP_LOGW("transfer","resume deferred: %s",esp_err_to_name(err));}
 }
 
 // KoSync/OPDS 的短请求不应被热点或空闲STA挡住：拆掉纯联网会话再按已保存凭据重连。
@@ -2174,6 +2220,7 @@ void read_pico_transfer_resume_after_sleep(void) {
 // because a file is mid-write and preemption would leave a partial one.
 esp_err_t read_pico_transfer_preempt_for_network(void) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    if(read_pico_transfer_sleep_blocked())return ESP_ERR_INVALID_STATE;
     read_pico_transfer_status_t st = {0};
     read_pico_transfer_get_status(&st);
     if (st.state == READ_PICO_TRANSFER_UPLOADING) return ESP_ERR_INVALID_STATE;
@@ -2195,14 +2242,16 @@ void read_pico_transfer_stop(void) {
     transfer_network_guard_t network_scope __attribute__((cleanup(transfer_network_guard_end)))={read_pico_transfer_network_begin()};
     if(!network_scope.held){read_pico_transfer_network_request_stop();return;}
     if (!cancel_time_sync(false)) return;
+    if(!s_sleep_shutdown){s_sleep_paused=false;}
     portENTER_CRITICAL(&s_lock); s_stopping = true; portEXIT_CRITICAL(&s_lock);
-    if (s_http) { httpd_stop(s_http); s_http = NULL; }
-    if (s_started) { esp_wifi_stop(); s_started = false; }
+    if (s_http) { esp_err_t err=httpd_stop(s_http);if(err!=ESP_OK){set_error(err);return;} s_http = NULL; }
+    if (s_started) { esp_err_t err=esp_wifi_stop();if(err!=ESP_OK && err!=ESP_ERR_WIFI_NOT_INIT && err!=ESP_ERR_WIFI_NOT_STARTED){set_error(err);return;} s_started = false; }
     if (s_events) { esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, s_events); s_events = NULL; }
     if (s_ip_events) { esp_event_handler_instance_unregister(IP_EVENT, ESP_EVENT_ANY_ID, s_ip_events); s_ip_events = NULL; }
-    if (s_wifi) { esp_wifi_deinit(); s_wifi = false; }
+    if (s_wifi) { esp_err_t err=esp_wifi_deinit();if(err!=ESP_OK && err!=ESP_ERR_WIFI_NOT_INIT){set_error(err);return;} s_wifi = false; }
     if (s_netif) { esp_netif_destroy_default_wifi(s_netif); s_netif = NULL; }
     if (s_loop_owned) { esp_event_loop_delete_default(); s_loop_owned = false; }
+    s_shutdown_only=false;
     free(s_buffer); s_buffer = NULL; s_buffer_capacity = 0;
     if (s_ble_network_reserved) { s_ble_network_reserved = false; ble_pt_network_release(); }
     portENTER_CRITICAL(&s_lock);
@@ -2215,6 +2264,7 @@ void read_pico_transfer_stop(void) {
 
 esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    if(read_pico_transfer_sleep_blocked())return ESP_ERR_INVALID_STATE;
     if (!cfg || (cfg->network_only && cfg->mode != READ_PICO_TRANSFER_MODE_STA) ||
         (!cfg->network_only && (!cfg->root_dir || !cfg->free_bytes_cb)) ||
         (cfg->root_dir && strlen(cfg->root_dir) >= sizeof(s_root)) ||

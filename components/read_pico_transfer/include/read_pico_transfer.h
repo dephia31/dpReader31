@@ -89,6 +89,11 @@ esp_err_t read_pico_transfer_preempt_for_network(void);
 /// 锁屏浅睡前停用射频；唤醒后按原会话配置恢复。上传中返回 false。
 bool read_pico_transfer_pause_for_sleep(void);
 void read_pico_transfer_resume_after_sleep(void);
+#if KIIKO_BOARD_METALIO47
+/// UI tail only, after a successful reader frame; collect deferred WiFi restoration.
+void read_pico_transfer_resume_service(void);
+bool read_pico_transfer_sleep_blocked(void);
+#endif
 /// 跨任务复制一致状态快照。/ Copy a consistent snapshot across tasks.
 void read_pico_transfer_get_status(read_pico_transfer_status_t *out);
 #if KIIKO_BOARD_METALIO47

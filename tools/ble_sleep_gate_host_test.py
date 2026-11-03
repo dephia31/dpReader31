@@ -25,7 +25,7 @@ int main(void){s_link_up=s_running=true;strcpy(s_conn_addr,"AA");result=ESP_ERR_
  ble_pt_resume_after_sleep();assert(!s_sleep_suspended&&!strcmp(s_reconnect_addr,"AA"));
  puts("PASS BLE Sleep gate: stop timeout blocks restart, repeated calls retry without waiting, original peer preserved, success confirms host stopped, only unlock resume clears gate");}
 '''
-sleep=(r/'boards/metalio47/src/main/sleep.c').read_text();wait=function('app_light_sleep_wait_timed',r/'boards/metalio47/src/main/sleep.c');assert 'bool ble_stopped=ble_pt_suspend_for_sleep()==ESP_OK;' in wait and 'if (ble_stopped &&' in wait
+sleep=(r/'boards/metalio47/src/main/sleep.c').read_text();wait=function('app_light_sleep_wait_timed',r/'boards/metalio47/src/main/sleep.c');assert 'bool ble_stopped=ble_pt_suspend_for_sleep()==ESP_OK;' in wait and 'if (wifi_stopped && ble_stopped &&' in wait
 assert 's_sleep_suspended' in function('metalio_radio_reserved',ble)
 for name in ['ble_pt_connect','ble_pt_scan_start']:assert 'metalio_radio_reserved()' in function(name,ble)
 assert 'if(atomic_load(&s_sleep_suspended))return;' in function('poll_locked',ble)

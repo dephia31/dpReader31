@@ -69,3 +69,20 @@ với lượt chờ ngắn, kể cả khi USB khiến máy không thể Sleep. K
 task SDK đang hoạt động. Mở khóa hoặc hủy thao tác khóa chưa được chấp nhận
 mới trả chốt; việc bật lại vẫn chờ trang đọc hiển thị thành công. Công tắc
 Bluetooth đã lưu không bị ghi tắt, để máy có thể khôi phục lựa chọn sau unlock.
+
+WiFi dùng chốt khóa/Sleep riêng: chỉ báo đã dừng sau khi HTTP, WiFi stop và
+deinit trả kết quả xác nhận. Nếu SDK dừng lỗi, giữ các tài nguyên còn sống
+để thử dọn lại, không báo OFF giả hoặc đưa máy vào Sleep. Tác vụ chỉnh giờ,
+quét và mở WiFi không được bật radio trong lúc chốt khóa còn giữ. Lỗi dọn
+WiFi tạm giữ driver/netif/quyền nhường BLE để lần dừng sau có thể thu hồi.
+
+Mở khóa chỉ xếp yêu cầu khôi phục. Main xử lý sau tick/chuyển trang/hiển thị
+và dùng cùng điều kiện trang đọc thành công với BLE; lỗi khôi phục có khoảng
+chờ5giây. Phiên mới được người dùng bật sẽ thay thế yêu cầu cũ, không bị
+yêu cầu khôi phục tháo mất. Đóng OPDS trước khi khôi phục hủy phần kết nối
+OPDS sở hữu; kết nối bật sẵn tiếp tục theo quyền người dùng ban đầu.
+
+Kiểm tra cập nhật, tải/ghi firmware OTA và file đang truyền giữ quyền sử dụng
+mạng đến hết dọn HTTP/file. Khóa thủ công và tự động phải hoãn khi OTA bận,
+kể cả cửa sổ worker chưa kịp chạy; timeout WiFi và khôi phục sau Sleep không
+được ngắt chủ mạng. Hủy OTA do người dùng vẫn dùng đường hủy riêng của OTA.

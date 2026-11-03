@@ -22,3 +22,5 @@ int read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg);
 bool read_pico_transfer_try_stop_if_idle(void);
 
 static inline void read_pico_transfer_stop(void){(void)read_pico_transfer_try_stop_if_idle();}
+
+static inline void read_pico_transfer_resume_service(void){}

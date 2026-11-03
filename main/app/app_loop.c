@@ -1988,6 +1988,9 @@ void app_loop_run(const app_loop_config_t* config) {
         bool radio_ready=!ctx.request_app&&!ctx.request_menu&&!ctx.request_return&&
             !touch.touched&&!power_dialog_open&&!usb_storage_active()&&!pico_online_busy()&&
             (current!=&app_book || app_book_background_radio_ready());
+#if KIIKO_BOARD_METALIO47
+        if(radio_ready)read_pico_transfer_resume_service();
+#endif
         if(!app_settings_ble_turner() || radio_ready) {
 #if KIIKO_BOARD_METALIO47
         ble_pt_sync(app_settings_ble_turner());

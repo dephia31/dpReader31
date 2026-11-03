@@ -9,6 +9,7 @@ u=r'''
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +28,13 @@ typedef struct{bool active;}app_lock_font_t;
 static uint8_t pixels[FRAME_BYTES],panel[FRAME_BYTES],style,background=0x32;
 static bool pin,decode_ok=true,transfer_ok=true,ble_ok=true,output_ok=true,white_ok=true,boot_cache,cache_ok;
 static unsigned old_style,draws[4],presents,outputs,auths,begins,ends,resumes,cleared,waits,saves,lamp_off,lamp_restore,white_outputs,white_faults,image_clears;
+static bool ota_busy,s_boot_power_on=true,s_boot_power_wake;
+static bool pico_online_busy(void){return ota_busy;}
+static void app_settings_record_pin_lock(uint32_t t){(void)t;}
+static bool pico_boot_lock_pending(void){return false;}
+static int app_settings_wake_presses(void){return 1;}
+static bool metalio_boot_power_key(void){return false;}
+static void read_pico_pmu_latch_power_wakeup(void){}
 static bool s_lock_feedback_started,s_lock_deep_ready,s_lock_frame_cached,s_boot_lock_draw;
 static void lock_resume_service(void){}
 static bool app_lock_resume_frame(void*h){(void)h;return false;}
@@ -79,15 +87,16 @@ static void vTaskDelay(int ms){assert(ms==20);}
 '''
 for name in ['lock_present_art','draw_wallpaper','enter_lock_and_sleep','app_lock_boot_gate']:u+=function(name,r/'main/sleep.c')+'\n'
 u+=r'''
-static void reset(void){media_resumes=0;memset(draws,0,sizeof(draws));presents=outputs=auths=begins=ends=resumes=cleared=waits=saves=lamp_off=lamp_restore=white_outputs=white_faults=0;pin=boot_cache=s_lock_feedback_started=s_lock_deep_ready=s_lock_frame_cached=false;s_lock_sleep_touch=NULL;decode_ok=transfer_ok=ble_ok=output_ok=white_ok=true;cache_ok=false;background=0x32;memset(panel,background,FRAME_BYTES);memset(pixels,0x99,FRAME_BYTES);}
+static void reset(void){ota_busy=false;media_resumes=0;memset(draws,0,sizeof(draws));presents=outputs=auths=begins=ends=resumes=cleared=waits=saves=lamp_off=lamp_restore=white_outputs=white_faults=0;pin=boot_cache=s_lock_feedback_started=s_lock_deep_ready=s_lock_frame_cached=false;s_lock_sleep_touch=NULL;decode_ok=transfer_ok=ble_ok=output_ok=white_ok=true;cache_ok=false;background=0x32;memset(panel,background,FRAME_BYTES);memset(pixels,0x99,FRAME_BYTES);}
 int main(void){EpdiyHighlevelState hl={panel};
+ reset();ota_busy=true;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(!outputs&&!begins&&!resumes&&!waits);
  for(int s=0;s<4;++s)for(int password=0;password<2;++password)for(int reader=0;reader<2;++reader){reset();style=s;pin=password;int64_t ignore=0;enter_lock_and_sleep(&hl,&ignore,(void*)1,(void*)2,reader);assert(white_outputs==(unsigned)(s!=3)&&!white_faults);assert(draws[s]==1&&presents==1&&outputs==1&&auths==(unsigned)password&&waits==(unsigned)!password);assert(begins==(unsigned)(s==0||s==2||password)&&ends==begins&&resumes==1&&cleared==1&&lamp_off&&ignore==3000);assert(!s_lock_sleep_touch&&!s_lock_frame_cached&&saves==1&&media_resumes==1);}
  for(unsigned screen=0;screen<4;++screen){reset();style=3;background=0x21+screen*17;memset(panel,background,FRAME_BYTES);unsigned prior=image_clears;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(!white_outputs&&draws[3]==1&&presents==1&&image_clears==prior+1);}
  for(int ready=0;ready<2;++ready)for(int password=0;password<2;++password)for(int cache=0;cache<2;++cache){reset();style=3;s_lock_deep_ready=ready;pin=password;cache_ok=cache;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(saves==1&&!s_lock_frame_cached&&!s_lock_deep_ready);}
  for(int s=0;s<4;++s){reset();style=s;decode_ok=false;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(draws[s]==1&&presents==1&&panel[0]==0xff&&style==s&&!saves);}
  for(int failed_style=2;failed_style<=3;++failed_style)for(int password=0;password<2;++password){reset();style=failed_style;pin=password;output_ok=false;unsigned prior=image_clears;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(outputs==2&&!presents&&!saves);assert(image_clears==prior+(failed_style==3?2u:0u));if(password)assert(auths==1&&!lamp_restore);else assert(!waits&&!auths&&lamp_restore==1);}
  for(int password=0;password<2;++password){reset();style=2;pin=password;white_ok=false;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(white_outputs==1&&white_faults==1&&outputs==1&&presents==1&&auths==(unsigned)password&&waits==(unsigned)!password);}
- reset();transfer_ok=false;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(!outputs&&!begins&&!resumes&&cleared==1&&lamp_restore==1);
+ reset();transfer_ok=false;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(!outputs&&!begins&&resumes==1&&cleared==1&&lamp_restore==1);
  reset();ble_ok=false;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(!outputs&&!begins&&resumes==1&&cleared==1&&lamp_restore==1);
  for(int s=0;s<4;++s)for(int previous=0;previous<4;++previous){reset();style=s;old_style=previous;pin=boot_cache=cache_ok=true;app_lock_boot_gate(&hl,(void*)2,(void*)1);assert(auths==1&&begins==1&&ends==1&&outputs==(unsigned)(s!=previous)&&draws[s]==(unsigned)(s!=previous));}
  reset();app_lock_boot_gate(&hl,(void*)2,(void*)1);assert(!auths&&!begins);
