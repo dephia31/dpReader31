@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include "esp_err.h"
 #include "read_pico_transfer_network.h"
+#include "transfer_network_activity.h"
 
 #define READ_PICO_TRANSFER_SSID "dpReader31"
 #define READ_PICO_TRANSFER_PASSWORD ""
@@ -75,7 +76,7 @@ typedef struct {
 
 /// 同一控制任务串行启动/停止；重复启动返回状态错误。/ Serialize start/stop on one owner task; repeated start fails.
 esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg);
-/// 等待请求退出并释放本组件资源；可重复调用。/ Join requests and release owned resources; repeatable.
+/// Join requests and release resources; if another network job owns the radio, defer teardown until it exits. Repeatable.
 void read_pico_transfer_stop(void);
 /// 原子拒绝文件操作期间的停止；成功则已停服，由同一控制任务调用。/ Atomically refuse stopping during file operations; true means stopped. Owner task only.
 bool read_pico_transfer_try_stop_if_idle(void);
@@ -93,6 +94,8 @@ void read_pico_transfer_get_status(read_pico_transfer_status_t *out);
 #if KIIKO_BOARD_METALIO47
 /// 包括临时对时/扫描及BLE的射频占用快照，供屏保留余量。/ Include temporary sync/scans and BLE activity when choosing display margins.
 bool read_pico_transfer_radio_busy(void);
+/// Background clients never borrow a page-owned upload server.
+bool read_pico_transfer_network_shareable(void);
 #endif
 /// 控制任务每500ms驱动有界连接重试与15秒超时。/ Owner task polls every 500 ms for bounded retries and a 15 s timeout.
 void read_pico_transfer_service_poll(void);

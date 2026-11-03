@@ -75,6 +75,7 @@ static void ui_fill_round_rect(uint8_t *fb,EpdRect r,int radius,uint8_t gray){
 }
 static uint8_t ui_contrast_gray(uint8_t v){return v;}
 static void ui_nav_status(uint8_t *fb){epd_fill_rect((EpdRect){36,29,52,16},0,fb);}
+static bool simple;static bool app_settings_simple_ui(void){return simple;}
 static bool app_settings_main_fast_refresh(void){return fast;}
 static void *heap_caps_malloc(size_t n,unsigned caps){
  assert(caps==3&&n<=114228);++allocs;if((int)n>max_bytes)max_bytes=(int)n;
@@ -94,6 +95,7 @@ for name in ('ui_read_pixel','ui_image_bw_rect','icon_nibble','ui_draw_icon'):
 for name in ('clamp_radius','draw_arc','ui_draw_round_rect','ui_inset_rect','ui_draw_control_frame'):
     code+=function('main/ui/ui_kit.c',name)
 code+='static uint8_t pixel(uint8_t *fb,int x,int y){return ui_read_pixel(fb,x,y)*17u;}\n'
+code+=function('main/ui/ui_nav.c','ui_nav_hit')
 code+=body('main/ui/ui_glass.c')+body('main/ui/ui_quick_menu.c')+body('main/ui/ui_click_feedback.c')
 code+='#define UI_NAV_BACK_ICON_PX 48\n#define READER_SHEET_BACK_PX 52\n'
 code+=function('main/ui/ui_nav.c','ui_nav_back')+function('main/apps/app_book.c','draw_sheet_back')
@@ -298,6 +300,23 @@ int main(int argc,char **argv){
  assert(!ui_click_feedback_nav_finish(frame,&r));
  ui_click_feedback_nav_request(1);oom=true;assert(!ui_click_feedback_nav_tick(frame,0,&r)&&!live&&!ui_click_feedback_nav_pending());oom=false;
  ui_click_feedback_nav_request(0);assert(ui_click_feedback_nav_tick(frame,0,&r));ui_click_feedback_reset();assert(!live&&!ui_click_feedback_nav_tick(frame,500,&r));
+ // Two-tab hitboxes and animated poses follow actual simple navigation geometry.
+ simple=true;
+ for(int fallback=0;fallback<2;++fallback)for(int slot=0;slot<2;++slot){
+  int tab=slot?3:0,cx=slot?513:171;
+  memset(frame,0xee,BYTES);ui_click_feedback_begin(frame);
+  if(!fallback)for(int i=0;i<2;++i){int center=i?513:171;
+   ui_click_feedback_register(frame,(EpdRect){center-30,1111,60,60},UI_CLICK_NAV,tabs[i?3:0]);}
+  memcpy(saved,frame,BYTES);ui_click_feedback_nav_request(tab);
+  assert(ui_click_feedback_nav_tick(frame,0,&r));
+  assert(r.x>=cx-30&&r.x+r.width<=cx+30);
+  assert(ui_click_feedback_nav_tick(frame,65,&r)&&!live&&!memcmp(frame,saved,BYTES));
+  if(!fallback){
+   assert(ui_click_feedback_press(frame,slot?683:0,1188,&r));
+   assert(ui_click_feedback_release(frame,&r)&&!live&&!memcmp(frame,saved,BYTES));
+  }
+ }
+ simple=false;
  // 实际题头/阅读面板绘制均使用同一带圆环图标；按压不能在圆外增加方框。
  // Real headers/reader sheets share the complete icon; pressing must not add a rectangle outside the circle.
  for(int sheet=0;sheet<2;++sheet)for(int mode=0;mode<3;++mode){

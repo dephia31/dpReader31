@@ -6,15 +6,62 @@
 
 <p align="center">
   <a href="https://dephia31.github.io/dpReader31/"><img src="https://img.shields.io/badge/Web%20Flasher-C%E1%BA%ADp%20nh%E1%BA%ADt%20tr%E1%BB%B1c%20tuy%E1%BA%BFn%201--Click-success?style=for-the-badge&logo=googlechrome" alt="Web Flasher Trực Tuyến"></a>
-  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.2.7--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.2.8--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
 </p>
 
-**dpReader** (`v1.2.7-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
+**dpReader** (`v1.2.8-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
 
 > ⚡ **Nạp Firmware Trực Tuyến 1-Click (Không cần cài phần mềm):**  
 > Truy cập ngay **[Web Flasher chính thức](https://dephia31.github.io/dpReader31/)** trên trình duyệt Google Chrome hoặc Microsoft Edge để nạp firmware trực tiếp qua cáp USB-C. Tự động nhận diện phiên bản mới nhất, tự xóa `otadata` và tự khởi động lại máy sau khi nạp!
 
 ---
+
+## Hai thiết kế giao diện: Đầy đủ và Đơn giản
+
+Hai giao diện dùng chung trình đọc TXT/EPUB, thiết lập chữ, tiến độ và cơ chế chuẩn bị trang. Bạn chọn cách tìm sách và bố trí Home phù hợp với mình; chuyển giao diện không tạo một bản tiến độ đọc riêng.
+
+| | Đầy đủ | Đơn giản |
+|---|---|---|
+| Home | Đọc tiếp, Tiện Ích và bốn sách từng đọc | Lời chào theo tên, thẻ Đọc tiếp lớn; không có hàng sách gần đây |
+| Tìm sách | Tủ sách với bìa và các công cụ quản lý | Duyệt thư mục TXT/EPUB, danh sách tám mục mỗi trang |
+| Tiện Ích | Bốn shortcut tùy chọn | Mở sách/Thêm sách cố định và hai shortcut tùy chọn |
+| Tùy chỉnh | Nhãn và viền icon của Home đầy đủ | Nhãn, viền và shortcut lưu riêng cho Home đơn giản |
+| Phù hợp | Người muốn xem bìa, lịch sử và quản lý thư viện | Người muốn ít thành phần, mở sách trực tiếp theo thư mục |
+
+Mở **Cài đặt → Cá nhân hóa → Giao diện đơn giản**: bật để dùng Đơn giản, tắt để dùng Đầy đủ. Lựa chọn được giữ qua khởi động lại và Sleep; nhập bản sao hoặc khôi phục thiết lập thông thường không tự chuyển chế độ đã chọn.
+
+### Giao diện Đơn giản
+
+Bật tại **Cài đặt → Cá nhân hóa → Giao diện đơn giản**. Thanh điều hướng còn
+**Đọc tiếp** và **Cài đặt**; thẻ Đọc tiếp lớn hơn, không có hàng sách gần đây.
+Thẻ Tiện Ích có bốn slot cùng kiểu tag
+với Home thường: hai slot đầu cố định **Mở sách / Thêm sách**, hai slot sau
+tùy chọn bằng biểu tượng bút hoặc chạm ô trống, rồi bấm **Lưu tiện ích**. Hai
+shortcut tùy chọn cùng **Viền icon / Nhãn shortcut** lưu riêng, không đổi
+shortcut Home thường. Tắt nhãn sẽ hiển thị icon lớn hơn; bấm **Lưu tiện ích** để
+lưu thay đổi. Tiêu đề Home đơn giản hiển thị **Xin Chào, tên đã lưu**. **Mở sách** mở trình
+chọn TXT/EPUB trên thẻ nhớ; **Thêm sách**
+mở hai lựa chọn **Truyền file** và **Thư viện OPDS**. Dịch vụ chỉ chạy sau khi
+chọn phương thức, không tự chạy khi mở Home hoặc menu Thêm sách.
+Chạm thư mục để vào, nút quay lại để lên thư mục cha; tại gốc thẻ nhớ sẽ về Home.
+Danh sách theo thứ tự trên thẻ, có phân trang; chỉ giữ tối đa tám tên mỗi trang
+trong PSRAM, không tải bìa hay lập chỉ mục toàn bộ thư viện. Rời trang sẽ giải
+phóng danh sách. Thư mục trống hoặc không có TXT/EPUB sẽ hiện thông báo.
+
+Chế độ này giữ tiến độ đọc và tác vụ chuẩn bị trang, ngừng quét giá sách/lịch sử
+cho Home và giải phóng cache giá sách cũ. Home vẫn giữ một bìa đọc tiếp. Tắt công
+tắc để trở lại giao diện thường và các shortcut đã lưu. Mức RAM thực tế cần đo
+trên thiết bị; tùy chọn này không tắt tác vụ đọc thẻ, nguồn, phím hay màn hình.
+
+Tên sách dài trong Home đơn giản có tối đa ba dòng và dấu lược
+cuối nếu vượt quá vùng hiển thị. Chế độ giao diện đã chọn được lưu riêng: khởi
+động lại, Sleep/wake, nhập bản sao hoặc khôi phục thiết lập thông thường không
+tự thay đổi lựa chọn đó. Chỉ công tắc Giao diện đơn giản đổi lựa chọn hiện tại.
+Xóa toàn bộ NVS/flash hoặc phần mềm cũ không hỗ trợ tùy chọn này nằm ngoài phạm
+vi bảo đảm; firmware không thể suy ra dữ liệu đã bị xóa hoàn toàn.
+
+Quy tắc bật/tắt WiFi, Bluetooth và bảo vệ tác vụ đang chạy xem
+[NETWORK_LIFECYCLE.md](docs/NETWORK_LIFECYCLE.md).
 
 ## 📸 Giao diện dpReader
 

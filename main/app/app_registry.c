@@ -13,6 +13,7 @@ extern const app_desc_t app_book;
 extern const app_desc_t app_image;
 extern const app_desc_t app_dashboard;
 extern const app_desc_t app_files;
+extern const app_desc_t app_book_picker;
 extern const app_desc_t app_device_settings;
 
 // 正式产品页面清单；工厂测试与历史示例不进入用户导航。
@@ -23,6 +24,7 @@ static const app_desc_t* const s_apps[] = {
     &app_files,
     &app_device_settings,
     &app_image,
+    &app_book_picker,
 };
 
 #define APP_COUNT ((int)(sizeof(s_apps) / sizeof(s_apps[0])))

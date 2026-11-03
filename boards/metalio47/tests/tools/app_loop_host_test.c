@@ -105,6 +105,7 @@ static bool full_tick, lock_due, font_due, shake_activity;
 static int64_t time_offset, time_step;
 static int du_areas, gl_areas;
 static bool main_fast, main_water;
+bool app_settings_simple_ui(void){return false;}
 int app_settings_main_refresh_mode(void) {return main_water?APP_MAIN_REFRESH_WATER:main_fast?APP_MAIN_REFRESH_FAST:APP_MAIN_REFRESH_NORMAL;}
 static int shelf_exit_arms;
 static int nav_arms, nav_draws, nav_full_arms, nav_area_draws;
@@ -942,6 +943,7 @@ bool book_cover_jobs_quiesce(unsigned timeout){(void)timeout;return true;}
 void book_lock_collage_invalidate(void) {}
 
 bool ble_pt_connected(void) { return false; }
+bool ble_pt_scanning(void){return false;}
 
 static uint8_t af_store=5;
 int nvs_open(const char* space,int mode,nvs_handle_t* h){(void)space;(void)mode;*h=1;return 0;}

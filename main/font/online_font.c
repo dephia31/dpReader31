@@ -98,6 +98,7 @@ done:
     free(url);free(next);return client;
 }
 static esp_err_t ensure_network(bool *owned){
+    if(!read_pico_transfer_network_shareable())return ESP_ERR_INVALID_STATE;
     read_pico_transfer_status_t status;read_pico_transfer_get_status(&status);
     if(status.mode==READ_PICO_TRANSFER_MODE_STA&&status.network_ready&&status.state!=READ_PICO_TRANSFER_UPLOADING)return ESP_OK;
     if(status.state!=READ_PICO_TRANSFER_STOPPED)return ESP_ERR_INVALID_STATE;
@@ -120,6 +121,7 @@ static bool make_directory(const char *path){struct stat st;return !stat(path,&s
 static void worker(void *arg){
     unsigned index=(unsigned)(uintptr_t)arg;const online_font_item_t *item=online_font_item(index);
     const char *source=ONLINE_FONT_DIRECTORY "/.kiiko-font.source";
+    bool network_held=false;
     bool owned=false,ble_lease=false;uint8_t *buffer=NULL;FILE *file=NULL;
     esp_http_client_handle_t client=NULL;esp_err_t result=ESP_FAIL;
     const char *message="下载失败，请重试";
@@ -133,6 +135,7 @@ static void worker(void *arg){
     if(online_font_store_installed(item,ONLINE_FONT_DIRECTORY)){result=ESP_OK;goto done;}
     // 字体下载独占一个临时BLE租约，结束按原用户配置恢复，不持久改开关。
     // Borrow a BLE lease for font transfer; restore the original user preference on completion.
+    if(!(network_held=read_pico_transfer_network_begin())){result=ESP_ERR_INVALID_STATE;goto done;}
     result=ble_pt_network_acquire();if(result!=ESP_OK){message="蓝牙正在忙，请稍后重试";goto done;}ble_lease=true;
     result=ensure_network(&owned);
     if(result!=ESP_OK){message=result==ESP_ERR_NOT_FOUND?"请先在WiFi设置中连接网络":"WiFi连接失败，请重试";goto done;}
@@ -174,6 +177,7 @@ done:
     free(buffer);
     if(owned)read_pico_transfer_stop();
     if(ble_lease)ble_pt_network_release();
+    if(network_held)read_pico_transfer_network_end();
     bool aborted=cancelled(NULL);
     if(aborted)state(ONLINE_FONT_CANCELLED,"已取消下载");
     else if(result==ESP_OK)state(ONLINE_FONT_DONE,"下载完成，请返回选择字体");

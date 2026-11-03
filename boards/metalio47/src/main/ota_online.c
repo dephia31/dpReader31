@@ -110,6 +110,7 @@ static bool layout_valid(void) {
         a->size == 0x500000 && b->size == 0x500000 && data->address == 0xd000 && data->size == 0x2000;
 }
 static bool online(bool *owned) {
+    if(!read_pico_transfer_network_shareable()){state(PICO_UPDATE_FAILED,"Vui lòng thoát trang truyền file trước");return false;}
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
     if (!(status.mode == READ_PICO_TRANSFER_MODE_STA && status.network_ready)) {
@@ -393,10 +394,12 @@ failed:
 }
 static void worker(void *unused) {
     (void)unused;
+    bool network_held=read_pico_transfer_network_begin();
     bool owned = false;
     wifi_ps_type_t previous_ps = WIFI_PS_MIN_MODEM;
     bool restore_ps = false;
-    if (online(&owned) && !atomic_load(&s_cancel)) {
+    if(!network_held)state(PICO_UPDATE_FAILED,"WiFi đang bận, vui lòng thử lại");
+    if (network_held && online(&owned) && !atomic_load(&s_cancel)) {
         // 更新期间关闭无线省电；完成、取消和失败均恢复原策略。
         // Disable radio power saving for updates, then restore it on success, cancellation or failure.
         restore_ps = esp_wifi_get_ps(&previous_ps) == ESP_OK && esp_wifi_set_ps(WIFI_PS_NONE) == ESP_OK;
@@ -406,6 +409,7 @@ static void worker(void *unused) {
     }
     if (restore_ps) (void)esp_wifi_set_ps(previous_ps);
     if (owned) read_pico_transfer_stop();
+    if(network_held)read_pico_transfer_network_end();
     if (atomic_load(&s_cancel)) state(PICO_UPDATE_CANCELLED, "已取消，当前版本保持不变");
     xSemaphoreTake(s_mutex, portMAX_DELAY); s_status->busy = false; ++s_status->revision; xSemaphoreGive(s_mutex);
     xSemaphoreGive(s_done);

@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: 2026 mindreset
+ * User revision 2026-11-02: optional simple UI uses Home/Settings and a bounded book-file picker, bypassing the shelf and recent-cover work.
  * SPDX-License-Identifier: Apache-2.0
  *
  * 中文：绘制与命中四栏导航；细线图标分别表示首页、书架、文件和设置，图形来自 Lucide。
@@ -21,6 +22,7 @@
 #include "read_pico_transfer.h"
 #include "ui_kit.h"
 #include "settings.h"
+#include "ble_page_turner.h"
 #include "ui_click_feedback.h"
 #if KIIKO_BOARD_METALIO47
 #include "metalio_hw.h"
@@ -165,7 +167,9 @@ static const char *const labels[] = {"Trang chủ", "Kệ sách", "Tệp tin", "
 static int s_power_signature=-1000;
 static int power_signature(void) {
     const pmu_snapshot_t *pmu=read_pico_pmu_get();
-    return (pmu_battery_percent(pmu)+1)*2+(pmu_battery_charging(pmu)?1:0);
+    read_pico_transfer_status_t network={0};read_pico_transfer_get_status(&network);
+    bool wifi=network.state!=READ_PICO_TRANSFER_STOPPED||read_pico_transfer_network_background_busy();
+    return (pmu_battery_percent(pmu)+1)*8+(pmu_battery_charging(pmu)?4:0)+(wifi?2:0)+(ble_pt_running()?1:0);
 }
 
 EpdRect ui_nav_status_area(void) { return (EpdRect){0,12,UI_LOCK_WIDTH,56}; }
@@ -210,11 +214,13 @@ void ui_nav_draw(uint8_t *fb, int active) {
         // Reserve a blank fast-refresh boundary; short-update the marker on white while retaining icons and text.
         ui_fill_rect_fast((EpdRect){0, UI_NAV_MARKER_TOP, UI_LOCK_WIDTH, UI_NAV_MARKER_BOTTOM - UI_NAV_MARKER_TOP}, UI_GRAY_WHITE, fb);
     }
-    for (int i = 0; i < 4; ++i) {
-        int center = (i * 2 + 1) * UI_LOCK_WIDTH / 8;
+    int count = app_settings_simple_ui() ? 2 : 4;
+    for (int slot = 0; slot < count; ++slot) {
+        int i = count == 2 ? (slot ? 3 : 0) : slot;
+        int center = (slot * 2 + 1) * UI_LOCK_WIDTH / (count * 2);
         if (i == active) ui_fill_rect_fast((EpdRect){center - 28, UI_NAV_TOP + 1, 56, 5}, UI_GRAY_BLACK, fb);
         icon(fb, i, center, UI_NAV_TOP + 27);
-        ui_text(fb, center, UI_NAV_TOP + 74, 17, labels[i], EPD_DRAW_ALIGN_CENTER, false);
+        ui_text(fb, center, UI_NAV_TOP + 74, 17, app_settings_simple_ui() && i == 0 ? "Đọc tiếp" : labels[i], EPD_DRAW_ALIGN_CENTER, false);
     }
 }
 
@@ -252,8 +258,8 @@ void ui_nav_status(uint8_t *fb) {
     ui_text_fixed_vc(fb, 36, status_center_y, UI_STATUS_TIME_PX, clock, EPD_DRAW_ALIGN_LEFT, false);
     read_pico_transfer_status_t network = {0};
     read_pico_transfer_get_status(&network);
-    const bool wifi_visible = network.network_ready && network.mode == READ_PICO_TRANSFER_MODE_STA;
-    const bool bluetooth_visible = app_settings_ble_turner();
+    const bool wifi_visible = network.state!=READ_PICO_TRANSFER_STOPPED||read_pico_transfer_network_background_busy();
+    const bool bluetooth_visible = ble_pt_running();
     char percent[8] = "--%";
     int gauge_percent = pmu_battery_percent(pmu);
     if (gauge_percent >= 0) snprintf(percent, sizeof(percent), "%u%%", (unsigned)gauge_percent);
@@ -311,15 +317,16 @@ void ui_nav_status(uint8_t *fb) {
     }
     ui_text_fixed_vc(fb, 595, status_center_y, UI_STATUS_PERCENT_PX, percent, EPD_DRAW_ALIGN_RIGHT, false);
     ui_status_mark_visible(fb);
-    s_power_signature=power_signature();
+    s_power_signature=(gauge_percent+1)*8+(charging?4:0)+(wifi_visible?2:0)+(bluetooth_visible?1:0);
 }
 
 int ui_nav_hit(uint16_t x, uint16_t y) {
     if (x >= UI_LOCK_WIDTH || y < UI_NAV_TOUCH_TOP || y >= UI_LOCK_HEIGHT) return -1;
+    if (app_settings_simple_ui()) return x < UI_LOCK_WIDTH / 2 ? 0 : 3;
     int tab = x * 4 / UI_LOCK_WIDTH;
     return tab < 4 ? tab : -1;
 }
 
 void ui_nav_request(app_ctx_t *ctx, int index) {
-    if (index >= 0 && index < 4) ctx->request_app = app_at(index);
+    if (index >= 0 && index < 4) ctx->request_app = app_at(app_settings_simple_ui() && index == 2 ? 5 : index);
 }

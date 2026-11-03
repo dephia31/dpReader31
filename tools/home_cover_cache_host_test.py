@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def function(name, path):
     text = path.read_text()
-    scan = re.sub(r'//[^\n]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"', lambda m: ' ' * len(m[0]), text)
+    scan = re.sub(r'''//[^\n]*|/\*[\s\S]*?\*/|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"''', lambda m: ' ' * len(m[0]), text)
     start = re.search(r'^(?:static )?(?:[A-Za-z_]\w*(?:\s+|\s*\*\s*))+' + name + r'\([^;{}]*?\)\s*\{', scan, re.M)
     assert start, name
     at, depth = start.end(), 1

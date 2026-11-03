@@ -426,7 +426,7 @@ static int settings_main_row_height(void) {
 #else
 #define SETTINGS_DISPLAY_ROWS 7
 #endif
-#define SETTINGS_PERSONAL_ROWS 4
+#define SETTINGS_PERSONAL_ROWS 5
 #define SETTINGS_CONTROLS_ROWS 2
 #if KIIKO_BOARD_METALIO47
 #define SETTINGS_MAINTENANCE_ROWS 7
@@ -2028,7 +2028,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.7-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.8-vn", "ESP32-S31");
         ui_text_caption(fb,(EpdRect){56,294,572,54},22,v_line,EPD_DRAW_ALIGN_LEFT,false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -2279,11 +2279,11 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     setting_group(fb,1,SETTINGS_DISPLAY_Y-49,"Hiển thị",SETTINGS_DISPLAY_Y,
                   display_icons,display_labels,display_values,SETTINGS_DISPLAY_ROWS);
     snprintf(signature,sizeof(signature),"%s",app_settings_status_signature()[0]?app_settings_status_signature():"Chưa đặt");
-    const char *personal_labels[]={"Kiểu hiển thị Tủ sách","Kiểu màn hình khóa","Mật khẩu màn hình khóa","Chữ ký thanh trạng thái"};
+    const char *personal_labels[]={"Kiểu hiển thị Tủ sách","Kiểu màn hình khóa","Mật khẩu màn hình khóa","Chữ ký thanh trạng thái","Giao diện đơn giản"};
     const char *personal_values[]={app_settings_shelf_style()==5?"Danh sách":app_settings_shelf_style()==1?"Thanh kệ tối màu":"Kệ sách Acrylic",
         app_settings_lock_style()==3?"Khung PNG trong suốt":app_settings_lock_style()==2?"Ghép bìa Tủ sách":app_settings_lock_style()==1?"Hình nền":"Thẻ đọc sách",
-        lock_pin_enabled()?"Đã bật":"Đã tắt",signature};
-    const int personal_icons[]={4,5,16,10};
+        lock_pin_enabled()?"Đã bật":"Đã tắt",signature,app_settings_simple_ui()?"Bật":"Tắt"};
+    const int personal_icons[]={4,5,16,10,4};
     setting_group(fb,2,SETTINGS_PERSONAL_Y-49,"Cá nhân hóa",SETTINGS_PERSONAL_Y,
                   personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
     const char *controls_labels[]={"Phím cứng & Cử chỉ","Menu thao tác nhanh"};
@@ -3644,7 +3644,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         if(row==0) {s_page=SETTINGS_SHELF_STYLE;s_style_scroll=0;}
         else if(row==1)s_page=SETTINGS_LOCK_STYLE;
         else if(row==2){s_page=SETTINGS_LOCK_PIN;s_notice[0]=0;}
-        else profile_editor_open(true);
+        else if(row==3)profile_editor_open(true);
+        else {
+            esp_err_t err=app_settings_set_simple_ui(!app_settings_simple_ui());
+            if(err!=ESP_OK)snprintf(s_notice,sizeof(s_notice),"Không thể lưu cài đặt");
+            else if(app_settings_simple_ui()){app_book_release_shelf_cache();app_home_cover_mode_changed();app_home_release_clock_cache();}
+        }
         return APP_REDRAW_PAGE;
     }
     if(s_settings_group==3 && y>=SETTINGS_CONTROLS_Y && y<SETTINGS_CONTROLS_Y+SETTINGS_CONTROLS_ROWS*SETTINGS_ROW_H) {

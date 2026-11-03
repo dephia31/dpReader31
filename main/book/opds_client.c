@@ -25,6 +25,12 @@
 #include <unistd.h>
 
 static const char *TAG = "opds";
+static void (*s_network_observer)(void *);
+static void *s_network_context;
+void opds_set_network_observer(void (*observer)(void *),void *context) {
+    s_network_observer=observer;s_network_context=context;
+}
+
 
 /* ---- Mã hóa Base64 nhỏ gọn cho HTTP Basic Auth ---- */
 static void base64_encode(const uint8_t *in, size_t in_len, char *out, size_t out_cap) {
@@ -331,6 +337,7 @@ static void parse_opds_xml(const char *base_url, const char *xml, size_t xml_len
 /* ---- Quản lý kết nối mạng WiFi cho OPDS ---- */
 static esp_err_t opds_acquire_network(bool *started_by_us, char *msg, size_t msg_cap) {
     *started_by_us = false;
+    if(!read_pico_transfer_network_shareable()){if(msg&&msg_cap)snprintf(msg,msg_cap,"WiFi đang được trang truyền file sử dụng");return ESP_ERR_INVALID_STATE;}
     read_pico_transfer_status_t st = {0};
     read_pico_transfer_get_status(&st);
     if (st.mode == READ_PICO_TRANSFER_MODE_STA && st.network_ready) return ESP_OK;
@@ -357,6 +364,7 @@ static esp_err_t opds_acquire_network(bool *started_by_us, char *msg, size_t msg
         return err;
     }
     *started_by_us = true;
+    if(s_network_observer)s_network_observer(s_network_context);
     int64_t deadline = esp_timer_get_time() + 12000000LL;
     while (esp_timer_get_time() < deadline) {
         read_pico_transfer_service_poll();
@@ -371,6 +379,7 @@ static esp_err_t opds_acquire_network(bool *started_by_us, char *msg, size_t msg
     }
     read_pico_transfer_stop();
     *started_by_us = false;
+    if(!read_pico_transfer_network_shareable()){if(msg&&msg_cap)snprintf(msg,msg_cap,"WiFi đang được trang truyền file sử dụng");return ESP_ERR_INVALID_STATE;}
     if (msg && msg_cap) snprintf(msg, msg_cap, "Không thể kết nối WiFi đã lưu");
     return ESP_ERR_TIMEOUT;
 }
@@ -400,6 +409,8 @@ static esp_err_t opds_feed_http_event(esp_http_client_event_t *evt) {
 }
 
 esp_err_t opds_fetch_feed(const char *url, opds_feed_t *out_feed, char *message, size_t message_cap) {
+    transfer_network_guard_t network_scope __attribute__((cleanup(transfer_network_guard_end)))={read_pico_transfer_network_begin()};
+    if(!network_scope.held){if(message&&message_cap)snprintf(message,message_cap,"WiFi đang bận, vui lòng thử lại");return ESP_ERR_INVALID_STATE;}
     if (!out_feed) return ESP_ERR_INVALID_ARG;
     memset(out_feed, 0, sizeof(*out_feed));
     const char *target_url = (url && url[0]) ? url : app_settings_opds_url();
@@ -408,10 +419,11 @@ esp_err_t opds_fetch_feed(const char *url, opds_feed_t *out_feed, char *message,
     bool started_wifi = false;
     esp_err_t err = opds_acquire_network(&started_wifi, message, message_cap);
     if (err != ESP_OK) return err;
+    if(s_network_observer)s_network_observer(s_network_context);
 
-    const size_t xml_cap = 131072; /* 128 KB trong PSRAM cho Atom XML */
+    size_t xml_cap = 131072; /* 128 KB trong PSRAM cho Atom XML */
     char *xml_buf = heap_caps_malloc(xml_cap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!xml_buf) xml_buf = malloc(32768);
+    if (!xml_buf) {xml_cap=32768;xml_buf=malloc(xml_cap);}
     if (!xml_buf) {
         opds_release_network(started_wifi);
         if (message && message_cap) snprintf(message, message_cap, "Không đủ bộ nhớ tải danh mục OPDS");
@@ -496,6 +508,8 @@ static void sanitize_filename(const char *title, const char *ext, char *out, siz
 esp_err_t opds_download_book(const opds_entry_t *entry, char *saved_path, size_t saved_path_cap,
                              opds_progress_cb_t progress_cb, void *user_ctx,
                              char *message, size_t message_cap) {
+    transfer_network_guard_t network_scope __attribute__((cleanup(transfer_network_guard_end)))={read_pico_transfer_network_begin()};
+    if(!network_scope.held){if(message&&message_cap)snprintf(message,message_cap,"WiFi đang bận, vui lòng thử lại");return ESP_ERR_INVALID_STATE;}
     if (!entry || !entry->is_book || !entry->href[0]) return ESP_ERR_INVALID_ARG;
     if (saved_path && saved_path_cap) saved_path[0] = 0;
 
@@ -514,6 +528,7 @@ esp_err_t opds_download_book(const opds_entry_t *entry, char *saved_path, size_t
     bool started_wifi = false;
     esp_err_t err = opds_acquire_network(&started_wifi, message, message_cap);
     if (err != ESP_OK) return err;
+    if(s_network_observer)s_network_observer(s_network_context);
 
     esp_http_client_config_t cfg = {
         .url = entry->href,

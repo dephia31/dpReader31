@@ -8,7 +8,9 @@ from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1]
 common=r'''
 #include <assert.h>
+#define TRANSFER_NETWORK_GUARD_OR_RETURN(result) ((void)0)
 #include <stdbool.h>
+#define read_pico_transfer_network_shareable() (true)
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>

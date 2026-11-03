@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: 2026 mindreset
+ * User revision 2026-11-02: optional simple UI uses Home/Settings and a bounded book-file picker, bypassing the shelf and recent-cover work.
  * SPDX-License-Identifier: Apache-2.0
  *
  * 图书书架、阅读、目录与页内进度；文件解析和排版由book模块负责。
@@ -851,6 +852,13 @@ static void invalidate_covers(void) {
         s_covers[i].fast_bits = NULL;
         s_covers[i].index = -1;
     }
+}
+void app_book_release_shelf_cache(void) {
+    invalidate_covers();
+    free(s_shelf);s_shelf=NULL;s_shelf_capacity=0;
+    s_count=s_visible_count=0;s_shelf_cache_valid=false;
+    free(s_categories);s_categories=NULL;
+    s_category_count=s_category_capacity=s_category_selected=s_category_menu_page=0;
 }
 static void release_fast_covers(void) {
     for (int i=0;i<BOOK_ROWS;++i) {
@@ -1799,7 +1807,21 @@ static CPU_STATE_RAM char s_opds_history[6][256];
 static int s_opds_depth;
 static char s_opds_status[128];
 
-static void opds_open_catalog(void) {
+static void opds_network_status_changed(void *context) {
+    app_ctx_t *ctx=context;
+    if(s_view!=OPDS)return;
+    ui_nav_status(ctx->fb);
+    guard_draw_result(ctx->hl,update_display_area_diff_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,ui_nav_status_area()));
+}
+static void opds_open_notice(app_ctx_t *ctx) {
+    EpdRect box={72,464,540,176};
+    ui_fill_round_rect(ctx->fb,box,24,UI_GRAY_WHITE);
+    ui_draw_control_frame(ctx->fb,box,24,UI_GRAY_BLACK);
+    ui_text_box(ctx->fb,(EpdRect){96,508,492,88},30,"Đang mở thư viện",EPD_DRAW_ALIGN_CENTER,false);
+    guard_draw_result(ctx->hl,update_display_area_diff_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,box));
+}
+static void opds_open_catalog(app_ctx_t *ctx) {
+    if(app_settings_simple_ui())opds_open_notice(ctx);
     if (!s_opds_feed) {
         s_opds_feed = heap_caps_calloc(1, sizeof(opds_feed_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     }
@@ -4305,6 +4327,7 @@ static size_t current_toc_position(void) {
     return selected;
 }
 static void render(app_ctx_t* ctx, uint8_t* fb) {
+    if(app_settings_simple_ui()&&(s_view==SHELF||s_view==BULK)){ui_clear_page(fb);ui_nav_status(fb);ui_nav_draw(fb,-1);return;}
     lock_draw();
     if(s_reader_choice.open){ui_choice_draw(&s_reader_choice,fb,reader_choice_label);unlock_draw();return;}
 #if KIIKO_BOARD_METALIO47
@@ -5854,6 +5877,7 @@ static bool shelf_backfill_read_books(bool* truncated) {
 }
 
 static void scan_shelf(app_ctx_t* ctx) {
+    if(app_settings_simple_ui()){s_scan_pending=false;ctx->request_app=app_at(5);return;}
     const uint32_t progress_revision=book_progress_revision();
     shelf_category_init();
     for (int i=2;i<s_category_count;++i) s_categories[i].available=false;
@@ -7524,7 +7548,7 @@ static app_redraw_t action_at(app_ctx_t* ctx, uint16_t x, uint16_t y) {
         if (tab >= 0) { ui_nav_request(ctx, tab); return APP_REDRAW_NONE; }
         for (int i = 0; i < 5; ++i) if (ui_rect_hit(import_rect(i), x, y)) {
             if (i == 0) {
-                opds_open_catalog();
+                opds_open_catalog(ctx);
                 return APP_REDRAW_PAGE;
             } else if (i == 1) {
                 extern const app_desc_t app_files;
@@ -7775,7 +7799,11 @@ static void on_enter(app_ctx_t* ctx) {
     s_reader_choice.open=false;
     reader_indent_hold_cancel();
     s_shelf_key_mode=s_shelf_key_paint_pending=false;s_shelf_key_delta=s_shelf_key_pressed=0;
-    shelf_category_init();
+    if(!app_settings_simple_ui())shelf_category_init();
+    else {
+        app_book_release_shelf_cache();s_requested_manage=false;
+        if(!s_requested_open[0]&&!s_requested_opds){s_scan_pending=false;ctx->request_app=app_at(5);return;}
+    }
     s_category_menu=false;
     s_reader_tap.pending = false;
     s_shelf_page_pending = false;
@@ -7814,9 +7842,10 @@ static void on_enter(app_ctx_t* ctx) {
     s_bookmark_edit = s_bookmark_delete_confirm = s_bookmark_delete_error = false;
     s_bookmark_selected = 0;
     clear_selection();
+    opds_set_network_observer(opds_network_status_changed,ctx);
     if (s_requested_opds) {
         s_requested_opds = false;
-        opds_open_catalog();
+        opds_open_catalog(ctx);
     } else {
         s_view = s_requested_manage ? BULK : SHELF;
         s_requested_manage = false;
@@ -7839,6 +7868,7 @@ static void on_enter(app_ctx_t* ctx) {
     s_cover_batch_present_pending = false;
     s_reader_cleanup = false;
     s_poll_ms = 0;
+    if(app_settings_simple_ui()&&s_view==OPDS){s_scan_pending=false;return;}
     read_pico_sd_info_t sd = {0};
     esp_err_t media_err = read_pico_sd_get_info(&sd);
     bool card_unmounted = (media_err != ESP_ERR_NOT_FINISHED && !sd.mounted && s_cache_sd_mounted);
@@ -7870,6 +7900,8 @@ static void on_enter(app_ctx_t* ctx) {
 static void reader_edge_light_cancel(void);
 #endif
 static void book_on_exit(app_ctx_t* ctx) {
+    opds_set_network_observer(NULL,NULL);
+    if(app_settings_simple_ui()){free(s_opds_feed);s_opds_feed=NULL;}
     s_requested_home_sync=false;
     s_reader_choice.open=false;
     book_notes_cancel();
@@ -8979,6 +9011,9 @@ static app_redraw_t reader_font_recovery_tick(app_ctx_t *ctx) {
     return APP_REDRAW_DONE;
 }
 static app_redraw_t on_tick(app_ctx_t* ctx) {
+    if(app_settings_simple_ui()&&(s_view==SHELF||s_view==BULK)) {
+        s_scan_pending=false;ctx->request_app=app_at(5);return APP_REDRAW_NONE;
+    }
     if(s_requested_home_sync&&!s_requested_open[0]&&!s_scan_pending) {
         s_requested_home_sync=false;
         if(s_view==READING&&s_text){app_book_request_kosync(ctx);return APP_REDRAW_PAGE;}

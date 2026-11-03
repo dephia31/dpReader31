@@ -95,6 +95,7 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "apps/book_toc.c"
         "apps/app_dashboard.c"
         "apps/app_files.c"
+        "apps/app_book_picker.c"
         "apps/file_tree.c"
         "apps/app_device_settings.c"
         "apps/app_image.c"

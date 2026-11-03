@@ -657,6 +657,11 @@ static transfer_connection_t s_connection;
 extern const char upload_start[] asm("_binary_upload_html_start");
 extern const char upload_end[] asm("_binary_upload_html_end");
 
+bool read_pico_transfer_network_shareable(void) {
+    portENTER_CRITICAL(&s_lock);
+    bool allowed=s_status.state==READ_PICO_TRANSFER_STOPPED||s_cfg.network_only;
+    portEXIT_CRITICAL(&s_lock);return allowed;
+}
 void read_pico_transfer_get_status(read_pico_transfer_status_t *out) {
     if (!out) return;
     portENTER_CRITICAL(&s_lock); *out = s_status; portEXIT_CRITICAL(&s_lock);
@@ -734,6 +739,7 @@ bool read_pico_transfer_wifi_backup_valid(const read_pico_transfer_wifi_backup_t
 }
 
 esp_err_t read_pico_transfer_import_wifi_backup(const read_pico_transfer_wifi_backup_t *backup) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!read_pico_transfer_wifi_backup_valid(backup)) return ESP_ERR_INVALID_ARG;
     if (!claim_config()) return ESP_ERR_INVALID_STATE;
     transfer_credentials_t next = {0};
@@ -761,6 +767,7 @@ esp_err_t read_pico_transfer_import_wifi_backup(const read_pico_transfer_wifi_ba
 }
 
 esp_err_t read_pico_transfer_save_wifi(const char *ssid, const char *password) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
@@ -921,6 +928,8 @@ static esp_err_t sync_time_online_impl(uint32_t *utc_seconds) {
 }
 
 static esp_err_t sync_time_run(uint32_t *utc_seconds, bool online_only, bool automatic) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    if(!read_pico_transfer_network_shareable())return ESP_ERR_INVALID_STATE;
     if (!utc_seconds) return ESP_ERR_INVALID_ARG;
     *utc_seconds = 0;
     // 手动操作优先于自动任务；配置和对时的准入在同一个锁下，防止双初始化。
@@ -965,6 +974,7 @@ bool read_pico_transfer_take_time_sync(uint32_t *utc_seconds) {
 }
 
 esp_err_t read_pico_transfer_scan_wifi(read_pico_transfer_network_t out[READ_PICO_TRANSFER_SCAN_MAX], size_t *count) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     if (!out || !count) return ESP_ERR_INVALID_ARG;
     memset(out, 0, sizeof(*out) * READ_PICO_TRANSFER_SCAN_MAX); *count = 0;
@@ -1079,6 +1089,7 @@ cleanup:
 }
 
 esp_err_t read_pico_transfer_forget_wifi(void) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
@@ -2122,6 +2133,7 @@ static esp_err_t files_mutation_handler(httpd_req_t *req) {
 
 /* ---- 生命周期 / Lifecycle ---- */
 bool read_pico_transfer_try_stop_if_idle(void) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(false);
     if (!cancel_time_sync(false)) return false;
     portENTER_CRITICAL(&s_lock);
     bool accepted = admission_stop(&s_stopping, s_upload_active);
@@ -2131,6 +2143,7 @@ bool read_pico_transfer_try_stop_if_idle(void) {
 }
 
 bool read_pico_transfer_pause_for_sleep(void) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(false);
     if (!cancel_time_sync(false)) return false;
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
@@ -2160,6 +2173,7 @@ void read_pico_transfer_resume_after_sleep(void) {
 // network-only session and reconnect with the saved credentials. Upload is the only exception,
 // because a file is mid-write and preemption would leave a partial one.
 esp_err_t read_pico_transfer_preempt_for_network(void) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     read_pico_transfer_status_t st = {0};
     read_pico_transfer_get_status(&st);
     if (st.state == READ_PICO_TRANSFER_UPLOADING) return ESP_ERR_INVALID_STATE;
@@ -2178,6 +2192,8 @@ esp_err_t read_pico_transfer_preempt_for_network(void) {
 }
 
 void read_pico_transfer_stop(void) {
+    transfer_network_guard_t network_scope __attribute__((cleanup(transfer_network_guard_end)))={read_pico_transfer_network_begin()};
+    if(!network_scope.held){read_pico_transfer_network_request_stop();return;}
     if (!cancel_time_sync(false)) return;
     portENTER_CRITICAL(&s_lock); s_stopping = true; portEXIT_CRITICAL(&s_lock);
     if (s_http) { httpd_stop(s_http); s_http = NULL; }
@@ -2198,6 +2214,7 @@ void read_pico_transfer_stop(void) {
 }
 
 esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!cfg || (cfg->network_only && cfg->mode != READ_PICO_TRANSFER_MODE_STA) ||
         (!cfg->network_only && (!cfg->root_dir || !cfg->free_bytes_cb)) ||
         (cfg->root_dir && strlen(cfg->root_dir) >= sizeof(s_root)) ||
@@ -2461,6 +2478,11 @@ static transfer_connection_t s_connection;
 extern const char upload_start[] asm("_binary_upload_html_start");
 extern const char upload_end[] asm("_binary_upload_html_end");
 
+bool read_pico_transfer_network_shareable(void) {
+    portENTER_CRITICAL(&s_lock);
+    bool allowed=s_status.state==READ_PICO_TRANSFER_STOPPED||s_cfg.network_only;
+    portEXIT_CRITICAL(&s_lock);return allowed;
+}
 void read_pico_transfer_get_status(read_pico_transfer_status_t *out) {
     if (!out) return;
     portENTER_CRITICAL(&s_lock); *out = s_status; portEXIT_CRITICAL(&s_lock);
@@ -2532,6 +2554,7 @@ bool read_pico_transfer_wifi_backup_valid(const read_pico_transfer_wifi_backup_t
 }
 
 esp_err_t read_pico_transfer_import_wifi_backup(const read_pico_transfer_wifi_backup_t *backup) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!read_pico_transfer_wifi_backup_valid(backup)) return ESP_ERR_INVALID_ARG;
     if (!claim_config()) return ESP_ERR_INVALID_STATE;
     transfer_credentials_t next = {0};
@@ -2559,6 +2582,7 @@ esp_err_t read_pico_transfer_import_wifi_backup(const read_pico_transfer_wifi_ba
 }
 
 esp_err_t read_pico_transfer_save_wifi(const char *ssid, const char *password) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
@@ -2660,6 +2684,8 @@ static esp_err_t sync_time_online_impl(uint32_t *utc_seconds) {
 }
 
 static esp_err_t sync_time_run(uint32_t *utc_seconds, bool online_only, bool automatic) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    if(!read_pico_transfer_network_shareable())return ESP_ERR_INVALID_STATE;
     if (!utc_seconds) return ESP_ERR_INVALID_ARG;
     *utc_seconds = 0;
     // 手动操作优先于自动任务；配置和对时的准入在同一个锁下，防止双初始化。
@@ -2704,6 +2730,7 @@ bool read_pico_transfer_take_time_sync(uint32_t *utc_seconds) {
 }
 
 esp_err_t read_pico_transfer_scan_wifi(read_pico_transfer_network_t out[READ_PICO_TRANSFER_SCAN_MAX], size_t *count) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     if (!out || !count) return ESP_ERR_INVALID_ARG;
     memset(out, 0, sizeof(*out) * READ_PICO_TRANSFER_SCAN_MAX); *count = 0;
@@ -2825,6 +2852,7 @@ cleanup:
 }
 
 esp_err_t read_pico_transfer_forget_wifi(void) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
@@ -3795,6 +3823,7 @@ static esp_err_t files_mutation_handler(httpd_req_t *req) {
 
 /* ---- 生命周期 / Lifecycle ---- */
 bool read_pico_transfer_try_stop_if_idle(void) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(false);
     if (!cancel_time_sync(false)) return false;
     portENTER_CRITICAL(&s_lock);
     bool accepted = admission_stop(&s_stopping, s_upload_active);
@@ -3804,6 +3833,7 @@ bool read_pico_transfer_try_stop_if_idle(void) {
 }
 
 bool read_pico_transfer_pause_for_sleep(void) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(false);
     if (!cancel_time_sync(false)) return false;
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
@@ -3828,6 +3858,8 @@ void read_pico_transfer_resume_after_sleep(void) {
 }
 
 void read_pico_transfer_stop(void) {
+    transfer_network_guard_t network_scope __attribute__((cleanup(transfer_network_guard_end)))={read_pico_transfer_network_begin()};
+    if(!network_scope.held){read_pico_transfer_network_request_stop();return;}
     if (!cancel_time_sync(false)) return;
     portENTER_CRITICAL(&s_lock); s_stopping = true; portEXIT_CRITICAL(&s_lock);
     if (s_http) { httpd_stop(s_http); s_http = NULL; }
@@ -3848,6 +3880,7 @@ void read_pico_transfer_stop(void) {
 }
 
 esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!cfg || (cfg->network_only && cfg->mode != READ_PICO_TRANSFER_MODE_STA) ||
         (!cfg->network_only && (!cfg->root_dir || !cfg->free_bytes_cb)) ||
         (cfg->root_dir && strlen(cfg->root_dir) >= sizeof(s_root)) ||

@@ -1,5 +1,13 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.8-vn · 2026-11-03
+
+- Thêm hai lựa chọn giao diện Đầy đủ và Đơn giản; chế độ đơn giản có thẻ Đọc tiếp lớn, lời chào theo tên và trình chọn sách theo thư mục.
+- Tiện Ích của giao diện đơn giản có Mở sách/Thêm sách cố định và hai shortcut tùy chọn; lưu riêng nhãn, viền và lựa chọn giao diện qua khởi động lại, Sleep và khôi phục thiết lập.
+- Cải thiện hiển thị tên sách dài, phân trang danh sách và thông báo trước khi mở thư viện OPDS.
+- Bảo vệ kết nối Wi-Fi khi OPDS, KoSync, OTA, tải font hoặc đồng hồ đang sử dụng; tránh tự tắt Bluetooth nhầm khi đang kết nối hoặc tạm nhường mạng.
+- Biểu tượng Wi-Fi/Bluetooth phản ánh trạng thái hoạt động; sửa xử lý bộ đệm OPDS khi thiếu RAM.
+
 ## dpReader 1.2.7-vn · 2026-11-02
 
 - Trang local hỗ trợ tải xuống tệp và lối tải log trực tiếp từ điện thoại.
@@ -7,55 +15,10 @@
 - Dùng logo dpReader mới lúc khởi động; đồng bộ logo Red Studio trên trang local và Web Flasher.
 - Cải thiện thẻ Đọc tiếp trên Home và hiển thị nét đậm đúng hướng xoay.
 
-## dpReader 1.2.7RC9-vn · 2026-11-02
-
-- Trang truyền file local thêm tải xuống từng tệp trên thẻ nhớ và lối tải log hệ thống trực tiếp trong tab Thẻ nhớ, hỗ trợ lưu từ điện thoại. Truyền theo từng khối bằng buffer sẵn có.
-
-## dpReader 1.2.7RC8-vn · 2026-11-02
-
-- Chỉ tự sao lưu trước Sleep và trước cập nhật firmware; không ghi bản sao khi đóng sách hoặc rời Cài đặt. Giữ công tắc mặc định bật và thao tác sao lưu thủ công.
-
-## dpReader 1.2.7RC7-vn · 2026-11-02
-
-- Thêm công tắc Tự động sao lưu tại Sao lưu & Khôi phục, mặc định bật; giữ lựa chọn sau khởi động lại. Tắt công tắc không ảnh hưởng thao tác sao lưu/khôi phục thủ công.
-- Định dạng sao lưu V27 lưu cả lựa chọn công tắc; tiếp tục nhập được bản sao cũ và giữ chốt bảo vệ bản sao khi NVS thiếu/lỗi.
-
-## dpReader 1.2.7RC6-vn · 2026-11-02
-
-- Dùng logo dpReader và nét cuốn sách do người dùng cung cấp cho màn hình khởi động, căn giữa trên nền trắng.
-- Đồng bộ logo trắng/đỏ Red Studio trên Web Flasher và trang truyền file local; trang local nhúng sẵn ảnh để hoạt động không cần Internet.
-
-## dpReader 1.2.7RC5-vn · 2026-11-02
-
-- Sao lưu/khôi phục dùng buffer PSRAM trên S31; giữ bản sao trước và thêm nhận diện thiết bị trong định dạng V26. Vẫn nhập thủ công được bản sao cũ.
-- Bổ sung cơ chế tự sao lưu và tự khôi phục có chốt chống lặp; RC5 chưa bật tự động vì chưa nghiệm thu đỉnh SRAM trên thiết bị.
-
-## dpReader 1.2.7RC4-vn · 2026-11-01
-
-- Sửa các nét pixel lạ trên chữ Đọc tiếp ở Home khi màn hình xoay dọc; giữ cỡ chữ và thanh tiến độ mới.
-
-## dpReader 1.2.7RC3-vn · 2026-11-01
-
-- Tăng cỡ chữ tiến độ và làm đậm chữ Đọc tiếp trong thẻ sách ở Home.
-- Thanh tiến độ Home dùng nét chưa đọc mảnh và phần đã đọc đậm; chế độ refresh nhanh dùng nét chấm để tránh mất phần chưa đọc.
-
 ## dpReader 1.2.6-vn · 2026-11-01
 
 - KoSync EPUB dùng vị trí phần tử/ký tự trong chương và tỷ lệ đầy đủ thay vì phần trăm nguyên; hỗ trợ kéo đúng vị trí trong chương dài và giữ tương thích vị trí dpReader cũ.
 - So sánh thời gian đọc mới nhất khi đồng hồ hợp lệ; vị trí ước lượng được báo riêng, không tự áp dụng khi mở sách. Phản hồi sai hoặc lỗi máy chủ không đẩy đè tiến độ.
-
-## dpReader 1.2.6RC3-vn · 2026-11-01
-
-- Trang truyền tệp local dùng giao diện Red Studio đỏ/đen, hỗ trợ kéo thả tệp và hiển thị tệp đã chọn; giữ quản lý thẻ nhớ, từ điển, font, hình ảnh và cấu hình đồng bộ.
-- Trang web flash dùng Red Studio; mặc định Nạp toàn phần cho Cài mới / Cài từ firmware khác / Cứu máy. Phải chấp nhận rủi ro trước khi ghi; đổi chế độ, phiên bản hoặc tệp sẽ yêu cầu xác nhận lại.
-
-## dpReader 1.2.6RC2-vn · 2026-11-01
-
-- Thêm giãn dòng −50%, −40%, −30% và khoảng cách từ −10 đến −4 px; lưu/khôi phục cùng cấu hình SD.
-
-## dpReader 1.2.6RC1-vn · 2026-11-01
-
-- Sửa truy cập địa chỉ BLE lệch hàng trên S31; giới hạn thời gian chờ dừng Bluetooth và xác nhận host sẵn sàng/đã thoát trước khi kết nối lại.
 
 ## dpReader 1.2.5-vn · 2026-11-01
 
@@ -106,48 +69,6 @@
 - Sửa thanh độ sáng không bật lại đèn đang tắt và phím AI không nhận các lần nhấn giữ tiếp theo.
 - Thêm vuốt cạnh trái/phải trang đọc để chỉnh độ sáng/đèn vàng, có hai công tắc riêng trong Điều khiển và cử chỉ.
 - Tự đồng bộ giờ khi rảnh qua Wi-Fi đã lưu, lưu RTC và hiển thị giờ Việt Nam UTC+7.
-
-## dpReader 1.2.0RC10-vn · 2026-10-30
-
-- Tăng stack tác vụ chính S31 từ 16 lên 24 KiB và tác vụ vẽ trước trang từ 12 lên 16 KiB; giữ bản sửa FreeType, thêm log dung lượng stack còn lại khi đóng tác vụ vẽ trước.
-
-## dpReader 1.2.0RC9-vn · 2026-10-30
-
-- Sửa phím AI chỉ nhấn giữ được lần đầu: tiếp tục lấy mẫu sau khi thả để hoàn tất chống dội, cho phép các lần giữ tiếp theo bật/tắt đèn đúng; không chạy thêm nhấn ngắn sau nhấn giữ.
-
-## dpReader 1.2.0RC8-vn · 2026-10-30
-
-- Tăng độ sáng bằng thanh chỉnh sẽ bật lại đèn đang tắt; chỉnh độ vàng riêng giữ trạng thái công tắc đèn.
-- Thêm vuốt dọc cạnh trái để chỉnh độ sáng, cạnh phải để chỉnh đèn vàng khi đọc; hai công tắc riêng trong Phím cứng & Cử chỉ, lưu thiết lập độc lập.
-- Tự lấy giờ qua Wi-Fi đã lưu khi rảnh và lưu vào RTC, hiển thị UTC+7; không cần mở màn Đồng bộ.
-
-## dpReader 1.2.0RC7-vn · 2026-10-30
-
-- Sửa tràn stack trong nhánh tự căn nét FreeType: giảm bộ đệm nhúng và dùng cơ chế cấp phát PSRAM có giới hạn sẵn có khi cần, giữ thuật toán hinting; tránh reboot khi tải/đổi font. Giữ VCOM 2000 mV và phần làm mới của RC6.
-
-## dpReader 1.2.0RC6-vn · 2026-10-30
-
-- Theo yêu cầu người dùng, thử VCOM 2000 mV thay 1800 mV; giữ hiệu chuẩn đã lưu và các đường vẽ/làm mới của RC5 để đối chiếu riêng điện áp.
-
-## dpReader 1.2.0RC5-vn · 2026-10-30
-
-- Theo yêu cầu người dùng, thử VCOM 1800 mV thay 1400 mV; giữ hiệu chuẩn đã lưu và các đường vẽ/làm mới của RC4 để đối chiếu riêng điện áp.
-
-## dpReader 1.2.0RC4-vn · 2026-10-30
-
-- Theo yêu cầu người dùng, thử VCOM 1400 mV thay 1200 mV; giữ hiệu chuẩn đã lưu, phần vẽ chữ, waveform và chu kỳ làm mới của RC3 để đối chiếu riêng điện áp.
-
-## dpReader 1.2.0RC3-vn · 2026-10-30
-
-- Làm sạch màn một lần khi đổi bật/tắt khử răng cưa, tránh mang trạng thái xám cũ sang đường đen trắng nhanh; giữ chu kỳ toàn làm mới người dùng đã chọn và VCOM 1200 mV. Cần kiểm tra độ đen sau chuyển chế độ trên thiết bị.
-
-## dpReader 1.2.0RC2-vn · 2026-10-30
-
-- Thử làm sạch chọn lọc điểm ảnh chữ khi bật khử răng cưa: dùng nguyên chuỗi GC48 tại chữ cũ/mới, giữ GL cho nền trắng không đổi; không thêm lượt toàn làm mới, không rút ngắn chu kỳ đã chọn. Giữ VCOM 1200 mV. Cần đánh giá bóng và nhấp chữ trên thiết bị; chưa rút ngắn 48 pha.
-
-## dpReader 1.2.0RC1-vn · 2026-10-30
-
-- Thử khử răng cưa TrueType bằng FreeType có hinting, viền bốn mức xám và lõi đen; chỉnh độ đậm trước khi vẽ, giữ độ rộng ký tự và fallback cũ. VCOM thử ở 1200 mV theo yêu cầu người dùng, giữ nguyên giá trị đã lưu để quay lại; không đổi waveform hay thêm lần nháy làm sạch.
 
 ## dpReader 1.1.9-vn · 2026-10-30
 
@@ -282,7 +203,6 @@ Bản cập nhật bổ sung giao diện cho hai tính năng dàn trang đã có
   - Chọn **Ẩn** sẽ thu gọn toàn bộ chân trang ba tầng (tên chương, thanh tiến độ, số trang và phần trăm), đồng thời bỏ luôn đường tiến độ mảnh ở chế độ toàn màn hình. Vùng đọc không thay đổi vì chân trang vốn nằm dưới phần dàn trang.
   - Lựa chọn được lưu vào khóa NVS mới `bk_prog2`; giá trị cũ `bk_prog` (0–2) được tự động quy đổi sang thang mới nên người dùng đang dùng không bị mất cài đặt hay bất ngờ mất chân trang.
 - Bố cục panel `Bố cục dàn trang` được nén lại để hai mục mới nằm gọn phía trên nút quay về, không chồng lấn vùng chạm.
-- Thêm `tools/footer_style_host_test.py` khoá lại quy tắc quy đổi giá trị cũ và bảo đảm thang mới không bao giờ tự chuyển sang trạng thái ẩn.
 
 ## dpReader 1.0.9-vn · 2026-10-28
 
@@ -295,7 +215,6 @@ Bản sửa lỗi đồng bộ tiến độ đọc KoSync:
   - Việc so sánh hướng đồng bộ lượng tử hoá tỉ lệ về số nguyên phần trăm trước khi so. dpReader chỉ lưu tiến độ cục bộ ở độ phân giải 1%, còn máy chủ (nhất là KOReader) trả về bốn chữ số thập phân, nên 42,0% cục bộ so với 42,4% trên máy chủ bị coi là bằng nhau và máy luôn đẩy lên thay vì kéo về.
   - Nay so sánh trực tiếp tỉ lệ gốc. Khi hai bên bằng nhau, chỉ kéo về nếu máy chủ thật sự trỏ tới vị trí xa hơn.
 - **Sửa lỗi bỏ qua tiến độ khi mở sách:** chế độ tự động lúc mở sách trước đây yêu cầu phải có offset chính xác mới áp dụng tiến độ máy chủ, nên tiến độ do KOReader đẩy lên (không có offset dạng byte) bị bỏ qua hoàn toàn. Nay tiến độ vẫn được áp dụng theo chương và tỉ lệ.
-- Thêm `tools/kosync_progress_host_test.py` chạy trên chính hai hàm xử lý của firmware, khoá lại cả hai định dạng XPointer và quy tắc chọn hướng đồng bộ.
 
 ## dpReader 1.0.8-vn · 2026-10-28
 
@@ -304,7 +223,6 @@ Bản cập nhật quan trọng khắc phục lỗi hiển thị mục lục, ho
 - **Sửa dứt điểm lỗi chữ tiếng Việt có dấu bị mất thân chữ trong Mục lục, tên chương và tên sách:**
   - `pack_glyph_tree` trước đây ghi `loca` ngay khi duyệt cây composite theo thứ tự gốc-trước-con-sau. Với các glyph dựng từ dấu như `á` (thân `a` + dấu sắc) mà gid của thân đứng ngay trước gid của glyph, lần ghi `loca[gid + 1]` cho thân đã đè lên điểm bắt đầu của chính glyph đó. Kết quả: glyph trỏ vào dữ liệu của dấu, khiến dòng chữ chỉ còn dấu (ví dụ "Chương sáu" bị hiện thành "Chương s´u").
   - Nay toàn bộ vị trí được ghi nhận trước trong lúc đóng gói và `loca` chỉ được ghi một lần theo thứ tự gid tăng dần, bảo toàn nguyên vẹn thân chữ và dấu của mọi ký tự tiếng Việt.
-  - Bổ sung bộ kiểm thử `tools/composite_glyph_host_test.py` khoá lại hành vi này ở cả cỡ chữ nội dung lẫn tiêu đề.
 - **Sửa lỗi viền chữ sáng hơn nền thẻ khi tăng độ tương phản trong Mục lục:**
   - `ui_text_title_background_vc` trước đây lấy trực tiếp 4 bit cao của màu nền, bỏ qua hàm `ui_contrast_gray()` dùng chung. Khi người dùng đặt tương phản trên 100%, mép khử răng cưa trộn về tông cũ tạo quầng sáng quanh chữ trên thẻ mục lục. Nay cả hai đường hiển thị đều đi qua cùng một phép ánh xạ độ xám chuẩn xác.
 - **Hiển thị tên sách trên thanh trạng thái khi đọc:**
@@ -419,7 +337,6 @@ Rà soát an toàn trước khi nạp: đối chiếu cây nguồn với repo g�
 - **Sửa cảnh báo nạp firmware trong README.** Ghi chú cũ nói "đừng bấm Erase Flash để giữ VCOM" là sai: `full.bin` trải liền từ `0x0` nên tự nó ghi đè vùng NVS bằng `0xFF`, làm mất cài đặt, mật khẩu và VCOM đã hiệu chuẩn. Nay nêu rõ điều đó và chỉ ra lệnh nạp tại `0x10000` mới là lệnh giữ nguyên NVS.
 - **Ghi log dung lượng PSRAM thật lúc khởi động.** Các ngân sách cache trong mã đặt theo một giả định về dung lượng PSRAM, nhưng dung lượng thực của từng lô máy không được ghi trong tài liệu. Nay mỗi lần khởi động in `PSRAM total/free` và `internal free`, nên không phải suy đoán khi gặp vấn đề bộ nhớ.
 - **Thêm cài đặt KOSync và OPDS vào mục Cài đặt -> Kết nối:** Bổ sung giao diện xem trạng thái máy chủ, tài khoản, khóa đồng bộ, bật/tắt tự động đồng bộ tiến độ đọc KOSync bằng 1 chạm, kiểm tra kết nối tài khoản KOSync, mở nhanh kho sách OPDS trên máy, đặt lại máy chủ mặc định và liên kết nhanh tới cổng cấu hình Web Portal.
-- **Cập nhật host test VCOM** theo dải 900..2000 mV và mặc định 1200 mV, thêm kiểm tra rằng giá trị 3000 mV cũ trong NVS bị từ chối và rơi về mặc định.
 
 ## dpReader 1.0.0-vn · 2026-10-27
 

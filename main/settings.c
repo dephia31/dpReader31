@@ -99,6 +99,7 @@ static esp_err_t backup_nvs_set_str(nvs_handle_t h, const char *key, const char 
 
 #define TAG "settings"
 #define NVS_NS KIIKO_BOARD_SETTINGS_NAMESPACE
+#define SIMPLE_UI_NS KIIKO_BOARD_SETTINGS_NAMESPACE "_ui"
 #define NVS_KEY_SLEEP "sleep"
 #define NVS_KEY_SLEEP_OFF_HOURS "slp_off_h"
 #define NVS_KEY_SHUTDOWN_MODE "shutdown"
@@ -187,6 +188,12 @@ static uint8_t s_pin_grace_code_v;
 static uint32_t s_pin_locked_at;
 #endif
 static bool s_home_full_refresh;
+static bool s_simple_ui;
+static bool s_simple_choice_known;
+static uint8_t s_simple_utilities[2];
+static bool s_simple_labels=true,s_simple_border=true;
+_Static_assert(APP_HOME_UTIL_COUNT<=16,"Simple utility backup uses two checked nibbles");
+static const char *s_simple_utility_keys[]={"simple_util2","simple_util3"};
 static uint8_t s_home_utilities[APP_HOME_UTILITY_SLOTS];
 static bool s_home_utility_labels=true;
 static bool s_home_utility_border=true;
@@ -361,6 +368,25 @@ static void system_size_load(void) {
     nvs_close(h);
 }
 
+/* Local UI choice is independent of profile restores and namespace resets.
+ * Only a valid persisted value can replace the in-memory choice. */
+static void simple_mode_load(void) {
+    nvs_handle_t h;uint8_t value=0;
+    esp_err_t err=nvs_open(SIMPLE_UI_NS,NVS_READONLY,&h);
+    if(err==ESP_OK){err=nvs_get_u8(h,"mode",&value);nvs_close(h);}
+    if(err==ESP_OK&&value<=1){s_simple_ui=value==1;s_simple_choice_known=true;return;}
+    if(err!=ESP_ERR_NVS_NOT_FOUND){if(!s_simple_choice_known)s_simple_ui=true;return;}
+    if(s_simple_choice_known)return;
+    err=nvs_open(NVS_NS,NVS_READONLY,&h);
+    if(err!=ESP_OK){if(err!=ESP_ERR_NVS_NOT_FOUND)s_simple_ui=true;return;}
+    err=nvs_get_u8(h,"simple_ui",&value);nvs_close(h);
+    if(err!=ESP_OK||value>1){if(err!=ESP_ERR_NVS_NOT_FOUND)s_simple_ui=true;return;}
+    s_simple_ui=value==1;s_simple_choice_known=true;
+    if(nvs_open(SIMPLE_UI_NS,NVS_READWRITE,&h)!=ESP_OK)return;
+    err=nvs_set_u8(h,"mode",value);
+    if(err==ESP_OK)(void)nvs_commit(h);
+    nvs_close(h);
+}
 void app_settings_init(void) {
 #if CONFIG_DPREADER_AUTO_BACKUP
     memset(&s_auto_backup, 0, sizeof(s_auto_backup));
@@ -370,6 +396,7 @@ void app_settings_init(void) {
     // 设置分区异常时保留原数据供恢复，绝不因空间不足自动擦除用户资料。
     // Preserve settings on NVS errors; a full partition must never silently erase profile data.
     if (err != ESP_OK) {
+        if(!s_simple_choice_known)s_simple_ui=true;
 #if CONFIG_DPREADER_AUTO_RESTORE
         s_auto_backup.restore_status = APP_RESTORE_BLOCKED;
 #endif
@@ -377,6 +404,7 @@ void app_settings_init(void) {
         return;
     }
 
+    simple_mode_load();
 #if CONFIG_DPREADER_AUTO_BACKUP
     // Persist quarantine before migrations recreate defaults on an erased device.
     nvs_handle_t existing;
@@ -455,6 +483,11 @@ void app_settings_init(void) {
     (void)nvs_get_u32(h,NVS_KEY_PIN_LOCK_AT,&s_pin_locked_at);
 #endif
     raw = 0;
+    for(unsigned i=0;i<2;++i) {
+        raw=0;s_simple_utilities[i]=nvs_get_u8(h,s_simple_utility_keys[i],&raw)==ESP_OK&&raw<APP_HOME_UTIL_COUNT?raw:APP_HOME_UTIL_NONE;
+    }
+    raw=1;s_simple_labels=nvs_get_u8(h,"simple_labels",&raw)!=ESP_OK||raw!=0;
+    raw=1;s_simple_border=nvs_get_u8(h,"simple_border",&raw)!=ESP_OK||raw!=0;
     if (nvs_get_u8(h, NVS_KEY_HOME_FULL, &raw) == ESP_OK) s_home_full_refresh = raw == 1;
     for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i) {
         raw=0;
@@ -772,6 +805,23 @@ static void nvs_put_u32(const char* key, uint32_t value) {
 }
 #endif
 
+uint8_t app_settings_simple_utility(unsigned slot) {return slot>=2&&slot<4?s_simple_utilities[slot-2]:APP_HOME_UTIL_NONE;}
+bool app_settings_simple_utility_labels(void){return s_simple_labels;}
+bool app_settings_simple_utility_border(void){return s_simple_border;}
+esp_err_t app_settings_set_simple_utilities(const uint8_t actions[2]) {
+    return app_settings_set_simple_utilities_config(actions,s_simple_labels,s_simple_border);
+}
+esp_err_t app_settings_set_simple_utilities_config(const uint8_t actions[2],bool labels,bool border) {
+    if(!actions||actions[0]>=APP_HOME_UTIL_COUNT||actions[1]>=APP_HOME_UTIL_COUNT)return ESP_ERR_INVALID_ARG;
+    nvs_handle_t h;esp_err_t err=backup_nvs_open(NVS_NS,NVS_READWRITE,&h);if(err!=ESP_OK)return err;
+    for(unsigned i=0;i<2&&err==ESP_OK;++i)err=backup_nvs_set_u8(h,s_simple_utility_keys[i],actions[i]);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,"simple_labels",labels);
+    if(err==ESP_OK)err=backup_nvs_set_u8(h,"simple_border",border);
+    if(err==ESP_OK)err=settings_backup_commit(h);
+    nvs_close(h);
+    if(err==ESP_OK){memcpy(s_simple_utilities,actions,sizeof(s_simple_utilities));s_simple_labels=labels;s_simple_border=border;}
+    return err;
+}
 uint8_t app_settings_home_utility(unsigned slot) {return slot<APP_HOME_UTILITY_SLOTS?s_home_utilities[slot]:APP_HOME_UTIL_NONE;}
 bool app_settings_home_utility_labels(void){return s_home_utility_labels;}
 bool app_settings_home_utility_border(void){return s_home_utility_border;}
@@ -814,6 +864,17 @@ esp_err_t app_settings_set_home_goal_minutes(uint8_t minutes) {
     return err;
 }
 
+bool app_settings_simple_ui(void) { return s_simple_ui; }
+esp_err_t app_settings_set_simple_ui(bool enabled) {
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(SIMPLE_UI_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_u8(h, "mode", enabled ? 1 : 0);
+    if (err == ESP_OK) err = settings_backup_commit(h);
+    nvs_close(h);
+    if (err == ESP_OK) {s_simple_ui = enabled;s_simple_choice_known=true;}
+    return err;
+}
 bool app_settings_home_full_refresh(void) { return s_home_full_refresh; }
 app_main_refresh_mode_t app_settings_main_refresh_mode(void) { return s_main_refresh; }
 bool app_settings_main_fast_refresh(void) { return s_main_refresh == APP_MAIN_REFRESH_FAST; }
@@ -1550,7 +1611,7 @@ static bool backup_home_valid(const settings_backup_home_t *v) {
 static unsigned backup_version(const settings_backup_v1_t *backup) {
     if (memcmp(backup->magic, "PICOSET", 7)) return 0;
     unsigned char c = backup->magic[7];
-    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : c == 'L' ? 21 : c == 'M' ? 22 : c == 'N' ? 23 : c == 'O' ? 24 : c == 'P' ? 25 : c == 'Q' ? 26 : c == 'R' ? 27 : 0;
+    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : c == 'L' ? 21 : c == 'M' ? 22 : c == 'N' ? 23 : c == 'O' ? 24 : c == 'P' ? 25 : c == 'Q' ? 26 : c == 'R' ? 27 : c == 'S' ? 28 : c == 'T' ? 29 : c == 'U' ? 30 : 0;
 }
 
 static void backup_erase_secret(void *ptr, size_t size) {
@@ -1732,7 +1793,7 @@ static bool backup_utilities_valid(const settings_backup_utilities_t *v,unsigned
     for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i)if((i==0&&version>=24?(v->actions[i]&(version>=25?0x3f:0x7f)):v->actions[i])>=APP_HOME_UTIL_COUNT)return false;
     return stored==backup_utilities_checksum(v);
 }
-// V26 binds automatic recovery to the factory MAC; V27 also seals the backup preference.
+// V26 binds the device, V27 seals backup policy, V29 packs the two independent simple shortcuts.
 typedef struct { uint8_t magic[8], mac[6], reserved[2], checksum[4]; } backup_identity_t;
 #ifndef backup_device_mac
 static esp_err_t backup_device_mac(uint8_t mac[6]) {
@@ -1761,8 +1822,8 @@ static bool backup_identity_valid(const backup_identity_t *identity, unsigned ve
     uint32_t sum = 0;
     for (unsigned i = 0; i < 4; ++i) sum |= (uint32_t)identity->checksum[i] << (8*i);
     return !memcmp(identity->magic, "S31BIND1", 8) &&
-        (version >= 27 ? identity->reserved[0] <= 1 : !identity->reserved[0]) &&
-        !identity->reserved[1] && backup_mac_valid(identity->mac) &&
+        (version>=30?identity->reserved[0]<=7:version>=27?identity->reserved[0]<=1:!identity->reserved[0]) &&
+        (version>=29?((identity->reserved[1]&15)<APP_HOME_UTIL_COUNT&&(identity->reserved[1]>>4)<APP_HOME_UTIL_COUNT):!identity->reserved[1]) && backup_mac_valid(identity->mac) &&
         sum == backup_identity_checksum(identity);
 }
 
@@ -1791,12 +1852,13 @@ typedef struct {
 static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     if (!backup_card_ready()) return ESP_ERR_INVALID_STATE;
 
-    memcpy(work->backup.magic, "PICOSETR", sizeof(work->backup.magic));
+    memcpy(work->backup.magic, "PICOSETU", sizeof(work->backup.magic));
     memcpy(work->identity.magic, "S31BIND1", 8);
     esp_err_t identity_err = backup_device_mac(work->identity.mac);
     if (identity_err != ESP_OK) return identity_err;
     if (!backup_mac_valid(work->identity.mac)) return ESP_ERR_INVALID_RESPONSE;
-    work->identity.reserved[0] = app_settings_autobackup_enabled() ? 1 : 0;
+    work->identity.reserved[0] = (app_settings_autobackup_enabled()?1:0) | (s_simple_labels?0:2) | (s_simple_border?0:4);
+    work->identity.reserved[1] = s_simple_utilities[0] | (s_simple_utilities[1] << 4);
     uint32_t identity_hash = backup_identity_checksum(&work->identity);
     for (unsigned i = 0; i < 4; ++i) work->identity.checksum[i] = identity_hash >> (8*i);
     uint8_t *f = work->backup.flags;
@@ -1836,12 +1898,13 @@ static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     strlcpy(work->profile.avatar, s_avatar, sizeof(work->profile.avatar));
     strlcpy(work->profile.status_signature, s_status_signature, sizeof(work->profile.status_signature));
     // v5 及之后复用此字段的预留位；v7 在其后追加 WiFi 与阅读资料。
-    // V5+ use reserved bits here; v7 appends WiFi/reading records, and v9 stores main mode in the extension.
+    // V5+ share this byte; v28 assigns the retired bit 6 to simple UI. Older backups ignore bit 6.
     work->profile.home_full_refresh = (s_home_full_refresh ? 1 : 0) |
                                 (s_reader_hide_images ? 2 : 0) |
                                 (s_shelf_recent_sort ? 4 : 0) |
                                 (s_ble_turner ? 8 : 0) |
                                 (s_reader_hold_refresh ? 16 : 0) |
+                                (s_simple_ui ? 64 : 0) |
                                 ((s_reader_turn_mode == 1) ? 32 : 0) |
                                 (app_settings_main_fast_refresh() ? 128 : 0);
     uint32_t profile_hash = backup_profile_checksum(&work->backup, work->extension[0], work->extension[1], work->extension[2], &work->profile);
@@ -2169,7 +2232,7 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
                      strnlen(work->profile.device_name, sizeof(work->profile.device_name)) < sizeof(work->profile.device_name) &&
                      work->profile.device_name[0] &&
                      strnlen(work->profile.status_signature, sizeof(work->profile.status_signature)) < sizeof(work->profile.status_signature) &&
-                     // 位6仍忽略旧实验模式；v9 在校验扩展内保存三种主页刷新模式。/ Bit 6 still ignores the retired experiment; v9 stores all three main modes in its checked extension.
+                     // V28 reuses retired bit 6 for simple UI; older versions retain their original interpretation.
                      backup_path_valid(work->profile.avatar, sizeof(work->profile.avatar));
             }
         }
@@ -2262,6 +2325,8 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HOLD_REFRESH, (work->profile.home_full_refresh & 16) != 0);
     if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_VERTICAL_TURN, (work->profile.home_full_refresh & 32) != 0);
 
+    bool restore_simple=s_simple_choice_known?s_simple_ui:(s_simple_ui||(version>=28&&(work->profile.home_full_refresh&64)!=0));
+    if (err == ESP_OK) err = backup_nvs_set_u8(h, "simple_ui", restore_simple);
     if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HOME_FULL, work->profile.home_full_refresh & 1);
     if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_MAIN_REFRESH, (uint8_t)main_refresh);
     if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HOME_COMPONENT, work->home.component);
@@ -2317,13 +2382,17 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     if(version>=23)for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS&&err==ESP_OK;++i)err=backup_nvs_set_u8(h,s_home_utility_keys[i],work->utilities.actions[i]);
     if(err==ESP_OK&&version>=24)err=backup_nvs_set_u8(h,"home_util_lbl",utility_labels?1:0);
     if(err==ESP_OK&&version>=25)err=backup_nvs_set_u8(h,"home_util_bdr",utility_border?1:0);
+    if(version>=29)for(unsigned i=0;i<2&&err==ESP_OK;++i)
+        err=backup_nvs_set_u8(h,s_simple_utility_keys[i],(work->identity.reserved[1]>>(i*4))&15);
+    if(version>=30&&err==ESP_OK)err=backup_nvs_set_u8(h,"simple_labels",!(work->identity.reserved[0]&2));
+    if(version>=30&&err==ESP_OK)err=backup_nvs_set_u8(h,"simple_border",!(work->identity.reserved[0]&4));
     if (err == ESP_OK && version >= 27)
-        err = backup_nvs_set_u8(h, "auto_backup", work->identity.reserved[0]);
+        err = backup_nvs_set_u8(h, "auto_backup", work->identity.reserved[0]&1);
     if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err != ESP_OK) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return err; }
 #if CONFIG_DPREADER_AUTO_BACKUP
-    if (version >= 27) s_auto_backup.enabled = work->identity.reserved[0] == 1;
+    if (version >= 27) s_auto_backup.enabled = (work->identity.reserved[0]&1) != 0;
 #endif
 
     memcpy(s_reader_keys, work->keys.actions, sizeof(s_reader_keys));
@@ -2338,6 +2407,7 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     s_ble_turner = (work->profile.home_full_refresh & 8) != 0;
     s_reader_hold_refresh = (work->profile.home_full_refresh & 16) != 0;
     s_reader_turn_mode = (work->profile.home_full_refresh & 32) != 0 ? 1 : 0;
+    s_simple_ui=restore_simple;s_simple_choice_known=true;
     s_home_full_refresh = (work->profile.home_full_refresh & 1) != 0;
     s_main_refresh = main_refresh;
     s_reader_hide_images = (work->profile.home_full_refresh & 2) != 0;
@@ -2378,6 +2448,8 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     if(version>=23)memcpy(s_home_utilities,work->utilities.actions,sizeof(s_home_utilities));
     if(version>=24)s_home_utility_labels=utility_labels;
     if(version>=25)s_home_utility_border=utility_border;
+    if(version>=29)for(unsigned i=0;i<2;++i)s_simple_utilities[i]=(work->identity.reserved[1]>>(i*4))&15;
+    if(version>=30){s_simple_labels=!(work->identity.reserved[0]&2);s_simple_border=!(work->identity.reserved[0]&4);}
     if (has_history) {
         file = fopen(source, "rb");
         if (!file) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return ESP_FAIL; }

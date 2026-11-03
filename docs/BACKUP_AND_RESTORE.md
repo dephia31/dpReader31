@@ -79,10 +79,10 @@ liệu quan trọng, dùng sao lưu thủ công và giữ một bản trên máy
 không bật tự khôi phục sau reboot; khôi phục đang dùng thao tác thủ công. Nhánh
 tự khôi phục bên dưới chỉ áp dụng khi được bật riêng trong cấu hình.
 
-Bản sao mới dùng định dạng V27 (`PICOSETR`), chứa nhận diện S31, MAC nhà máy và
-lựa chọn công tắc tự sao lưu kèm checksum. V26 (`PICOSETQ`) và các định dạng cũ vẫn
+Bản sao mới dùng định dạng V30 (`PICOSETU`), chứa nhận diện S31, MAC nhà máy và
+lựa chọn công tắc tự sao lưu, giao diện đơn giản và hai shortcut riêng cùng lựa chọn viền/nhãn kèm checksum. V29 (`PICOSETT`), V28 (`PICOSETS`), V27 (`PICOSETR`), V26 (`PICOSETQ`) và các định dạng cũ vẫn
 nhập được; bản trước V27 giữ nguyên lựa chọn công tắc hiện tại. MAC chỉ được đọc, không ghi eFuse. Firmware hiện tại vẫn nhập thủ công được các bản sao cũ; firmware cũ chưa hỗ trợ
-V27 sẽ không đọc được bản sao mới.
+V30 sẽ không đọc được bản sao mới. Lựa chọn giao diện đã có trên máy luôn được giữ, kể cả khi bản sao ghi tắt hoặc là định dạng cũ. Chỉ máy chưa có lựa chọn mới lấy cờ giao diện hợp lệ từ bản sao; cờ thử nghiệm trước V28 không được dùng.
 Bản `.previous` được giữ khi ghi thành công; nên giữ bản cũ riêng nếu cần hạ ROM.
 Nhận diện MAC giúp tránh nhập nhầm thiết bị, không phải chữ ký chống sửa đổi.
 

@@ -65,6 +65,11 @@ esp_err_t book_history_backup_restore(FILE *file) {
 static bool card_mounted = true;
 static char loaded_dirs[2][96];
 static bool commit_fails;
+static int loaded_simple_ui=-1;
+static int stored_ui_choice=-1;
+static bool ui_open_fails,ui_get_fails;
+static int loaded_simple_labels=-1,loaded_simple_border=-1;
+static int loaded_simple_utilities[2]={-1,-1};
 static bool test_fail_restore_complete, test_corrupt_font_readback;
 static uint8_t test_persisted_px = 48;
 static char test_persisted_fonts[2][288];
@@ -96,6 +101,7 @@ esp_err_t read_pico_sd_get_info(read_pico_sd_info_t *info) { info->mounted = car
 esp_err_t nvs_flash_init(void) { return test_nvs_init_error; }
 esp_err_t nvs_flash_erase(void) { ++test_nvs_erases; return ESP_OK; }
 esp_err_t nvs_open(const char *ns, int mode, nvs_handle_t *h) {
+ if(!strcmp(ns,SIMPLE_UI_NS)){if(ui_open_fails)return ESP_FAIL;if(mode==NVS_READONLY&&stored_ui_choice<0)return ESP_ERR_NVS_NOT_FOUND;*h=2;return ESP_OK;}
     if (!strcmp(ns,NVS_NS) && test_missing_settings_namespace) {
         if (mode == NVS_READONLY) return ESP_ERR_NVS_NOT_FOUND;
         test_missing_settings_namespace = false;
@@ -105,12 +111,20 @@ esp_err_t nvs_open(const char *ns, int mode, nvs_handle_t *h) {
 void nvs_close(nvs_handle_t h) { (void)h; }
 static bool has_tracking,has_para;static uint8_t loaded_tracking,loaded_para;
 esp_err_t nvs_get_u8(nvs_handle_t h, const char *key, uint8_t *value) {
+ if(h==2){if(ui_get_fails)return ESP_FAIL;if(strcmp(key,"mode")||stored_ui_choice<0)return ESP_ERR_NVS_NOT_FOUND;*value=stored_ui_choice;return ESP_OK;}
+ if(!strcmp(key,"simple_labels")||!strcmp(key,"simple_border")){int v=!strcmp(key,"simple_labels")?loaded_simple_labels:loaded_simple_border;if(v<0)return ESP_ERR_NVS_NOT_FOUND;*value=v;return ESP_OK;}
+ for(unsigned i=0;i<2;++i)if(!strcmp(key,s_simple_utility_keys[i])){if(loaded_simple_utilities[i]<0)return ESP_ERR_NVS_NOT_FOUND;*value=loaded_simple_utilities[i];return ESP_OK;}
+ if(!strcmp(key,"simple_ui")){if(loaded_simple_ui<0)return ESP_ERR_NVS_NOT_FOUND;*value=(uint8_t)loaded_simple_ui;return ESP_OK;}
  if(!strcmp(key,"auto_backup")){if(test_auto_backup<0)return ESP_ERR_NVS_NOT_FOUND;*value=(uint8_t)test_auto_backup;return ESP_OK;}
  if(!strcmp(key,NVS_KEY_BOOK_PX)){*value=test_persisted_px;return ESP_OK;}
  if(!strcmp(key,"restore_state")){if(test_restore_state<0)return ESP_ERR_NVS_NOT_FOUND;*value=(uint8_t)test_restore_state;return ESP_OK;}
  if(!strcmp(key,"sys_size_rev")){*value=2;return ESP_OK;}
  if(!strcmp(key,"backup_guard")){if(test_backup_guard<0)return ESP_ERR_NVS_NOT_FOUND;*value=(uint8_t)test_backup_guard;return ESP_OK;} (void)h; if(!strcmp(key,NVS_KEY_SHUTDOWN_MODE)&&loaded_shutdown>=0){*value=(uint8_t)loaded_shutdown;return ESP_OK;} if(!strcmp(key,"lock_lp")&&loaded_lock_lp>=0){*value=(uint8_t)loaded_lock_lp;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_PARA)&&has_para){*value=loaded_para;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_TRACK)&&has_tracking){*value=loaded_tracking;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_WEIGHT_FINE)&&has_fine){*value=loaded_fine;return ESP_OK;} if(!strcmp(key,NVS_KEY_HOME_COMPONENT)&&loaded_home>=0){*value=(uint8_t)loaded_home;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_AA)&&has_aa){*value=loaded_aa;return ESP_OK;} if(!strcmp(key,NVS_KEY_READER_KEYS_V2)&&keys_v2){*value=1;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_WEIGHT)&&has_weight){*value=loaded_weight;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_INDENT_ADJUST)&&has_adjust){*value=loaded_adjust;return ESP_OK;} if(!strcmp(key,NVS_KEY_SHELF_STYLE)&&loaded_shelf>=0){*value=(uint8_t)loaded_shelf;return ESP_OK;} if(!strcmp(key,NVS_KEY_SHELF_V22)&&loaded_shelf_v22){*value=1;return ESP_OK;} if(!strcmp(key,NVS_KEY_LOCK_STYLE)&&loaded_lock>=0){*value=(uint8_t)loaded_lock;return ESP_OK;} if(!strcmp(key,NVS_KEY_HOLD_ACTION)&&has_hold){*value=loaded_hold;return ESP_OK;} for(unsigned i=0;i<3;++i) if(!strcmp(key,s_reader_key_names[i])&&has_keys[i]){*value=loaded_keys[i];return ESP_OK;} if (!strcmp(key, NVS_KEY_MAIN_REFRESH) && has_main_mode) { *value=loaded_main_mode;return ESP_OK; } if (!strcmp(key, "ui_fast")) { *value = test_loaded_fast; return ESP_OK; } if (!strcmp(key, NVS_KEY_SYS_SIZE) && test_loaded_system_size) { *value = test_loaded_system_size; return ESP_OK; } return ESP_FAIL; }
 esp_err_t nvs_set_u8(nvs_handle_t h, const char *key, uint8_t value) {
+ if(h==2){if(!strcmp(key,"mode")&&!commit_fails)stored_ui_choice=value;return ESP_OK;}
+ if(!commit_fails){if(!strcmp(key,"simple_labels"))loaded_simple_labels=value;if(!strcmp(key,"simple_border"))loaded_simple_border=value;}
+ for(unsigned i=0;i<2;++i)if(!strcmp(key,s_simple_utility_keys[i])&&!commit_fails)loaded_simple_utilities[i]=value;
+ if(!strcmp(key,"simple_ui")&&!commit_fails)loaded_simple_ui=value;
  if(!strcmp(key,"auto_backup"))test_auto_backup=value;
  if(!strcmp(key,NVS_KEY_BOOK_PX))test_persisted_px=value;
  if(!strcmp(key,"restore_state")){if(test_fail_restore_complete&&value==2)return ESP_FAIL;test_restore_state=value;}

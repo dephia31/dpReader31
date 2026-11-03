@@ -709,7 +709,7 @@ static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *current,int
     if(current->on_main_key && current->on_main_key(ctx,key,&redraw))return redraw;
     int tab=app_index_of(current);
     if(tab>=0 && tab<4 && (key==UI_KEY_1||key==UI_KEY_3))
-        ui_nav_request(ctx,(tab+(key==UI_KEY_1?3:1))%4);
+        ui_nav_request(ctx,app_settings_simple_ui() ? (tab==0?3:0) : (tab+(key==UI_KEY_1?3:1))%4);
     return APP_REDRAW_NONE;
 }
 
@@ -810,6 +810,7 @@ static app_redraw_t ai_short_action(app_ctx_t *ctx,const app_desc_t *current){
 static void switch_to(
     app_ctx_t* ctx, const app_desc_t** current, const app_desc_t* next
 ) {
+    if(next&&app_settings_simple_ui()&&next==app_at(2))next=app_at(5);
     if (!next || (next==*current && (!next->persistent_navigation || main_page_ready(ctx,next)))) return;
 #if defined(KIIKO_LOCAL_LATENCY) || KIIKO_BOARD_METALIO47
     const int64_t probe_start=esp_timer_get_time();
@@ -1759,7 +1760,7 @@ void app_loop_run(const app_loop_config_t* config) {
         read_pico_transfer_status_t transfer;
         read_pico_transfer_get_status(&transfer);
         const bool wifi_running = (transfer.state != READ_PICO_TRANSFER_STOPPED);
-        const bool wifi_transferring = (transfer.state == READ_PICO_TRANSFER_UPLOADING || pico_online_busy() || app_download_active());
+        const bool wifi_transferring = (transfer.state == READ_PICO_TRANSFER_UPLOADING || read_pico_transfer_network_busy() || kosync_busy() || pico_online_busy() || app_download_active());
         if (wifi_running) {
             if (wifi_transferring) {
                 last_wifi_active_ms = ctx.now_ms;
@@ -1767,7 +1768,7 @@ void app_loop_run(const app_loop_config_t* config) {
                 unsigned wifi_timeout = app_settings_wifi_timeout_minutes();
                 if (wifi_timeout > 0 && last_wifi_active_ms && (ctx.now_ms - last_wifi_active_ms >= (int64_t)wifi_timeout * 60 * 1000)) {
                     ESP_LOGI(TAG, "Wi-Fi rảnh rỗi quá %u phút, tự động tắt Wi-Fi để tiết kiệm pin và RAM", wifi_timeout);
-                    read_pico_transfer_stop();
+                    (void)read_pico_transfer_try_stop_if_idle();
                     last_wifi_active_ms = ctx.now_ms;
                 }
             }
@@ -1777,7 +1778,7 @@ void app_loop_run(const app_loop_config_t* config) {
 
         // Tự tắt Bluetooth khi không dùng
         if (app_settings_ble_turner()) {
-            if (current == &app_device_settings) {
+            if (current == &app_device_settings || wifi_running || read_pico_transfer_network_busy() || ble_pt_connected() || ble_pt_connecting() || ble_pt_scanning()) {
                 last_ble_active_ms = ctx.now_ms;
             } else {
                 unsigned ble_timeout = app_settings_ble_timeout_minutes();
@@ -1840,16 +1841,16 @@ void app_loop_run(const app_loop_config_t* config) {
         if (ble_input != last_ble_input) { last_ble_input = ble_input; last_input_ms = ctx.now_ms; last_ble_active_ms = ctx.now_ms; }
         unsigned requested_idle = app_settings_auto_lock_minutes();
 #if KIIKO_BOARD_METALIO47
-        bool idle_blocked = app_sd_recovery_busy() || usb_storage_active() || app_download_active() || wifi_transferring || (current == &app_transfer && transfer.state == READ_PICO_TRANSFER_UPLOADING) ||
+        bool idle_blocked = app_sd_recovery_busy() || usb_storage_active() || app_download_active() || wifi_transferring || ble_pt_connecting() || ble_pt_scanning() || (current == &app_transfer && transfer.state == READ_PICO_TRANSFER_UPLOADING) ||
 #else
-        bool idle_blocked = usb_storage_active() || app_download_active() || wifi_transferring || (current == &app_transfer && transfer.state == READ_PICO_TRANSFER_UPLOADING) ||
+        bool idle_blocked = usb_storage_active() || app_download_active() || wifi_transferring || ble_pt_connecting() || ble_pt_scanning() || (current == &app_transfer && transfer.state == READ_PICO_TRANSFER_UPLOADING) ||
 #endif
             current->holds_pmu || power_dialog_open || touch.touched ||
             ctx.request_app || ctx.request_menu || ctx.request_return;
         if (idle_blocked || requested_idle != idle_minutes) last_input_ms = ctx.now_ms;
         idle_minutes = requested_idle;
         if (!idle_blocked && ctx.now_ms >= s_lock_ignore_until_ms &&
-            auto_lock_due(ctx.now_ms, last_input_ms, idle_minutes)) {
+            auto_lock_due(ctx.now_ms, last_input_ms, idle_minutes) && read_pico_transfer_network_begin()) {
 #if KIIKO_BOARD_METALIO47
             // 不因配置层常亮阻止自动锁屏；透明锁屏须先恢复真实底页，避免缓存玻璃面板。
             // A chooser never disables idle lock; restore the physical underlay before transparent lock artwork can cache it.
@@ -1876,6 +1877,7 @@ void app_loop_run(const app_loop_config_t* config) {
             ctx.pressed = ctx.released = false;
             if (menu_open) present_menu(&ctx, current, menu_leaf, &feedback);
             else app_present(&ctx, current, APP_REDRAW_PAGE);
+            read_pico_transfer_network_end();
         }
         if (menu_open && feedback.updates > 0
             && ctx.now_ms - feedback.last_ms >= UI_SETTLE_IDLE_MS) {

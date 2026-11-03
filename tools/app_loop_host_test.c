@@ -65,6 +65,7 @@ static int64_t time_offset, time_step;
 static int du_areas, gl_areas;
 static int quick_button_draws,quick_status_draws,quick_press_draws,quick_recent_requests,base_renders;
 static bool main_fast, main_water;
+bool app_settings_simple_ui(void){return false;}
 int app_settings_main_refresh_mode(void) {return main_water?APP_MAIN_REFRESH_WATER:main_fast?APP_MAIN_REFRESH_FAST:APP_MAIN_REFRESH_NORMAL;}
 static int shelf_exit_arms;
 static int nav_arms, nav_draws, nav_full_arms, nav_area_draws;
@@ -715,3 +716,5 @@ bool ui_avatar_quiesce(unsigned timeout){(void)timeout;return step>avatar_busy_u
 void book_lock_collage_invalidate(void) {}
 
 bool ble_pt_connected(void) { return false; }
+bool ble_pt_scanning(void){return false;}
+bool ble_pt_connecting(void){return false;}

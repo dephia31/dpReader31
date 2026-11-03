@@ -195,6 +195,7 @@ esp_err_t kosync_compute_doc_md5(const char *file_path, char out_hex[33]) {
 /* ---- Quản lý kết nối mạng WiFi tạm thời hoặc tái sử dụng STA đang bật ---- */
 static esp_err_t kosync_acquire_network(bool *started_by_us, char *msg, size_t msg_cap) {
     *started_by_us = false;
+    if(!read_pico_transfer_network_shareable()){if(msg&&msg_cap)snprintf(msg,msg_cap,"WiFi đang được trang truyền file sử dụng");return ESP_ERR_INVALID_STATE;}
     read_pico_transfer_status_t st = {0};
     read_pico_transfer_get_status(&st);
     if (st.mode == READ_PICO_TRANSFER_MODE_STA && st.network_ready) return ESP_OK;
@@ -236,6 +237,7 @@ static esp_err_t kosync_acquire_network(bool *started_by_us, char *msg, size_t m
     }
     read_pico_transfer_stop();
     *started_by_us = false;
+    if(!read_pico_transfer_network_shareable()){if(msg&&msg_cap)snprintf(msg,msg_cap,"WiFi đang được trang truyền file sử dụng");return ESP_ERR_INVALID_STATE;}
     if (msg && msg_cap) snprintf(msg, msg_cap, "Không thể kết nối WiFi đã lưu");
     return ESP_ERR_TIMEOUT;
 }
@@ -268,6 +270,7 @@ static esp_err_t kosync_request(esp_http_client_method_t method, const char *pat
                                 const char *body, int *out_status,
                                 char *resp_buf, size_t resp_cap,
                                 char *msg, size_t msg_cap) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     // 等待网络期间设置页仍可操作，请求使用自己的有界凭据副本。
     // Settings remain usable during network waits; each request owns bounded credential copies.
     char base[128],user[64],key[36];
@@ -625,6 +628,7 @@ static esp_err_t kosync_pull_book_progress_impl(const char *file_path, kosync_pr
 static esp_err_t kosync_sync_book_impl(
     const char* file_path, uint16_t* cur_chapter, uint32_t* cur_byte_off, uint8_t* cur_pct,
     double local_ratio, bool* pulled_newer, char* message, size_t message_cap) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!file_path || !file_path[0] || !cur_chapter || !cur_byte_off || !cur_pct || !pulled_newer) {
         return ESP_ERR_INVALID_ARG;
     }

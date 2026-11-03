@@ -36,6 +36,10 @@ typedef struct {
 
 typedef void (*opds_progress_cb_t)(size_t received_bytes, size_t total_bytes, void *user_ctx);
 
+/* UI-thread-only observer; requests are synchronous. Must not start/stop network.
+ * Clear before the owning page/context exits. */
+void opds_set_network_observer(void (*observer)(void *),void *context);
+
 /// Tải và phân tích danh mục OPDS tại `url` (nếu `url == NULL` hoặc rỗng sẽ dùng URL gốc trong Cài đặt).
 esp_err_t opds_fetch_feed(const char *url, opds_feed_t *out_feed, char *message, size_t message_cap);
 

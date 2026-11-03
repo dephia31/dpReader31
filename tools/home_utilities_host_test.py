@@ -25,6 +25,10 @@ typedef int app_redraw_t;
 enum {ESP_OK,ESP_ERR_NOT_FOUND,ESP_FAIL};
 enum {APP_REDRAW_NONE,APP_REDRAW_PAGE,APP_REDRAW_FULL};
 enum {HOME_ROOT,HOME_UTILITIES,HOME_UTILITY_PICK,EPD_DRAW_ALIGN_LEFT};
+static bool simple;static bool app_settings_simple_ui(void){return simple;}
+static bool app_settings_simple_utility_labels(void){return true;}
+static bool app_settings_simple_utility_border(void){return true;}
+static uint8_t app_settings_simple_utility(unsigned slot){(void)slot;return 0;}
 static home_book_t s_current,s_recent[6];
 static int s_view;static bool s_save_error;
 static uint8_t s_utility_draft[4],saved[4];

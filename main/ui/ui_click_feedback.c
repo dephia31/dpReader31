@@ -13,6 +13,7 @@
 #include "esp_heap_caps.h"
 #include "settings.h"
 #include "ui_nav_layout.h"
+#include "ui_nav.h"
 typedef struct { EpdRect area; ui_click_kind_t kind; ui_icon_t icon; } click_control_t;
 static click_control_t s_controls[12], s_active;
 static unsigned s_count;
@@ -96,7 +97,7 @@ bool ui_click_feedback_release(uint8_t *fb, EpdRect *area) {
 bool ui_click_feedback_cancel_at(int x, int y) {
     bool outside = s_active.kind == UI_CLICK_NAV
         ? x < 0 || x >= UI_LOCK_WIDTH || y < UI_NAV_TOUCH_TOP || y >= UI_LOCK_HEIGHT ||
-          x / (UI_LOCK_WIDTH / 4) != s_x / (UI_LOCK_WIDTH / 4)
+          ui_nav_hit(x,UI_NAV_TOUCH_TOP) != ui_nav_hit(s_x,UI_NAV_TOUCH_TOP)
         : x < s_active.area.x || x >= s_active.area.x + s_active.area.width ||
           y < s_active.area.y || y >= s_active.area.y + s_active.area.height;
     return s_pixels && (outside ||
@@ -109,7 +110,7 @@ bool ui_click_feedback_press(uint8_t *fb, int x, int y, EpdRect *area) {
         EpdRect r = s_controls[i].area;
         bool hit = s_controls[i].kind == UI_CLICK_NAV
             ? y >= UI_NAV_TOUCH_TOP && y < UI_LOCK_HEIGHT && x >= 0 && x < UI_LOCK_WIDTH &&
-              x / (UI_LOCK_WIDTH / 4) == (r.x + r.width / 2) / (UI_LOCK_WIDTH / 4)
+              ui_nav_hit(x,UI_NAV_TOUCH_TOP) == ui_nav_hit(r.x+r.width/2,UI_NAV_TOUCH_TOP)
             : x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height;
         if (!hit) continue;
         s_pixels = heap_caps_malloc((size_t)r.width * r.height, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -174,13 +175,13 @@ bool ui_click_feedback_nav_tick(uint8_t *fb,int64_t now_ms,EpdRect *area) {
     if(s_nav.phase==0) {
         click_control_t *control=NULL;
         for(unsigned i=0;i<s_count;++i)if(s_controls[i].kind==UI_CLICK_NAV&&
-            (s_controls[i].area.x+s_controls[i].area.width/2)/(UI_LOCK_WIDTH/4)==s_nav.tab) {
+            ui_nav_hit(s_controls[i].area.x+s_controls[i].area.width/2,UI_NAV_TOUCH_TOP)==s_nav.tab) {
             control=&s_controls[i];break;
         }
         // 书架正等待封面时新帧尚未注册底栏；按稳定公共布局反馈，不能等待目标页出现。
         // While shelf covers load, the new frame may lack registrations; use the stable common footer immediately.
         static const ui_icon_t tabs[]={UI_ICON_HOUSE,UI_ICON_LIBRARY_BIG,UI_ICON_FOLDER_OPEN,UI_ICON_SLIDERS_HORIZONTAL};
-        int center=(s_nav.tab*2+1)*UI_LOCK_WIDTH/8;
+        int center=app_settings_simple_ui()?(s_nav.tab==0?UI_LOCK_WIDTH/4:UI_LOCK_WIDTH*3/4):(s_nav.tab*2+1)*UI_LOCK_WIDTH/8;
         s_active=control?*control:(click_control_t){(EpdRect){center-30,UI_NAV_TOP+15,60,60},UI_CLICK_NAV,tabs[s_nav.tab]};
         EpdRect r=s_active.area;
         s_pixels=heap_caps_malloc((size_t)r.width*r.height,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);

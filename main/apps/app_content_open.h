@@ -12,6 +12,7 @@
 #include "app/app.h"
 #include <stddef.h>
 
+void app_book_release_shelf_cache(void);
 bool app_book_request_open(const char *path);
 bool app_book_request_open_from_home(const char *path);
 /// 按保存位置恢复；保留参数以兼容旧睡眠记录，忽略旧全屏值。/ Resume at the saved position; retain but ignore the legacy full-screen argument.

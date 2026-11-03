@@ -82,6 +82,9 @@ uint32_t app_settings_pin_locked_at(void);
 void app_settings_record_pin_lock(uint32_t unix_seconds);
 #endif
 /// 首页进入时强制全刷；默认关闭。/ Full refresh when entering Home; off by default.
+/// Local UI choice survives profile restore/reset; only the explicit setter changes it.
+bool app_settings_simple_ui(void);
+esp_err_t app_settings_set_simple_ui(bool enabled);
 bool app_settings_home_full_refresh(void);
 void app_settings_set_home_full_refresh(bool enabled);
 /// 首页组件默认书夹；选择与每日目标均掉电保存。/ Persist the Home widget and daily goal across power loss.
@@ -97,6 +100,11 @@ typedef enum {
     APP_HOME_UTIL_OTA, APP_HOME_UTIL_FILES, APP_HOME_UTIL_TRANSFER, APP_HOME_UTIL_REFRESH,
     APP_HOME_UTIL_COUNT
 } app_home_utility_t;
+uint8_t app_settings_simple_utility(unsigned slot);
+esp_err_t app_settings_set_simple_utilities(const uint8_t actions[2]);
+bool app_settings_simple_utility_labels(void);
+bool app_settings_simple_utility_border(void);
+esp_err_t app_settings_set_simple_utilities_config(const uint8_t actions[2],bool labels,bool border);
 uint8_t app_settings_home_utility(unsigned slot);
 esp_err_t app_settings_set_home_utilities(const uint8_t actions[APP_HOME_UTILITY_SLOTS]);
 bool app_settings_home_utility_labels(void);

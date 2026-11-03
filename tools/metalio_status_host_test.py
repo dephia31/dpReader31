@@ -25,11 +25,14 @@ unit=r'''
 #define EPD_DRAW_ALIGN_CENTER 1
 #define EPD_DRAW_ALIGN_RIGHT 2
 #define READ_PICO_TRANSFER_MODE_STA 1
+#define READ_PICO_TRANSFER_STOPPED 0
 typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {bool time_synced;unsigned unix_sec;} pmu_snapshot_t;
-typedef struct {bool network_ready;int mode;} read_pico_transfer_status_t;
+typedef struct {bool network_ready;int mode,state;} read_pico_transfer_status_t;
 static pmu_snapshot_t state;
-static int soc=65;static bool charging,network;
+static int soc=65;static bool charging,network,network_job,bluetooth=true;
+static bool read_pico_transfer_network_background_busy(void){return network_job;}
+static bool ble_pt_running(void){return bluetooth;}
 static const uint8_t *s_status_framebuffer;
 static int s_power_signature=-1000;
 static unsigned header_clears,bolts,bolt_wells;
@@ -38,8 +41,8 @@ static int epd_width(void){return 1216;}static int epd_height(void){return 684;}
 static const pmu_snapshot_t *read_pico_pmu_get(void){return &state;}
 static int pmu_battery_percent(const pmu_snapshot_t *p){assert(p==&state);return soc;}
 static bool pmu_battery_charging(const pmu_snapshot_t *p){assert(p==&state);return charging;}
-static void read_pico_transfer_get_status(read_pico_transfer_status_t *s){s->network_ready=network;s->mode=1;}
-static bool app_settings_ble_turner(void){return true;}
+static void read_pico_transfer_get_status(read_pico_transfer_status_t *s){s->network_ready=network;s->mode=1;s->state=network?1:0;}
+
 static const char *app_settings_status_signature(void){return "S31";}
 static void ui_text_fixed_vc(uint8_t *p,int x,int y,int px,const char *s,int align,bool b){(void)p;(void)x;(void)px;(void)s;(void)align;(void)b;assert(y==40);}
 static int ui_text_fixed_width_px(int px,const char *s){return px*(int)strlen(s)/2;}
@@ -78,6 +81,12 @@ int main(void){
  ui_clear_page(fb);soc=10;assert(!ui_nav_refresh_power(fb)&&!ui_status_visible(fb)); // immersive/image frame
  ui_nav_status(fb);assert(ui_status_visible(fb));soc=11;assert(ui_nav_refresh_power(fb));
  soc=-1;charging=false;assert(ui_nav_refresh_power(fb)&&!ui_nav_refresh_power(fb));
+ network=false;assert(ui_nav_refresh_power(fb));
+ unsigned before_radio=header_clears;
+ network_job=true;assert(ui_nav_refresh_power(fb)&&header_clears==before_radio+1);
+ network_job=false;assert(ui_nav_refresh_power(fb)&&header_clears==before_radio+2);
+ bluetooth=false;assert(ui_nav_refresh_power(fb)&&header_clears==before_radio+3);
+ assert(!ui_nav_refresh_power(fb));
  puts("PASS: actual charge insertion/removal/SOC-change detection, zero repeated redraw, 684x56 header-only crop, low-SOC black well/white bolt outline, immersive/fullscreen suppression, offscreen preview isolation");
 }
 '''

@@ -6,7 +6,9 @@ root=Path(__file__).resolve().parents[1]
 book=root/'main/apps/app_book.c';transfer=root/'components/read_pico_transfer/read_pico_transfer.c'
 unit=r'''
 #include <assert.h>
+#define TRANSFER_NETWORK_GUARD_OR_RETURN(result) ((void)0)
 #include <stdbool.h>
+#define read_pico_transfer_network_shareable() (true)
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -81,7 +83,9 @@ int main(void){
 start=function('read_pico_transfer_start',transfer);prefix=start[:start.index('    s_cfg = *cfg;')]
 radio=r'''
 #include <assert.h>
+#define TRANSFER_NETWORK_GUARD_OR_RETURN(result) ((void)0)
 #include <stdbool.h>
+#define read_pico_transfer_network_shareable() (true)
 #include <stdio.h>
 #include <string.h>
 typedef int esp_err_t;
