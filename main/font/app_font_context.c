@@ -31,6 +31,7 @@ static time_t s_rejected_mtime;
 static off_t s_rejected_size;
 #if KIIKO_BOARD_METALIO47
 static int64_t s_rejected_retry_us;
+static int64_t s_stable_check_us;
 static unsigned s_rejected_attempts;
 #endif
 static bool font_file(const char *path, struct stat *st) {
@@ -146,10 +147,21 @@ bool app_font_activate_reading(void) {
 }
 
 bool app_font_retry_active(void) {
+#if KIIKO_BOARD_METALIO47
+    const char *wanted=s_reading?app_settings_font_path():app_settings_system_font_path();
+    int64_t now=esp_timer_get_time();
+    bool stable=font_allowed()&&read_pico_sd_io_ready()&&ttf_font_ready()&&
+        !ttf_font_path_is_builtin(wanted)&&!strcmp(wanted,ttf_font_path())&&!s_rejected[0];
+    // 稳定字体最多30秒检查一次；选择变化、失效和恢复仍立即处理。
+    // Check a stable face at most every30s; changed choices, failures and recovery remain immediate.
+    if(stable&&s_stable_check_us&&now<s_stable_check_us&&s_stable_check_us-now<=30000000)return false;
+    s_stable_check_us=stable?now+30000000:0;
+#endif
     return s_reading ? app_font_activate_reading() : app_font_activate_system();
 }
 #if KIIKO_BOARD_METALIO47
 bool app_font_recover_media(void) {
+    s_stable_check_us=0;
     s_rejected[0] = 0;
     s_rejected_attempts = 0;
     s_rejected_retry_us = 0;
@@ -165,6 +177,9 @@ void app_font_begin_lock(app_lock_font_t *saved) {
 }
 
 void app_font_end_lock(const app_lock_font_t *saved) {
+#if KIIKO_BOARD_METALIO47
+    s_stable_check_us=0;
+#endif
     if (!saved) return;
 #if KIIKO_BOARD_METALIO47
 #else

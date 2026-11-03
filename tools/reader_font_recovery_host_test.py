@@ -65,6 +65,7 @@ static void app_settings_set_font_path(const char *p){copy_text(saved,sizeof(sav
 static const char *app_settings_font_path(void){return saved;}
 static void save_progress(void){++progress_saves;}
 static void free_book(void){s_text=NULL;}
+static void pico_boot_allow_font(void){}
 static bool pico_boot_recovery(void){return recovery_mode;}
 static int64_t esp_timer_get_time(void){return 1000000;}
 static void before_lock(app_ctx_t *ctx){(void)ctx;++checkpoints;invalidate_prep();s_save_failed=save_fails;}
@@ -109,7 +110,13 @@ int main(void){app_ctx_t ctx={0};ttf_font_item_t item={"new.ttf"};
  s_font_fallbacks=2;strcpy(active,"old.ttf");builtin=false;
  assert(select_reading_font_item(&ctx,&built)==APP_REDRAW_PAGE);reader_font_choice_finish();assert(!s_font_fallbacks&&!s_font_choice_pending&&!s_font_recovery_pending);
  reset();s_font_fallbacks=2;assert(select_reading_font_item(&ctx,&item)==APP_REDRAW_PAGE);
- assert(s_font_choice_pending);reader_font_choice_finish();assert(!s_font_recovery_pending&&!builtin);
+
+#if KIIKO_BOARD_METALIO47
+ assert(!s_font_choice_pending);
+#else
+ assert(s_font_choice_pending);
+#endif
+ reader_font_choice_finish();assert(!s_font_recovery_pending&&!builtin);
 #if KIIKO_BOARD_METALIO47
  assert(s_font_fallbacks==2);
 #else
@@ -120,7 +127,13 @@ int main(void){app_ctx_t ctx={0};ttf_font_item_t item={"new.ttf"};
  // 选择加载成功，但名称预览归还时掉回内建，同样准确统计。
  // A successful load followed by built-in restoration from preview is still an actual fallback.
  reset();for(int i=0;i<3;++i){strcpy(active,"builtin");builtin=true;
-  assert(select_reading_font_item(&ctx,&item)==APP_REDRAW_PAGE);strcpy(active,"builtin");builtin=true;reader_font_choice_finish();}
+  assert(select_reading_font_item(&ctx,&item)==APP_REDRAW_PAGE);strcpy(active,"builtin");builtin=true;
+#if KIIKO_BOARD_METALIO47
+ reader_font_fallback_observe();
+#else
+ reader_font_choice_finish();
+#endif
+ }
  assert(s_font_recovery_pending);assert(reader_font_recovery_tick(&ctx)==APP_REDRAW_PAGE);
  ev=tap(1);assert(reader_font_recovery_gesture(&ctx,&ev)==APP_REDRAW_PAGE&&!restarts);
  ctx.consumed=true;assert(reader_font_recovery_tick(&ctx)==APP_REDRAW_NONE&&!checkpoints);

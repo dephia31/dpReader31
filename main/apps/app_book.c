@@ -4821,6 +4821,9 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
     s_cover_batch_present_pending = false;
     s_reader_turn_pending = false;
     s_mode = MODE_GL16;
+    // 扫描与预绘归还后保存，避免第八次翻页先等Flash提交。
+    // Save after scan and prefetch return, avoiding a Flash commit before every eighth turn.
+    if (s_view==READING && s_unsaved>=8 && !s_save_failed) save_progress();
 #if KIIKO_BOARD_METALIO47
     reader_panel_record(err);
 #endif
@@ -6107,7 +6110,6 @@ static app_redraw_t turn_page(app_ctx_t* ctx, int dir) {
     if (s_reader_cleanup) s_turns = 0;
     kosync_state_touch(s_path,s_file_size,(uint16_t)s_chapter,(uint32_t)reader_page_offset(s_page));
     if (s_unsaved < 8) ++s_unsaved;
-    if (s_unsaved >= 8 && !s_save_failed) save_progress();
     ESP_LOGI(TAG, "turn chapter=%u page=%u/%u pct=%u", (unsigned)s_chapter, (unsigned)s_page + 1, (unsigned)book_layout_page_count(), percent(s_page));
     // 预渲染未命中时也使用 GL16；到达设定页数后在本次翻页整屏全刷。
     // A cache miss still uses GL16; the selected turn count triggers a full-screen refresh on this turn.

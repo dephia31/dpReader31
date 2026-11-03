@@ -1162,7 +1162,14 @@ void app_loop_run(const app_loop_config_t* config) {
         if (ctx.now_ms - last_network_poll_ms >= 500) {
             last_network_poll_ms = ctx.now_ms;
             read_pico_transfer_service_poll();
-            app_time_service_poll(!touch.touched && ctx.now_ms - last_input_ms >= 10000 &&
+#if KIIKO_BOARD_METALIO47
+            read_pico_transfer_status_t clock_network;
+            read_pico_transfer_get_status(&clock_network);
+            bool clock_allowed=current!=&app_book || !app_book_reader_body_visible() || clock_network.network_ready;
+#else
+            bool clock_allowed=true;
+#endif
+            app_time_service_poll(clock_allowed && !touch.touched && ctx.now_ms - last_input_ms >= 10000 &&
 #if KIIKO_BOARD_METALIO47
                 !app_sd_recovery_busy() && !current->holds_pmu && !usb_storage_active() && !app_download_active() && !pico_online_busy() && !ble_pt_connected());
 #else

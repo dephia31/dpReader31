@@ -36,8 +36,11 @@ static sdmmc_card_t test_card = {
 #include "../components/read_pico/read_pico_sd.c"
 #undef mkdir
 
-int64_t esp_timer_get_time(void){return 0;}
-esp_err_t sdmmc_get_status(sdmmc_card_t *c){assert(c==&test_card);return ESP_OK;}
+static int64_t health_clock_us;
+static unsigned health_checks;
+static esp_err_t health_result;
+int64_t esp_timer_get_time(void){return health_clock_us;}
+esp_err_t sdmmc_get_status(sdmmc_card_t *c){assert(c==&test_card);++health_checks;return health_result;}
 static FATFS test_fat={.free_clst=1};
 BYTE ff_diskio_get_pdrv_card(const sdmmc_card_t *c){assert(c==&test_card);return 0;}
 int f_opendir(FF_DIR *root,const char *path){assert(!strcmp(path,"0:"));root->obj.fs=&test_fat;return FR_OK;}
@@ -287,5 +290,12 @@ int main(void) {
     assert(read_pico_sd_get_info(&info)==ESP_OK&&info.mounted&&format_calls==old_formats);
     assert(close_card()==ESP_OK&&!sd_dma_buffer&&test_dma_allocs==test_dma_frees);
     puts("PASS: SD profiles/RTC and DMA, asynchronous manual recovery from failed/paused/removal states, lifecycle owners/OOM/unmount failure/retry/no autoformat/256GiB");
+    card=&test_card;cached_info.mounted=true;media_invalidated=suspended=space_busy=health_busy=false;probe_state=2;
+    health_due_ms=0;health_failures=0;health_result=ESP_OK;health_clock_us=1000000;
+    read_pico_sd_poll_health();unsigned healthy_count=health_checks;assert(health_due_ms==11000);
+    health_clock_us=10999000;read_pico_sd_poll_health();assert(health_checks==healthy_count);
+    health_clock_us=11000000;health_result=ESP_ERR_TIMEOUT;read_pico_sd_poll_health();assert(health_due_ms==11500&&!media_invalidated);
+    health_clock_us=11500000;read_pico_sd_poll_health();assert(!media_invalidated);
+    health_clock_us=12000000;read_pico_sd_poll_health();assert(media_invalidated);
     return 0;
 }

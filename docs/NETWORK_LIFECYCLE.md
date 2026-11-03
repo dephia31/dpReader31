@@ -38,3 +38,8 @@ riêng và khôi phục theo lựa chọn đã lưu khi thức dậy.
 Các kiểm tra nguồn/host không thay cho kiểm tra radio trên thiết bị: cần đối
 chiếu icon, log và trạng thái kết nối khi thành công, lỗi, hủy và có yêu cầu đồng
 thời trên máy thực tế.
+
+Khi đang đọc nội dung sách và WiFi chưa kết nối, lịch chỉnh giờ tự động được
+trì hoãn để tránh tự bật radio giữa phiên đọc. Rời nội dung sách hoặc có WiFi
+đang kết nối sẽ cho phép kiểm tra lịch cũ; các chức năng mạng vẫn có đường
+chỉnh giờ riêng khi cần.
