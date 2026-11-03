@@ -706,6 +706,9 @@ static int scan_cb(struct ble_gap_event *event, void *arg) {
 }
 
 void ble_pt_scan_start(uint32_t ms) {
+#if KIIKO_BOARD_METALIO47
+    if(metalio_radio_reserved())return;
+#endif
     if (!s_running || !atomic_load(&s_host_ready) || atomic_load(&s_stop_active) || s_scanning || s_connected || s_connecting) return;
     s_device_count = 0;  // 重扫时清空，免得新旧混在一起 / clear on rescan so old and new do not mix
     // 扫描参数用协议栈默认值：曾经照 CrossMux 设成 itvl=window=160（100% 占空比），
@@ -1443,6 +1446,9 @@ static int start_connect(const char *addr, uint8_t type) {
 }
 
 esp_err_t ble_pt_connect(const char *addr) {
+#if KIIKO_BOARD_METALIO47
+    if(metalio_radio_reserved())return ESP_ERR_INVALID_STATE;
+#endif
     if(!atomic_load(&s_host_ready)||atomic_load(&s_stop_active))return ESP_ERR_INVALID_STATE;
     if (!s_running || !addr || !addr[0]) {
         return ESP_ERR_INVALID_STATE;
@@ -1951,6 +1957,9 @@ static void poll_locked(void) {
         s_stop_budget_ms=0;(void)stop_locked();s_stop_budget_ms=2000;return;
     }
     if (!s_running) return;
+#if KIIKO_BOARD_METALIO47
+    if(atomic_load(&s_sleep_suspended))return;
+#endif
     if(!atomic_load(&s_host_ready)) {
         if(esp_timer_get_time()/1000-s_host_started_ms>=5000) {
             s_stop_budget_ms=0;(void)stop_locked();s_stop_budget_ms=2000;
@@ -2257,16 +2266,21 @@ ble_pt_action_t ble_pt_action_for_frame(const ble_pt_frame_t *frame) {
 
 /* S31 lock/BOOT lifecycle compatibility, independent of PR28 frame algorithm. */
 esp_err_t ble_pt_suspend_for_sleep(void) {
-    if (!lifecycle_take(2000)) return ESP_ERR_TIMEOUT;
-    if (atomic_load(&s_sleep_suspended)) { lifecycle_give(); return ESP_OK; }
-    snprintf(s_sleep_peer,sizeof(s_sleep_peer),"%s",s_link_up?s_conn_addr:s_reconnect_addr);
-    ESP_LOGI(TAG,"sleep BLE before-stop running=%u connected=%u connecting=%u host=%u",
+    bool retry=atomic_load(&s_sleep_suspended);
+    if (!lifecycle_take(retry?0:2000)) return ESP_ERR_TIMEOUT;
+    if (!atomic_load(&s_sleep_suspended))
+        snprintf(s_sleep_peer,sizeof(s_sleep_peer),"%s",s_link_up?s_conn_addr:s_reconnect_addr);
+    if(!retry)ESP_LOGI(TAG,"sleep BLE before-stop running=%u connected=%u connecting=%u host=%u",
         (unsigned)s_running,(unsigned)s_connected,(unsigned)s_connecting,(unsigned)(s_host_task!=NULL));
     atomic_store(&s_sleep_suspended,true);
+    uint32_t previous_budget=s_stop_budget_ms;
+    if(retry)s_stop_budget_ms=0;
     const esp_err_t err=stop_locked();
-    ESP_LOGI(TAG,"sleep BLE after-stop result=%d running=%u host=%u",
+    s_stop_budget_ms=previous_budget;
+    if(!retry)ESP_LOGI(TAG,"sleep BLE after-stop result=%d running=%u host=%u",
         (int)err,(unsigned)s_running,(unsigned)(s_host_task!=NULL));
-    if (err!=ESP_OK) atomic_store(&s_sleep_suspended,false);
+    // 失败仍禁止重新启动；重复请求继续收取停止结果，不能误报已停。
+    // Failure still blocks restart; repeated calls collect stop completion rather than claim success.
     lifecycle_give();
     return err;
 }

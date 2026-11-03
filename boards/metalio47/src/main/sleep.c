@@ -369,7 +369,10 @@ app_wake_source_t app_light_sleep_wait_timed(sc7a20h_handle_t acc,uint32_t timeo
         lock_resume_io_service();
         lock_resume_service();
         lock_hint_service();
-        if (!s_lock_hint.pending_at && !s_lock_hint.until && s_lock_sleep_touch && !pickup && !metalio_usb_blocks_sleep()) {
+        // USB阻止浅睡时也必须停止BLE；失败继续有界重试，不带活动BLE进入低功耗。
+        // Stop BLE even when USB prevents light sleep; retry failures without sleeping with an active host.
+        bool ble_stopped=ble_pt_suspend_for_sleep()==ESP_OK;
+        if (ble_stopped && !s_lock_hint.pending_at && !s_lock_hint.until && s_lock_sleep_touch && !pickup && !metalio_usb_blocks_sleep()) {
             if(off_at && esp_timer_get_time()>=off_retry_at && s_lock_deep_ready) {
                 if(s_lock_frame_cached && !lock_pin_enabled() && !frame_marked)
                     frame_marked=pico_boot_mark_frame_cached()==ESP_OK;
@@ -646,7 +649,7 @@ esp_err_t app_enter_host_sleep(app_sleep_mode_t mode) {
     // An active lock owns the radio pause; failed deep admission must not release that ownership.
     bool restore_radios=s_lock_sleep_touch==NULL;
     esp_err_t err = ble_pt_suspend_for_sleep();
-    if (err != ESP_OK) { if(restore_radios) read_pico_transfer_resume_after_sleep(); return err; }
+    if (err != ESP_OK) { if(restore_radios) { ble_pt_resume_after_sleep(); read_pico_transfer_resume_after_sleep(); } return err; }
     if(mode==APP_SLEEP_OFF) {
         err=lock_power_off();
         if(restore_radios) { ble_pt_resume_after_sleep(); read_pico_transfer_resume_after_sleep(); }
@@ -768,7 +771,7 @@ esp_err_t app_enter_download(void) {
     if (!(book_cover_jobs_quiesce(2000) && ui_avatar_quiesce(2000))) return ESP_ERR_NOT_FINISHED;
     if (!read_pico_transfer_pause_for_sleep()) return ESP_ERR_NOT_FINISHED;
     esp_err_t err=ble_pt_suspend_for_sleep();
-    if (err!=ESP_OK) { read_pico_transfer_resume_after_sleep(); return err; }
+    if (err!=ESP_OK) { ble_pt_resume_after_sleep(); read_pico_transfer_resume_after_sleep(); return err; }
     download_trace("before_prepare",true);
     err=metalio_download_prepare();
     if (err!=ESP_OK) {
@@ -827,6 +830,7 @@ void enter_lock_and_sleep(
         return;
     }
     if (ble_pt_suspend_for_sleep()!=ESP_OK) {
+        ble_pt_resume_after_sleep();
         read_pico_transfer_resume_after_sleep();
         metalio_frontlight_restore();
         pico_boot_clear_resume();
@@ -940,6 +944,7 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
         }
         lock_hint_end();
         (void)app_lock_resume_frame(NULL);
+        ble_pt_resume_after_sleep();
         return;
     }
     // 卡挂载有界等待仅为了字体/锁屏图；没有卡仍必须验证。
@@ -963,4 +968,5 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
     lock_hint_end();
     (void)app_lock_resume_frame(NULL);
     app_font_end_lock(&saved);
+    ble_pt_resume_after_sleep();
 }

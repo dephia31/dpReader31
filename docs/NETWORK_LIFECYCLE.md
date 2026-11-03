@@ -60,3 +60,12 @@ sách, tick trang, chuyển trang và hiển thị. Yêu cầu mở sách, chờ
 hoặc chưa có trang đọc được hiển thị thành công sẽ trì hoãn BLE. Tắt Bluetooth
 vẫn được xử lý; liên kết đang hoạt động không bị dừng chỉ vì mở sách mới.
 Không thêm task dò riêng hoặc chờ ghép đôi đồng bộ trong đường mở sách.
+
+Khóa/Sleep giữ một chốt riêng chặn BLE khởi động, scan và kết nối lại. Mỗi
+lần kiểm tra dừng phải thu được kết quả thực tế từ vòng đời NimBLE; chốt đã
+đặt không đồng nghĩa task đã thoát. Nếu dừng lỗi hoặc timeout, máy không vào
+Sleep với BLE chưa được xác nhận dừng; khi còn khóa sẽ tiếp tục thu kết quả
+với lượt chờ ngắn, kể cả khi USB khiến máy không thể Sleep. Không ép xóa
+task SDK đang hoạt động. Mở khóa hoặc hủy thao tác khóa chưa được chấp nhận
+mới trả chốt; việc bật lại vẫn chờ trang đọc hiển thị thành công. Công tắc
+Bluetooth đã lưu không bị ghi tắt, để máy có thể khôi phục lựa chọn sau unlock.

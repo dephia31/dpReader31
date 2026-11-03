@@ -77,6 +77,7 @@ static void epd_poweroff(void){}
 static bool lock_screen_save(uint8_t *f){assert(f==fb);return true;}
 static void lock_screen_authenticate(EpdiyHighlevelState *h,void *t,void *a,bool b){assert(h&&t&&a&&b);++auth;}
 '''
+unit+='\nstatic void ble_pt_resume_after_sleep(void){}\n'
 unit+='#include <string.h>\n'
 for name in ('app_lock_capture_boot_wakeup','lock_wait_for_unlock','app_lock_boot_gate'):
     unit+=function(name,source)+'\n'
