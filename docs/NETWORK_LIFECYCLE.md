@@ -49,8 +49,7 @@ mục, phân trang, làm mới và tải sách. Mỗi yêu cầu trả quyền I
 HTTP/file, nhưng kết nối do OPDS tự bật chỉ được dọn khi đóng giao diện hoặc
 rời trang. Timeout WiFi rảnh không kết thúc phiên duyệt đang mở. Nếu WiFi đã
 được người dùng bật trước khi vào OPDS, đóng OPDS không tự tắt kết nối đó.
-Kết nối thất bại vẫn được dọn để cho phép thử lại; Sleep dùng quy trình tạm
-dừng/khôi phục radio vốn có, không giữ radio chạy xuyên giấc ngủ.
+Kết nối thất bại vẫn được dọn để cho phép thử lại; Sleep tắt WiFi và không tự khôi phục, không giữ radio chạy xuyên giấc ngủ.
 
 Khi Bluetooth được bật và stack khởi động lại (gồm khởi động máy hoặc sau
 Sleep), máy tự yêu cầu kết nối thiết bị đã lưu gần nhất nếu chưa có mục tiêu
@@ -76,11 +75,16 @@ deinit trả kết quả xác nhận. Nếu SDK dừng lỗi, giữ các tài ng
 quét và mở WiFi không được bật radio trong lúc chốt khóa còn giữ. Lỗi dọn
 WiFi tạm giữ driver/netif/quyền nhường BLE để lần dừng sau có thể thu hồi.
 
-Mở khóa chỉ xếp yêu cầu khôi phục. Main xử lý sau tick/chuyển trang/hiển thị
-và dùng cùng điều kiện trang đọc thành công với BLE; lỗi khôi phục có khoảng
-chờ5giây. Phiên mới được người dùng bật sẽ thay thế yêu cầu cũ, không bị
-yêu cầu khôi phục tháo mất. Đóng OPDS trước khi khôi phục hủy phần kết nối
-OPDS sở hữu; kết nối bật sẵn tiếp tục theo quyền người dùng ban đầu.
+Sau khóa/Sleep, WiFi giữ tắt cả khi mở khóa. Không lưu phiên để tự khôi phục,
+không hẹn kết nối lại. Mở khóa chỉ trả chốt sau khi trang đã hiển thị và dọn
+phần tài nguyên còn sót nếu cần. Người dùng bật WiFi hoặc tác vụ mạng được gọi
+rõ ràng mới mở kết nối. Bluetooth vẫn có chính sách khôi phục riêng.
+
+Trên S31, NTP tự động chỉ dùng STA đã kết nối: tối đa một lượt mỗi giờ khi
+thành công, lỗi thử lại sau ít nhất 5 phút và chỉ khi máy rảnh. Không tự bật
+WiFi khi offline, sau Sleep hoặc khi đang khóa. Task chỉnh giờ có stack 6144
+byte, chỉ tồn tại trong lượt chỉnh giờ rồi tự xóa; không giữ SNTP thường trú.
+Chỉnh giờ thủ công vẫn được phép mở kết nối tạm và dọn khi hoàn tất.
 
 Kiểm tra cập nhật, tải/ghi firmware OTA và file đang truyền giữ quyền sử dụng
 mạng đến hết dọn HTTP/file. Khóa thủ công và tự động phải hoãn khi OTA bận,

@@ -70,7 +70,12 @@ void app_time_service_poll(bool idle) {
     read_pico_transfer_get_status(&status);
     bool online = status.state == READ_PICO_TRANSFER_READY &&
                   status.mode == READ_PICO_TRANSFER_MODE_STA && status.network_ready;
+#if KIIKO_BOARD_METALIO47
+    // Automatic calibration borrows an existing connection; never wakes WiFi.
+    if(!online)return;
+#else
     if(!online && status.state!=READ_PICO_TRANSFER_STOPPED)return;
+#endif
     time_t now = time(NULL);
     uint64_t interval=online?CLOCK_ONLINE_INTERVAL:CLOCK_OFFLINE_INTERVAL;
     if (now >= (time_t)s_last_sync && s_last_sync && (uint64_t)now - s_last_sync < interval) return;

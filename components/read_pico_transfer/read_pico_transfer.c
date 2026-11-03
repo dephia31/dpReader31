@@ -605,10 +605,8 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static read_pico_transfer_status_t s_status;
 static read_pico_transfer_cfg_t s_cfg;
 static char s_root[160];
-static read_pico_transfer_cfg_t s_sleep_cfg;
-static char s_sleep_root[160];
 static bool s_shutdown_only;
-static bool s_sleep_paused,s_sleep_blocked,s_sleep_resume_requested,s_sleep_shutdown;
+static bool s_sleep_blocked,s_sleep_resume_requested,s_sleep_shutdown;
 static int64_t s_sleep_resume_retry;
 bool read_pico_transfer_sleep_blocked(void) {
     portENTER_CRITICAL(&s_lock);bool blocked=s_sleep_blocked;portEXIT_CRITICAL(&s_lock);return blocked;
@@ -977,7 +975,7 @@ esp_err_t read_pico_transfer_sync_time_online(uint32_t *utc_seconds) {
     return sync_time_run(utc_seconds, true, false);
 }
 esp_err_t read_pico_transfer_sync_time_auto(uint32_t *utc_seconds) {
-    return sync_time_run(utc_seconds, false, true);
+    return sync_time_run(utc_seconds, true, true);
 }
 bool read_pico_transfer_take_time_sync(uint32_t *utc_seconds) {
     if (!utc_seconds) return false;
@@ -2168,14 +2166,6 @@ bool read_pico_transfer_pause_for_sleep(void) {
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
     if (status.state == READ_PICO_TRANSFER_UPLOADING || s_upload_active) return false;
-    if(!s_shutdown_only && !s_sleep_paused && (s_wifi || s_started || s_http || s_netif)) {
-        s_sleep_cfg=s_cfg;
-        if(s_cfg.root_dir) {
-            strlcpy(s_sleep_root,s_cfg.root_dir,sizeof(s_sleep_root));
-            s_sleep_cfg.root_dir=s_sleep_root;
-        }
-        s_sleep_paused=true;
-    }
     portENTER_CRITICAL(&s_lock);s_sleep_blocked=true;s_sleep_resume_requested=false;portEXIT_CRITICAL(&s_lock);
     s_sleep_shutdown=true;
     bool stopped=read_pico_transfer_try_stop_if_idle();
@@ -2184,10 +2174,10 @@ bool read_pico_transfer_pause_for_sleep(void) {
 }
 
 // 解锁只排队，不在字体/书籍恢复和首帧之前创建无线任务。
-// Unlock queues only; never create radio tasks before font/book restoration and the first frame.
+// Unlock queues gate release/cleanup only; WiFi is never restored automatically.
 void read_pico_transfer_resume_after_sleep(void) {
     portENTER_CRITICAL(&s_lock);
-    if(s_sleep_blocked || s_sleep_paused)s_sleep_resume_requested=true;
+    if(s_sleep_blocked)s_sleep_resume_requested=true;
     portEXIT_CRITICAL(&s_lock);
 }
 void read_pico_transfer_resume_service(void) {
@@ -2199,7 +2189,7 @@ void read_pico_transfer_resume_service(void) {
     // 已解锁后另一个显式会话取得网络，不得用旧恢复请求拆掉它。
     // A new explicit session after unlock supersedes the saved restore; never tear it down.
     if(!s_sleep_blocked && (s_started || s_wifi || s_http || s_netif)) {
-        s_sleep_paused=false;s_sleep_resume_requested=false;return;
+        s_sleep_resume_requested=false;return;
     }
     s_sleep_shutdown=true;
     read_pico_transfer_stop();
@@ -2207,10 +2197,8 @@ void read_pico_transfer_resume_service(void) {
         s_sleep_shutdown=false;s_sleep_resume_retry=esp_timer_get_time()+5000000;return;
     }
     portENTER_CRITICAL(&s_lock);s_sleep_blocked=false;portEXIT_CRITICAL(&s_lock);
-    esp_err_t err=s_sleep_paused?read_pico_transfer_start(&s_sleep_cfg):ESP_OK;
     s_sleep_shutdown=false;
-    if(err==ESP_OK){s_sleep_paused=false;s_sleep_resume_requested=false;s_sleep_resume_retry=0;}
-    else {s_sleep_resume_retry=esp_timer_get_time()+5000000;ESP_LOGW("transfer","resume deferred: %s",esp_err_to_name(err));}
+    s_sleep_resume_requested=false;s_sleep_resume_retry=0;
 }
 
 // KoSync/OPDS 的短请求不应被热点或空闲STA挡住：拆掉纯联网会话再按已保存凭据重连。
@@ -2242,7 +2230,6 @@ void read_pico_transfer_stop(void) {
     transfer_network_guard_t network_scope __attribute__((cleanup(transfer_network_guard_end)))={read_pico_transfer_network_begin()};
     if(!network_scope.held){read_pico_transfer_network_request_stop();return;}
     if (!cancel_time_sync(false)) return;
-    if(!s_sleep_shutdown){s_sleep_paused=false;}
     portENTER_CRITICAL(&s_lock); s_stopping = true; portEXIT_CRITICAL(&s_lock);
     if (s_http) { esp_err_t err=httpd_stop(s_http);if(err!=ESP_OK){set_error(err);return;} s_http = NULL; }
     if (s_started) { esp_err_t err=esp_wifi_stop();if(err!=ESP_OK && err!=ESP_ERR_WIFI_NOT_INIT && err!=ESP_ERR_WIFI_NOT_STARTED){set_error(err);return;} s_started = false; }

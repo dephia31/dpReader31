@@ -89,29 +89,30 @@ static int xTaskCreate(void (*fn)(void*),const char *n,int stack,void *arg,int p
 }
 static void vTaskDelete(void *t){(void)t;}
 '''
+assert 'sync_time_run(utc_seconds, true, true)' in function('read_pico_transfer_sync_time_auto', root/'components/read_pico_transfer/read_pico_transfer.c')
 scheduler+='\n'.join(x for x in (root/'main/time_service.c').read_text().splitlines() if not x.startswith('#include'))
 scheduler+=r'''
 static void reset(void){
  s_loaded=false;s_last_sync=0;s_next_attempt_us=15000000;atomic_store(&s_running,false);
  stored=pending=jobs=pmu_syncs=saves=credential_reads=worker_result=0;task_ok=1;creds=true;mono=15000000;
- network=(read_pico_transfer_status_t){READ_PICO_TRANSFER_STOPPED,READ_PICO_TRANSFER_MODE_STA,false};
+ network=(read_pico_transfer_status_t){READ_PICO_TRANSFER_READY,READ_PICO_TRANSFER_MODE_STA,true};
 }
 int main(void){
  reset();app_time_service_poll(false);assert(!jobs&&!s_loaded);app_time_service_poll(true);assert(jobs==1);
  app_time_service_poll(true);assert(jobs==1);job(NULL);assert(!atomic_load(&s_running));
  app_time_service_poll(true);assert(pmu_syncs==1&&saves==1&&stored==(uint64_t)wall&&jobs==1);
- mono+=3600000000LL;wall+=3600;app_time_service_poll(true);assert(jobs==1); // offline waits6h
+ mono+=3600000000LL;wall+=3600;app_time_service_poll(true);assert(jobs==2); // online hourly
  network=(read_pico_transfer_status_t){READ_PICO_TRANSFER_READY,READ_PICO_TRANSFER_MODE_STA,true};
  app_time_service_poll(true);assert(jobs==2);job(NULL);app_time_service_poll(true);assert(pmu_syncs==2);
  reset();stored=wall-21600;app_time_service_poll(true);assert(jobs==1); // overdue offline
- reset();stored=wall-21599;app_time_service_poll(true);assert(!jobs);
+ reset();stored=wall-3599;app_time_service_poll(true);assert(!jobs);
  for(int state=1;state<=4;++state){reset();network.state=state;network.mode=READ_PICO_TRANSFER_MODE_AP;network.network_ready=true;app_time_service_poll(true);assert(!jobs);}
- reset();creds=false;app_time_service_poll(true);assert(!jobs&&credential_reads==1);app_time_service_poll(true);assert(credential_reads==1);
+ reset();network.state=READ_PICO_TRANSFER_STOPPED;app_time_service_poll(true);assert(!jobs&&!credential_reads);mono+=21600000000LL;app_time_service_poll(true);assert(!jobs&&!credential_reads);
  reset();task_ok=0;app_time_service_poll(true);assert(!jobs&&!atomic_load(&s_running));
  task_ok=1;app_time_service_poll(true);assert(!jobs);mono+=CLOCK_RETRY_US;app_time_service_poll(true);assert(jobs==1);
  reset();worker_result=ESP_FAIL;app_time_service_poll(true);job(NULL);app_time_service_poll(true);assert(!pmu_syncs&&!saves&&jobs==1);
  pending=wall;app_time_service_poll(false);assert(pending);app_time_service_poll(true);assert(!pending&&pmu_syncs==1&&saves==1);
- puts("PASS: actual scheduler hourly online/6h offline, idle gating, single temporary worker, AP/upload exclusion, no-credential/OOM/error backoff and real-sync-only PMU/NVS handoff");
+ puts("PASS: actual S31 scheduler hourly online, offline never starts WiFi, idle gating, single temporary worker, AP/upload exclusion, offline suppression/OOM/error backoff and real-sync-only PMU/NVS handoff");
 }
 '''
 lease=common+r'''
