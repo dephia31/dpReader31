@@ -7633,7 +7633,8 @@ static app_redraw_t action_at(app_ctx_t* ctx, uint16_t x, uint16_t y) {
                                            s_opds_status, sizeof(s_opds_status)) == ESP_OK) {
                         book_store_notify_changed();
                         s_shelf_cache_valid = false;
-                        scan_shelf(ctx);
+                        // 留在OPDS继续选书，书架在下次进入时按revision重扫。
+                        // Stay in OPDS; the shelf refreshes by revision on its next entry.
                     }
                 }
                 return APP_REDRAW_PAGE;
@@ -8013,6 +8014,28 @@ static void book_on_media_ready(app_ctx_t* ctx) {
     s_shelf_cache_valid = false;
     if (s_view == SHELF) s_scan_pending = true;
 }
+// OPDS绘制与动作共用区域；按下和抬起须在同一有效目标。
+// Match OPDS drawing/action regions; press and release must share a valid target.
+static int opds_control_at(uint16_t x,uint16_t y) {
+    if(y<160 && x<140)return 0;
+    if(y<160 && x>500)return 1;
+    int tab=ui_nav_hit(x,y);if(tab>=0)return 10+tab;
+    int pager=ui_pager_hit_at(x,y,1006);if(pager>=0)return 20+pager;
+    size_t count=s_opds_feed?s_opds_feed->count:0;
+    for(int row=0;row<OPDS_ROWS;++row) {
+        size_t index=(size_t)(s_opds_page*OPDS_ROWS+row);
+        if(index>=count)break;
+        if(ui_rect_hit((EpdRect){36,212+row*108,612,96},x,y))return 100+row;
+    }
+    return -1;
+}
+static app_redraw_t opds_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
+    if(ev->type!=UI_GESTURE_TAP || s_scan_pending)return APP_REDRAW_NONE;
+    int start=opds_control_at(ev->x0,ev->y0),end=opds_control_at(ev->x,ev->y);
+    if(start<0 || start!=end)return APP_REDRAW_NONE;
+    return action_at(ctx,ev->x0,ev->y0);
+}
+
 // 控件编号仅用于保持按下与抬起命中同一个目标。/ IDs pair a press with release on the same control.
 static int control_at(app_ctx_t* ctx, uint16_t x, uint16_t y, EpdRect* rect) {
     if (s_view==SHELF && (s_category_menu || ui_rect_hit((EpdRect){24,79,388,74},x,y))) return -1;
@@ -8449,6 +8472,7 @@ static bool reader_notes_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev,app
     *out=notes;return true;
 }
 static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) {
+    if(s_view==OPDS)return opds_gesture(ctx,ev);
     if(s_reader_choice.open)return reader_choice_gesture(ctx,ev);
     app_redraw_t notes;
     if(reader_notes_gesture(ctx,ev,&notes))return notes;
