@@ -36,7 +36,7 @@ Trong **Điều khiển → Phím cứng & Cử chỉ**, hai công tắc độc 
 
 Thanh độ sáng trong bảng nhanh và Cài đặt cũng bật lại đèn khi chọn mức lớn hơn 0. Phím AI hoàn tất chống dội khi thả để các lần nhấn giữ tiếp theo hoạt động; nhấn giữ không chạy thêm nhấn ngắn.
 
-Máy tự lấy giờ khi rảnh qua Wi-Fi đã lưu, lưu giờ vào RTC và hiển thị UTC+7. Cần mạng Internet để lấy giờ mới. Khi chưa kết nối, tác vụ có thể tạm kết nối mạng để đồng bộ; không chạy trong lúc truyền file, cập nhật hoặc các trạng thái đang chiếm kết nối. Đồng bộ khi đang online theo chu kỳ một giờ, khi offline theo chu kỳ sáu giờ; lỗi có thời gian chờ trước khi thử lại.
+Trên S31, máy xét đồng bộ giờ tự động mỗi 24 giờ khi rảnh và chỉ dùng Wi-Fi đã kết nối, lưu giờ vào RTC và hiển thị UTC+7. Offline hoặc đồng bộ lỗi thì bỏ lượt đó, không tự bật Wi-Fi và không thử lại trong chu kỳ. Khóa/Sleep chặn đồng bộ tự động. Chỉnh giờ thủ công và nhu cầu giờ hợp lệ của tác vụ mạng vẫn có đường xử lý riêng; không ngắt truyền tệp hoặc OTA đang hoạt động.
 
 ## Lịch bật/tắt đèn trắng và đèn ấm (S31)
 

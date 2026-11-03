@@ -1,5 +1,16 @@
 # Nhật ký thay đổi / Changelog
 
+## dpReader 1.2.9-vn · 2026-11-03
+
+- Giữ Wi-Fi trong suốt phiên duyệt OPDS; sửa mở danh mục con và tiếp tục duyệt sau khi tải sách.
+- Tự kết nối lại điều khiển BLE đã lưu sau khi trang đọc sẵn sàng; giảm tần suất thử lại khi mất kết nối.
+- Xác nhận dừng Wi-Fi/Bluetooth khi khóa hoặc Sleep; Wi-Fi chỉ bật lại khi người dùng hoặc tác vụ cần mạng yêu cầu. Bảo vệ kiểm tra cập nhật, OTA và truyền tệp khỏi tự ngắt mạng.
+- Đồng bộ giờ tự động mỗi ngày khi Wi-Fi đã kết nối, bỏ lượt khi offline hoặc lỗi và không tự mở Wi-Fi.
+- Thêm lịch bật/tắt và độ sáng riêng cho đèn trắng, đèn ấm; Sleep vẫn tắt cả hai đèn.
+- Vuốt xuống trong nội dung sách để mở bảng cài đặt nhanh.
+- Giảm kiểm tra nền khi đọc, ưu tiên cache và thao tác lật trang; cải thiện tiếp nhận nút nguồn sau Sleep và bảo vệ lịch đèn khi lỗi đọc thiết lập.
+- Gói USB macOS tự đóng cửa sổ Terminal riêng sau khi cài thành công; giữ thông báo khi có lỗi.
+
 ## dpReader 1.2.8-vn · 2026-11-03
 
 - Thêm hai lựa chọn giao diện Đầy đủ và Đơn giản; chế độ đơn giản có thẻ Đọc tiếp lớn, lời chào theo tên và trình chọn sách theo thư mục.

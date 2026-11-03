@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "version": "1.2.8-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "b9cc6a7312971c00cb9c13bbc866adbef27c4c04fa3987768d704c1ea997317d",
+  "size": 4479952,
+  "notes": "dpReader 1.2.8: giao diện Đầy đủ/Đơn giản, tiện ích riêng, chọn sách theo thư mục; cải thiện OPDS và bảo vệ kết nối Wi-Fi/Bluetooth.",
+  "previous_version": "1.2.7-vn"
+}

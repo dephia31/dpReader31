@@ -75,13 +75,13 @@ int main(void){
  wire_u32(packet+40,0);assert(!transfer_ntp_reply(packet,48,nonce,&utc));
  reset(NORMAL);assert(transfer_sync_time_ntp(&utc)==ESP_OK&&utc==1791633600U&&saved_utc==utc&&closes==1&&frees==1&&sends==1&&clock_sets==1);
  reset(FALLBACK);assert(transfer_sync_time_ntp(&utc)==ESP_OK&&closes==2&&frees==2&&sends==4);
- reset(TIMEOUT);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_TIMEOUT&&utc==0&&closes==3&&frees==3&&sends==9&&!clock_sets);
- reset(DNSERR);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_TIMEOUT&&lookups==3&&!opens&&!frees);
- reset(MALFORMED);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_INVALID_RESPONSE&&utc==0&&closes==3&&!clock_sets);
+ reset(TIMEOUT);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_TIMEOUT&&utc==0&&closes==4&&frees==4&&sends==12&&!clock_sets);
+ reset(DNSERR);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_TIMEOUT&&lookups==4&&!opens&&!frees);
+ reset(MALFORMED);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_INVALID_RESPONSE&&utc==0&&closes==4&&!clock_sets);
  reset(OOM);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_NO_MEM&&!opens&&frees==1);
- reset(CONNECTERR);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_TIMEOUT&&opens==3&&closes==3&&frees==3);
+ reset(CONNECTERR);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_TIMEOUT&&opens==4&&closes==4&&frees==4);
  reset(SETOPTERR);assert(transfer_sync_time_ntp(&utc)==ESP_FAIL&&closes==1&&frees==1);
- reset(SENDERR);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_TIMEOUT&&closes==3&&frees==3&&!clock_sets);
+ reset(SENDERR);assert(transfer_sync_time_ntp(&utc)==ESP_ERR_TIMEOUT&&closes==4&&frees==4&&!clock_sets);
  reset(CLOCKERR);assert(transfer_sync_time_ntp(&utc)==ESP_FAIL&&utc==0&&closes==1&&!clock_sets);
  reset(TIMEOUT);assert(transfer_sync_time_ntp_cancelable(&utc,cancel_now)==ESP_ERR_INVALID_STATE&&!opens&&!clock_sets);
  reset(TIMEOUT);assert(transfer_sync_time_ntp_cancelable(&utc,cancel_during_receive)==ESP_ERR_INVALID_STATE&&micro_clock==200000&&closes==1&&!clock_sets);

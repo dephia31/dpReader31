@@ -160,7 +160,7 @@ let currentReleaseInfo = null;
 // English: Allow only archived versions so current and previous firmware install independently.
 function selectedReleaseFolder() {
   const version = document.getElementById("release-version")?.value || "";
-  return (version === "1.2.4-vn" || version === "1.1.8-vn" || version === "1.1.7-vn" || version === "1.1.6-vn") ? `releases/${version}` : "releases";
+  return /^\d+\.\d+\.\d+-vn$/.test(version) ? `releases/${version}` : "releases";
 }
 const releaseVersionSelect = document.getElementById("release-version");
 releaseVersionSelect?.addEventListener("change", () => {
