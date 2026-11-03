@@ -4,6 +4,10 @@ import subprocess, tempfile
 from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1]
 unit=r'''
+#define METALIO_CPU_GUARD_OR_RETURN(...) ((void)0)
+static _Bool s_lock_power_wake_pending;
+static void read_pico_pmu_latch_power_wakeup(void){}
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>

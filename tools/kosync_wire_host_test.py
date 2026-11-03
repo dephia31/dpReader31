@@ -7,6 +7,8 @@ root=Path(__file__).resolve().parents[1]
 ns={'SOURCE':root/'main/book/kosync_client.c'}
 tree=ast.parse((root/'tools/kosync_progress_host_test.py').read_text());node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='function');exec(compile(ast.Module(body=[node],type_ignores=[]),'extract','exec'),ns)
 prefix=r'''
+#define TRANSFER_NETWORK_GUARD_OR_RETURN(...) ((void)0)
+
 #include "kosync_client.h"
 #include "book_sync_position.h"
 #include "book_epub.h"

@@ -34,11 +34,12 @@ static bool version_parts(const char *s, unsigned parts[4]) {
         }
         return false;
     }
-    if (strncmp(s, "-rc", 3)) return false;
-    s += 3;
+    if (!strncmp(s,"RC",2)) s+=2;
+    else if (!strncmp(s,"-rc",3)) s+=3;
+    else return false;
     if (!isdigit((unsigned char)*s)) return false;
     char *end; unsigned long n = strtoul(s, &end, 10);
-    if (*end || n > 65535) return false;
+    if ((*end && strcmp(end,"-vn")) || n > 65535) return false;
     parts[3] = (unsigned)n;
     return true;
 }

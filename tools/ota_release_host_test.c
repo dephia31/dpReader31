@@ -6,6 +6,11 @@
 #include <string.h>
 static const char *valid = "{\"schema\":1,\"version\":\"0.3.3-rc79\",\"project\":\"" PICO_OTA_PROJECT "\",\"board\":\"" PICO_OTA_BOARD "\",\"layout\":\"" PICO_OTA_LAYOUT "\",\"minimum_base_version\":\"0.3.3-rc72\",\"url\":\"https://wegooo-cell.github.io/read-pico-reader/Pico-update-0.3.3-rc79.bin\",\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"notes\":\"Test release\",\"size\":4096}";
 int main(void) {
+ assert(pico_version_compare("1.2.9-vn","1.2.9RC26-vn")>0);
+ assert(pico_version_compare("1.2.9RC26-vn","1.2.9-vn")<0);
+ assert(pico_version_compare("1.2.9RC10-vn","1.2.9RC2-vn")>0);
+ assert(pico_version_compare("1.2.10RC1-vn","1.2.9-vn")>0);
+ assert(pico_version_compare("1.2.8-vn","1.2.9RC1-vn")<0);
  pico_release_t release;
  assert(pico_release_parse(valid,strlen(valid),&release)==ESP_OK);
  assert(release.size==4096 && !strcmp(release.version,"0.3.3-rc79"));

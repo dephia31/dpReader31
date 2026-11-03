@@ -38,6 +38,14 @@ enum=s[s.index('typedef enum { SETTINGS_MAIN'):s.index('static settings_page_t s
 macros='\n'.join(re.findall(r'^#define SETTINGS_(?:ROW_H|WIRELESS_ROWS|DISPLAY_ROWS|PERSONAL_ROWS|CONTROLS_ROWS|MAINTENANCE_ROWS|WIRELESS_Y|DISPLAY_Y|PERSONAL_Y|CONTROLS_Y|MAINTENANCE_Y)[^\n]*',s,re.M))
 layout=s[s.index('typedef struct {\n    EpdRect size, preview;'):s.index('static system_font_layout_t system_font_layout(')]
 unit=r'''
+typedef int esp_err_t;
+#define ESP_OK 0
+static _Bool simple_ui;
+static _Bool app_settings_simple_ui(void){return simple_ui;}
+static int app_settings_set_simple_ui(_Bool on){simple_ui=on;return 0;}
+static void app_book_release_shelf_cache(void){}
+static void app_home_cover_mode_changed(void){}
+static void app_home_release_clock_cache(void){}
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
