@@ -123,6 +123,8 @@ esp_err_t read_pico_pmu_keys_pause(void) {
 }
 void read_pico_pmu_keys_resume(void) {
     metalio_ai_clear();
+    // Refresh the gauge on the first UI poll after restoring Sleep input.
+    battery_at=gauge_at=0;
     // 按原厂等待输入稳定；丢弃改方向造成的假边沿，不丢真实按键队列。
     // Follow the vendor input-settle delay; discard direction-change edges, retaining real queued keys.
     vTaskDelay(pdMS_TO_TICKS(20));
@@ -216,24 +218,9 @@ static void battery(void) {
     if (!charger_initialized && now>=charger_retry_at) {
         (void)charger_init(); charger_retry_at=now+30000000;
     }
+    const unsigned was_charge_state=state.charge_state;
     const bool was_charging=(state.flags&PMU_STATUS_CHARGING_ACTIVE)!=0;
     uint8_t r[2]; state.flags &= ~PMU_STATUS_CHARGING_ACTIVE; state.quick_ok=false;
-    // SOC/电压15秒采样；充电状态仍每2秒，失败的SOC下次立即重试。
-    // Sample SOC/voltage every15s; retain2s charging checks and retry invalid gauge data next time.
-    if (!gauge_at || now<gauge_at || now-gauge_at>=15000000 || !(state.flags&PMU_STATUS_BATTERY_VALID)) {
-    gauge_at=now;
-    state.flags &= ~PMU_STATUS_BATTERY_VALID;
-    if (metalio_read(0x55,0x08,r,2)==ESP_OK) {
-        unsigned mv=r[0]|r[1]<<8;
-        if (mv>=2500 && mv<=5000) {
-            // 百分比只取BQ27220的StateOfCharge(0x2C)；电压仅作读数合理性检查，不换算SOC。
-            // Percentage comes only from BQ27220 StateOfCharge(0x2C); voltage validates the sample, never estimates SOC.
-            state.battery_mv=mv; state.flags|=PMU_STATUS_BATTERY_VALID; unsigned soc;
-            if (metalio_read(0x55,0x2c,r,2)==ESP_OK && (soc=(unsigned)(r[0]|r[1]<<8))<=100) state.soc_permille=soc*10;
-            else state.flags &= ~PMU_STATUS_BATTERY_VALID;
-        }
-    }
-    }
     // 官方BQ27220说明：0x0C为有符号mA，±5mA死区；VBUS_STAT因关闭DPDM不能判断插电。
     // Vendor BQ27220 guidance:0x0C is signed mA with a±5mA deadband; disabled DPDM makes VBUS_STAT unsuitable for detecting input.
     const bool current_ok=metalio_read(0x55,0x0c,r,2)==ESP_OK;
@@ -255,6 +242,24 @@ static void battery(void) {
     else charging=was_charging&&charge_valid_at&&now-charge_valid_at<6000000;
     state.charge_state=known?(charging?PMU_CHARGE_CHARGING:PMU_CHARGE_NOT_CHARGING):PMU_CHARGE_UNKNOWN;
     if(charging)state.flags|=PMU_STATUS_CHARGING_ACTIVE;
+    // SOC/电压60秒采样；低电量15秒，充电变化立即刷新，失败下次重试。
+    // Sample SOC/voltage every60s, or15s at <=10%; refresh on charging changes and retry invalid data next poll.
+    const int64_t gauge_interval_us=state.soc_permille<=100?INT64_C(15000000):INT64_C(60000000);
+    if (!gauge_at || now<gauge_at || now-gauge_at>=gauge_interval_us ||
+        was_charge_state!=state.charge_state || !(state.flags&PMU_STATUS_BATTERY_VALID)) {
+    gauge_at=now;
+    state.flags &= ~PMU_STATUS_BATTERY_VALID;
+    if (metalio_read(0x55,0x08,r,2)==ESP_OK) {
+        unsigned mv=r[0]|r[1]<<8;
+        if (mv>=2500 && mv<=5000) {
+            // 百分比只取BQ27220的StateOfCharge(0x2C)；电压仅作读数合理性检查，不换算SOC。
+            // Percentage comes only from BQ27220 StateOfCharge(0x2C); voltage validates the sample, never estimates SOC.
+            state.battery_mv=mv; state.flags|=PMU_STATUS_BATTERY_VALID; unsigned soc;
+            if (metalio_read(0x55,0x2c,r,2)==ESP_OK && (soc=(unsigned)(r[0]|r[1]<<8))<=100) state.soc_permille=soc*10;
+            else state.flags &= ~PMU_STATUS_BATTERY_VALID;
+        }
+    }
+    }
     state.status_ok=(state.flags&PMU_STATUS_BATTERY_VALID)!=0 || charger_ok || current_ok || (!known&&charging);
     // 单次I2C失败仅短暂保留已确认图标；明确拔电/停止/OTG立即清除，六秒内无有效依据则过期。
     // Briefly retain a confirmed icon through an I2C fault; explicit discharge/disable/OTG clears it immediately, and evidence expires within six seconds.

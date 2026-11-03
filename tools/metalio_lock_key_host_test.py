@@ -23,7 +23,7 @@ typedef int esp_err_t;
 static struct {unsigned key_state;} state;
 static bool held,long_sent,candidate,ready=true,keys_paused;
 static uint32_t key_epoch,s_lock_key_serial;
-static int64_t candidate_since,down_since,clock_us;
+static int64_t candidate_since,down_since,clock_us,battery_at,gauge_at;
 static int key_lock,action,io_error,poll_error;
 static power_double_click_t s_wake_click;
 static uint16_t inputs=0xffff;
@@ -76,7 +76,7 @@ int main(void){
  reset();sample(true,10);assert(candidate&&!held&&read_pico_pmu_keys_pause()==ESP_ERR_INVALID_STATE&&!keys_paused);
  // Masked output latches cannot synthesize a key; resumption starts from the real input level.
  reset();assert(read_pico_pmu_keys_pause()==ESP_OK);sample(true,0);sample(true,1000);assert(!held&&!action);
- inputs=0xffff;read_pico_pmu_keys_resume();assert(!keys_paused&&!held&&!read_pico_pmu_take_key_wakeup());
+ inputs=0xffff;battery_at=gauge_at=123;read_pico_pmu_keys_resume();assert(!battery_at&&!gauge_at);assert(!keys_paused&&!held&&!read_pico_pmu_take_key_wakeup());
  sample(true,1100);sample(true,1130);sample(false,1200);sample(false,1230);assert(action==READ_PICO_PMU_KEY_SHORT);
  assert(read_pico_pmu_keys_pause()==ESP_ERR_INVALID_STATE&&action==READ_PICO_PMU_KEY_SHORT&&!keys_paused);
  assert(!read_pico_pmu_take_key_wakeup());sample(true,1300);sample(true,1330);assert(read_pico_pmu_keys_pause()==ESP_ERR_INVALID_STATE);

@@ -537,7 +537,7 @@ static void health_task(void *arg) {
     portENTER_CRITICAL(&state_lock);
     if (!media_invalidated && cached_info.mounted) {
         if (err == ESP_OK || err == ESP_ERR_NO_MEM || err == ESP_ERR_INVALID_ARG) {
-            health_failures = 0; health_due_ms = now + 10000;
+            health_failures = 0; health_due_ms = now + 60000;
         }
         else {
             if (!health_failures++) health_failed_ms = now;

@@ -292,10 +292,10 @@ int main(void) {
     puts("PASS: SD profiles/RTC and DMA, asynchronous manual recovery from failed/paused/removal states, lifecycle owners/OOM/unmount failure/retry/no autoformat/256GiB");
     card=&test_card;cached_info.mounted=true;media_invalidated=suspended=space_busy=health_busy=false;probe_state=2;
     health_due_ms=0;health_failures=0;health_result=ESP_OK;health_clock_us=1000000;
-    read_pico_sd_poll_health();unsigned healthy_count=health_checks;assert(health_due_ms==11000);
-    health_clock_us=10999000;read_pico_sd_poll_health();assert(health_checks==healthy_count);
-    health_clock_us=11000000;health_result=ESP_ERR_TIMEOUT;read_pico_sd_poll_health();assert(health_due_ms==11500&&!media_invalidated);
-    health_clock_us=11500000;read_pico_sd_poll_health();assert(!media_invalidated);
-    health_clock_us=12000000;read_pico_sd_poll_health();assert(media_invalidated);
+    read_pico_sd_poll_health();unsigned healthy_count=health_checks;assert(health_due_ms==61000);
+    health_clock_us=60999000;read_pico_sd_poll_health();assert(health_checks==healthy_count);
+    health_clock_us=61000000;health_result=ESP_ERR_TIMEOUT;read_pico_sd_poll_health();assert(health_due_ms==61500&&!media_invalidated);
+    health_clock_us=61500000;read_pico_sd_poll_health();assert(!media_invalidated);
+    health_clock_us=62000000;read_pico_sd_poll_health();assert(media_invalidated);
     return 0;
 }

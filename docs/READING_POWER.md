@@ -17,13 +17,13 @@ trần60giây. Liên kết thành công hoặc yêu cầu nối lại thiết b�
 khoảng chờ. Vì vậy remote quay lại vùng phủ sóng sau nhiều lỗi có thể cần chờ
 lâu hơn; thao tác nối thủ công không phải chờ chu kỳ tối đa.
 
-SOC/điện áp cập nhật mỗi15giây; trạng thái sạc vẫn mỗi2giây. SOC không hợp lệ
-được thử lại ở lượt2giây kế tiếp. Kiểm tra CMD13 khi thẻ tốt cách nhau10giây;
+SOC/điện áp cập nhật mỗi60giây; khi pin còn tối đa10% dùng chu kỳ15giây. Sau Sleep hoặc đổi trạng thái sạc, lượt kiểm tra kế tiếp cập nhật ngay; trạng thái sạc vẫn mỗi2giây. SOC không hợp lệ
+được thử lại ở lượt2giây kế tiếp. Kiểm tra CMD13 khi thẻ tốt cách nhau60giây;
 chuỗi lỗi vẫn thử lại500ms và giữ quy trình dừng consumer trước phục hồi thẻ.
 Kiểm tra hiện diện và lỗi I/O thực tế tiếp tục theo đường riêng. Lỗi bus khi
 không có I/O và thẻ vẫn báo hiện diện có thể được phát hiện muộn hơn trước.
 
-Font SD đang hoạt động ổn định được kiểm tra metadata tối đa mỗi30giây. Đổi
+Font SD đang hoạt động ổn định được kiểm tra metadata tối đa mỗi120giây. Đổi
 lựa chọn, lỗi font, phục hồi thẻ hoặc wake vẫn dùng đường xử lý ngay. File thay
 đổi ngoài các đường thông báo có thể chờ đến kỳ kiểm tra tiếp theo.
 

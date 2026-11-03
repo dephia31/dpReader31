@@ -105,14 +105,14 @@ int main(void){
  app_font_end_lock(&saved);assert(s_reading&&!system_scale);
  // Imported reading face disappears while already active: fallback once and remain stable.
  strcpy(reader,"/fonts/reader.ttf");missing[0]=0;app_font_activate_reading();strcpy(missing,reader);
- clock_us+=30000001;assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
+ clock_us+=120000001;assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
  for(int i=0;i<100;++i)assert(!app_font_retry_active()&&opens==before);
  missing[0]=0;assert(app_font_retry_active());strcpy(corrupt,reader);active[0]=0;
- clock_us+=30000001;assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
+ clock_us+=120000001;assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
  for(int i=0;i<100;++i)assert(!app_font_retry_active()&&opens==before);
  // 手动重新加载同一文件立即解除旧拒绝，毋须改名或重启。/ Manual reloading clears old rejection without renaming/reboot.
  corrupt[0]=0;assert(ttf_font_open(reader)==ESP_OK);assert(!app_font_retry_active()&&!s_rejected[0]);
- active[0]=0;transient_failures=1;clock_us+=30000001;assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
+ active[0]=0;transient_failures=1;clock_us+=120000001;assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
  for(int i=0;i<100;++i)assert(!app_font_retry_active()&&opens==before);
  clock_us+=1000000;assert(app_font_retry_active()&&!strcmp(active,reader)&&!s_rejected[0]);
  active[0]=0;transient_failures=4;assert(app_font_retry_active());
@@ -121,7 +121,7 @@ int main(void){
  ++clock_us;assert(app_font_retry_active()||ttf_font_is_builtin());}
  assert(!strcmp(active,reader)&&!s_rejected[0]);
  strcpy(chosen,"/fonts/system.ttf");app_font_activate_system();strcpy(missing,chosen);
- clock_us+=30000001;assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
+ clock_us+=120000001;assert(app_font_retry_active()&&ttf_font_is_builtin());before=opens;
  for(int i=0;i<100;++i)assert(!app_font_retry_active()&&opens==before);
  missing[0]=0;
  strcpy(chosen,"/fonts/system.ttf");recovery=true;
@@ -142,7 +142,7 @@ int main(void){
  for(int i=0;i<100;++i){app_font_retry_active();assert(!strcmp(active,reader));}
  app_font_begin_lock(&saved);assert(!strcmp(active,chosen)&&system_face);app_font_end_lock(&saved);assert(!strcmp(active,reader));
  s_stable_check_us=0;app_font_retry_active();unsigned stat_before=stats;
- for(int i=0;i<39;++i){clock_us+=750000;app_font_retry_active();assert(stats==stat_before);}
+ for(int i=0;i<159;++i){clock_us+=750000;app_font_retry_active();assert(stats==stat_before);}
  clock_us+=750000;app_font_retry_active();assert(stats==stat_before+1);
  app_font_recover_media();assert(stats==stat_before+2);
  puts("PASS: ticket/wake font contexts, paused IO, manual retry clears transient rejection, abnormal boot protection and saved choices retained");

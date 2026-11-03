@@ -85,7 +85,13 @@ int main(void){
  soc=37;for(mv=2500;mv<=5000;mv+=100){sample();assert((state.flags&PMU_STATUS_BATTERY_VALID)&&state.soc_permille==370);}
  mv=4000;fail_reg=0x2c;sample();assert(!(state.flags&PMU_STATUS_BATTERY_VALID));fail_reg=-1;soc=65;sample();
  int cadence_before=reads;clock_us+=2000000;battery();assert(reads==cadence_before+4);
- clock_us+=15000000;cadence_before=reads;battery();assert(reads==cadence_before+6);
+ clock_us+=57999999;cadence_before=reads;battery();assert(reads==cadence_before+4);
+ clock_us+=2000000;cadence_before=reads;battery();assert(reads==cadence_before+6);
+ // Charging changes refresh gauge in the same2s poll; low battery retains15s sampling.
+ raw=0;clock_us+=2000000;cadence_before=reads;battery();assert(reads==cadence_before+6);
+ soc=5;sample();clock_us+=14000000;cadence_before=reads;battery();assert(reads==cadence_before+4);
+ clock_us+=2000000;cadence_before=reads;battery();assert(reads==cadence_before+6);
+ soc=65;sample();
  int before=reads;clock_us+=1999999;battery();assert(reads==before);clock_us++;battery();assert(reads>before);
  for(unsigned stage=0;stage<4;stage++){
   raw=stage<<3;ctrl=0x20;otg=0;sample();assert(!!(state.flags&PMU_STATUS_CHARGING_ACTIVE)==(stage!=0));

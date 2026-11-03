@@ -152,10 +152,10 @@ bool app_font_retry_active(void) {
     int64_t now=esp_timer_get_time();
     bool stable=font_allowed()&&read_pico_sd_io_ready()&&ttf_font_ready()&&
         !ttf_font_path_is_builtin(wanted)&&!strcmp(wanted,ttf_font_path())&&!s_rejected[0];
-    // 稳定字体最多30秒检查一次；选择变化、失效和恢复仍立即处理。
-    // Check a stable face at most every30s; changed choices, failures and recovery remain immediate.
-    if(stable&&s_stable_check_us&&now<s_stable_check_us&&s_stable_check_us-now<=30000000)return false;
-    s_stable_check_us=stable?now+30000000:0;
+    // 稳定字体最多120秒检查一次；选择变化、失效和恢复仍立即处理。
+    // Check a stable face at most every120s; changed choices, failures and recovery remain immediate.
+    if(stable&&s_stable_check_us&&now<s_stable_check_us&&s_stable_check_us-now<=120000000)return false;
+    s_stable_check_us=stable?now+120000000:0;
 #endif
     return s_reading ? app_font_activate_reading() : app_font_activate_system();
 }
