@@ -102,9 +102,34 @@ fi
 "$PYTHON_USB" flash_usb.py "$@"
 FLASH_RESULT=$?
 echo
-if [ "$FLASH_RESULT" -ne 0 ]; then echo 'USB flash failed. Read the error above.'; fi
-if [ -t 0 ]; then read -r -p 'Press Enter to close...'; fi
-exit "$FLASH_RESULT"
+if [ "$FLASH_RESULT" -ne 0 ]; then
+  echo 'USB flash failed. Read the error above.'
+  if [ -t 0 ]; then read -r -p 'Press Enter to close...'; fi
+  exit "$FLASH_RESULT"
+fi
+# Close only this launcher's dedicated Terminal window, after the shell exits.
+# A shared window with other tabs stays open.
+if [ "${TERM_PROGRAM:-}" = "Apple_Terminal" ] && [ -t 0 ]; then
+  FLASH_TTY="$(tty)"
+  /usr/bin/osascript - "$FLASH_TTY" >/dev/null 2>&1 <<'APPLESCRIPT' &
+on run argv
+  delay 1
+  if application "Terminal" is running then
+    tell application "Terminal"
+      repeat with flashWindow in windows
+        if (count of tabs of flashWindow) is 1 then
+          if tty of selected tab of flashWindow is item 1 of argv then
+            close flashWindow saving no
+            return
+          end if
+        end if
+      end repeat
+    end tell
+  end if
+end run
+APPLESCRIPT
+fi
+exit 0
 '''
     (output / 'FLASH_USB.command').write_text(mac)
     (output / 'FLASH_USB.command').chmod(0o755)
