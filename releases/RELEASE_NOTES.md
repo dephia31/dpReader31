@@ -1,12 +1,7 @@
-# dpReader 1.2.9-vn
+## dpReader 1.3.0-vn · 2026-11-04
 
-- Giữ Wi-Fi trong suốt phiên duyệt OPDS; sửa mở danh mục con và tiếp tục duyệt sau khi tải sách.
-- Tự kết nối lại điều khiển BLE đã lưu sau khi trang đọc sẵn sàng; giảm tần suất thử lại khi mất kết nối.
-- Xác nhận dừng Wi-Fi/Bluetooth khi khóa hoặc Sleep; Wi-Fi chỉ bật lại khi người dùng hoặc tác vụ cần mạng yêu cầu. Bảo vệ kiểm tra cập nhật, OTA và truyền tệp khỏi tự ngắt mạng.
-- Đồng bộ giờ tự động mỗi ngày khi Wi-Fi đã kết nối, bỏ lượt khi offline hoặc lỗi và không tự mở Wi-Fi.
-- Thêm lịch bật/tắt và độ sáng riêng cho đèn trắng, đèn ấm; Sleep vẫn tắt cả hai đèn.
-- Vuốt xuống trong nội dung sách để mở bảng cài đặt nhanh.
-- Giảm kiểm tra nền khi đọc, ưu tiên cache và thao tác lật trang; cải thiện tiếp nhận nút nguồn sau Sleep và bảo vệ lịch đèn khi lỗi đọc thiết lập.
-- Gói USB macOS tự đóng cửa sổ Terminal riêng sau khi cài thành công; giữ thông báo khi có lỗi.
-
-TF/OTA dùng `dpReader_metalio47_firmware.bin`. Gói USB có `FLASH_USB.command` cho macOS và `FLASH_USB.bat` cho Windows; kiểm tra đúng máy và giữ sách/thiết lập trên bố cục tương thích. Giữ bản chính thức 1.2.8-vn tại mục phiên bản trước.
+- **Cá nhân hóa → Giao diện** có ba lựa chọn. **Đầy đủ** dùng Home với các thành phần và thanh điều hướng đầy đủ. **Đơn giản** dùng thẻ Đọc tiếp và thẻ Tiện Ích. **Đơn giản hoàn toàn** dành Home cho một thẻ Đọc tiếp lớn, ẩn Tiện Ích và hai nút dưới cùng.
+- Trong **Đơn giản hoàn toàn**, bìa sách đã cache làm nền ngoài thẻ trắng kiểu màn khóa. Đồng hồ, chữ ký và pin nằm trong đầu thẻ với cỡ 30 px. Lời chào căn trái trên bìa, tên người dùng lớn hơn. Tên sách và tác giả nằm dưới bìa, mỗi phần tối đa hai dòng. Phần còn chỗ hiển thị trích đoạn hoặc tên chương đang đọc.
+- Vuốt lên trên Home ở hai giao diện đơn giản, kể cả trên thẻ Đọc tiếp, để mở **Pop menu** gồm Mở sách, Truyền file, OPDS và Cài đặt. Vuốt xuống trên Home ở cả ba giao diện để mở **Quick Settings**.
+- Chạm vùng nội dung để đóng menu đọc sách mà không lật trang. Chạm trang chữ lật ngay khi nhấc tay, vẫn giữ chạm đôi để phóng to hình minh họa.
+- Giảm ngưỡng vuốt xuống 60 px. Font đọc mặc định là **Bitter Regular tích hợp, 74 px**. Máy đã lưu tùy chọn font/cỡ chữ tiếp tục dùng lựa chọn đã lưu.
