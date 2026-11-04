@@ -18,21 +18,19 @@
 
 ## Hai thiết kế giao diện: Đầy đủ và Đơn giản
 
-Hai giao diện dùng chung trình đọc TXT/EPUB, thiết lập chữ, tiến độ và cơ chế chuẩn bị trang. Bạn chọn cách tìm sách và bố trí Home phù hợp với mình; chuyển giao diện không tạo một bản tiến độ đọc riêng.
+Ba giao diện dùng chung trình đọc TXT/EPUB, thiết lập chữ và tiến độ đọc.
 
-| | Đầy đủ | Đơn giản |
+| Giao diện | Home | Cách mở sách |
 |---|---|---|
-| Home | Đọc tiếp, Tiện Ích và bốn sách từng đọc | Lời chào theo tên, thẻ Đọc tiếp lớn; không có hàng sách gần đây |
-| Tìm sách | Tủ sách với bìa và các công cụ quản lý | Duyệt thư mục TXT/EPUB, danh sách tám mục mỗi trang |
-| Tiện Ích | Bốn shortcut tùy chọn | Mở sách/Thêm sách cố định và hai shortcut tùy chọn |
-| Tùy chỉnh | Nhãn và viền icon của Home đầy đủ | Nhãn, viền và shortcut lưu riêng cho Home đơn giản |
-| Phù hợp | Người muốn xem bìa, lịch sử và quản lý thư viện | Người muốn ít thành phần, mở sách trực tiếp theo thư mục |
+| Đầy đủ | Thẻ Đọc tiếp, Tiện Ích và sách gần đây | Tủ sách với bìa và công cụ quản lý |
+| Đơn giản | Thẻ Đọc tiếp, Tiện Ích và hai nút điều hướng | Duyệt thư mục TXT/EPUB |
+| Đơn giản hoàn toàn | Một thẻ Đọc tiếp lớn trên nền bìa sách | Chạm thẻ để đọc tiếp hoặc vuốt lên mở Pop menu |
 
-Mở **Cài đặt → Cá nhân hóa → Giao diện đơn giản**: bật để dùng Đơn giản, tắt để dùng Đầy đủ. Lựa chọn được giữ qua khởi động lại và Sleep; nhập bản sao hoặc khôi phục thiết lập thông thường không tự chuyển chế độ đã chọn.
+Chọn chế độ tại **Cài đặt → Cá nhân hóa → Giao diện**. Lựa chọn được giữ qua khởi động lại, Sleep và khôi phục thiết lập thông thường.
 
 ### Giao diện Đơn giản
 
-Bật tại **Cài đặt → Cá nhân hóa → Giao diện đơn giản**. Thanh điều hướng còn
+Chọn **Đơn giản** tại **Cài đặt → Cá nhân hóa → Giao diện**. Thanh điều hướng còn
 **Đọc tiếp** và **Cài đặt**; thẻ Đọc tiếp lớn hơn, không có hàng sách gần đây.
 Thẻ Tiện Ích có bốn slot cùng kiểu tag
 với Home thường: hai slot đầu cố định **Mở sách / Thêm sách**, hai slot sau
@@ -49,14 +47,13 @@ trong PSRAM, không tải bìa hay lập chỉ mục toàn bộ thư viện. R�
 phóng danh sách. Thư mục trống hoặc không có TXT/EPUB sẽ hiện thông báo.
 
 Chế độ này giữ tiến độ đọc và tác vụ chuẩn bị trang, ngừng quét giá sách/lịch sử
-cho Home và giải phóng cache giá sách cũ. Home vẫn giữ một bìa đọc tiếp. Tắt công
-tắc để trở lại giao diện thường và các shortcut đã lưu. Mức RAM thực tế cần đo
+cho Home và giải phóng cache giá sách cũ. Home vẫn giữ một bìa đọc tiếp. Chọn **Đầy đủ** để trở lại giao diện thường và các shortcut đã lưu. Mức RAM thực tế cần đo
 trên thiết bị; tùy chọn này không tắt tác vụ đọc thẻ, nguồn, phím hay màn hình.
 
 Tên sách dài trong Home đơn giản có tối đa ba dòng và dấu lược
 cuối nếu vượt quá vùng hiển thị. Chế độ giao diện đã chọn được lưu riêng: khởi
 động lại, Sleep/wake, nhập bản sao hoặc khôi phục thiết lập thông thường không
-tự thay đổi lựa chọn đó. Chỉ công tắc Giao diện đơn giản đổi lựa chọn hiện tại.
+tự thay đổi lựa chọn đó. Đổi chế độ trong mục **Giao diện**.
 Xóa toàn bộ NVS/flash hoặc phần mềm cũ không hỗ trợ tùy chọn này nằm ngoài phạm
 vi bảo đảm; firmware không thể suy ra dữ liệu đã bị xóa hoàn toàn.
 
@@ -72,6 +69,13 @@ Quy tắc bật/tắt WiFi, Bluetooth và bảo vệ tác vụ đang chạy xem
 [NETWORK_LIFECYCLE.md](docs/NETWORK_LIFECYCLE.md).
 
 ## 📸 Giao diện dpReader
+
+| Đơn giản | Đơn giản hoàn toàn |
+| :---: | :---: |
+| <img src="docs/screenshots/10_home_simple_preview.png" width="320" alt="Bản xem trước Home Đơn giản với thẻ Đọc tiếp và Tiện Ích"> | <img src="docs/screenshots/11_home_fully_simple_preview.png" width="320" alt="Bản xem trước Home Đơn giản hoàn toàn với thẻ Đọc tiếp kiểu vé"> |
+
+Hai ảnh trên là bản xem trước dựng từ bố cục firmware 1.3.0 với dữ liệu sách mẫu. Vuốt lên trên Home ở cả hai chế độ để mở Pop menu. Vuốt xuống để mở Quick Settings.
+
 
 Ảnh Home, thiết lập Tiện Ích và Đèn nền & Rung được lấy trực tiếp từ bộ đệm màn hình thiết bị chạy giao diện 1.2.5. Các ảnh minh họa cũ bên dưới sẽ được thay dần theo giao diện hiện tại.
 
