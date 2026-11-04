@@ -10,7 +10,7 @@
 #include "app.h"
 
 #define UI_QUICK_EDGE_PX 32
-#define UI_QUICK_SWIPE_PX 72
+#define UI_QUICK_SWIPE_PX 60
 #if KIIKO_BOARD_METALIO47
 #define UI_QUICK_HEIGHT 384
 #define UI_QUICK_BUTTON_COUNT 5

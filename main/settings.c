@@ -189,6 +189,7 @@ static uint32_t s_pin_locked_at;
 #endif
 static bool s_home_full_refresh;
 static bool s_simple_ui;
+static bool s_simple_full_ui;
 static bool s_simple_choice_known;
 static uint8_t s_simple_utilities[2];
 static bool s_simple_labels=true,s_simple_border=true;
@@ -215,7 +216,8 @@ static char s_opds_user[64];
 static char s_opds_pass[64];
 static char s_avatar[288];
 static char s_status_signature[96];
-static char s_font[FONT_PATH_MAX];
+#define DEFAULT_READER_FONT "/builtin/Bitter-Regular.ttf"
+static char s_font[FONT_PATH_MAX] = DEFAULT_READER_FONT;
 static char s_system_font[FONT_PATH_MAX];
 static uint8_t s_system_size = 100;
 static uint8_t s_system_contrast = 100;
@@ -225,7 +227,7 @@ static char s_bookmark[288];
 static uint8_t s_last_wake;
 static uint8_t s_last_boot;
 static bool s_pickup_wake;
-static uint8_t s_book_px = 48;
+static uint8_t s_book_px = BOOK_READER_PX_DEFAULT;
 static uint8_t s_book_weight = 2;
 static int8_t s_book_weight_fine;
 static bool s_book_antialias = true;
@@ -328,7 +330,7 @@ static bool set_media_dir(char *dst, const char *key, const char *path) {
 }
 
 static uint8_t valid_book_px(uint8_t px) {
-    return px >= BOOK_READER_PX_MIN && px <= BOOK_READER_PX_MAX ? px : 48;
+    return px >= BOOK_READER_PX_MIN && px <= BOOK_READER_PX_MAX ? px : BOOK_READER_PX_DEFAULT;
 }
 
 /* Reset Sleep once per firmware version, then retain the user's choices.
@@ -374,7 +376,7 @@ static void simple_mode_load(void) {
     nvs_handle_t h;uint8_t value=0;
     esp_err_t err=nvs_open(SIMPLE_UI_NS,NVS_READONLY,&h);
     if(err==ESP_OK){err=nvs_get_u8(h,"mode",&value);nvs_close(h);}
-    if(err==ESP_OK&&value<=1){s_simple_ui=value==1;s_simple_choice_known=true;return;}
+    if(err==ESP_OK&&value<=2){s_simple_ui=value!=0;s_simple_full_ui=value==2;s_simple_choice_known=true;return;}
     if(err!=ESP_ERR_NVS_NOT_FOUND){if(!s_simple_choice_known)s_simple_ui=true;return;}
     if(s_simple_choice_known)return;
     err=nvs_open(NVS_NS,NVS_READONLY,&h);
@@ -551,7 +553,7 @@ void app_settings_init(void) {
         strlcpy(s_fonts_dir,"/sdcard/fonts",sizeof(s_fonts_dir));
     size_t font_len = sizeof(s_font);
     if (nvs_get_str(h, NVS_KEY_FONT, s_font, &font_len) != ESP_OK) {
-        s_font[0] = '\0';
+        strlcpy(s_font, DEFAULT_READER_FONT, sizeof(s_font));
     }
     font_len = sizeof(s_system_font);
     if (nvs_get_str(h, NVS_KEY_SYS_FONT, s_system_font, &font_len) != ESP_OK)
@@ -582,8 +584,9 @@ void app_settings_init(void) {
         s_book_weight_fine=(int)fine-APP_BOOK_WEIGHT_FINE_MAX;
     uint8_t antialias = 1;
     s_book_antialias = nvs_get_u8(h, NVS_KEY_BOOK_AA, &antialias) != ESP_OK || antialias != 0;
-    uint8_t book_px = 48;
-    if (nvs_get_u8(h, NVS_KEY_BOOK_PX, &book_px) == ESP_OK) s_book_px = valid_book_px(book_px);
+    uint8_t book_px = BOOK_READER_PX_DEFAULT;
+    s_book_px = nvs_get_u8(h, NVS_KEY_BOOK_PX, &book_px) == ESP_OK
+        ? valid_book_px(book_px) : BOOK_READER_PX_DEFAULT;
     size_t background_len = sizeof(s_book_background);
     if (nvs_get_str(h, NVS_KEY_BOOK_BACKGROUND, s_book_background, &background_len) != ESP_OK ||
         (s_book_background[0] && strncmp(s_book_background, "/sdcard/pictures/", 17))) s_book_background[0] = 0;
@@ -865,16 +868,20 @@ esp_err_t app_settings_set_home_goal_minutes(uint8_t minutes) {
 }
 
 bool app_settings_simple_ui(void) { return s_simple_ui; }
-esp_err_t app_settings_set_simple_ui(bool enabled) {
+bool app_settings_simple_full_ui(void) { return s_simple_full_ui; }
+uint8_t app_settings_ui_mode(void) { return s_simple_ui ? (s_simple_full_ui ? 2 : 1) : 0; }
+esp_err_t app_settings_set_ui_mode(uint8_t mode) {
+    if(mode>2)return ESP_ERR_INVALID_ARG;
     nvs_handle_t h;
     esp_err_t err = nvs_open(SIMPLE_UI_NS, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
-    err = nvs_set_u8(h, "mode", enabled ? 1 : 0);
+    err = nvs_set_u8(h, "mode", mode);
     if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
-    if (err == ESP_OK) {s_simple_ui = enabled;s_simple_choice_known=true;}
+    if (err == ESP_OK) {s_simple_ui = mode!=0;s_simple_full_ui=mode==2;s_simple_choice_known=true;}
     return err;
 }
+esp_err_t app_settings_set_simple_ui(bool enabled) { return app_settings_set_ui_mode(enabled?1:0); }
 bool app_settings_home_full_refresh(void) { return s_home_full_refresh; }
 app_main_refresh_mode_t app_settings_main_refresh_mode(void) { return s_main_refresh; }
 bool app_settings_main_fast_refresh(void) { return s_main_refresh == APP_MAIN_REFRESH_FAST; }
@@ -1689,6 +1696,10 @@ static bool backup_card_ready(void) {
 }
 
 static bool backup_path_valid(const char *path,size_t capacity);
+static bool backup_font_path_valid(const char *path,size_t capacity) {
+    return backup_path_valid(path,capacity) ||
+        (strnlen(path,capacity)<capacity && !strcmp(path,DEFAULT_READER_FONT));
+}
 typedef struct { const char *key; void *state; int low,high; bool fine; } reader_backup_field_t;
 static const reader_backup_field_t s_reader_backup_fields[]={
     {NVS_KEY_BOOK_PX,&s_book_px,18,90,false},
@@ -1742,7 +1753,7 @@ static uint32_t reader_backup_checksum(const reader_backup_t *profile) {
 static bool reader_backup_valid(const reader_backup_t *profile) {
     uint32_t stored=0;for(unsigned i=0;i<4;++i)stored|=(uint32_t)profile->checksum[i]<<(8*i);
     if(memcmp(profile->magic,"DPRREAD1",8)||stored!=reader_backup_checksum(profile)||
-       !backup_path_valid(profile->font,sizeof(profile->font))||!backup_path_valid(profile->background,sizeof(profile->background)))return false;
+       !backup_font_path_valid(profile->font,sizeof(profile->font))||!backup_path_valid(profile->background,sizeof(profile->background)))return false;
     for(unsigned i=0;i<READER_BACKUP_FIELDS;++i) {
         int value=profile->values[i];const reader_backup_field_t *field=&s_reader_backup_fields[i];
         if(value<field->low||value>field->high)return false;
@@ -2157,8 +2168,8 @@ static bool backup_valid(const settings_backup_v1_t *backup) {
         f[BK_SHELF] < 1 || f[BK_SHELF] > 5) return false;
     if (strnlen(backup->books_dir, sizeof(backup->books_dir)) == sizeof(backup->books_dir) ||
         strnlen(backup->fonts_dir, sizeof(backup->fonts_dir)) == sizeof(backup->fonts_dir)) return false;
-    return backup_path_valid(backup->font, sizeof(backup->font)) &&
-           backup_path_valid(backup->system_font, sizeof(backup->system_font)) &&
+    return backup_font_path_valid(backup->font, sizeof(backup->font)) &&
+           backup_font_path_valid(backup->system_font, sizeof(backup->system_font)) &&
            backup_path_valid(backup->wallpaper, sizeof(backup->wallpaper)) &&
            valid_media_dir(backup->books_dir) && valid_media_dir(backup->fonts_dir);
 }

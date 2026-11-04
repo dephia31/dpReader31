@@ -157,6 +157,7 @@ idf_component_register(
         "assets/lock_4bpp.bin"
         "assets/startup_logo_4bpp.bin"
         "assets/builtin.ttf"
+        "assets/Bitter-Regular.ttf"
         "assets/ui-hanzi.bin"
         "assets/display-test.png"
 )

@@ -139,7 +139,7 @@ bool app_font_activate_reading(void) {
     ttf_set_stroke_adjust_fine(app_settings_book_weight_fine());
     ttf_set_antialias(app_settings_book_antialias());
     const char* saved = font_allowed() ? app_settings_font_path() : TTF_FONT_BUILTIN;
-    bool changed = activate(ttf_font_path_is_builtin(saved) ? TTF_FONT_BUILTIN : saved);
+    bool changed = activate(saved && saved[0] ? saved : TTF_FONT_BUILTIN);
     ui_text_set_system_font(false);
     ui_text_set_system_scale(false);
     ui_nav_status_font_context(true, changed);
@@ -192,7 +192,7 @@ void app_font_end_lock(const app_lock_font_t *saved) {
     // A temporary built-in fallback does not replace reader intent; retry the selected TF face on unlock.
     if (!font_allowed()) restore=TTF_FONT_BUILTIN;
     else if(s_reading && ttf_font_path_is_builtin(restore)) restore=app_settings_font_path();
-    if(ttf_font_path_is_builtin(restore)) restore=TTF_FONT_BUILTIN;
+    if(!restore || !restore[0]) restore=TTF_FONT_BUILTIN;
     if ((ttf_font_path_is_builtin(restore)||read_pico_sd_io_ready()) &&
         (!ttf_font_ready() || strcmp(restore, ttf_font_path())) && !activate(restore) && !ttf_font_is_builtin())
         (void)ttf_font_open_builtin();

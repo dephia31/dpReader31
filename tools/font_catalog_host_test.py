@@ -51,26 +51,28 @@ int main(int argc,char **argv){
  for(unsigned test=0;test<sizeof(amounts)/sizeof(amounts[0]);++test){
   clear(user_dir);int n=amounts[test];
   for(int i=0;i<n;++i){char name[40];snprintf(name,sizeof(name),"font-%03d%s",i,i%2?".TTF":".ttf");put(user_dir,name);}
-  int expected=n>128?128:n;assert(ttf_font_scan()==expected&&ttf_font_count()==expected);
-  for(int i=0;i<expected;++i){const ttf_font_item_t *p=ttf_font_item(i);assert(p&&strstr(p->path,user_dir));
+  int expected=n+1>128?128:n+1;assert(ttf_font_scan()==expected&&ttf_font_count()==expected);
+  for(int i=0;i<expected;++i){const ttf_font_item_t *p=ttf_font_item(i);assert(p&&(strstr(p->path,user_dir)||!strcmp(p->path,TTF_FONT_BITTER_REGULAR)));
    if(i)assert(strcasecmp(ttf_font_item(i-1)->name,p->name)<0);}
   assert(!ttf_font_item(-1)&&!ttf_font_item(expected));
-  if(n==128)for(int i=0;i<n;++i){char name[40];snprintf(name,sizeof(name),"font-%03d",i);assert(!strcmp(ttf_font_item(i)->name,name));}
+  assert(!strcmp(ttf_font_item(0)->path,TTF_FONT_BITTER_REGULAR));
  }
  clear(user_dir);put(k_font_dirs[0],"Same.ttf");put(user_dir,"same.TTF");put(user_dir,"Other.ttf");
  put(user_dir,"._Ignored.ttf");put(user_dir,".hidden.ttf");put(user_dir,"readme.txt");
  #if TEST_METALIO
- assert(ttf_font_scan()==5);
+ assert(ttf_font_scan()==6);
  assert(strcmp(ttf_font_item(3)->path,ttf_font_item(4)->path));
 #else
- assert(ttf_font_scan()==2);
- assert(!strcmp(ttf_font_item(0)->name,"Other")&&!strcmp(ttf_font_item(1)->name,"Same"));
- assert(strstr(ttf_font_item(1)->path,k_font_dirs[0]));
+ assert(ttf_font_scan()==3);
+ assert(!strcmp(ttf_font_item(1)->name,"Other")&&!strcmp(ttf_font_item(2)->name,"Same"));
+ assert(strstr(ttf_font_item(2)->path,k_font_dirs[0]));
 #endif
  clear(k_font_dirs[0]);clear(user_dir);
  for(int i=0;i<65;++i){char name[40];snprintf(name,sizeof(name),"asset-%03d.ttf",i);put(k_font_dirs[0],name);}
  for(int i=0;i<63;++i){char name[40];snprintf(name,sizeof(name),"user-%03d.ttf",i);put(user_dir,name);}
- assert(ttf_font_scan()==128&&!strcmp(ttf_font_item(127)->name,"user-062"));
+ assert(ttf_font_scan()==128);
+ unsigned builtins=0,assets=0,users=0;for(int i=0;i<128;++i){const char*p=ttf_font_item(i)->path;builtins+=!strcmp(p,TTF_FONT_BITTER_REGULAR);assets+=strstr(p,k_font_dirs[0])!=NULL;users+=strstr(p,user_dir)!=NULL;}
+ assert(builtins==1&&assets==65&&users==62);
  assert(allocations==1&&allocated==28672);
  free(s_catalog);s_catalog=NULL;clear(k_font_dirs[0]);clear(user_dir);
  puts("PASS: actual catalogue0/1/24/25/127/128/129/160 bounds,all128 reachable,sorted metadata,shared two-directory limit/casefold dedup/hidden-sidecar filtering;one28672B PSRAM allocation,no font-face loading");

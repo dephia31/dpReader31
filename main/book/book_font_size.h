@@ -5,4 +5,4 @@
 #pragma once
 #define BOOK_READER_PX_MIN 18
 #define BOOK_READER_PX_MAX 90
-#define BOOK_READER_PX_DEFAULT 48
+#define BOOK_READER_PX_DEFAULT 74

@@ -31,7 +31,7 @@ static void text_fit(char *t,int px,int w){(void)t;(void)px;(void)w;}
 static void ui_draw_round_rect(uint8_t *dst,EpdRect r,int radius,uint8_t v){(void)dst;(void)r;(void)radius;(void)v;}
 static void ui_outline_rect(uint8_t *dst,EpdRect r,uint8_t v){(void)dst;(void)r;(void)v;}
 '''
-for name,path in [('book_cover_crop','main/book/book_cover.c'),('ui_contrast_gray','main/ui/ui_kit.c'),('ui_image_dither_gray','main/ui/ui_image_dither.c'),('cover_background_draw','main/book/book_ticket.c'),('cover_draw','main/book/book_ticket.c')]:
+for name,path in [('book_cover_crop','main/book/book_cover.c'),('ui_contrast_gray','main/ui/ui_kit.c'),('ui_image_dither_gray','main/ui/ui_image_dither.c'),('book_ticket_draw_background','main/book/book_ticket.c'),('cover_draw','main/book/book_ticket.c')]:
  unit+=function(name,ROOT/path)+'\n'
 unit+=r'''
 int main(void){uint8_t gray[176*240];unsigned tones=0;
@@ -42,16 +42,16 @@ int main(void){uint8_t gray[176*240];unsigned tones=0;
    // 平坦源色应得到平坦灰阶；边缘框线不参与。/ Flat source tones remain flat, excluding the outline.
    for(int y=380;y<718;y+=17)for(int x=218;x<466;x+=13)assert(fb[y*684+x]==expected);
    if(c==100)tones|=1u<<fb[400*684+240];
-   cover_background_draw(fb,gray,176,240);
+   book_ticket_draw_background(fb,gray,176,240,false);
    for(int y=0;y<1216;y+=83)for(int x=0;x<684;x+=31)assert(fb[y*684+x]==expected);
   }
  }
  assert(tones==0xffffu);
  contrast=100;memset(gray,255,sizeof(gray));cover_draw(fb,gray,176,240,"book");assert(fb[400*684+240]==15);
- memset(gray,0,sizeof(gray));cover_background_draw(fb,gray,176,240);assert(fb[0]==0);
+ memset(gray,0,sizeof(gray));book_ticket_draw_background(fb,gray,176,240,false);assert(fb[0]==0);
  for(unsigned w=1;w<=321;w+=80)for(unsigned h=1;h<=241;h+=60){
   uint8_t *natural=malloc((size_t)w*h);assert(natural);memset(natural,255,(size_t)w*h);
-  cover_draw(fb,natural,w,h,"book");cover_background_draw(fb,natural,w,h);assert(fb[0]==15);free(natural);
+  cover_draw(fb,natural,w,h,"book");book_ticket_draw_background(fb,natural,w,h,false);assert(fb[0]==15);free(natural);
  }
  puts("PASS: actual ticket cover/background retain all 16 tones and solid white/black across contrast levels; no second ordered-dither quantization");}
 '''

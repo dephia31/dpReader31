@@ -17,10 +17,6 @@ typedef struct {
     int x, y;
 } book_reader_tap_t;
 
-static inline bool book_reader_center(EpdRect body, int x, int y) {
-    return x >= body.x + body.width / 3 && x < body.x + 2 * body.width / 3 &&
-           y >= body.y + body.height / 3 && y < body.y + 2 * body.height / 3;
-}
 /// rtl 表示竖排从右到左：横向分区的「上一页」在右半边，左右翻转。
 /// rtl marks right-to-left vertical text: the previous-page half is the right one.
 static inline int book_reader_tap_direction(EpdRect body, int x, int y, bool vertical, bool rtl) {
@@ -31,19 +27,10 @@ static inline int book_reader_tap_direction(EpdRect body, int x, int y, bool ver
 }
 static inline int book_reader_tap_feed(book_reader_tap_t *tap, EpdRect body,
                                       int x, int y, bool vertical, bool rtl, int64_t now_ms) {
-    const int direction = book_reader_tap_direction(body, x, y, vertical, rtl);
-    if (!direction) { tap->pending = false; return 0; }
-    if (!book_reader_center(body, x, y)) { tap->pending = false; return direction; }
-    const int dx = x - tap->x, dy = y - tap->y;
-    if (tap->pending && now_ms >= tap->at_ms && now_ms - tap->at_ms <= BOOK_READER_DOUBLE_MS &&
-        dx * dx + dy * dy <= 96 * 96) {
-        tap->pending = false;
-        return BOOK_READER_TAP_DOUBLE;
-    }
-    const int expired = tap->pending && now_ms >= tap->at_ms &&
-        now_ms - tap->at_ms > BOOK_READER_DOUBLE_MS ? tap->direction : 0;
-    *tap = (book_reader_tap_t){true, direction, now_ms, x, y};
-    return expired;
+    // Text taps are independent, including consecutive taps in the former double-tap window.
+    (void)now_ms;
+    tap->pending = false;
+    return book_reader_tap_direction(body, x, y, vertical, rtl);
 }
 static inline int book_reader_tap_tick(book_reader_tap_t *tap, int64_t now_ms, bool touching) {
     if (!tap->pending) return 0;

@@ -8,3 +8,7 @@
 bool book_excerpt_load(const char *path, uint32_t chapter, char out[BOOK_EXCERPT_CAP]);
 /// 仅接受已成功切入的章节正文；后台预取不调用。/ Offer only a successfully entered chapter, never background prefetch.
 void book_excerpt_offer(const char *path, uint32_t chapter, const html_text_t *text);
+
+/// Cached chapter label for Home when no excerpt exists.
+bool book_chapter_label_load(const char *path,uint32_t chapter,char out[BOOK_EXCERPT_CAP]);
+void book_chapter_label_offer(const char *path,uint32_t chapter,const char *title);

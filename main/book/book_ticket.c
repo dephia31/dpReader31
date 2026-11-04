@@ -195,8 +195,8 @@ static uint8_t *cover_load(const char *path, const char *title, const char *auth
     free(gray);
     return NULL;
 }
-static void cover_background_draw(uint8_t *fb, const uint8_t *gray, unsigned width, unsigned height) {
-    if (!gray) {
+void book_ticket_draw_background(uint8_t *fb, const uint8_t *gray, unsigned width, unsigned height, bool packed) {
+    if (!gray || !width || !height) {
         ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, UI_LOCK_HEIGHT}, 0xb0, fb);
         return;
     }
@@ -205,7 +205,9 @@ static void cover_background_draw(uint8_t *fb, const uint8_t *gray, unsigned wid
         const int sy = crop.y + (uint64_t)y * crop.height / UI_LOCK_HEIGHT;
         for (int x = 0; x < UI_LOCK_WIDTH; ++x) {
             const int sx = crop.x + (uint64_t)x * crop.width / UI_LOCK_WIDTH;
-            const uint8_t tone = ui_contrast_gray(gray[sy * width + sx]);
+            const uint8_t tone = packed
+                ? ((gray[sy * ((width + 7) / 8) + sx / 8] & (1u << (sx & 7))) ? 255 : 0)
+                : ui_contrast_gray(gray[sy * width + sx]);
             epd_draw_pixel(x, y, tone, fb);
         }
     }
@@ -218,7 +220,7 @@ static int notch_depth(int x) {
     if (dx < -radius || dx > radius) return 0;
     return radius - dx * dx / radius;
 }
-static void ticket_paper_draw(uint8_t *fb) {
+void book_ticket_draw_paper(uint8_t *fb) {
     const int left = 48, right = 636, top = 58, bottom = 1158;
     for (int x = left; x < right; ++x) {
         int cut = notch_depth(x);
@@ -361,9 +363,9 @@ bool book_ticket_draw(uint8_t *fb, bool reader_background) {
     uint32_t day = local_day();
     unsigned cover_width=0,cover_height=0;
     uint8_t *gray = cover_load(path, title, author, &cover_width, &cover_height);
-    cover_background_draw(fb, gray, cover_width, cover_height);
+    book_ticket_draw_background(fb, gray, cover_width, cover_height, false);
     ticket_shadow_draw(fb);
-    ticket_paper_draw(fb);
+    book_ticket_draw_paper(fb);
     ui_text(fb, 82, 98, 28, "dpReader  /  Thẻ đọc sách", EPD_DRAW_ALIGN_LEFT, false);
     ui_hairline(fb, 156, 82, 520, UI_GRAY_BLACK);
     int lines=ticket_heading(fb,202,112,50,title);

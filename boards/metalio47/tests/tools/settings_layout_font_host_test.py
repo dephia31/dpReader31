@@ -41,12 +41,7 @@ layout=s[s.index('typedef struct {\n    EpdRect size, preview;'):s.index('static
 unit=r'''
 typedef int esp_err_t;
 #define ESP_OK 0
-static _Bool simple_ui;
-static _Bool app_settings_simple_ui(void){return simple_ui;}
-static int app_settings_set_simple_ui(_Bool on){simple_ui=on;return 0;}
-static void app_book_release_shelf_cache(void){}
-static void app_home_cover_mode_changed(void){}
-static void app_home_release_clock_cache(void){}
+
 
 #include <assert.h>
 #include <stdbool.h>
@@ -69,7 +64,7 @@ static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&x<r.x+r.width&&y>=
 static uint8_t scale=100;
 static bool write_fail;
 #define ESP_OK 0
-enum {SET_PICK_GRACE,SET_PICK_SIZE,SET_PICK_WAKE};
+enum {SET_PICK_GRACE,SET_PICK_SIZE,SET_PICK_WAKE,SET_PICK_UI_MODE};
 static int picker=-1,s_settings_group,s_control_key,s_control_pick;
 static void settings_choice_open(int kind){picker=kind;}
 static bool settings_parent_open(int y){(void)y;assert(false);return false;}

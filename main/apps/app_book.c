@@ -19,7 +19,7 @@
  * User revision 2026-10-21: Pico reader entry uses one complete GC16; ordinary text retains calibrated GL16 erasure and equal-gray holds, prefetch and one fused progress output.
  * 用户2026-10-24修订：S31图文页和离图翻页同色保持，黑白端点单向推动；实际灰阶迁移保留完整GL48，仅黑白变化走DU20；进度合并，手动/周期清理仍完整GC48。
  * User revision 2026-10-24: S31 image turns/exits hold equal pixels and drive BW endpoints directionally; real gray changes retain complete GL48 while BW-only changes use DU20, with fused progress and manual/periodic GC48.
- * 用户修订：正文双击不再切换模式；插图双击仍缩放，单击按所选分区翻页。
+ * 用户2026-11-03修订：正文每次抬手立即翻页，连续两次点击独立处理；仅插图保留双击缩放。
  * 三键单击及中键长按可自定义，提供翻页/工具栏及首页/全刷/工具栏两套推荐；中键长按默认返回主页，阅读页不画右下角菜单图标。
  * 用户2026-10-29修订：音量键独立快捷操作；按住/去抖期间继续采样，首页快捷操作直接回首页。
  * User revision 2026-10-29: independent volume shortcuts; held/debouncing volume inputs keep sampling, and Home goes directly home.
@@ -77,6 +77,7 @@
  * User adds management/import feedback: retain release-confirmed actions, darken and depress controls 2px on press, presenting only their region.
  * 用户修订：快刷封面保留轻量减黑并按最新要求略增黑点密度，在PSRAM缓存最多九张1位缩略图（约40KiB）；进度未改变时不重复丢弃封面。缓存只画封面，收藏与界面文字实时绘制，开书或卡失效时释放。
  * User revision 2026-10-31: horizontal text holds select words/notes/dictionary; never open TOC on holds, including blank text/image/unsupported selection. TOC remains in tools. Held selection consumes moves and page actions.
+ * User revision 2026-11-04: a tap above the open reading tool strip dismisses it and consumes the tap without turning.
  * Frozen: Phase4b uses the shared gesture entry and owns previous/tools/next keys; the toolbar keeps full refresh. Screen turns commit on release without pressed decoration.
  * User revision: adopt PR9's book_layout unchanged; callers only adapt bitmap caching and context lifetimes.
  * Authorized keyboard revision: titles and search share T9/QWERTY, bilingual offline phrase candidates; body layout stays intact.
@@ -95,7 +96,7 @@
  * Shake is off by default: left/right impulses turn back/forward, suppressing touch and rebound; exit restores the sensor and sleeps it. Render only paints.
  * Prefetch overlaps synchronous output and stops between rows; no font/chapter resources survive presentation.
  * Ordinary turns refresh only body and footer; manual and periodic ghost cleanup refresh the entire screen.
- * User revision: text double taps do not change geometry; illustration zoom and configured single-tap turns remain.
+ * User revision 2026-11-03: text taps turn immediately on release, including two consecutive taps; only illustrations retain double-tap zoom.
  * Short key actions are configurable with two presets; retired fullscreen bindings open tools, and middle holds default to home. The reader has no bottom-right menu icon.
  * User-authorized management shows full details before separate clear/delete confirmations; retain failed saves for retry without pruning other books.
  * User revision: single-book actions use a shelf dialog; full management is for batches. Paging/sorting preserve selection; filtering/applied search and rescanning clear it.
@@ -3212,7 +3213,7 @@ static void draw_font_picker(uint8_t* fb) {
     char active[TTF_FONT_PATH_MAX]; copy_text(active, sizeof(active), ttf_font_path());
 #if KIIKO_BOARD_METALIO47
 #else
-    bool active_builtin = ttf_font_is_builtin();
+    /* Restore the exact built-in face as well as external faces. */
 #endif
     for (int slot = 0; slot < BOOK_FONT_PAGE && start + slot < count; ++slot) {
         const ttf_font_item_t* item = ttf_font_item(start + slot);
@@ -3238,8 +3239,7 @@ static void draw_font_picker(uint8_t* fb) {
     }
 #if KIIKO_BOARD_METALIO47
 #else
-    if (active_builtin) (void)ttf_font_open_builtin();
-    else if (active[0]) (void)ttf_font_open(active);
+    if (active[0]) (void)ttf_font_open(active);
 #endif
     // 字体名称预览归还真实阅读字库后，再确认本次选择是否回退。
     // Observe the actual reader face after name previews have restored it.
@@ -5272,6 +5272,7 @@ static bool load_chapter_at(app_ctx_t* ctx, size_t chapter, size_t offset,
     s_jump_offset = anchor || source_offset != SIZE_MAX ? anchor_offset : SIZE_MAX;
     s_jump_page = s_page;
     if (book_chapter_title(chapter, s_title, sizeof(s_title)) != ESP_OK) s_title[0] = 0;
+    book_chapter_label_offer(s_path,(uint32_t)chapter,s_title);
     copy_text(s_font_path, sizeof(s_font_path), ttf_font_path());
     s_message[0] = 0;
     unlock_draw();
@@ -5435,7 +5436,7 @@ static bool open_book_impl(app_ctx_t* ctx, const char* path) {
     // 排版字号以全局阅读设置为准；旧书进度只决定阅读位置。
     // Use the shared reading size for every book; per-book progress restores position only.
     s_px = app_settings_book_px();
-    if (s_px < BOOK_PX_MIN || s_px > BOOK_PX_MAX) s_px = 48;
+    if (s_px < BOOK_PX_MIN || s_px > BOOK_PX_MAX) s_px = BOOK_READER_PX_DEFAULT;
     size_t chapter = resume && p.chapter < book_chapter_count() ? p.chapter : 0;
     if (!load_chapter(ctx, chapter, resume && p.chapter == chapter ? p.byte_off : 0, false)) {
         free_book();
@@ -7727,7 +7728,7 @@ static app_redraw_t action_at(app_ctx_t* ctx, uint16_t x, uint16_t y) {
         // 整页插图任意位置双击都算双击（用于定点缩放），单击延后到双击窗口后再翻页；
         // 正文双击不切模式；插图双击由页面处理缩放。
         // On a whole-page illustration a double tap counts anywhere (point-anchored zoom) and a
-        // single tap is deferred; other pages keep centre double tap and side taps turning pages.
+        // single tap is deferred; text taps turn immediately, including consecutive centre taps.
         // 点在插图上时同样延后单击：只有这样才能把双击插图和单击翻页分开。
         // A tap on an illustration defers the single tap too; that is the only way a double tap
         // on the image can be told apart from a page turn.
@@ -8536,8 +8537,7 @@ static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) 
         ev->type == UI_GESTURE_SWIPE_L || ev->type == UI_GESTURE_SWIPE_R ||
         ev->type == UI_GESTURE_SWIPE_U || ev->type == UI_GESTURE_SWIPE_D ||
         (ev->type == UI_GESTURE_PRESS && !reader_zoom_mode() &&
-         !reader_page_image_hit(ev->x0, ev->y0) &&
-         !book_reader_center(body_rect(), ev->x0, ev->y0)))
+         !reader_page_image_hit(ev->x0, ev->y0)))
         s_reader_tap.pending = false;
     if (s_view == READING && s_text && s_reader_panel == READER_PANEL_NONE && !s_clear_confirm && !s_scan_pending && !ctx->consumed && ev->type == UI_GESTURE_SWIPE_U) {
         if (ev->y0 >= UI_LOCK_HEIGHT - 120 && app_settings_reader_swipe_bottom_home()) {
@@ -8621,6 +8621,14 @@ static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) 
         return APP_REDRAW_NONE;
     }
     if (s_view == READING && ev->type != UI_GESTURE_PRESS) s_stats_activity_ms = ctx->now_ms;
+    // A tap outside the tool strip dismisses it without turning the page.
+    if (s_view == READING && s_reader_panel == READER_PANEL_TOOLS &&
+        ev->type == UI_GESTURE_TAP && ev->y0 < 1096) {
+        s_reader_panel = READER_PANEL_NONE;
+        s_reader_tap.pending = false;
+        s_pressed_control = -1;
+        return APP_REDRAW_PAGE;
+    }
     if(s_view==READING&&(s_reader_panel==READER_PANEL_FONT_SETTINGS||s_reader_panel==READER_PANEL_LAYOUT_SETTINGS||s_reader_panel==READER_PANEL_RULE_SETTINGS)) {
         if(ev->type==UI_GESTURE_TAP)return reader_panel_action(ctx,ev->x0,ev->y0);
         return APP_REDRAW_NONE;

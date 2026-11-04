@@ -2063,7 +2063,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.2.9-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.3.0-vn", "ESP32-S31");
         ui_text_caption(fb,(EpdRect){56,294,572,54},22,v_line,EPD_DRAW_ALIGN_LEFT,false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -2314,10 +2314,10 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     setting_group(fb,1,SETTINGS_DISPLAY_Y-49,"Hiển thị",SETTINGS_DISPLAY_Y,
                   display_icons,display_labels,display_values,SETTINGS_DISPLAY_ROWS);
     snprintf(signature,sizeof(signature),"%s",app_settings_status_signature()[0]?app_settings_status_signature():"Chưa đặt");
-    const char *personal_labels[]={"Kiểu hiển thị Tủ sách","Kiểu màn hình khóa","Mật khẩu màn hình khóa","Chữ ký thanh trạng thái","Giao diện đơn giản"};
+    const char *personal_labels[]={"Kiểu hiển thị Tủ sách","Kiểu màn hình khóa","Mật khẩu màn hình khóa","Chữ ký thanh trạng thái","Giao diện"};
     const char *personal_values[]={app_settings_shelf_style()==5?"Danh sách":app_settings_shelf_style()==1?"Thanh kệ tối màu":"Kệ sách Acrylic",
         app_settings_lock_style()==3?"Khung PNG trong suốt":app_settings_lock_style()==2?"Ghép bìa Tủ sách":app_settings_lock_style()==1?"Hình nền":"Thẻ đọc sách",
-        lock_pin_enabled()?"Đã bật":"Đã tắt",signature,app_settings_simple_ui()?"Bật":"Tắt"};
+        lock_pin_enabled()?"Đã bật":"Đã tắt",signature,app_settings_simple_full_ui()?"Đơn giản hoàn toàn":app_settings_simple_ui()?"Đơn giản":"Đầy đủ"};
     const int personal_icons[]={4,5,16,10,4};
     setting_group(fb,2,SETTINGS_PERSONAL_Y-49,"Cá nhân hóa",SETTINGS_PERSONAL_Y,
                   personal_icons,personal_labels,personal_values,SETTINGS_PERSONAL_ROWS);
@@ -2378,11 +2378,12 @@ static bool settings_gray_preview(void) {
     return s_page==SETTINGS_WALLPAPER_PREVIEW||s_page==SETTINGS_SHELF_STYLE;
 }
 #endif
-enum {SET_PICK_SIZE,SET_PICK_WAKE,SET_PICK_GRACE,SET_PICK_HOURS,SET_PICK_YEAR,SET_PICK_MONTH,SET_PICK_DAY,SET_PICK_HOUR,SET_PICK_MINUTE,SET_PICK_BRIGHTNESS,SET_PICK_WARMTH,SET_PICK_LIGHT_ON_HOUR,SET_PICK_LIGHT_ON_MINUTE,SET_PICK_LIGHT_OFF_HOUR,SET_PICK_LIGHT_OFF_MINUTE,SET_PICK_LIGHT_LEVEL};
+enum {SET_PICK_SIZE,SET_PICK_WAKE,SET_PICK_GRACE,SET_PICK_HOURS,SET_PICK_YEAR,SET_PICK_MONTH,SET_PICK_DAY,SET_PICK_HOUR,SET_PICK_MINUTE,SET_PICK_BRIGHTNESS,SET_PICK_WARMTH,SET_PICK_LIGHT_ON_HOUR,SET_PICK_LIGHT_ON_MINUTE,SET_PICK_LIGHT_OFF_HOUR,SET_PICK_LIGHT_OFF_MINUTE,SET_PICK_LIGHT_LEVEL,SET_PICK_UI_MODE};
 static ui_choice_t s_setting_choice;
 static const uint8_t s_ui_sizes[]={100,110,120,130,140,144,150,160,170,180,190,200,202};
 static void settings_choice_label(int kind,int index,char *out,size_t size) {
-    if(kind==SET_PICK_SIZE)snprintf(out,size,"%u%%",s_ui_sizes[index]);
+    if(kind==SET_PICK_UI_MODE){static const char *const modes[]={"Đầy đủ","Đơn giản","Đơn giản hoàn toàn"};snprintf(out,size,"%s",modes[index]);}
+    else if(kind==SET_PICK_SIZE)snprintf(out,size,"%u%%",s_ui_sizes[index]);
     else if(kind==SET_PICK_WAKE)snprintf(out,size,"%d lần nhấn",index+1);
     else if(kind==SET_PICK_HOURS)snprintf(out,size,"%d giờ",index+1);
     else if(kind>=SET_PICK_YEAR&&kind<=SET_PICK_MINUTE)snprintf(out,size,"%d",index+(kind==SET_PICK_YEAR?2024:kind==SET_PICK_MONTH||kind==SET_PICK_DAY?1:0));
@@ -2397,7 +2398,8 @@ static void settings_choice_label(int kind,int index,char *out,size_t size) {
 }
 static void settings_choice_open(int kind) {
     int count=0,current=0;const char *title="";
-    if(kind==SET_PICK_SIZE){count=sizeof(s_ui_sizes);title="Cỡ chữ hệ thống";current=-1;for(int i=0;i<count;i++)if(s_ui_sizes[i]==app_settings_system_font_size())current=i;}
+    if(kind==SET_PICK_UI_MODE){count=3;current=app_settings_ui_mode();title="Giao diện";}
+    else if(kind==SET_PICK_SIZE){count=sizeof(s_ui_sizes);title="Cỡ chữ hệ thống";current=-1;for(int i=0;i<count;i++)if(s_ui_sizes[i]==app_settings_system_font_size())current=i;}
     else if(kind==SET_PICK_WAKE){count=2;current=app_settings_wake_presses()-1;title="Đánh thức bằng nút nguồn";}
 #if KIIKO_BOARD_METALIO47
     else if(kind==SET_PICK_GRACE){count=5;current=app_settings_pin_grace_code();title="Thời gian miễn nhập PIN";}
@@ -2430,7 +2432,8 @@ static app_redraw_t settings_choice_gesture(const ui_gesture_event_t *ev) {
     if(index==UI_CHOICE_NONE)return APP_REDRAW_NONE;
     if(index<0)return APP_REDRAW_PAGE;
     bool ok=false;
-    if(s_setting_choice.kind==SET_PICK_SIZE){app_settings_set_system_font_size(s_ui_sizes[index]);ok=app_settings_system_font_size()==s_ui_sizes[index];}
+    if(s_setting_choice.kind==SET_PICK_UI_MODE){ok=app_settings_set_ui_mode(index)==ESP_OK;if(ok&&app_settings_simple_ui()){app_book_release_shelf_cache();app_home_cover_mode_changed();app_home_release_clock_cache();}}
+    else if(s_setting_choice.kind==SET_PICK_SIZE){app_settings_set_system_font_size(s_ui_sizes[index]);ok=app_settings_system_font_size()==s_ui_sizes[index];}
     else if(s_setting_choice.kind==SET_PICK_WAKE){app_settings_set_wake_presses(index+1);ok=app_settings_wake_presses()==index+1;}
 #if KIIKO_BOARD_METALIO47
     else if(s_setting_choice.kind==SET_PICK_GRACE){app_settings_set_pin_grace_code(index);ok=app_settings_pin_grace_code()==index;}
@@ -3722,9 +3725,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else if(row==2){s_page=SETTINGS_LOCK_PIN;s_notice[0]=0;}
         else if(row==3)profile_editor_open(true);
         else {
-            esp_err_t err=app_settings_set_simple_ui(!app_settings_simple_ui());
-            if(err!=ESP_OK)snprintf(s_notice,sizeof(s_notice),"Không thể lưu cài đặt");
-            else if(app_settings_simple_ui()){app_book_release_shelf_cache();app_home_cover_mode_changed();app_home_release_clock_cache();}
+            settings_choice_open(SET_PICK_UI_MODE);
         }
         return APP_REDRAW_PAGE;
     }

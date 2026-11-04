@@ -52,7 +52,7 @@ static void ui_draw_round_rect(uint8_t*fb,EpdRect r,int radius,uint8_t c){(void)
 static void ui_text_vc(uint8_t*fb,int x,int y,int px,const char*t,int a,bool inv){(void)fb;(void)x;(void)y;(void)px;(void)t;(void)a;(void)inv;}
 '''
 unit+=function('book_cover_crop',ROOT/'main/book/book_cover.c')+'\n'
-for name in ('text_fit','cover_load','cover_background_draw','cover_draw','heading_prefix','ticket_heading'):
+for name in ('text_fit','cover_load','book_ticket_draw_background','cover_draw','heading_prefix','ticket_heading'):
  unit+=function(name,ticket)+'\n'
 unit+=r'''
 enum {READING,SHELF};
@@ -99,16 +99,16 @@ int main(void){
   if(!source_case){assert(!gray&&reads==4);continue;}
   assert(gray&&h==240&&w==(source_case==1?166:source_case==2?176:1));
   if(source_case==1)assert(list_reads==2&&!grid_reads);
-  cover_background_draw(pixels,gray,w,h);memset(pixels,255,sizeof(pixels));cover_draw(pixels,gray,w,h,title);
+  book_ticket_draw_background(pixels,gray,w,h,false);memset(pixels,255,sizeof(pixels));cover_draw(pixels,gray,w,h,title);
   if(source_case==1){
    // The original portrait ratio survives. No stretched 252px-wide image.
    assert(pixels[(378+172)*684+216]==255);
-   assert(pixels[(378+172)*684+342]==ui_image_dither_gray(gray[120*w+83],342,550));
+   assert(pixels[(378+172)*684+342]==ui_contrast_gray(gray[120*w+83]));
   }
   free(gray);
  }
  reads=0;oom=true;unsigned w=0,h=0;assert(!cover_load("book.epub",title,"余华",&w,&h)&&!reads);oom=false;
- cover_background_draw(pixels,NULL,0,0);cover_draw(pixels,NULL,0,0,title);
+ book_ticket_draw_background(pixels,NULL,0,0,false);cover_draw(pixels,NULL,0,0,title);
  app_ctx_t ctx={.now_ms=799};warm_reader_ticket_cover(&ctx);assert(!submits);
  ctx.now_ms=800;media_ready=false;warm_reader_ticket_cover(&ctx);assert(!submits);media_ready=true;
  s_toolbar=true;warm_reader_ticket_cover(&ctx);assert(!submits);s_toolbar=false;

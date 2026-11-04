@@ -21,24 +21,30 @@ enum {UI_ICON_BOOK_OPEN,UI_ICON_FOLDER_OPEN,UI_ICON_DOWNLOAD,UI_ICON_COPY,UI_ICO
 enum {APP_REDRAW_NONE,APP_REDRAW_PAGE,APP_HOME_UTIL_TRANSFER,APP_HOME_UTIL_OPDS};
 #define UI_LOCK_WIDTH 684
 static const char *app_settings_device_name(void){return "Huy";}
-static void fit(char *text,int px,int width){assert(width==612&&px==54&&!strcmp(text,"Xin Chào, Huy"));}
+static void fit(char *text,int px,int width){(void)text;(void)px;(void)width;}
 static bool labels=true,border=true;
 static bool app_settings_simple_utility_labels(void){return labels;}
 static bool app_settings_simple_utility_border(void){return border;}
 static bool fast;
 #define APP_HOME_UTIL_COUNT 12
 static char s_utility_notice[96];
+#define BOOK_EXCERPT_CAP 512
+static char s_excerpt[BOOK_EXCERPT_CAP];
+static bool s_excerpt_is_chapter;
 static unsigned custom[2];
 static bool app_settings_simple_ui(void){return true;}
+static bool full_mode;
+static bool app_settings_simple_full_ui(void){return full_mode;}
 static unsigned app_settings_simple_utility(unsigned slot){return slot>=2&&slot<4?custom[slot-2]:0;}
 static const char *utility_names[12]={"Để trống","Đọc tiếp","Thư viện","Duyệt OPDS","Đồng bộ KoSync","Cài đặt","Bật/tắt Wi-Fi","Bật/tắt Bluetooth","Cập nhật OTA","Tệp tin","Chuyển tệp","Làm mới màn hình"};
 static const ui_icon_t utility_icons[12]={0};
 static unsigned outlines,circles,rules,route_calls,last_action,title_draws;
 static char title_tail[128];
+static unsigned full_rows;static char full_tail[192];
 static int ui_text_effective_px(int px){return px;}
 static int ui_text_fixed_width_px(int px,const char *text){int width=0;for(;*text;++text)if(((unsigned char)*text&0xc0)!=0x80)width+=*text==' '?px/4:px/2;return width;}
 static bool app_settings_main_fast_refresh(void){return fast;}
-typedef struct {char path[288],title[128],author[128];bool has_progress;struct{unsigned pct;}progress;}home_book_t;
+typedef struct {char path[288],title[128],author[128];bool has_progress,cover_fast;uint8_t *cover;unsigned cover_width,cover_height;struct{unsigned pct;}progress;}home_book_t;
 static home_book_t book;
 static home_book_t *featured(void){return &book;}
 static void rect(const char *kind,EpdRect r,int radius,int gray){
@@ -63,6 +69,7 @@ static void ui_text_caption(uint8_t*f,EpdRect r,int px,const char*s,int a,bool i
 static void ui_draw_icon(uint8_t*f,int x,int y,int size,int icon,int g){(void)f;(void)g;printf("ICON\t%d\t%d\t%d\t%d\n",x,y,size,icon);}
 static void ui_draw_icon_normalized(uint8_t*f,int x,int y,int size,int icon,int g){ui_draw_icon(f,x,y,size,icon,g);}
 static void ui_text_box(uint8_t*f,EpdRect r,int px,const char*s,int a,bool inv){
+ if(r.x==60&&r.width==564){assert(a==EPD_DRAW_ALIGN_CENTER);assert(ui_text_fixed_width_px(px,s)<=564);++full_rows;snprintf(full_tail,sizeof(full_tail),"%s",s);}
  if(r.x==348&&r.width==274&&r.height==56){assert(r.y==278+(int)title_draws*56);assert(ui_text_fixed_width_px(px,s)<=274);++title_draws;snprintf(title_tail,sizeof(title_tail),"%s",s);}
  ui_text_caption(f,r,px,s,a,inv);
 }
@@ -70,11 +77,19 @@ static void ui_draw_button(uint8_t*f,EpdRect r,const char*s,bool on){(void)on;ho
 static void ui_nav_status(uint8_t*f){(void)f;puts("STATUS");}
 static void ui_nav_draw(uint8_t*f,int active){(void)f;(void)active;puts("NAV");}
 static void draw_cover(uint8_t*f,const home_book_t*b,EpdRect r){(void)b;ui_fill_round_rect(f,r,12,210);home_frame(f,r,12);}
+static int s_ticket_battery;
+static int64_t ui_nav_clock_minute(void){return 13*60+30;}
+static void *read_pico_pmu_get(void){return NULL;}
+static int pmu_battery_percent(void *p){(void)p;return 80;}
+static const char *app_settings_status_signature(void){return "dpReader";}
+static void ui_text_fixed_vc(uint8_t *f,int x,int y,int px,const char *s,int a,bool inv){ui_text(f,x,y,px,s,a,inv);}
+static void book_ticket_draw_background(uint8_t *f,const uint8_t *p,unsigned w,unsigned h,bool packed){(void)p;(void)w;(void)h;(void)packed;ui_fill_rect_fast((EpdRect){0,0,684,1216},176,f);}
+static void book_ticket_draw_paper(uint8_t *f){EpdRect paper={48,58,588,1100};ui_fill_rect_fast(paper,255,f);home_frame(f,paper,0);}
 static void header(uint8_t*f,const char*s){ui_nav_status(f);ui_text(f,122,91,46,s,EPD_DRAW_ALIGN_LEFT,false);}
 static app_redraw_t utility_run(app_ctx_t*c,unsigned action){(void)c;++route_calls;last_action=action;return APP_REDRAW_NONE;}
 '''
 for name in ['simple_slot_rect','utility_notice_rect','simple_resume_rect','simple_cover_rect','simple_open_rect','simple_add_rect','simple_import_rect',
-             'home_tag_card','simple_utility','simple_title','render_simple_root','render_add_books','simple_add_action']:
+             'home_tag_card','simple_utility','simple_title','full_resume_lines','simple_ticket_status_rect','draw_simple_ticket_status','render_simple_root','render_add_books','simple_add_action']:
  unit+=function(name,HOME)+'\n'
 unit+=r'''
 int main(void){
@@ -99,6 +114,13 @@ int main(void){
   assert(circles==4&&rules==2&&route_calls==0);
   assert(outlines==(state?3:3)+(border?4:0));
  }
+ full_rows=0;assert(full_resume_lines(&fb,"Một tựa sách rất dài với nhiều từ để kiểm tra việc xuống dòng cân đối và rút gọn đúng giới hạn hai dòng",766,36,2,false)==2&&full_rows==2);
+ full_rows=0;assert(full_resume_lines(&fb,"“Một đoạn trích rất dài với nhiều từ để kiểm tra giới hạn dòng và dấu ngoặc kép kết thúc luôn được giữ lại khi phải rút gọn nội dung”",944,22,1,true)==1&&strstr(full_tail,"…”"));
+ puts("PAGE\tfully-simple");strcpy(s_excerpt,"Những trang sách mở ra một khoảng trời bình yên cho mỗi ngày.");
+ full_mode=true;title_draws=0;outlines=circles=rules=0;render_simple_root(&fb);
+ assert(circles==0&&outlines==2&&simple_resume_rect().height==1100&&simple_resume_rect().y==58);
+ assert(simple_cover_rect().x+simple_cover_rect().width/2==342&&simple_cover_rect().height==566);
+ full_mode=false;
  puts("PAGE\tadd-books");labels=border=false;unsigned before_menu=outlines;render_add_books(&fb);assert(!route_calls&&outlines==before_menu+2);
  for(unsigned i=0;i<2;++i){
   EpdRect r=simple_import_rect(i);unsigned before=route_calls;

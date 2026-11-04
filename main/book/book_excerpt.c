@@ -71,3 +71,32 @@ void book_excerpt_offer(const char *source,uint32_t chapter,const html_text_t *t
     FILE *file=book_index_cache_open_write(path,&key,temp,sizeof(temp));
     if (file) book_index_cache_finish_write(file,temp,path,fwrite(&value,1,sizeof(value),file)==sizeof(value));
 }
+
+bool book_chapter_label_load(const char *source,uint32_t chapter,char out[BOOK_EXCERPT_CAP]) {
+    if(!out)return false;
+    out[0]=0;
+    char path[160];book_index_cache_header_t key;
+    if(!book_index_cache_prepare(source,"chapter-label",1,path,sizeof(path),&key))return false;
+    FILE *file=book_index_cache_open_read(path,&key);if(!file)return false;
+    excerpt_t value;
+    bool ok=fread(&value,1,sizeof(value),file)==sizeof(value)&&fgetc(file)==EOF;
+    fclose(file);
+    ok=ok&&value.chapter==chapter&&strnlen(value.text,sizeof(value.text))<sizeof(value.text)&&value.text[0]&&value.checksum==checksum(value.text,chapter);
+    if(ok)memcpy(out,value.text,sizeof(value.text));
+    return ok;
+}
+void book_chapter_label_offer(const char *source,uint32_t chapter,const char *title) {
+    if(!source||!title||!title[0])return;
+    excerpt_t value={.chapter=chapter};
+    // A title already containing its chapter label should not repeat the number.
+    if(!strncmp(title,"Chương ",strlen("Chương "))||!strncmp(title,"Chuong ",7)||!strncmp(title,"Chapter ",8))
+        snprintf(value.text,sizeof(value.text),"%s",title);
+    else snprintf(value.text,sizeof(value.text),"Chương %u: %s",(unsigned)chapter+1,title);
+    char old[BOOK_EXCERPT_CAP];
+    if(book_chapter_label_load(source,chapter,old)&&!strcmp(old,value.text))return;
+    value.checksum=checksum(value.text,chapter);
+    char path[160];book_index_cache_header_t key;char temp[180];
+    if(!book_index_cache_prepare(source,"chapter-label",1,path,sizeof(path),&key))return;
+    FILE *file=book_index_cache_open_write(path,&key,temp,sizeof(temp));if(!file)return;
+    book_index_cache_finish_write(file,temp,path,fwrite(&value,1,sizeof(value),file)==sizeof(value));
+}

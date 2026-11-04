@@ -197,6 +197,8 @@ typedef struct {
 // several milliseconds. 32×4KB PSRAM slots keep recent sectors. Before a
 // line is drawn, needed blocks are sorted and merged. If glyf/gvar fit,
 // they are streamed into PSRAM at open so a cold start does not touch the card.
+extern const uint8_t Bitter_Regular_ttf_start[] asm("_binary_Bitter_Regular_ttf_start");
+extern const uint8_t Bitter_Regular_ttf_end[] asm("_binary_Bitter_Regular_ttf_end");
 extern const uint8_t builtin_ttf_start[] asm("_binary_builtin_ttf_start");
 extern const uint8_t builtin_ttf_end[] asm("_binary_builtin_ttf_end");
 typedef struct {
@@ -762,7 +764,9 @@ static int s_catalog_n;
 
 int ttf_font_scan(void) {
     if (!catalog_alloc()) return 0;
-    s_catalog_n = 0;
+    s_catalog_n = 1;
+    strlcpy(s_catalog[0].path, TTF_FONT_BITTER_REGULAR, sizeof(s_catalog[0].path));
+    strlcpy(s_catalog[0].name, "Bitter Regular (Tích hợp)", sizeof(s_catalog[0].name));
     for (size_t d = 0; d < sizeof(k_font_dirs) / sizeof(k_font_dirs[0]); d++) {
         const char* font_dir = k_font_dirs[d] ? k_font_dirs[d] : app_settings_fonts_dir();
         DIR* dir = opendir(font_dir);
@@ -897,7 +901,7 @@ const char* ttf_font_path(void) {
 }
 
 bool ttf_font_path_is_builtin(const char* path) {
-    return path == NULL || path[0] == '\0' || strcmp(path, TTF_FONT_BUILTIN) == 0;
+    return path == NULL || path[0] == '\0' || strcmp(path, TTF_FONT_BUILTIN) == 0 || strcmp(path, TTF_FONT_BITTER_REGULAR) == 0;
 }
 
 bool ttf_font_is_builtin(void) {
@@ -908,6 +912,7 @@ bool ttf_font_is_builtin(void) {
 const char* ttf_font_display_name(void) {
     static char name[TTF_FONT_NAME_MAX];
     const char* path = s_slots[TTF_FONT_SLOT_SYSTEM].f_path;
+    if (!strcmp(path, TTF_FONT_BITTER_REGULAR)) return "Bitter Regular (Tích hợp)";
     if (ttf_font_is_builtin() || ttf_font_path_is_builtin(path)) return "Phông hệ thống (Tích hợp)";
     if (path[0] == '\0') return "";
     font_stem(path, name, sizeof(name));
@@ -2863,22 +2868,23 @@ int ttf_font_open_mem(uint8_t* data, size_t len, const char* label) {
 // 时踩掉正在用的内嵌槽。
 // The system face always lives in slot 0. These entries lend the cursor and restore it,
 // so reloading the system face never clobbers a live embedded slot.
-static esp_err_t open_builtin_here(void) {
+static esp_err_t open_builtin_path_here(const char *path) {
     unload_here();
     if (!ensure_work()) return ESP_ERR_NO_MEM;
 
-    font_mem = builtin_ttf_start;
-    font_mem_len = (uint32_t)(builtin_ttf_end - builtin_ttf_start);
+    bool bitter_regular = path && !strcmp(path, TTF_FONT_BITTER_REGULAR);
+    font_mem = bitter_regular ? Bitter_Regular_ttf_start : builtin_ttf_start;
+    font_mem_len = bitter_regular ? (uint32_t)(Bitter_Regular_ttf_end-Bitter_Regular_ttf_start) : (uint32_t)(builtin_ttf_end-builtin_ttf_start);
     font_mem_owned = false;
     font_fd = -1;
-    strlcpy(font_path, TTF_FONT_BUILTIN, sizeof(font_path));
+    strlcpy(font_path, bitter_regular ? TTF_FONT_BITTER_REGULAR : TTF_FONT_BUILTIN, sizeof(font_path));
     ESP_LOGI(TAG, "using builtin (%u KB)", (unsigned)(font_mem_len / 1024));
     return load_opened_font();
 }
 
 static esp_err_t open_path_here(const char* path) {
     if (ttf_font_path_is_builtin(path)) {
-        return ttf_font_open_builtin();
+        return open_builtin_path_here(path);
     }
 
 #if KIIKO_BOARD_METALIO47
@@ -2938,7 +2944,7 @@ static esp_err_t open_path_here(const char* path) {
 esp_err_t ttf_font_open_builtin(void) {
     ttf_font_slots_init();
     int keep = slot_lend(TTF_FONT_SLOT_SYSTEM);
-    esp_err_t err = open_builtin_here();
+    esp_err_t err = open_builtin_path_here(TTF_FONT_BUILTIN);
     s_cur_index = keep;
     s_cur = &s_slots[keep];
     return err;
@@ -2989,8 +2995,11 @@ bool ttf_font_draw_preview(const char *path, uint8_t *fb, int x, int y, int px,
         s_cur->f_used = true;
         s_cur->f_preview = true;
         s_cur->f_weight = s_slots[TTF_FONT_SLOT_SYSTEM].f_weight;
-        font_fd = open_font_file(path);
-        ok = font_fd >= 0 && ensure_work() && load_opened_font() == ESP_OK;
+        if (ttf_font_path_is_builtin(path)) ok = open_builtin_path_here(path) == ESP_OK;
+        else {
+            font_fd = open_font_file(path);
+            ok = font_fd >= 0 && ensure_work() && load_opened_font() == ESP_OK;
+        }
     }
     if (ok) {
         ok = ttf_font_slot_has_text(slot, text);
@@ -3021,7 +3030,7 @@ esp_err_t ttf_font_init(void) {
     if (ttf_font_ready()) return ESP_OK;
     const char* path = app_settings_font_path();
     if (ttf_font_path_is_builtin(path)) {
-        return ttf_font_open_builtin();
+        return ttf_font_open(path);
     }
     esp_err_t err = ttf_font_open(path);
     if (err != ESP_OK && ttf_font_ready()) return ESP_OK;

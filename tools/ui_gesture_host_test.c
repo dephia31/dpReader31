@@ -25,6 +25,14 @@ static void press(int x, int y, int64_t time) {
     assert(event.type == UI_GESTURE_PRESS && event.hold_ms == 0);
 }
 int main(void) {
+    press(300,300,0);
+    assert(feed(241,300,100,false,false,true,false)); assert(event.type==UI_GESTURE_CANCEL);
+    press(300,300,0);
+    assert(feed(240,300,100,false,false,true,false)); assert(event.type==UI_GESTURE_SWIPE_L);
+    press(300,300,0);
+    assert(feed(360,300,100,false,false,true,false)); assert(event.type==UI_GESTURE_SWIPE_R);
+    press(300,300,0);
+    assert(feed(240,360,100,false,false,true,false)); assert(event.type==UI_GESTURE_CANCEL);
     press(100,200,0);
     assert(feed(100,200,500,true,false,false,false));
     assert(event.type==UI_GESTURE_LONG_PRESS);
@@ -50,7 +58,7 @@ int main(void) {
     assert(!feed(124, 100, 900, true, false, false, false));
     assert(feed(124, 100, 901, false, false, true, false));
     assert(event.type == UI_GESTURE_CANCEL);
-    const int dx[] = {-120, 120, 0, 0}, dy[] = {0, 0, -120, 120};
+    const int dx[] = {-60, 60, 0, 0}, dy[] = {0, 0, -60, 60};
     const ui_gesture_type_t kinds[] = {UI_GESTURE_SWIPE_L, UI_GESTURE_SWIPE_R, UI_GESTURE_SWIPE_U, UI_GESTURE_SWIPE_D};
     for (int i = 0; i < 4; ++i) {
         press(200, 300, 100);
@@ -66,7 +74,7 @@ int main(void) {
     press(100, 100, 0);
     assert(feed(220, 220, 100, false, false, true, false)); assert(event.type == UI_GESTURE_CANCEL);
     press(100, 100, 0);
-    assert(feed(219, 100, 100, false, false, true, false)); assert(event.type == UI_GESTURE_CANCEL);
+    assert(feed(159, 100, 100, false, false, true, false)); assert(event.type == UI_GESTURE_CANCEL);
     press(100, 100, 0);
     assert(feed(117, 117, 500, true, false, false, false)); assert(event.type == UI_GESTURE_MOVE);
     assert(feed(117, 117, 600, false, false, true, false)); assert(event.type == UI_GESTURE_CANCEL);

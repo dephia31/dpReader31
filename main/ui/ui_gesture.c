@@ -5,6 +5,7 @@
  * English: Single-finger gesture state machine; pages interpret and draw events.
  * 冻结：翻页不画按下态；引用 ui_kit.h 阈值；短拖取消以免误翻。
  * Frozen: No pressed decoration for page turns; use ui_kit.h thresholds; short drags cancel to avoid accidental turns.
+ * User revision 2026-11-03: all four swipe directions use a shorter 60px threshold.
  */
 #include "ui_gesture.h"
 #include "ui_kit.h"

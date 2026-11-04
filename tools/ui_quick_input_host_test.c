@@ -15,9 +15,10 @@ static ui_quick_action_t feed(int x,int y,int count,bool pressed,bool released,b
 }
 static void open(void){ui_quick_menu_reset(&menu);time_ms=0;
  assert(feed(300,32,1,true,false,true,true)==UI_QUICK_NONE);
- time_ms=1500;assert(feed(300,104,1,false,false,true,true)==UI_QUICK_OPEN&&menu.open);
- assert(feed(300,104,1,false,false,true,true)==UI_QUICK_NONE);
- assert(feed(300,104,0,false,true,true,true)==UI_QUICK_NONE);
+ time_ms=1499;assert(feed(300,91,1,false,false,true,true)==UI_QUICK_NONE&&!menu.open);
+ time_ms=1500;assert(feed(300,92,1,false,false,true,true)==UI_QUICK_OPEN&&menu.open);
+ assert(feed(300,92,1,false,false,true,true)==UI_QUICK_NONE);
+ assert(feed(300,92,0,false,true,true,true)==UI_QUICK_NONE);
 }
 int main(void){
  ui_quick_menu_reset(&menu);assert(feed(300,33,1,true,false,true,false)==UI_QUICK_NONE);
@@ -36,10 +37,10 @@ int main(void){
  assert(feed(150,156,0,false,true,true,true)==UI_QUICK_NONE);
  assert(feed(85,156,1,true,false,true,true)==UI_QUICK_NONE&&ui_quick_menu_pressed(&menu)==0);
  assert(feed(85,156,0,false,true,true,true)==UI_QUICK_WIFI&&ui_quick_menu_pressed(&menu)==-1);
- feed(300,220,1,true,false,true,true);assert(feed(300,148,1,false,false,true,true)==UI_QUICK_CLOSE);
- assert(feed(300,148,0,false,true,true,true)==UI_QUICK_NONE);
+ feed(300,220,1,true,false,true,true);assert(feed(300,160,1,false,false,true,true)==UI_QUICK_CLOSE);
+ assert(feed(300,160,0,false,true,true,true)==UI_QUICK_NONE);
  open();assert(feed(0,1250,1,true,false,true,true)==UI_QUICK_CLOSE);
  feed(0,1250,0,false,true,true,true);
  open();assert(feed(0,0,0,false,false,false,true)==UI_QUICK_CLOSE&&!menu.open);
- puts("PASS: 32/33px edge, 72px/1500ms limits, diagonal rejection, upward/outside/back dismissal, multitouch/error/drag cancellation and consumed release");
+ puts("PASS: 32/33px edge, 60px/1500ms limits, diagonal rejection, upward/outside/back dismissal, multitouch/error/drag cancellation and consumed release");
 }

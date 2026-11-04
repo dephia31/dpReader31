@@ -66,6 +66,7 @@ static int du_areas, gl_areas;
 static int quick_button_draws,quick_status_draws,quick_press_draws,quick_recent_requests,base_renders;
 static bool main_fast, main_water;
 bool app_settings_simple_ui(void){return false;}
+bool app_settings_simple_full_ui(void){return false;}
 int app_settings_main_refresh_mode(void) {return main_water?APP_MAIN_REFRESH_WATER:main_fast?APP_MAIN_REFRESH_FAST:APP_MAIN_REFRESH_NORMAL;}
 static int shelf_exit_arms;
 static int nav_arms, nav_draws, nav_full_arms, nav_area_draws;
@@ -205,6 +206,7 @@ static void lost(app_ctx_t*c) {(void)c;media_lost++;loss_step=step;}
 static void ready(app_ctx_t*c) {(void)c;media_ready++;}
 EpdRect ui_content_refresh_area(void) {return (EpdRect){0,0,684,1000};}
 const app_desc_t* app_home_page(void) {return &first;}
+const app_desc_t app_dashboard = {0};
 const app_desc_t* app_at(int i) {return i==0?&first:i==1?&second:NULL;}
 int app_index_of(const app_desc_t* app) {return app==&first?0:app==&second?1:-1;}
 int ui_key_hit_test(uint16_t x,uint16_t y) {return y>=1300 && x<480?x/160:-1;}

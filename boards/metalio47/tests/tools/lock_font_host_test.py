@@ -59,8 +59,8 @@ static const char *app_settings_system_font_path(void){return chosen;}
 static const char *app_settings_font_path(void){return reader;}
 static bool ttf_font_ready(void){return true;}
 static const char *ttf_font_path(void){return active;}
-static bool ttf_font_is_builtin(void){return !strcmp(active,"builtin");}
-static bool ttf_font_path_is_builtin(const char *path){return !*path||!strcmp(path,"builtin");}
+static bool ttf_font_is_builtin(void){return !strcmp(active,"builtin")||!strcmp(active,"/builtin/Bitter-Regular.ttf");}
+static bool ttf_font_path_is_builtin(const char *path){return !*path||!strcmp(path,"builtin")||!strcmp(path,"/builtin/Bitter-Regular.ttf");}
 static int ttf_font_open(const char *path){++opens;if(!strcmp(path,corrupt)){active[0]=0;return ESP_ERR_INVALID_RESPONSE;}
  if(!strcmp(path,reader)&&transient_failures){--transient_failures;strcpy(active,"builtin");return -1;}
  if(!strcmp(path,missing)){active[0]=0;return -1;}snprintf(active,sizeof(active),"%s",path);return ESP_OK;}
@@ -74,6 +74,13 @@ for name in ('font_file', 'font_allowed', 'system_path', 'activate', 'app_font_a
     unit += function(name, FONT) + '\n'
 unit += r'''
 int main(void){
+ strcpy(reader,"/builtin/Bitter-Regular.ttf");media_ready=false;
+ unsigned before_stats=stats;
+ assert(app_font_activate_reading());assert(!strcmp(active,reader)&&stats==before_stats);
+ app_lock_font_t embedded_lock;app_font_begin_lock(&embedded_lock);app_font_end_lock(&embedded_lock);
+ assert(!strcmp(active,reader)&&stats==before_stats);
+ media_ready=true;strcpy(reader,"/fonts/reader.ttf");strcpy(active,"builtin");
+
  char default_path[TTF_FONT_PATH_MAX];chosen[0]=0;assert(!strcmp(system_path(default_path),TTF_FONT_BUILTIN));strcpy(chosen,"/fonts/system.ttf");
  app_lock_font_t saved;
  // 有意卸载期间不能打开文件/换内建；重新就绪后保持原选择可恢复。

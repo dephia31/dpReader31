@@ -16,7 +16,9 @@ unit=r'''
 #include <errno.h>
 #include "book_excerpt.h"
 #include "book_index_cache.h"
-static bool app_settings_simple_ui(void){return false;}
+static bool full_mode;
+static bool app_settings_simple_ui(void){return full_mode;}
+static bool app_settings_simple_full_ui(void){return full_mode;}
 static unsigned writes;
 static const char *mapped(const char *path,char *out){
  assert(!strncmp(path,"/sdcard",7));assert(strlen(path)+strlen(TEST_ROOT)<1024);
@@ -39,6 +41,7 @@ unit+=r'''
 typedef struct {char path[288];bool has_progress;struct {uint16_t chapter;}progress;}home_book_t;
 static home_book_t current;
 static char s_excerpt[BOOK_EXCERPT_CAP];
+static bool s_excerpt_is_chapter;
 static home_book_t *featured(void){return &current;}
 '''
 unit+=function('refresh_excerpt',ROOT/'main/apps/app_dashboard.c')+'\n'
@@ -54,6 +57,13 @@ int main(void){
  strcpy(current.path,"/sdcard/book.epub");current.has_progress=true;current.progress.chapter=1;
  refresh_excerpt();assert(!strcmp(s_excerpt,second));
  current.progress.chapter=0;refresh_excerpt();assert(!s_excerpt[0]);
+ full_mode=true;book_chapter_label_offer(current.path,0,"Ngày đầu tiên");
+ refresh_excerpt();assert(s_excerpt_is_chapter&&!strcmp(s_excerpt,"Chương 1: Ngày đầu tiên"));
+ char label[BOOK_EXCERPT_CAP];assert(!book_chapter_label_load(current.path,1,label));
+ unsigned saved_writes=writes;book_chapter_label_offer(current.path,0,"Ngày đầu tiên");assert(writes==saved_writes);
+ current.progress.chapter=7;refresh_excerpt();assert(s_excerpt_is_chapter&&!strcmp(s_excerpt,"Chương 8"));
+ current.progress.chapter=1;refresh_excerpt();assert(!s_excerpt_is_chapter&&!strcmp(s_excerpt,second));
+ full_mode=false;
  current.progress.chapter=1;refresh_excerpt();assert(!strcmp(s_excerpt,second));
  current.has_progress=false;refresh_excerpt();assert(!s_excerpt[0]);
  // 没有完整句子的章节不能继续显示上一章；回跳重新取该章。

@@ -106,6 +106,7 @@ static int64_t time_offset, time_step;
 static int du_areas, gl_areas;
 static bool main_fast, main_water;
 bool app_settings_simple_ui(void){return false;}
+bool app_settings_simple_full_ui(void){return false;}
 int app_settings_main_refresh_mode(void) {return main_water?APP_MAIN_REFRESH_WATER:main_fast?APP_MAIN_REFRESH_FAST:APP_MAIN_REFRESH_NORMAL;}
 static int shelf_exit_arms;
 static int nav_arms, nav_draws, nav_full_arms, nav_area_draws;
@@ -293,6 +294,7 @@ static void lost(app_ctx_t*c) {(void)c;media_lost++;loss_step=step;}
 static void ready(app_ctx_t*c) {(void)c;media_ready++;}
 EpdRect ui_content_refresh_area(void) {return (EpdRect){0,0,684,1000};}
 const app_desc_t* app_home_page(void) {return &first;}
+const app_desc_t app_dashboard = {0};
 const app_desc_t* app_at(int i) {return i==0?&first:i==1?&second:NULL;}
 int app_index_of(const app_desc_t* app) {return app==&first?(fake_root_index>=0?fake_root_index:0):app==&second?(fake_target_index>=0?fake_target_index:1):-1;}
 int ui_key_hit_test(uint16_t x,uint16_t y) {return y>=1300 && x<480?x/160:-1;}
@@ -799,7 +801,7 @@ int main(void) {
     for(int policy=0;policy<3;++policy)for(int x=80;x<=560;x+=120)for(int trial=0;trial<7;++trial){
         reset();main_fast=policy==1;main_water=policy==2;first.persistent_navigation=true;
         first.on_gesture=gesture;first.on_key=edge_back_key;first.edge_back_enabled=edge_allowed;edge_enabled=true;
-        int dx=trial==0?119:trial==4?(x<120?-x:-120):120,dy=trial==1?119:trial==2?-119:trial==3?120:0;
+        int dx=trial==0?59:trial==4?(x<120?-x:-120):120,dy=trial==1?119:trial==2?-119:trial==3?120:0;
         if(trial==6)first.back_swipe_area=keyboard_back_area;
         int y=trial>=5?650:400;
         add(x,y,1,0);add(x+dx,y+dy,1,0);add(0,0,0,0);run();

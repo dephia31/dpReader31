@@ -7,6 +7,7 @@
  *
  * 冻结：翻页不做按下反馈；阈值来自 ui_kit.h；短拖取消以免误翻。
  * Frozen: No press decoration for page turns; thresholds live in ui_kit.h; short drags cancel to avoid accidental turns.
+ * User revision 2026-11-03: all four swipe directions use a shorter 60px threshold.
  */
 #pragma once
 #include "app.h"

@@ -24,7 +24,7 @@
  * 用户修订：AI长按打开玻璃短按映射选择器；正常开合各一次区域推屏，选择不执行动作，锁屏/USB/升级保留保护。
  * Revision2026-10-30: default AI hold opens the glass tap-action chooser; configurable holds execute independently. Reader front keys and volume defer short actions until release and suppress them after a hold. Retain lock/USB/update guards.
  * 用户修订：四个主页面底栏作为统一导航路由在按下时报点即响应，模态和阅读手势保持原归属。
- * User revision: root-tab routing commits on initial contact; modal controls and reader gestures retain their owners.
+ * User revision 2026-11-04: Home tabs commit on release to allow full-screen downward Quick Settings swipes; other root-tab routing commits on initial contact; modal controls and reader gestures retain their owners.
  * 用户修订：系统页面切换使用 GL16，不再每次 GC16 全刷；锁屏、手动强刷和周期清残影仍可全刷。
  * User revision: system page changes use GL16 instead of GC16; lock, manual refresh and periodic ghost cleanup may still use full refresh.
  * 用户修订：设置可选普通/快刷/水波纹，默认普通；普通保留原灰阶路线，快刷采用确认的黑白主页面和亚克力灰阶。用户反馈残影和黑带后，书架退出只同向擦白，主页水波纹改白底/24窄带且端点单向推动，中灰保留校准序列；五行横条局部移动、图标固定，没有异步补刷。
@@ -33,8 +33,8 @@
  * User revision: ordinary main screens also retain navigation and move only its marker locally; fast acrylic uses a regular one-pixel checkerboard in the same output as cached covers. Ordinary/water retain grays; initial entry and unlock still draw complete navigation.
  * 冻结：返回消费最近切页来源，恢复原页及菜单位置，不跳固定首页。
  * Frozen: Return consumes the latest page origin, restoring its page and menu position.
- * 用户采用顶部快捷层：顶部32px起手下滑72px或正文内下滑时接管，覆盖时冻结页内输入/轮询，WiFi直接连接最近保存网络/再次断开，蓝牙开启并异步连接最近成功的翻页器，全刷和锁屏复用原路径。用户要求三个模式均真实灰阶并加深轮廓；关闭还原顶部底图并局部整理，不修改底栏。
- * User adopts the top quick layer: capture a 72px downward swipe starting within the top 32px, or a downward reader-body gesture; suspend page input/ticks while covered. WiFi connects saved credentials or disconnects on the next tap; Bluetooth enables and queues a connection to the most recently successful turner. Reuse full refresh and lock. Per the user, all modes retain grays with clearer outlines. Closing restores the bounded top underlay and locally settles it, retaining navigation.
+ * 用户采用顶部快捷层：顶部32px起手下滑60px或正文内下滑时接管，覆盖时冻结页内输入/轮询，WiFi直接连接最近保存网络/再次断开，蓝牙开启并异步连接最近成功的翻页器，全刷和锁屏复用原路径。用户要求三个模式均真实灰阶并加深轮廓；关闭还原顶部底图并局部整理，不修改底栏。
+ * User adopts the top quick layer: capture a 60px downward swipe (user revision 2026-11-03) starting within the top 32px, or a downward reader-body gesture; suspend page input/ticks while covered. WiFi connects saved credentials or disconnects on the next tap; Bluetooth enables and queues a connection to the most recently successful turner. Reuse full refresh and lock. Per the user, all modes retain grays with clearer outlines. Closing restores the bounded top underlay and locally settles it, retaining navigation.
  * 用户修订：快捷层只在展开/收起重绘顶部；圆键按下立即局部DU反馈，状态变化不重排底页或生成玻璃。
  * User revision: only opening/closing repaints the top; key presses receive immediate local DU feedback without underlay re-layout or glass regeneration.
  * 用户2026-10-19修订：下拉菜单锁屏前先收起并还原底页；点全刷自动收起，仅对还原后的页面全刷。
@@ -422,8 +422,11 @@ esp_err_t app_toggle_network(bool bluetooth) {
     if(enable)ble_pt_reconnect_recent();else {ble_pt_cancel_recent();ble_pt_sync(false);}
     return ESP_OK;
 }
+extern const app_desc_t app_dashboard;
 static bool main_page_ready(app_ctx_t* ctx, const app_desc_t* app);
 static bool navigation_page_ready(app_ctx_t* ctx,const app_desc_t* app) {
+    // Fully simple Home paints into the former navigation band.
+    if(app==&app_dashboard&&app_settings_simple_full_ui()&&app->main_page_visible&&app->main_page_visible(ctx))return false;
     return app->persistent_navigation || main_page_ready(ctx,app);
 }
 static bool navigation_input_ready(app_ctx_t* ctx,const app_desc_t* app) {
@@ -1492,7 +1495,8 @@ void app_loop_run(const app_loop_config_t* config) {
         if(nav_press_owned)ctx.consumed=true;
         if (err == ESP_OK && pressed && !nav_press_owned && touch.count == 1 && !power_input_owned &&
             !quick_input_owned && !menu_open && !usb_storage_active() &&
-            navigation_input_ready(&ctx, current)) {
+            navigation_input_ready(&ctx, current) &&
+            !(current==&app_dashboard&&main_page_ready(&ctx,current))) {
             const int tab = ui_nav_hit(touch.x, touch.y);
             if (tab >= 0) {
                 held_key = -1;
@@ -1514,6 +1518,7 @@ void app_loop_run(const app_loop_config_t* config) {
         }
         if (err == ESP_OK && pressed && touch.count == 1 && !nav_press_owned && !power_input_owned &&
             !quick_input_owned && !menu_open && !usb_storage_active() &&
+            !(current==&app_dashboard&&main_page_ready(&ctx,current)) &&
             ui_click_feedback_press(ctx.fb, touch.x, touch.y, &click_area))
             click_present(&ctx, current, click_area);
         if (!power_input_owned && !quick_input_owned && !nav_press_owned && pressed && err == ESP_OK) {

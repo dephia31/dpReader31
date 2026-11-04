@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "version": "1.2.9-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "bd73f8505afbd6118549f916c566287128120fb57f2317b109b54d798b118bdd",
+  "size": 4499968,
+  "notes": "dpReader 1.2.9: lịch đèn trắng/ấm, vuốt xuống mở cài đặt nhanh; cải thiện OPDS, BLE và Wi-Fi khi Sleep; giảm tác vụ nền khi đọc.",
+  "previous_version": "1.2.8-vn"
+}

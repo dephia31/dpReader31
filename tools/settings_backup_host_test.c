@@ -124,6 +124,12 @@ esp_err_t nvs_erase_key(nvs_handle_t h, const char *key) { (void)h; (void)key; r
 esp_err_t nvs_commit(nvs_handle_t h) { (void)h; ++commit_count; return commit_fails ? ESP_FAIL : ESP_OK; }
 
 int main(void) {
+    assert(app_settings_book_px()==74);
+    assert(backup_font_path_valid("/builtin/Bitter-Regular.ttf",32));
+    assert(!backup_font_path_valid("/builtin/Other.ttf",32));
+    char unterminated[32];memset(unterminated,'x',sizeof(unterminated));
+    assert(!backup_font_path_valid(unterminated,sizeof(unterminated)));
+    assert(!strcmp(app_settings_font_path(),"/builtin/Bitter-Regular.ttf"));
     for(int effect=0;effect<=2;++effect) {
         loaded_turn=effect;s_reader_turn_effect=99;app_settings_init();
         assert(app_settings_reader_turn_effect()==effect);
@@ -749,15 +755,15 @@ int main(void) {
     assert(!strcmp(app_settings_bookmark_path(),"/sdcard/pictures/marker.png"));
     assert(app_settings_backup_save()==ESP_OK);s_bookmark[0]=0;s_lock_style=0;
     assert(app_settings_backup_restore()==ESP_OK&&app_settings_lock_style()==0&&!app_settings_bookmark_path()[0]);
-    // 所有阅读字号都可保存与备份恢复，范围外仍使用默认48。
-    // Every reader size survives settings/backup restore; out-of-range values still use default 48.
+    // 所有阅读字号都可保存与备份恢复，范围外仍使用默认74。
+    // Every reader size survives settings/backup restore; out-of-range values still use default 74.
     for(int px=18;px<=90;++px){
         app_settings_set_book_px((uint8_t)px);assert(app_settings_book_px()==px);
         assert(app_settings_backup_save()==ESP_OK);s_book_px=0;
         assert(app_settings_backup_restore()==ESP_OK&&app_settings_book_px()==px);
     }
-    app_settings_set_book_px(17);assert(app_settings_book_px()==48);
-    app_settings_set_book_px(91);assert(app_settings_book_px()==48);
+    app_settings_set_book_px(17);assert(app_settings_book_px()==BOOK_READER_PX_DEFAULT);
+    app_settings_set_book_px(91);assert(app_settings_book_px()==BOOK_READER_PX_DEFAULT);
     // 新增20页档必须覆盖保存、重启与备份；旧档和非法值继续受校验。
     // Cover persistence, reload and backup for20, preserving legacy stops and rejecting invalid values.
     loaded_full_pages=s_reader_full_pages;test_full_storage=true;

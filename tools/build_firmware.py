@@ -230,7 +230,7 @@ def export(build, output, board):
         (output / 'FREETYPE_NOTICE.txt').write_text(
             "This software uses the FreeType library, copyright © the FreeType Project (www.freetype.org).\n"
             "FreeType2.14.3; original sources: https://github.com/freetype/freetype/tree/VER-2-14-3\n"
-            "Distributed under the FreeType License; see FREETYPE_LICENSE.txt. No Bookerly font is bundled.\n")
+            "Distributed under the FreeType License; see FREETYPE_LICENSE.txt. Bitter font licensing is included in OFL-Bitter.txt.\n")
         for name in ('FREETYPE_LICENSE.txt', 'FREETYPE_NOTICE.txt'):
             checksums.append(f"{hashlib.sha256((output / name).read_bytes()).hexdigest()}  {name}\n")
     shutil.copyfile(ROOT / 'main/assets/OFL-Bitter.txt', output / 'OFL-Bitter.txt')

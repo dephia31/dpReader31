@@ -448,11 +448,11 @@ int main(void) {
         assert(book_reader_tap_direction(body,body.x,body.y,false,true)==1);
         assert(book_reader_tap_direction(body,body.x+body.width-1,body.y,false,true)==-1);
         book_reader_tap_t tap={0};
-        assert(!book_reader_tap_feed(&tap,body,342,600,false,false,1000));
-        assert(book_reader_tap_feed(&tap,body,340,600,true,false,1250)==BOOK_READER_TAP_DOUBLE);
+        assert(book_reader_tap_feed(&tap,body,342,600,false,false,1000)==1);
+        assert(book_reader_tap_feed(&tap,body,340,600,true,false,1250)==1);
         assert(!book_reader_tap_tick(&tap,2000,false));
-        assert(!book_reader_tap_feed(&tap,body,342,600,true,false,3000));
-        assert(book_reader_tap_tick(&tap,3341,false)==1);
+        assert(book_reader_tap_feed(&tap,body,342,600,true,false,3000)==1);
+        assert(!book_reader_tap_tick(&tap,3341,false));
         assert(!book_reader_tap_tick(&tap,4000,false));
     }
     app_ctx_t remote_ctx={0};s_view=SHELF;test_shelf_style=2;s_visible_count=27;

@@ -67,3 +67,9 @@ Nếu đọc cấu hình lịch đèn bị lỗi, máy không lưu đè lịch c
 trang lịch hoặc thử Lưu để đọc lại; vòng nền không tự lặp việc đọc NVS lỗi.
 
 Trong nội dung sách, vuốt xuống mở bảng cài đặt nhanh giống thao tác kéo từ cạnh trên. Vuốt cạnh chỉnh đèn, phóng ảnh, chọn văn bản và các bảng công cụ đang mở giữ thao tác riêng.
+
+### Pop menu và Quick Settings trên Home
+
+Trong giao diện Đơn giản và Đơn giản hoàn toàn, vuốt lên trên Home, kể cả ngay trên thẻ Đọc tiếp, để mở **pop menu** với Mở sách, Truyền file, OPDS và Cài đặt. Chạm ngoài hoặc vuốt xuống để đóng pop menu.
+
+Ở cả ba giao diện, vuốt xuống tại bất kỳ vùng nào trên Home để mở **Quick Settings**. Các nút điều hướng dưới Home được thực hiện khi nhấc tay, để có thể bắt đầu vuốt ngay từ vùng nút.

@@ -84,6 +84,9 @@ void app_settings_record_pin_lock(uint32_t unix_seconds);
 /// 首页进入时强制全刷；默认关闭。/ Full refresh when entering Home; off by default.
 /// Local UI choice survives profile restore/reset; only the explicit setter changes it.
 bool app_settings_simple_ui(void);
+bool app_settings_simple_full_ui(void);
+uint8_t app_settings_ui_mode(void);
+esp_err_t app_settings_set_ui_mode(uint8_t mode);
 esp_err_t app_settings_set_simple_ui(bool enabled);
 bool app_settings_home_full_refresh(void);
 void app_settings_set_home_full_refresh(bool enabled);

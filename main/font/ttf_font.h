@@ -44,6 +44,7 @@ typedef struct {
 } ttf_bench_stats_t;
 
 #define TTF_FONT_BUILTIN "builtin"
+#define TTF_FONT_BITTER_REGULAR "/builtin/Bitter-Regular.ttf"
 
 /// 同时驻留的字体数。0 号槽固定给系统字体，1..N 按需装载书籍内嵌字体。
 /// Resident faces. Slot 0 is always the system face; slots 1..N hold embedded book faces.

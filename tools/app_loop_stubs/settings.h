@@ -3,6 +3,7 @@
 #include "common.h"
 
 bool app_settings_simple_ui(void);
+bool app_settings_simple_full_ui(void);
 bool app_settings_ble_turner(void);
 void app_settings_set_ble_turner(bool enabled);
 

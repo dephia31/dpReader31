@@ -60,4 +60,4 @@ BLE 蓝牙翻页器的报告解析与按键映射参考 CrossMux 的 BleKeyboard
 
 ## FreeType monochrome TrueType engine
 
-This software uses the FreeType library, copyright © the FreeType Project (www.freetype.org). FreeType2.14.3 is included under the FreeType License in `components/kiiko_freetype/vendor/docs/FTL.TXT`; upstream sources remain unmodified. Source archive identity and selected modules are recorded in `components/kiiko_freetype/UPSTREAM.md`. No Bookerly font is bundled or redistributed.
+This software uses the FreeType library, copyright © the FreeType Project (www.freetype.org). FreeType2.14.3 is included under the FreeType License in `components/kiiko_freetype/vendor/docs/FTL.TXT`; upstream sources remain unmodified. Source archive identity and selected modules are recorded in `components/kiiko_freetype/UPSTREAM.md`. The embedded Bitter Regular reader font is licensed under SIL OFL-1.1; see `main/assets/OFL-Bitter.txt`. It is instantiated at weight 400 from Google Fonts `ofl/bitter/Bitter[wght].ttf` (https://github.com/google/fonts/tree/main/ofl/bitter).

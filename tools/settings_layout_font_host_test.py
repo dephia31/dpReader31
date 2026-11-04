@@ -40,12 +40,7 @@ layout=s[s.index('typedef struct {\n    EpdRect size, preview;'):s.index('static
 unit=r'''
 typedef int esp_err_t;
 #define ESP_OK 0
-static _Bool simple_ui;
-static _Bool app_settings_simple_ui(void){return simple_ui;}
-static int app_settings_set_simple_ui(_Bool on){simple_ui=on;return 0;}
-static void app_book_release_shelf_cache(void){}
-static void app_home_cover_mode_changed(void){}
-static void app_home_release_clock_cache(void){}
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>

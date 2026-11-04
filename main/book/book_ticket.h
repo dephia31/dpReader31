@@ -17,3 +17,7 @@ bool book_ticket_recent_days(uint32_t seconds[30]);
 /// 当前月每日真实阅读秒数，兼容旧30日记录；无有效日期返回 false。/ Current-month measured seconds with legacy 30-day migration; false without a valid date.
 bool book_ticket_month_days(int year, int month, uint32_t seconds[31]);
 bool book_ticket_draw(uint8_t *fb, bool reader_background);
+
+/// Draw the ticket layers using a borrowed, already loaded cover.
+void book_ticket_draw_background(uint8_t *fb, const uint8_t *pixels, unsigned width, unsigned height, bool packed);
+void book_ticket_draw_paper(uint8_t *fb);
