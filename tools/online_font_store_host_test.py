@@ -93,7 +93,9 @@ int main(int argc,char **argv){
             subprocess.run([str(w/'test'),'catalog',str(source),str(d),str(i)],check=True,stdout=subprocess.DEVNULL)
             assert hashlib.sha256((d/item['filename']).read_bytes()).hexdigest()==item['sha256']
             assert (d/(item['filename']+'.OFL.txt')).read_bytes()==item['license'].encode()
-        d=w/'zipcancel';d.mkdir();source=d/'source.part';shutil.copyfile(args.fonts_dir/'zhuque-fangsong.source',source)
-        subprocess.run([str(w/'test'),'zipcancel',str(source),str(d),'3'],check=True,stdout=subprocess.DEVNULL)
+            if item['deflate_size']:
+                d=w/(item['id']+'-zipcancel');d.mkdir();source=d/'source.part'
+                shutil.copyfile(args.fonts_dir/(item['id']+'.source'),source)
+                subprocess.run([str(w/'test'),'zipcancel',str(source),str(d),str(i)],check=True,stdout=subprocess.DEVNULL)
     print('PASS: real SFNT install/hash/notice, corruption, invalid format, cancellation, existing-file preservation, license-write failure'+
-          ('; all five pinned author files and bounded ZIP cancellation' if args.fonts_dir else '')+' (ASan/UBSan)')
+          ('; all five pinned author files' if args.fonts_dir else '')+' (ASan/UBSan)')

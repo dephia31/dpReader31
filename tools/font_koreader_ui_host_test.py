@@ -3,6 +3,10 @@
 from pathlib import Path
 import subprocess, tempfile
 from font_mono_host_test import FLAGS, SOURCES, COMP, ROOT
+bitter = (ROOT/'main/assets/Bitter-Regular.ttf').read_bytes()
+assets_bitter = '#include <stdint.h>\nconst uint8_t bitter[] asm("_binary_Bitter_Regular_ttf_start")={' + ','.join(map(str,bitter)) + '};\n'
+assets_bitter += f'asm(".globl _binary_Bitter_Regular_ttf_end\\n.set _binary_Bitter_Regular_ttf_end, _binary_Bitter_Regular_ttf_start + {len(bitter)}");\n'
+
 UNIT = r'''#include "ui_font.c"
 #include <assert.h>
 #include <stdio.h>
@@ -44,6 +48,6 @@ with tempfile.TemporaryDirectory() as directory:
  raw=(ROOT/'main/assets/builtin.ttf').read_bytes()
  assets='#include <stdint.h>\nconst uint8_t builtin[] __asm__("_binary_builtin_ttf_start")={'+','.join(map(str,raw))+'};\n'
  assets+='__asm__(".globl _binary_builtin_ttf_end\\n.set _binary_builtin_ttf_end, _binary_builtin_ttf_start + '+str(len(raw))+'");\n'
- (p/'assets.c').write_text(assets);(p/'test.c').write_text(UNIT)
+ (p/'assets.c').write_text(assets + assets_bitter);(p/'test.c').write_text(UNIT)
  subprocess.run(['cc',*FLAGS,'-std=gnu11','-DKIIKO_BOARD_METALIO47=1','-I'+str(p),'-I'+str(ROOT/'tools/ui_gesture_stubs'),str(p/'test.c'),str(p/'assets.c'),str(ROOT/'main/font/ui_hanzi.c'),str(ROOT/'main/font/ttf_mono.c'),*[str(COMP/'vendor/src'/s) for s in SOURCES],'-lm','-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)

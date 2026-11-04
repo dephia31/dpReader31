@@ -8,13 +8,13 @@
 
 | 字体 | 固定来源 |
 | --- | --- |
-| 霞鹜文楷轻量版 Regular | lxgw/LxgwWenKaiGB-Lite 的 v1.530 |
-| Noto Sans SC | google/fonts 的固定源码提交 |
-| Noto Serif SC | google/fonts 的同一固定源码提交 |
-| 朱雀仿宋 | TrionesType/zhuque 的 v0.212 |
-| 霞鹜臻楷 | lxgw/LxgwZhenKai 的 v0.827 |
+| Literata | Google Fonts |
+| Lora | Google Fonts |
+| Noto Serif | Google Fonts |
+| Merriweather | Google Fonts |
+| Source Serif 4 | Google Fonts |
 
-朱雀原始发布文件是 ZIP：先核验整个归档，再按已知偏移流式解压唯一 TTF，并核验其原始大小和 SHA-256。不会解析或写入归档指定的目录，也不把完整解压字体放入内存。其他四款直接核验原始 TTF。五款都需通过基本 TrueType 表范围检查。
+五款均包含越南语字符，直接核验固定提交的原始 TTF。旧目录中的字体不会因此从 TF 卡删除。
 
 每款字体随同原始版权声明和完整 OFL 1.1 文本安装为相邻 `.OFL.txt` 文件；列表不额外显示授权按钮。不得把 Moon 或微信读书接口中“能够下载”的字体视作已经获得再分发许可。
 

@@ -124,30 +124,30 @@ static void worker(void *arg){
     bool network_held=false;
     bool owned=false,ble_lease=false;uint8_t *buffer=NULL;FILE *file=NULL;
     esp_http_client_handle_t client=NULL;esp_err_t result=ESP_FAIL;
-    const char *message="下载失败，请重试";
+    const char *message="Tải thất bại, vui lòng thử lại";
     if(!item||cancelled(NULL))goto done;
     read_pico_sd_info_t sd={0};
-    if(read_pico_sd_get_info(&sd)!=ESP_OK||!sd.mounted){message="请先插入TF卡";goto done;}
-    if(read_pico_sd_refresh_space()!=ESP_OK||read_pico_sd_get_info(&sd)!=ESP_OK||!sd.space_valid){message="无法确认TF可用空间";goto done;}
+    if(read_pico_sd_get_info(&sd)!=ESP_OK||!sd.mounted){message="Vui lòng lắp thẻ nhớ trước";goto done;}
+    if(read_pico_sd_refresh_space()!=ESP_OK||read_pico_sd_get_info(&sd)!=ESP_OK||!sd.space_valid){message="Không kiểm tra được dung lượng thẻ nhớ";goto done;}
     uint64_t needed=item->source_size+(item->deflate_size?item->size:0)+strlen(item->license)+131072u;
-    if(sd.free_bytes<needed){message="TF卡可用空间不足";goto done;}
+    if(sd.free_bytes<needed){message="Thẻ nhớ không đủ dung lượng trống";goto done;}
     if(!make_directory("/sdcard/assets")||!make_directory(ONLINE_FONT_DIRECTORY))goto done;
     if(online_font_store_installed(item,ONLINE_FONT_DIRECTORY)){result=ESP_OK;goto done;}
     // 字体下载独占一个临时BLE租约，结束按原用户配置恢复，不持久改开关。
     // Borrow a BLE lease for font transfer; restore the original user preference on completion.
     if(!(network_held=read_pico_transfer_network_begin())){result=ESP_ERR_INVALID_STATE;goto done;}
-    result=ble_pt_network_acquire();if(result!=ESP_OK){message="蓝牙正在忙，请稍后重试";goto done;}ble_lease=true;
+    result=ble_pt_network_acquire();if(result!=ESP_OK){message="Bluetooth đang bận, vui lòng thử lại sau";goto done;}ble_lease=true;
     result=ensure_network(&owned);
-    if(result!=ESP_OK){message=result==ESP_ERR_NOT_FOUND?"请先在WiFi设置中连接网络":"WiFi连接失败，请重试";goto done;}
-    if(time(NULL)<1704067200){message="请先完成WiFi对时";result=ESP_ERR_INVALID_STATE;goto done;}
+    if(result!=ESP_OK){message=result==ESP_ERR_NOT_FOUND?"Vui lòng kết nối mạng trong Cài đặt Wi-Fi":"Kết nối Wi-Fi thất bại, vui lòng thử lại";goto done;}
+    if(time(NULL)<1704067200){message="Vui lòng đồng bộ giờ qua Wi-Fi trước";result=ESP_ERR_INVALID_STATE;goto done;}
     if(cancelled(NULL)){result=ESP_ERR_INVALID_STATE;goto done;}
     buffer=heap_caps_malloc(8192,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-    if(!buffer){message="内存不足，请稍后重试";result=ESP_ERR_NO_MEM;goto done;}
-    client=open_source(item->url);if(!client){result=ESP_FAIL;message="无法连接字体下载源";goto done;}
+    if(!buffer){message="Không đủ bộ nhớ, vui lòng thử lại sau";result=ESP_ERR_NO_MEM;goto done;}
+    client=open_source(item->url);if(!client){result=ESP_FAIL;message="Không kết nối được nguồn tải phông";goto done;}
     int64_t length=esp_http_client_get_content_length(client);
-    if(length>0&&(uint64_t)length!=item->source_size){message="字体文件大小不符";result=ESP_ERR_INVALID_SIZE;goto done;}
+    if(length>0&&(uint64_t)length!=item->source_size){message="Kích thước tệp phông không khớp";result=ESP_ERR_INVALID_SIZE;goto done;}
     file=fopen(source,"wb");if(!file){result=ESP_FAIL;goto done;}
-    state(ONLINE_FONT_DOWNLOADING,"正在下载");
+    state(ONLINE_FONT_DOWNLOADING,"Đang tải phông…");
     uint32_t received=0;int64_t idle=esp_timer_get_time();
     result=ESP_FAIL;
     while(!cancelled(NULL)){
@@ -167,7 +167,7 @@ static void worker(void *arg){
     file=NULL;
     esp_http_client_cleanup(client);client=NULL;
     if(result==ESP_OK&&!cancelled(NULL)){
-        state(ONLINE_FONT_VERIFYING,"正在校验");message="文件校验或安装失败";
+        state(ONLINE_FONT_VERIFYING,"Đang kiểm tra tệp…");message="Kiểm tra hoặc cài phông thất bại";
         result=online_font_store_commit(item,ONLINE_FONT_DIRECTORY,source,cancelled,NULL);
     }
 done:
@@ -179,8 +179,8 @@ done:
     if(ble_lease)ble_pt_network_release();
     if(network_held)read_pico_transfer_network_end();
     bool aborted=cancelled(NULL);
-    if(aborted)state(ONLINE_FONT_CANCELLED,"已取消下载");
-    else if(result==ESP_OK)state(ONLINE_FONT_DONE,"下载完成，请返回选择字体");
+    if(aborted)state(ONLINE_FONT_CANCELLED,"Đã hủy tải phông");
+    else if(result==ESP_OK)state(ONLINE_FONT_DONE,"Tải xong. Quay lại danh sách để chọn phông.");
     else{state(ONLINE_FONT_FAILED,message);ESP_LOGW(TAG,"item=%u failed: %s",index,esp_err_to_name(result));}
     portENTER_CRITICAL(&s_lock);s_status.busy=false;++s_status.revision;portEXIT_CRITICAL(&s_lock);
     atomic_store(&s_running,false);vTaskDelete(NULL);
@@ -191,9 +191,9 @@ esp_err_t online_font_start(unsigned index){
     atomic_store(&s_cancel,false);
     portENTER_CRITICAL(&s_lock);uint32_t revision=s_status.revision+1;
     s_status=(online_font_status_t){.phase=ONLINE_FONT_CONNECTING,.item=index,.total=item->source_size,.revision=revision,.busy=true};
-    snprintf(s_status.message,sizeof(s_status.message),"正在连接WiFi");portEXIT_CRITICAL(&s_lock);
+    snprintf(s_status.message,sizeof(s_status.message),"Đang kết nối Wi-Fi…");portEXIT_CRITICAL(&s_lock);
     if(xTaskCreate(worker,"font_online",8192,(void *)(uintptr_t)index,3,NULL)!=pdPASS){
-        state(ONLINE_FONT_FAILED,"内存不足，请稍后重试");
+        state(ONLINE_FONT_FAILED,"Không đủ bộ nhớ, vui lòng thử lại sau");
         portENTER_CRITICAL(&s_lock);s_status.busy=false;portEXIT_CRITICAL(&s_lock);
         atomic_store(&s_running,false);return ESP_ERR_NO_MEM;
     }

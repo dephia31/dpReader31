@@ -10,6 +10,10 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+bitter = (ROOT/'main/assets/Bitter-Regular.ttf').read_bytes()
+assets_bitter = '#include <stdint.h>\nconst uint8_t bitter[] asm("_binary_Bitter_Regular_ttf_start")={' + ','.join(map(str,bitter)) + '};\n'
+assets_bitter += f'asm(".globl _binary_Bitter_Regular_ttf_end\\n.set _binary_Bitter_Regular_ttf_end, _binary_Bitter_Regular_ttf_start + {len(bitter)}");\n'
+
 FONT = (ROOT / 'main/assets/builtin.ttf').read_bytes()
 
 HEADERS = {
@@ -114,7 +118,7 @@ with tempfile.TemporaryDirectory(prefix='pico-vertical-number-') as directory:
     work = Path(directory)
     for name, text in HEADERS.items():
         (work / name).write_text(text, encoding='utf-8')
-    (work / 'assets.c').write_text(ASSETS, encoding='utf-8')
+    (work / 'assets.c').write_text(ASSETS + assets_bitter, encoding='utf-8')
     (work / 'test.c').write_text(UNIT, encoding='utf-8')
     flags = ['cc', *FLAGS, '-std=gnu11', '-Wall', '-Wextra', # GCC 13 会把 ttf_font.c 里既有的 snprintf 告警升级成错误。
              '-Wno-error=format-truncation',

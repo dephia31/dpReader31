@@ -347,17 +347,25 @@ static bool upgrade_note_line(const char **cursor, char *line, size_t capacity) 
     const char *p = *cursor;
     while (*p && (strchr("\r\n\t ;", *p) || !strncmp(p, "; ", 3)))
         p += !strncmp(p, "; ", 3) ? 3 : 1;
-    size_t used = 0;
+    const char *start = p;
+    size_t used = 0, last_space = 0;
+    bool wrapped = false;
     line[0] = 0;
     while (*p && !strchr("\r\n;", *p) && strncmp(p, "; ", 3)) {
         unsigned char lead = (unsigned char)*p;
         size_t bytes = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : 4;
-        if (bytes > strlen(p) || used + bytes >= capacity) break;
+        if (bytes > strlen(p) || used + bytes >= capacity) { wrapped = true; break; }
         memcpy(line + used, p, bytes);
         line[used + bytes] = 0;
-        if (used && ui_text_fixed_width_px(26, line) > 540) { line[used] = 0; break; }
+        if (used && ui_text_fixed_width_px(26, line) > 540) { line[used] = 0; wrapped = true; break; }
+        if (*p == ' ') last_space = used;
         used += bytes;
         p += bytes;
+    }
+    if (wrapped && last_space) {
+        used = last_space;
+        line[used] = 0;
+        p = start + used + 1;
     }
     *cursor = p;
     return used != 0;
@@ -366,7 +374,8 @@ static void draw_upgrade_notes(uint8_t *fb) {
     const char *cursor = s_update.release.notes;
     char line[sizeof(s_update.release.notes)];
     if (!*cursor) {
-        settings_line(fb, 60, 530, 26, "Không có ghi chú phát hành cho bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
+        ui_text_box(fb, (EpdRect){60, 530, 564, 36}, 26,
+                    "Không có ghi chú phát hành cho bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
         return;
     }
     for (int row = 0; row < 6 && upgrade_note_line(&cursor, line, sizeof(line)); ++row) {
@@ -1990,10 +1999,12 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         if (s_upgrade_confirm) {
             settings_card(fb, (EpdRect){36, 356, 612, s_upgrade_online ? 708 : 480}, 22, UI_GRAY_WHITE, 0x70);
             settings_line(fb, 60, 383, 31, s_upgrade_online ? "Có phiên bản mới" : "Xác nhận cập nhật thẻ nhớ", EPD_DRAW_ALIGN_LEFT, false);
-            settings_line(fb, 60, 447, 28, s_upgrade_online ? s_update.release.version : s_local_update.candidate_version,
-                    EPD_DRAW_ALIGN_LEFT, false);
+            ui_text_box(fb, (EpdRect){60, 447, 564, 42}, 28,
+                        s_upgrade_online ? s_update.release.version : s_local_update.candidate_version,
+                        EPD_DRAW_ALIGN_LEFT, false);
             if (s_upgrade_online) {
-                settings_line(fb, 60, 494, 26, "Bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
+                ui_text_box(fb, (EpdRect){60, 494, 564, 32}, 26,
+                            "Bản cập nhật này", EPD_DRAW_ALIGN_LEFT, false);
                 draw_upgrade_notes(fb);
             }
             ui_text_caption(fb,(EpdRect){60,s_upgrade_online?766:512,564,80},22,
@@ -2026,8 +2037,11 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             ui_draw_button(fb, (EpdRect){60, 840, 564, 62}, s_local_pending ? "Đang cài đặt, vui lòng không tắt nguồn" :
                 s_local_update.ready ? "Cài đặt gói cập nhật trên thẻ nhớ" : "Kiểm tra lại thẻ nhớ", s_local_update.ready);
         }
-        if (s_upgrade_notice[0]) settings_line(fb, 48, 957, 21, s_upgrade_notice, EPD_DRAW_ALIGN_LEFT, false);
-        settings_line(fb, 48, 1010, 20, "Nạp toàn bộ ROM hoặc khôi phục firmware qua cáp USB", EPD_DRAW_ALIGN_LEFT, false);
+        // These lines belong to the overview. The OTA confirm button occupies this band.
+        if (!s_upgrade_confirm) {
+            if (s_upgrade_notice[0]) settings_line(fb, 48, 957, 21, s_upgrade_notice, EPD_DRAW_ALIGN_LEFT, false);
+            settings_line(fb, 48, 1010, 20, "Nạp toàn bộ ROM hoặc khôi phục firmware qua cáp USB", EPD_DRAW_ALIGN_LEFT, false);
+        }
         settings_navigation(fb);
         return;
     }
@@ -2063,7 +2077,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.3.0-vn", "ESP32-S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : "1.3.1-vn", "ESP32-S31");
         ui_text_caption(fb,(EpdRect){56,294,572,54},22,v_line,EPD_DRAW_ALIGN_LEFT,false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",

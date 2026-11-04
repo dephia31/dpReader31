@@ -2306,8 +2306,8 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     if (work->home.component == 3) work->home.component = APP_HOME_CLOCK;
     // The backup contains paths, not the corresponding font or image bytes.
     // 备份只含资源路径；资源已被删除时回退到安全的内建选项。
-    if (!require_device && work->backup.font[0] && !backup_file_exists(work->backup.font, false)) work->backup.font[0] = 0;
-    if (!require_device && work->backup.system_font[0] && !backup_file_exists(work->backup.system_font, false)) work->backup.system_font[0] = 0;
+    if (!require_device && work->backup.font[0] && strcmp(work->backup.font, DEFAULT_READER_FONT) && !backup_file_exists(work->backup.font, false)) work->backup.font[0] = 0;
+    if (!require_device && work->backup.system_font[0] && strcmp(work->backup.system_font, DEFAULT_READER_FONT) && !backup_file_exists(work->backup.system_font, false)) work->backup.system_font[0] = 0;
     if (work->backup.wallpaper[0] && !backup_file_exists(work->backup.wallpaper, false)) {
         work->backup.wallpaper[0] = 0;
         if (work->backup.flags[BK_LOCK] == 1) work->backup.flags[BK_LOCK] = 0;

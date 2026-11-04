@@ -2,10 +2,10 @@
 #pragma once
 #include <string.h>
 static inline const char *online_font_catalog_name(const char *stem) {
-    if (!strcmp(stem,"kiiko-wenkai-lite-8a07213b51")) return "LXGW WenKai Lite";
-    if (!strcmp(stem,"kiiko-noto-sans-sc-a3041811a7")) return "Noto Sans SC";
-    if (!strcmp(stem,"kiiko-noto-serif-sc-050080d925")) return "Noto Serif SC";
-    if (!strcmp(stem,"kiiko-zhuque-fangsong-558c627308")) return "Zhuque Fangsong";
-    if (!strcmp(stem,"kiiko-zhenkai-bf4ea8c39b")) return "LXGW ZhenKai";
+    if (!strcmp(stem,"kiiko-literata-b41138c937")) return "Literata";
+    if (!strcmp(stem,"kiiko-lora-822a6621cc")) return "Lora";
+    if (!strcmp(stem,"kiiko-noto-serif-4d8e676142")) return "Noto Serif";
+    if (!strcmp(stem,"kiiko-merriweather-d0ed0e359e")) return "Merriweather";
+    if (!strcmp(stem,"kiiko-source-serif-4-97b2d4da6e")) return "Source Serif 4";
     return NULL;
 }
