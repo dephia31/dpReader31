@@ -86,3 +86,17 @@ header h1{font-size:29px}
 
 
 #custom-file-container{display:none;margin:16px 0;padding:16px;border:1px dashed var(--border-color);border-radius:8px}
+
+/* Lời mời ủng hộ cửa hàng. / Shop support invitation. */
+.community-card{grid-column:1/-1;display:flex;align-items:center;gap:22px;padding:28px;border:1px solid #58303d;border-radius:var(--radius);background:linear-gradient(120deg,#20131d,var(--card-bg) 75%)}
+.community-icon{display:grid;place-items:center;flex:0 0 52px;width:52px;height:52px;border-radius:15px;background:#3b1e2a;color:#ff8190}
+.community-icon svg{width:27px;height:27px}
+.community-copy{flex:1;min-width:0}
+.community-eyebrow{font-size:10px;letter-spacing:1.5px;color:#ff8190;margin-bottom:7px}
+.community-copy h2{font-size:21px;line-height:1.35;font-weight:600;letter-spacing:-.4px;margin-bottom:8px}
+.community-copy>p:last-child{color:var(--text-secondary);font-size:13px;line-height:1.7;max-width:560px}
+.community-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex-shrink:0;min-height:46px;padding:11px 16px;border:1px solid #426cc2;border-radius:8px;color:#fff;background:#2255ad;text-decoration:none;font-size:13px;font-weight:600}
+.community-link svg{width:20px;height:20px;flex-shrink:0}
+.community-link:hover{background:#2d65c6;color:#fff}
+.community-link:focus-visible{outline:3px solid #b7d1ff;outline-offset:4px}
+@media(max-width:740px){.community-card{flex-wrap:wrap;gap:14px;padding:22px 18px}.community-icon{flex-basis:44px;width:44px;height:44px}.community-copy{flex-basis:calc(100% - 60px)}.community-copy h2{font-size:20px}.community-link{width:100%;margin-top:3px}}
