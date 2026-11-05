@@ -900,7 +900,7 @@ static esp_err_t sync_time_impl(uint32_t *utc_seconds) {
     err = esp_wifi_start(); if (err != ESP_OK) goto time_cleanup;
     wifi_started = true;
     stage="wifi-profile";
-    err=transfer_s31_radio_profile(WIFI_IF_STA); if(err!=ESP_OK) goto time_cleanup;
+    err=transfer_s31_radio_profile(WIFI_IF_STA, false); if(err!=ESP_OK) goto time_cleanup;
     stage="wifi-connect";
     err=time_connect(); if(err!=ESP_OK) goto time_cleanup;
     time_network_log(netif);
@@ -941,6 +941,7 @@ static esp_err_t sync_time_online_impl(uint32_t *utc_seconds) {
 
 static esp_err_t sync_time_run(uint32_t *utc_seconds, bool online_only, bool automatic) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    read_pico_transfer_prepare_network();
     if(read_pico_transfer_sleep_blocked())return ESP_ERR_INVALID_STATE;
     if(!read_pico_transfer_network_shareable())return ESP_ERR_INVALID_STATE;
     if (!utc_seconds) return ESP_ERR_INVALID_ARG;
@@ -988,6 +989,7 @@ bool read_pico_transfer_take_time_sync(uint32_t *utc_seconds) {
 
 esp_err_t read_pico_transfer_scan_wifi(read_pico_transfer_network_t out[READ_PICO_TRANSFER_SCAN_MAX], size_t *count) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    read_pico_transfer_prepare_network();
     if(read_pico_transfer_sleep_blocked())return ESP_ERR_INVALID_STATE;
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
     if (!out || !count) return ESP_ERR_INVALID_ARG;
@@ -1034,7 +1036,7 @@ esp_err_t read_pico_transfer_scan_wifi(read_pico_transfer_network_t out[READ_PIC
     err = esp_wifi_start(); if (err != ESP_OK) goto cleanup;
     started = true;
     stage = "wifi-profile";
-    err = transfer_s31_radio_profile(WIFI_IF_STA); if(err!=ESP_OK) goto cleanup;
+    err = transfer_s31_radio_profile(WIFI_IF_STA, false); if(err!=ESP_OK) goto cleanup;
     // Allow the native driver start event to settle before scanning.
     vTaskDelay(pdMS_TO_TICKS(120));
     stage = "scan";
@@ -2197,6 +2199,19 @@ void read_pico_transfer_resume_service(void) {
     s_sleep_resume_requested=false;s_sleep_resume_retry=0;
 }
 
+// 显式联网不依赖阅读首帧后的后台恢复；仍须已收到解锁请求。
+// Explicit networking need not wait for reader-frame background recovery; unlock must have requested it.
+void read_pico_transfer_prepare_network(void) {
+    TRANSFER_NETWORK_GUARD_OR_RETURN();
+    read_pico_transfer_resume_service();
+    if (read_pico_transfer_sleep_blocked()) return;
+    // 只清理已无资源的失败状态，不抢断服务、上传或配置。
+    // Clear only resource-free failures; never preempt a server, upload or configuration.
+    if (s_status.state == READ_PICO_TRANSFER_ERROR && !s_started && !s_wifi &&
+        !s_http && !s_netif && !s_config_busy && !s_time_active && !s_upload_active)
+        read_pico_transfer_stop();
+}
+
 // KoSync/OPDS 的短请求不应被热点或空闲STA挡住：拆掉纯联网会话再按已保存凭据重连。
 // 上传是唯一例外——里面正有文件在写卡，抢断会留下半个文件。
 // Short KoSync/OPDS requests must not be blocked by a hotspot or an idle STA: drop the
@@ -2204,6 +2219,7 @@ void read_pico_transfer_resume_service(void) {
 // because a file is mid-write and preemption would leave a partial one.
 esp_err_t read_pico_transfer_preempt_for_network(void) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    read_pico_transfer_prepare_network();
     if(read_pico_transfer_sleep_blocked())return ESP_ERR_INVALID_STATE;
     read_pico_transfer_status_t st = {0};
     read_pico_transfer_get_status(&st);
@@ -2247,6 +2263,7 @@ void read_pico_transfer_stop(void) {
 
 esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
+    read_pico_transfer_prepare_network();
     if(read_pico_transfer_sleep_blocked())return ESP_ERR_INVALID_STATE;
     if (!cfg || (cfg->network_only && cfg->mode != READ_PICO_TRANSFER_MODE_STA) ||
         (!cfg->network_only && (!cfg->root_dir || !cfg->free_bytes_cb)) ||
@@ -2397,7 +2414,8 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
 #ifdef KIIKO_LOCAL_NETWORK_PROBE
     transfer_network_probe_start();
 #endif
-    err = transfer_s31_radio_profile(cfg->mode == READ_PICO_TRANSFER_MODE_AP ? WIFI_IF_AP : WIFI_IF_STA);
+    err = transfer_s31_radio_profile(cfg->mode == READ_PICO_TRANSFER_MODE_AP ? WIFI_IF_AP : WIFI_IF_STA,
+                                    !cfg->network_only);
     if (err != ESP_OK) goto fail;
     if (cfg->mode == READ_PICO_TRANSFER_MODE_AP) {
         portENTER_CRITICAL(&s_lock);

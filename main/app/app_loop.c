@@ -33,13 +33,13 @@
  * User revision: ordinary main screens also retain navigation and move only its marker locally; fast acrylic uses a regular one-pixel checkerboard in the same output as cached covers. Ordinary/water retain grays; initial entry and unlock still draw complete navigation.
  * 冻结：返回消费最近切页来源，恢复原页及菜单位置，不跳固定首页。
  * Frozen: Return consumes the latest page origin, restoring its page and menu position.
- * 用户采用顶部快捷层：顶部32px起手下滑60px或正文内下滑时接管，覆盖时冻结页内输入/轮询，WiFi直接连接最近保存网络/再次断开，蓝牙开启并异步连接最近成功的翻页器，全刷和锁屏复用原路径。用户要求三个模式均真实灰阶并加深轮廓；关闭还原顶部底图并局部整理，不修改底栏。
- * User adopts the top quick layer: capture a 60px downward swipe (user revision 2026-11-03) starting within the top 32px, or a downward reader-body gesture; suspend page input/ticks while covered. WiFi connects saved credentials or disconnects on the next tap; Bluetooth enables and queues a connection to the most recently successful turner. Reuse full refresh and lock. Per the user, all modes retain grays with clearer outlines. Closing restores the bounded top underlay and locally settles it, retaining navigation.
+ * 用户采用顶部快捷层：顶部32px起手下滑60px或正文内下滑时接管，覆盖时冻结页内输入/轮询，WiFi直接连接最近保存网络/再次断开，蓝牙开启并异步连接最近成功的翻页器，全刷和锁屏复用原路径。用户要求三个模式均真实灰阶并加深轮廓；关闭还原顶部底图，不修改底栏内容。
+ * User adopts the top quick layer: capture a 60px downward swipe (user revision 2026-11-03) starting within the top 32px, or a downward reader-body gesture; suspend page input/ticks while covered. WiFi connects saved credentials or disconnects on the next tap; Bluetooth enables and queues a connection to the most recently successful turner. Reuse full refresh and lock. All modes retain grays with clearer outlines. Closing restores the bounded top underlay and retains the navigation content.
  * 用户修订：快捷层只在展开/收起重绘顶部；圆键按下立即局部DU反馈，状态变化不重排底页或生成玻璃。
  * User revision: only opening/closing repaints the top; key presses receive immediate local DU feedback without underlay re-layout or glass regeneration.
  * 用户2026-10-19修订：下拉菜单锁屏前先收起并还原底页；点全刷自动收起，仅对还原后的页面全刷。
- * 用户2026-10-24修订：S31下拉/AI菜单收回时，恢复完整底页并以一次GC48清理消除矩形残影；合并为收回输出，不增加菜单功能或先局部再全刷。
- * User revision 2026-10-24: S31 quick/AI close restores the page and uses one GC48 cleanup to remove rectangular ghosts, replacing the close output without new actions or a local pass before cleanup.
+ * 用户2026-11-05修订：S31下拉菜单收回恢复底页后只刷一次GL16；手动全刷和AI菜单保留GC48。
+ * User revision 2026-11-05: S31 Quick Settings closes with one GL16 pass after restoring the page. Manual full refresh and AI close retain GC48.
  * User revision 2026-10-19: dismiss and restore the underlay before locking; full refresh dismisses the layer and refreshes only the restored page.
  * 用户点击反馈：底栏及圆形返回键按下局部放大，释放复位；只暂存一个小控件，切页、全刷及锁屏丢弃缓存，不回放旧画面。
  * User click feedback: locally enlarge navigation/round backs on press and restore on release. Retain one small control only; navigation, full refresh and lock discard it without replaying old frames.
@@ -238,11 +238,14 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
     const int64_t composed=esp_timer_get_time();
     (void)started;(void)composed;
 #if KIIKO_BOARD_METALIO47
-    EpdRect area=ui_quick_menu_rect();
-    // 收回只提交一次完整底页清理，不先刷矩形再全刷，避免玻璃灰阶与周围白底留下边界。
-    // Close cleans the restored page once, without a preceding rectangle pass or a glass/white boundary.
-    enum EpdDrawError error=(full||!s_quick.open)?update_display_full(ctx->hl)
-        :update_display_gray_transition(ctx->hl,area);
+    enum EpdDrawError error;
+    if (full)
+        error = update_display_full(ctx->hl);
+    else if (s_quick.open)
+        error = update_display_gray_transition(ctx->hl, ui_quick_menu_rect());
+    else
+        error = update_display_reader_panel(ctx->hl,
+            (EpdRect){0, 0, epd_rotated_display_width(), epd_rotated_display_height()});
 #else
     enum EpdDrawError error=full?update_display_full(ctx->hl)
         :update_display_area_full_with(ctx->hl,&E0470_WAVEFORM,MODE_GL16,ui_quick_menu_rect());
@@ -447,6 +450,11 @@ void app_lock_ignore_for(int64_t ms) {
 }
 
 static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t redraw) {
+    // 已显示的覆盖层不得再交给底页present重绘。/ Never let the underlying page repaint an already presented overlay.
+    if (redraw == APP_REDRAW_DONE) {
+        main_present_finished(ctx, app, redraw);
+        return;
+    }
 #ifdef KIIKO_LOCAL_LATENCY
     const int64_t probe_start=esp_timer_get_time();
     extern int64_t local_display_elapsed_us;

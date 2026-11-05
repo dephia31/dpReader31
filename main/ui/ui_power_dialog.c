@@ -1,7 +1,7 @@
 /* SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  * 中文：长按电源的滑动关机层；参考MokuReader液态玻璃，控件底图只在打开时存入PSRAM，关闭释放。
- * English: Slide-to-off layer with liquid glass inspired by MokuReader; snapshot controls in PSRAM on open and release on close.
+ * English: Black full-screen power menu; snapshot the existing light controls in PSRAM on open.
  * 用户修订：滑动和点按只恢复控件底图并绘制局部反馈，不重新模糊、排字、写设置或调用硬件。
  * User revision: movement/presses restore cached controls without reblurring, shaping text, settings writes or hardware calls.
  */
@@ -178,7 +178,12 @@ static void power_control_base(uint8_t *fb,int slot,bool glass) {
     int cx=r.x+r.width/2,cy=r.y+r.height/2;
     // 重启和取消都用图标库的描边字形，和锁、电源同一套线宽。/ Restart and cancel both use the icon set's stroke marks, matching the lock and power line weight.
     ui_draw_icon(fb,cx,cy-20,44,slot==1?UI_ICON_ROTATE_CW:UI_ICON_X,UI_GRAY_BLACK);
-    ui_text_box(fb,(EpdRect){cx-66,cy+18,132,38},24,slot==1?"Khởi động lại":"Hủy",EPD_DRAW_ALIGN_CENTER,false);
+    if (slot == 1) {
+        ui_text_fixed_vc(fb,cx,cy+21,20,"Khởi động",EPD_DRAW_ALIGN_CENTER,false);
+        ui_text_fixed_vc(fb,cx,cy+44,20,"lại",EPD_DRAW_ALIGN_CENTER,false);
+    } else {
+        ui_text_box(fb,(EpdRect){cx-66,cy+18,132,38},24,"Hủy",EPD_DRAW_ALIGN_CENTER,false);
+    }
 }
 void ui_power_dialog_end(void) {
     heap_caps_free(s_control_backdrop);s_control_backdrop=NULL;
@@ -205,8 +210,7 @@ void ui_power_dialog_draw_controls(uint8_t *fb,const ui_power_dialog_t *dialog,E
 void ui_power_dialog_draw(uint8_t *fb,const ui_power_dialog_t *dialog) {
     if(!fb||!dialog)return;
     ui_power_dialog_end();
-    // 只在三个控件内部处理玻璃，保留控件外的原页面像素。
-    // Frost only the three controls, preserving the original page outside them.
+    ui_fill_rect_fast(ui_power_dialog_rect(),UI_GRAY_BLACK,fb);
     size_t bytes=control_bytes(power_track_rect())+2*control_bytes(power_button_rect(1));
     s_control_backdrop=heap_caps_malloc(bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
     for(int slot=0;slot<3;++slot){

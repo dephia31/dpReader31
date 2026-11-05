@@ -51,6 +51,10 @@ int main(int argc,char **argv){
  // Area reduction preserves average gray; enlargement/cropping never reads outside the source.
  uint8_t checker[256];for(int y=0;y<16;y++)for(int x=0;x<16;x++)checker[y*16+x]=(x+y)%2?255:0;
  assert(jpeg_scale(checker,16,16,16,8,8,a));for(int i=0;i<64;i++)assert(a[i]==128);
+ uint8_t cropped[]={1,2,3,4,0xc7,5,6,7,8,0xc7};
+ assert(jpeg_scale(cropped,4,2,5,2,2,a)&&!memcmp(a,(uint8_t[]){2,3,6,7},4));
+ memset(checker,255,sizeof(checker));
+ assert(jpeg_scale(checker,16,16,16,1,1,a)&&a[0]==255);
  memset(checker,37,256);assert(jpeg_scale(checker,2,2,16,8,8,a));for(int i=0;i<64;i++)assert(a[i]==37);
  assert(!jpeg_scale(checker,1,1,0,8,8,a));assert(!jpeg_hw_shape((uint8_t*)"bad",3,&w,&h,&pw,&ph,&gray));
  assert(!metalio_jpeg_gray(NULL,20,NULL,8,8,a));assert(!test_engines);

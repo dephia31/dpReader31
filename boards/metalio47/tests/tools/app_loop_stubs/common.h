@@ -41,6 +41,7 @@ enum EpdDrawError update_display_area_full_with(EpdiyHighlevelState*, const void
 enum EpdDrawError update_display_full(EpdiyHighlevelState*);
 enum EpdDrawError update_display_mode(EpdiyHighlevelState*, int);
 enum EpdDrawError update_display_mode_diff(EpdiyHighlevelState*, int);
+enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState*, EpdRect);
 enum EpdDrawError update_display_fast_page(EpdiyHighlevelState*);
 enum EpdDrawError update_display_white(EpdiyHighlevelState*);
 bool display_take_white_exit(void);

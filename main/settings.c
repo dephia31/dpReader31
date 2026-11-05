@@ -376,14 +376,14 @@ static void simple_mode_load(void) {
     nvs_handle_t h;uint8_t value=0;
     esp_err_t err=nvs_open(SIMPLE_UI_NS,NVS_READONLY,&h);
     if(err==ESP_OK){err=nvs_get_u8(h,"mode",&value);nvs_close(h);}
-    if(err==ESP_OK&&value<=2){s_simple_ui=value!=0;s_simple_full_ui=value==2;s_simple_choice_known=true;return;}
+    if(err==ESP_OK&&value<=2){s_simple_ui=value!=0;s_simple_full_ui=value!=0;s_simple_choice_known=true;return;}
     if(err!=ESP_ERR_NVS_NOT_FOUND){if(!s_simple_choice_known)s_simple_ui=true;return;}
     if(s_simple_choice_known)return;
     err=nvs_open(NVS_NS,NVS_READONLY,&h);
     if(err!=ESP_OK){if(err!=ESP_ERR_NVS_NOT_FOUND)s_simple_ui=true;return;}
     err=nvs_get_u8(h,"simple_ui",&value);nvs_close(h);
     if(err!=ESP_OK||value>1){if(err!=ESP_ERR_NVS_NOT_FOUND)s_simple_ui=true;return;}
-    s_simple_ui=value==1;s_simple_choice_known=true;
+    s_simple_ui=value==1;s_simple_full_ui=s_simple_ui;s_simple_choice_known=true;
     if(nvs_open(SIMPLE_UI_NS,NVS_READWRITE,&h)!=ESP_OK)return;
     err=nvs_set_u8(h,"mode",value);
     if(err==ESP_OK)(void)nvs_commit(h);
@@ -868,10 +868,11 @@ esp_err_t app_settings_set_home_goal_minutes(uint8_t minutes) {
 }
 
 bool app_settings_simple_ui(void) { return s_simple_ui; }
-bool app_settings_simple_full_ui(void) { return s_simple_full_ui; }
-uint8_t app_settings_ui_mode(void) { return s_simple_ui ? (s_simple_full_ui ? 2 : 1) : 0; }
+bool app_settings_simple_full_ui(void) { return s_simple_ui; }
+uint8_t app_settings_ui_mode(void) { return s_simple_ui ? 2 : 0; }
 esp_err_t app_settings_set_ui_mode(uint8_t mode) {
     if(mode>2)return ESP_ERR_INVALID_ARG;
+    if(mode==1)mode=2;
     nvs_handle_t h;
     esp_err_t err = nvs_open(SIMPLE_UI_NS, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
@@ -881,7 +882,7 @@ esp_err_t app_settings_set_ui_mode(uint8_t mode) {
     if (err == ESP_OK) {s_simple_ui = mode!=0;s_simple_full_ui=mode==2;s_simple_choice_known=true;}
     return err;
 }
-esp_err_t app_settings_set_simple_ui(bool enabled) { return app_settings_set_ui_mode(enabled?1:0); }
+esp_err_t app_settings_set_simple_ui(bool enabled) { return app_settings_set_ui_mode(enabled?2:0); }
 bool app_settings_home_full_refresh(void) { return s_home_full_refresh; }
 app_main_refresh_mode_t app_settings_main_refresh_mode(void) { return s_main_refresh; }
 bool app_settings_main_fast_refresh(void) { return s_main_refresh == APP_MAIN_REFRESH_FAST; }

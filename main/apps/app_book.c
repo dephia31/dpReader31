@@ -162,6 +162,7 @@
 #include "book_cover.h"
 #if KIIKO_BOARD_METALIO47
 #include "metalio_cover_cache.h"
+#include "metalio_memory.h"
 #include "reader_page_cache.h"
 #include "ui_online_fonts.h"
 static ui_online_fonts_t s_online_fonts;
@@ -486,6 +487,16 @@ static reader_image_t *s_page_images;
 static int s_page_image_count;
 static size_t s_page_images_for = SIZE_MAX;
 static uint32_t s_page_images_generation;
+#if KIIKO_BOARD_METALIO47
+typedef struct {
+    reader_image_t *images;
+    int count;
+    size_t page;
+    uint32_t generation;
+} reader_cached_images_t;
+static reader_cached_images_t s_cached_images;
+static bool s_page_images_complete;
+#endif
 static size_t s_block_count;
 static size_t s_text_len, s_chapter, s_page;
 // 整页插图的双指缩放：1000 为原始大小；缩放与位置只属于当时那一页，换页自动还原。
@@ -5018,12 +5029,53 @@ static uint8_t *alloc_page_bitmap(int *width, int *height, size_t *pixels) {
                  *width, *height, (unsigned)(room / 1024));
     return gray;
 }
+static void free_image_slots(reader_image_t *images, int count) {
+    for (int i = 0; i < count; ++i) free(images[i].gray);
+    free(images);
+}
+
 static void release_page_images(void) {
     reader_zoom_reset();
-    for (int i = 0; i < s_page_image_count; ++i) free(s_page_images[i].gray);
-    free(s_page_images); s_page_images = NULL; s_page_image_count = 0;
+    free_image_slots(s_page_images, s_page_image_count);
+    s_page_images = NULL;
+    s_page_image_count = 0;
     s_page_images_for = SIZE_MAX;
+#if KIIKO_BOARD_METALIO47
+    free_image_slots(s_cached_images.images, s_cached_images.count);
+    s_cached_images = (reader_cached_images_t){0};
+    s_page_images_complete = false;
+#endif
 }
+
+#if KIIKO_BOARD_METALIO47
+static bool switch_page_images(uint32_t generation) {
+    reader_cached_images_t restored = {0};
+    if (s_cached_images.images && s_cached_images.generation == generation &&
+        s_cached_images.page == s_page) {
+        restored = s_cached_images;
+        s_cached_images = (reader_cached_images_t){0};
+    }
+    // Leave room for one full-size destination bitmap and the shared PSRAM reserve.
+    const bool room = metalio_cache_can_grow((size_t)UI_LOCK_WIDTH * UI_LOCK_HEIGHT);
+    if (!room || s_cached_images.generation != generation || s_page_images_complete) {
+        free_image_slots(s_cached_images.images, s_cached_images.count);
+        s_cached_images = (reader_cached_images_t){0};
+    }
+    if (room && s_page_images_complete && s_page_images_generation == generation) {
+        s_cached_images = (reader_cached_images_t){
+            s_page_images, s_page_image_count, s_page_images_for, generation
+        };
+    } else {
+        free_image_slots(s_page_images, s_page_image_count);
+    }
+    reader_zoom_reset();
+    s_page_images = restored.images;
+    s_page_image_count = restored.count;
+    s_page_images_complete = restored.images != NULL;
+    return s_page_images_complete;
+}
+#endif
+
 static void prepare_inline_image(void) {
     if (app_settings_reader_hide_images()) { release_page_images(); return; }
     uint32_t generation = book_layout_generation();
@@ -5031,7 +5083,11 @@ static void prepare_inline_image(void) {
     // 纯文字跨页不应作废已排好的下一页；布局代次改变或任一侧有插图时才失效。
     // Preserve the prefetched next text page; invalidate only across layout generations or image-bearing pages.
     const bool changed_layout_or_image = s_page_images_generation != generation || s_page_image_count > 0;
+#if KIIKO_BOARD_METALIO47
+    bool cached = switch_page_images(generation);
+#else
     release_page_images();
+#endif
     s_page_images_for = s_page; s_page_images_generation = generation;
     // 插图不显示没有别的症状，每条失败路径以前都是静默 continue；这里把结局记下来，
     // 免得继续靠猜。
@@ -5041,6 +5097,10 @@ static void prepare_inline_image(void) {
     if (changed_layout_or_image || count > 0) invalidate_prep();
 #if KIIKO_BOARD_METALIO47
     if(count>0){reader_page_cache_clear();s_next_fb=NULL;}
+    if (cached) {
+        ESP_LOGI(TAG, "inline page %u: bitmap cache hit", (unsigned)s_page);
+        return;
+    }
 #else
 #endif
     size_t psram_before = heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -5063,6 +5123,10 @@ static void prepare_inline_image(void) {
     EpdRect band = book_layout_image_rect();
     size_t pixels_left = (size_t)band.width * band.height;
     int decoded = 0;
+#if KIIKO_BOARD_METALIO47
+    const int64_t started = esp_timer_get_time();
+    int64_t read_us = 0;
+#endif
     for (int i = 0; i < count; ++i) {
         int index = -1, width = 0, height = 0;
         if (!reader_image_slot(s_page, i, &index, NULL, &width, &height) ||
@@ -5071,7 +5135,13 @@ static void prepare_inline_image(void) {
             continue;
         }
         uint8_t *encoded = NULL; size_t size = 0; bool png = false;
+#if KIIKO_BOARD_METALIO47
+        const int64_t read_started = esp_timer_get_time();
+#endif
         esp_err_t err = book_chapter_image(s_chapter, s_images[index], &encoded, &size, &png);
+#if KIIKO_BOARD_METALIO47
+        read_us += esp_timer_get_time() - read_started;
+#endif
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "inline %d %s: read %s", i, s_images[index], esp_err_to_name(err));
             free(encoded);
@@ -5114,6 +5184,12 @@ static void prepare_inline_image(void) {
         free(encoded);
         vTaskDelay(1);
     }
+#if KIIKO_BOARD_METALIO47
+    s_page_images_complete = decoded == count;
+    ESP_LOGI(TAG, "inline page %u: decoded=%d/%d read_ms=%lld total_ms=%lld",
+             (unsigned)s_page, decoded, count, (long long)(read_us / 1000),
+             (long long)((esp_timer_get_time() - started) / 1000));
+#endif
     // 只在有图没画出来时汇总：插图缺失没有别的症状，而每次都打会把日志淹掉。
     // Summary only when something did not make it: a missing illustration has no other symptom,
     // and logging every page would drown the console.
@@ -5472,7 +5548,19 @@ static bool open_book_impl(app_ctx_t* ctx, const char* path) {
 #endif
     return true;
 }
+static void book_busy_notice(app_ctx_t *ctx, const char *label) {
+    if (!ctx->fb || !ctx->hl) return;
+    EpdRect box = {122, 540, 440, 112};
+    ui_fill_round_rect(ctx->fb, box, 24, UI_GRAY_WHITE);
+    ui_draw_control_frame(ctx->fb, box, 24, UI_GRAY_BLACK);
+    ui_text_fixed_vc(ctx->fb, box.x + box.width / 2, box.y + box.height / 2,
+                     30, label, EPD_DRAW_ALIGN_CENTER, false);
+    guard_draw_result(ctx->hl,
+        update_display_area_diff_with(ctx->hl, &E0470_WAVEFORM, MODE_GL16, box));
+}
+
 static bool open_book(app_ctx_t *ctx, const char *path) {
+    book_busy_notice(ctx, "Đang mở sách…");
     const int64_t open_started=esp_timer_get_time();
     if (!book_cover_jobs_quiesce(2000)) {
         copy_text(s_message,sizeof(s_message),"Đang xử lý ảnh bìa, vui lòng thử lại sau giây lát");return false;
@@ -6509,6 +6597,7 @@ static app_redraw_t reader_return(app_ctx_t *ctx) {
         ui_nav_request(ctx, 0);
         return APP_REDRAW_NONE;
     }
+    if (s_text) book_busy_notice(ctx, "Đang đóng sách…");
     save_progress();
     if (app_settings_kosync_auto() && app_settings_kosync_user()[0] && s_text && s_path[0]) {
         if(!kosync_busy())reader_prepare_network();
@@ -7916,6 +8005,7 @@ static void on_enter(app_ctx_t* ctx) {
 static void reader_edge_light_cancel(void);
 #endif
 static void book_on_exit(app_ctx_t* ctx) {
+    if (s_text) book_busy_notice(ctx, "Đang đóng sách…");
     opds_session_end();
     opds_set_network_observer(NULL,NULL);
     if(app_settings_simple_ui()){free(s_opds_feed);s_opds_feed=NULL;}
@@ -8498,7 +8588,24 @@ static bool reader_notes_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev,app
     }
     *out=notes;return true;
 }
+static bool reader_footer_home_swipe(const app_ctx_t *ctx, const ui_gesture_event_t *ev) {
+    if (s_view != READING || !s_text || s_reader_choice.open || s_reader_panel != READER_PANEL_NONE ||
+        s_toolbar || s_clear_confirm || s_scan_pending || s_zoom_active || book_notes_active() ||
+        ctx->consumed || !app_settings_reader_swipe_bottom_home() ||
+        ev->y0 < READER_FOOTER_TOP || ev->y0 >= UI_LOCK_HEIGHT ||
+        (ev->type != UI_GESTURE_MOVE && ev->type != UI_GESTURE_SWIPE_U)) return false;
+    int up = (int)ev->y0 - ev->y;
+    return up >= UI_SWIPE_MIN_PX && up > abs((int)ev->x - ev->x0);
+}
+
 static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) {
+    if (reader_footer_home_swipe(ctx, ev)) {
+        s_reader_tap.pending = false;
+        s_pressed_control = s_reader_slider = -1;
+        s_reader_return_home = true;
+        ctx->user_activity = true;
+        return reader_return(ctx);
+    }
     if(s_view==OPDS)return opds_gesture(ctx,ev);
     if(s_reader_choice.open)return reader_choice_gesture(ctx,ev);
     app_redraw_t notes;
@@ -8540,11 +8647,7 @@ static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) 
          !reader_page_image_hit(ev->x0, ev->y0)))
         s_reader_tap.pending = false;
     if (s_view == READING && s_text && s_reader_panel == READER_PANEL_NONE && !s_clear_confirm && !s_scan_pending && !ctx->consumed && ev->type == UI_GESTURE_SWIPE_U) {
-        if (ev->y0 >= UI_LOCK_HEIGHT - 120 && app_settings_reader_swipe_bottom_home()) {
-            s_reader_tap.pending = false;
-            s_pressed_control = s_reader_slider = -1;
-            return reader_return(ctx);
-        } else if (ev->y0 < UI_LOCK_HEIGHT - 120 && app_settings_reader_swipe_up_tools()) {
+        if (ev->y0 < READER_FOOTER_TOP && app_settings_reader_swipe_up_tools()) {
             s_reader_tap.pending = false;
             s_pressed_control = s_reader_slider = -1;
             s_reader_panel = READER_PANEL_TOOLS;

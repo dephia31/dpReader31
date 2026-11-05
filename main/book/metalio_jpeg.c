@@ -34,6 +34,11 @@ static bool jpeg_scale(const uint8_t *src,unsigned sw,unsigned sh,unsigned strid
     if(!src||!out||!sw||!sh||sw>8192||sh>8192||stride<sw||!dw||!dh||dw>1216||dh>1216)return false;
     book_crop_t c=book_cover_crop(sw,sh,dw,dh);
     if(!c.width||!c.height||c.x+c.width>sw||c.y+c.height>sh)return false;
+    if (c.width == dw && c.height == dh) {
+        for (unsigned y = 0; y < dh; ++y)
+            memcpy(out + (size_t)y * dw, src + (size_t)(c.y + y) * stride + c.x, dw);
+        return true;
+    }
     for(unsigned y=0;y<dh;++y) {
         if(c.width>=dw && c.height>=dh) {
             unsigned top=(uint64_t)y*c.height*256/dh,bottom=(uint64_t)(y+1)*c.height*256/dh;
@@ -48,7 +53,10 @@ static bool jpeg_scale(const uint8_t *src,unsigned sw,unsigned sh,unsigned strid
                         sum+=(uint64_t)row[sx]*(r-l)*(b-a);
                     }
                 }
-                out[(size_t)y*dw+x]=(uint8_t)((sum+total/2)/total);
+                // Typical reductions fit the rounded weighted sum in the native 32-bit divider.
+                out[(size_t)y*dw+x]=(uint8_t)(total <= UINT32_MAX / 256u
+                    ? (uint32_t)(sum + total / 2) / (uint32_t)total
+                    : (sum + total / 2) / total);
             }
         } else {
             int py=(int)(((uint64_t)(2*y+1)*c.height*128)/dh)-128;

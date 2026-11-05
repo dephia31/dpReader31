@@ -1027,7 +1027,7 @@ static void transfer_on_exit(app_ctx_t* ctx) {
         else ESP_LOGW(TAG, "USB remained active on page exit: %s", esp_err_to_name(err));
     }
     clear_password();
-    s_scan_pending = s_network_connect_pending = false;
+    s_start_pending = s_scan_pending = s_network_connect_pending = false;
     // Rời trang truyền tệp luôn dừng phiên để giải phóng toàn bộ RAM và tài nguyên WiFi/HTTP
     stop_session();
     s_wifi_settings_only = false;

@@ -43,6 +43,8 @@ typedef struct {int x,y,width,height;} EpdRect;
 
 typedef struct {int unused;} book_progress_t;
 static uint8_t *s_folder;static uint32_t s_folder_key;static bool s_folder_attempted;
+static bool full_mode;
+static bool app_settings_simple_full_ui(void){return full_mode;}
 static bool fast, alloc_fail, asset_allowed=true, disk_hit, corrupt_disk;
 static unsigned loads,disk_reads,disk_writes;
 static size_t psram=4*1024*1024;
@@ -123,6 +125,8 @@ int main(void){
     corrupt_disk=false;app_home_cover_mode_changed();psram=512*1024;
     before=loads;assert(!load_cover(book_at(0),0)&&!live_bytes&&loads==before);psram=4*1024*1024;
     fast=false;app_home_cover_mode_changed();assert(!live_bytes&&!book_at(0)->cover);assert(load_cover(book_at(0),0)&&live_bytes==176u*240&&!book_at(0)->cover_fast);
+    fast=true;full_mode=true;app_home_cover_mode_changed();assert(load_cover(book_at(0),0)&&live_bytes==176u*240&&!book_at(0)->cover_fast);
+    full_mode=false;app_home_cover_mode_changed();assert(load_cover(book_at(0),0)&&live_bytes==5280&&book_at(0)->cover_fast);
     app_home_cover_mode_changed();alloc_fail=true;assert(!load_cover(book_at(0),0)&&!live_bytes);alloc_fail=false;asset_allowed=false;before=loads;assert(!load_cover(book_at(0),0)&&loads==before);
     puts("PASS: 300 actual in-place Home reorderings; duplicate/missing/modified identities; no stale pointer or double free; fast 5,280-byte BW only; gray-only ordinary/ripple; checked OOM and recovery");
 }

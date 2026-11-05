@@ -43,6 +43,8 @@ typedef struct {int leaf;} app_ctx_t;
 #define MALLOC_CAP_SPIRAM 1
 #define MALLOC_CAP_8BIT 2
 #define UI_PX_CAPTION 20
+#define UI_LOCK_WIDTH 684
+#define UI_LOCK_HEIGHT 1216
 #define EPD_DRAW_ALIGN_CENTER 0
 #define BOOK_KIND_EPUB 1
 #define TAG "test"
@@ -56,6 +58,14 @@ static reader_image_t *s_page_images;
 static int s_page_image_count;
 static size_t s_page_images_for=SIZE_MAX;
 static uint32_t s_page_images_generation;
+typedef struct {
+ reader_image_t *images;
+ int count;
+ size_t page;
+ uint32_t generation;
+} reader_cached_images_t;
+static reader_cached_images_t s_cached_images;
+static bool s_page_images_complete;
 static size_t s_page,s_chapter=3,s_image_count;
 static char **s_images;
 // 缩放交互由reader_image_zoom_host_test单独覆盖；本套保持未缩放边界。
@@ -95,6 +105,8 @@ static EpdRect book_layout_image_rect(void){return image_band;}
 static size_t free_block=4u*1024u*1024u;
 static size_t heap_caps_get_largest_free_block(int caps){(void)caps;return free_block;}
 static size_t heap_caps_get_free_size(int caps){(void)caps;return free_block;}
+static bool metalio_cache_can_grow(size_t n){return free_block>=n+2560u*1024u;}
+static int64_t esp_timer_get_time(void){return 0;}
 static unsigned uxTaskGetStackHighWaterMark(void *task){(void)task;return 4096;}
 // 竖排题头：本套用例只覆盖排版侧，几何一律留零。
 // Vertical heading: this suite only covers the layout side, so the geometry stays zero.
@@ -198,13 +210,18 @@ static bool book_layout_build_blocks(const char *text,size_t len,const blk_t *bl
 static size_t book_layout_page_count(void){return 2;}
 static size_t book_layout_page_for_offset(size_t off){return off>=4?1:0;}
 static void release_page_images(void);
+static void book_chapter_label_offer(const char *path,uint32_t chapter,const char *title){(void)path;(void)chapter;(void)title;}
+static void book_notes_bind(const char *path,uint32_t chapter,const char *text,size_t len){(void)path;(void)chapter;(void)text;(void)len;}
+static size_t book_chapter_count(void){return 8;}
+static bool notes_chapter_title(size_t chapter,char *out,size_t cap){return book_chapter_title(chapter,out,cap)==ESP_OK;}
+static void book_notes_catalog(size_t count,bool (*title)(size_t,char*,size_t)){assert(count==8&&title);}
 static void free_book(void){
  release_page_images();free(s_text);free(s_blocks);free(s_runs);for(size_t i=0;i<s_image_count;++i)free(s_images[i]);free(s_images);
  s_text=NULL;s_blocks=NULL;s_runs=NULL;s_run_count=0;s_images=NULL;s_image_count=0;
  book_layout_set_image_dims(NULL,NULL);s_reader_dims_ctx=(reader_dims_ctx_t){0};
 }
 '''
-for name in ('inline_ink_gray', 'reader_image_slots', 'reader_image_slot', 'reader_image_dims', 'alloc_page_bitmap', 'release_page_images', 'prepare_inline_image', 'draw_reader_images', 'heading_text_matches', 'load_chapter_at'):
+for name in ('inline_ink_gray', 'reader_image_slots', 'reader_image_slot', 'reader_image_dims', 'alloc_page_bitmap', 'free_image_slots', 'release_page_images', 'switch_page_images', 'prepare_inline_image', 'draw_reader_images', 'heading_text_matches', 'load_chapter_at'):
     unit += '\n' + function(name)
 unit += r'''
 static void setup_images(int count){
@@ -227,6 +244,16 @@ int main(void){
  prepare_inline_image();assert(reads==24);draw_reader_images(&fb,s_page,body);assert(pixels==24*20*6);
  hidden=true;prepare_inline_image();assert(!s_page_images&&!s_page_image_count);draw_reader_images(&fb,s_page,body);assert(pixels==24*20*6);
  hidden=false;prepare_inline_image();assert(reads==36&&s_page_image_count==12);
+ // Revisit across a text page, then verify a reflow and low memory cannot retain a stale bitmap.
+ setup_images(1);s_page=3;prepare_inline_image();assert(reads==1&&decodes==1);
+ reader_image_t *first=s_page_images;
+ s_page=4;slot_count=0;prepare_inline_image();assert(!s_page_images&&s_cached_images.images==first);
+ s_page=3;slot_count=1;prepare_inline_image();assert(s_page_images==first&&reads==1&&decodes==1);
+ s_page=4;slot_count=0;prepare_inline_image();assert(s_cached_images.images==first);
+ ++generation;s_page=3;slot_count=1;prepare_inline_image();assert(!s_cached_images.images&&reads==2);
+ free_block=2u*1024u*1024u;s_page=4;slot_count=0;prepare_inline_image();assert(!s_cached_images.images);
+ free_block=4u*1024u*1024u;s_page=3;slot_count=1;prepare_inline_image();assert(reads==3);
+ release_page_images();assert(!s_cached_images.images&&!s_page_images);
  // 未知尺寸槽仍解码，保持原始比例和灰阶；失败提示留在自己的位置。
  // Unknown-size slots still decode proportionally in grayscale; failures stay in their own slots.
  setup_images(1);slots[0].width=100;slots[0].height=200;

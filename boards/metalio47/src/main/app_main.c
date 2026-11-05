@@ -198,10 +198,10 @@ void app_main(void) {
     }
     (void)app_settings_autorestore_boot();
 #endif
+    if (hw.pmu_ready) restore_time_from_pmu();
     crash_report_poll(true);
     rp_boot_mark("hw");
     print_memory_profile("display-and-board-ready");
-    if (hw.pmu_ready) restore_time_from_pmu();
     resolve_vcom_at_boot();
     rp_boot_mark("vcom");
     ESP_LOGI(TAG,"TPS65185 last VCOM register readback=%dmV",metalio_tps_vcom_mv());

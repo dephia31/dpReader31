@@ -35,6 +35,13 @@ không bị bộ hẹn giờ rảnh ghi tắt nhầm. Tác vụ kết nối/qué
 của máy. Khóa/ngủ hoặc hủy tác vụ do người dùng yêu cầu vẫn có đường dọn tài nguyên
 riêng và khôi phục theo lựa chọn đã lưu khi thức dậy.
 
+Sau khi mở khóa S31, thao tác KoSync, OPDS, quét WiFi và mở truyền file xử lý
+trước yêu cầu dọn WiFi sau Sleep đang chờ, không phụ thuộc vòng nền sau khung
+hình đọc sách. Chỉ mở lại quyền khi đã có yêu cầu khôi phục từ đường thức dậy;
+nếu dừng driver thất bại thì vẫn chặn và thử lại có giới hạn. Trạng thái ERROR
+chỉ được dọn khi driver, máy chủ, giao diện mạng, tải lên và cấu hình đều đã
+ngừng; không dùng trạng thái lỗi để giành mạng đang hoạt động.
+
 Các kiểm tra nguồn/host không thay cho kiểm tra radio trên thiết bị: cần đối
 chiếu icon, log và trạng thái kết nối khi thành công, lỗi, hủy và có yêu cầu đồng
 thời trên máy thực tế.

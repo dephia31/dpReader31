@@ -9,6 +9,7 @@ prefix=r'''
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -21,6 +22,9 @@ prefix=r'''
 #define ESP_LOGI(...) ((void)0)
 enum {ESP_RST_POWERON=1,ESP_RST_SW=3,ESP_RST_PANIC=4,ESP_RST_PWR_GLITCH=14};
 static int reset_reason=ESP_RST_POWERON;static int64_t clock_us;
+static time_t wall_time=1704067200;
+static time_t test_time(time_t *out){if(out)*out=wall_time;return wall_time;}
+#define time test_time
 static bool ready,panic_valid=true;static int fault;
 static struct {char version[32];} desc={"1.2.4RC2-vn"};
 static const void *esp_app_get_description_placeholder;
@@ -67,19 +71,30 @@ int main(void){
  assert(strstr(s_retained.pending[1].crumbs[0],"before failure"));
  ready=true;crash_report_poll(false);assert(pending()==2);
  drain();assert(!pending());
- FILE *f=checked_open("crash_log/crash_12345678_00000002.txt","r");assert(f);
+ FILE *f=checked_open("crash_log/crash_2024-01-01_07-00-00_12345678_00000002_panic.txt","r");assert(f);
  char text[4096];size_t n=fread(text,1,sizeof(text)-1,f);text[n]=0;checked_close(f);
  assert(strstr(text,"reset_reason=4")&&strstr(text,"phase=11")&&strstr(text,"before failure"));
+ assert(strstr(text,"recorded_at=2024-01-01_07-00-00"));
  for(int e=1;e<=7;e++){
   reboot(ESP_RST_SW);unsigned before=pending();fault=e;
   clock_us=31000000;crash_report_poll(true);assert(pending()==before);
-  char path[100];snprintf(path,sizeof(path),"crash_log/crash_12345678_%08lx.txt",(unsigned long)s_retained.next_id);
+  char path[160];snprintf(path,sizeof(path),"crash_log/crash_2024-01-01_07-00-00_12345678_%08lx_software_reboot.txt",(unsigned long)s_retained.next_id);
   struct stat st;assert(stat(path,&st)!=0);
   fault=0;drain();assert(!pending());
  }
  // Reset after successful rename but before RTC acknowledgement is idempotent.
  reboot(ESP_RST_SW);report_t *r=&s_retained.pending[(s_retained.next_id-1)%REPORT_SLOTS];
  assert(report_write(r));assert(pending()==1);drain();assert(!pending());
+ // RTC restore after boot still names the event, and a retry keeps its original filename.
+ wall_time=0;reboot(ESP_RST_SW);r=&s_retained.pending[(s_retained.next_id-1)%REPORT_SLOTS];
+ wall_time=1704067260;fault=5;assert(!report_write(r));fault=0;
+ wall_time=1704067320;assert(report_write(r));
+ char restored[160];snprintf(restored,sizeof(restored),"crash_log/crash_2024-01-01_07-01-00_12345678_%08lx_software_reboot.txt",(unsigned long)r->id);
+ assert(access(restored,F_OK)==0);drain();
+ wall_time=0;reboot(ESP_RST_SW);r=&s_retained.pending[(s_retained.next_id-1)%REPORT_SLOTS];
+ assert(report_write(r));
+ char unknown[160];snprintf(unknown,sizeof(unknown),"crash_log/crash_unknown-time_12345678_%08lx_software_reboot.txt",(unsigned long)r->id);
+ assert(access(unknown,F_OK)==0);wall_time=1704067200;drain();
  // A long card-less bootloop retains four recent immutable events and reports loss.
  ready=false;for(unsigned i=0;i<6;i++)reboot(ESP_RST_PWR_GLITCH);
  assert(pending()==4&&s_retained.dropped==2);drain();assert(!pending());

@@ -227,6 +227,17 @@ static bool jpegdec_gray(const uint8_t *data, size_t size, unsigned frame_width,
     return ok;
 }
 
+#if KIIKO_BOARD_METALIO47
+static int jpeg_preferred_scale(unsigned width, unsigned height,
+                                unsigned out_width, unsigned out_height) {
+    for (int scale = JPEG_IMAGE_SCALE_1_8; scale > JPEG_IMAGE_SCALE_0; --scale) {
+        if ((width >> scale) >= out_width && (height >> scale) >= out_height)
+            return scale;
+    }
+    return JPEG_IMAGE_SCALE_0;
+}
+#endif
+
 static bool jpeg_gray(const uint8_t *data, size_t size, unsigned out_width,
                       unsigned out_height, uint8_t *out) {
 #if KIIKO_BOARD_METALIO47
@@ -245,7 +256,12 @@ static bool jpeg_gray(const uint8_t *data, size_t size, unsigned out_width,
     size_t limit = out_width <= BOOK_COVER_W && out_height <= BOOK_COVER_H
         ? 3u * 1024u * 1024u : 6u * 1024u * 1024u;
     bool decoded = false;
-    for (int scale = JPEG_IMAGE_SCALE_0; scale <= JPEG_IMAGE_SCALE_1_8; ++scale) {
+    int first_scale = JPEG_IMAGE_SCALE_0;
+#if KIIKO_BOARD_METALIO47
+    // Decode close to the destination when the software path handles a large baseline JPEG.
+    first_scale = jpeg_preferred_scale(frame_width, frame_height, out_width, out_height);
+#endif
+    for (int scale = first_scale; scale <= JPEG_IMAGE_SCALE_1_8; ++scale) {
         cfg.out_scale = scale;
         if (esp_jpeg_get_image_info(&cfg, &info) != ESP_OK) return false;
         if (!info.width || !info.height || !info.output_len || info.output_len > limit) continue;

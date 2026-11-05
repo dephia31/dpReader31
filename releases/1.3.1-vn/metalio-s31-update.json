@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "version": "1.3.1-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "sha256": "82619ecb7f0ea7b8b0142fb012500f429efbfe9b294eb4bec3421cfa32753286",
+  "size": 4706016,
+  "notes": "Home có ba giao diện, thêm Đơn giản hoàn toàn với nền bìa sách và Pop menu. Sửa bố cục OTA. Thêm 5 font Google hỗ trợ tiếng Việt và Việt hóa thông báo tải font.",
+  "previous_version": "1.3.0-vn"
+}

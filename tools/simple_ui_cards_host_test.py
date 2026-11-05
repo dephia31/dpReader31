@@ -77,6 +77,8 @@ static void ui_draw_button(uint8_t*f,EpdRect r,const char*s,bool on){(void)on;ho
 static void ui_nav_status(uint8_t*f){(void)f;puts("STATUS");}
 static void ui_nav_draw(uint8_t*f,int active){(void)f;(void)active;puts("NAV");}
 static void draw_cover(uint8_t*f,const home_book_t*b,EpdRect r){(void)b;ui_fill_round_rect(f,r,12,210);home_frame(f,r,12);}
+static void draw_open_book(uint8_t*f,const home_book_t*b,EpdRect r){draw_cover(f,b,r);}
+static void book_ticket_draw_shadow(uint8_t*f){(void)f;}
 static int s_ticket_battery;
 static int64_t ui_nav_clock_minute(void){return 13*60+30;}
 static void *read_pico_pmu_get(void){return NULL;}

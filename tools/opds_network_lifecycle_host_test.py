@@ -7,6 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 source=ROOT/'main/book/opds_client.c'
 unit=r'''
 #include <assert.h>
+#define read_pico_transfer_prepare_network() ((void)0)
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

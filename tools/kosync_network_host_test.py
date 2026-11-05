@@ -7,6 +7,8 @@ book=root/'main/apps/app_book.c';transfer=root/'components/read_pico_transfer/re
 unit=r'''
 #include <assert.h>
 #define TRANSFER_NETWORK_GUARD_OR_RETURN(result) ((void)0)
+#define read_pico_transfer_prepare_network() ((void)0)
+#define read_pico_transfer_sleep_blocked() (false)
 #include <stdbool.h>
 #define read_pico_transfer_network_shareable() (true)
 #include <stdint.h>
@@ -84,6 +86,8 @@ start=function('read_pico_transfer_start',transfer);prefix=start[:start.index(' 
 radio=r'''
 #include <assert.h>
 #define TRANSFER_NETWORK_GUARD_OR_RETURN(result) ((void)0)
+#define read_pico_transfer_prepare_network() ((void)0)
+#define read_pico_transfer_sleep_blocked() (false)
 #include <stdbool.h>
 #define read_pico_transfer_network_shareable() (true)
 #include <stdio.h>

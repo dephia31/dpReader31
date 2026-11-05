@@ -347,6 +347,7 @@ static void parse_opds_xml(const char *base_url, const char *xml, size_t xml_len
 /* ---- Quản lý kết nối mạng WiFi cho OPDS ---- */
 static esp_err_t opds_acquire_network(bool *started_by_us, char *msg, size_t msg_cap) {
     *started_by_us = false;
+    read_pico_transfer_prepare_network();
     if(!read_pico_transfer_network_shareable()){if(msg&&msg_cap)snprintf(msg,msg_cap,"WiFi đang được trang truyền file sử dụng");return ESP_ERR_INVALID_STATE;}
     read_pico_transfer_status_t st = {0};
     read_pico_transfer_get_status(&st);

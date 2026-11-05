@@ -7,8 +7,11 @@
 #include <stdbool.h>
 #include "esp_wifi.h"
 #define TRANSFER_S31_MAX_TX_POWER 48
-static inline esp_err_t transfer_s31_radio_profile(wifi_interface_t interface) {
-    esp_err_t err = esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+static inline esp_err_t transfer_s31_radio_profile(wifi_interface_t interface, bool file_transfer) {
+    // A dedicated STA transfer session keeps RX awake between packets.
+    wifi_ps_type_t power_save = file_transfer && interface == WIFI_IF_STA
+        ? WIFI_PS_NONE : WIFI_PS_MIN_MODEM;
+    esp_err_t err = esp_wifi_set_ps(power_save);
     if (err == ESP_OK) err = esp_wifi_set_protocol(interface,
         WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     if (err == ESP_OK) err = esp_wifi_set_max_tx_power(TRANSFER_S31_MAX_TX_POWER);

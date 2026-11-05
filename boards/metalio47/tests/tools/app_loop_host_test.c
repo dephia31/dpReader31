@@ -64,7 +64,7 @@ static int slider_partial_draws,slider_forced_draws;
 static int button_draws,button_partial_draws;
 static int network_ready_step=-1,wifi_stop_step=-1;
 static int status_partial_draws;
-static int quick_draws, quick_opens, quick_du, wifi_starts, wifi_stops, ble_resets, click_presses, click_restores;
+static int quick_draws, quick_opens, quick_closes, quick_du, wifi_starts, wifi_stops, ble_resets, click_presses, click_restores;
 
 static int persistent_ripple_height;
 static int edge_returns,back_ripples,monochrome_calls,last_ripple_dir;
@@ -248,6 +248,11 @@ bool continuous_du_init(void) {return true;}
 void display_request_full_refresh(void) {++wake_clean_requests;}
 void guard_draw_result(EpdiyHighlevelState* h,enum EpdDrawError e) {(void)h;assert(e==0);}
 enum EpdDrawError update_display_area_with(EpdiyHighlevelState*h,const void*w,int m,EpdRect a) {(void)h;(void)w;(void)a;panel_marker=frame[0];nav_area_draws+=nav_armed!=NULL;nav_armed=NULL;if(m==MODE_DU)du_areas++;else if(m==MODE_GL16)gl_areas++;return 0;}
+enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState *h, EpdRect a) {
+    assert(a.x==0&&a.y==0&&a.width==684&&a.height==1216&&frame[0]==0x11&&!nav_armed);
+    ++quick_closes;
+    return update_display_area_with(h,&E0470_WAVEFORM,MODE_GL16,a);
+}
 enum EpdDrawError update_display_full(EpdiyHighlevelState*h) {(void)h;if(check_clean_action&&fulls){assert(frame[0]==0x11);++clean_action_fulls;}panel_marker=frame[0];fulls++;nav_full_arms+=nav_armed!=NULL;nav_armed=NULL;return 0;}
 enum EpdDrawError update_display_mode(EpdiyHighlevelState*h,int m) {(void)h;(void)m;mode++;return 0;}
 enum EpdDrawError update_display_mode_diff(EpdiyHighlevelState*h,int m) {(void)h;(void)m;mode++;return 0;}
@@ -359,7 +364,7 @@ static void reset(void) {
     ble_enabled=saved_wifi=upload_busy=click_enabled=click_active=false;
     transfer_status=(read_pico_transfer_status_t){0};
     recent_cancels=status_draws=status_partial_draws=0;
-    recent_requests=quick_draws=quick_opens=quick_du=wifi_starts=wifi_stops=ble_resets=click_presses=click_restores=0;
+    recent_requests=quick_draws=quick_opens=quick_closes=quick_du=wifi_starts=wifi_stops=ble_resets=click_presses=click_restores=0;
     main_fast=main_water=false;shelf_exit_arms=0;idle_minutes=0;idle_locks=before_locks=lock_feedback_calls=lock_badges=wake_clean_requests=0;feedback_enabled=false;online_busy=false;
     nav_arms=nav_draws=nav_full_arms=nav_area_draws=0;nav_armed=NULL;
     main_source_visible=main_target_visible=true;
@@ -401,7 +406,20 @@ static app_redraw_t nav_return_tick(app_ctx_t* ctx) {
 }
 static void enter_with_pending_tab(app_ctx_t* ctx){enter(ctx);ctx->request_app=&second;}
 static app_redraw_t main_late_tick(app_ctx_t* ctx) {(void)ctx;return step == 1 ? response : APP_REDRAW_NONE;}
+static unsigned done_present_calls;
+static bool done_present_probe(app_ctx_t *ctx, app_redraw_t redraw) {
+    (void)ctx;(void)redraw;++done_present_calls;return true;
+}
 int main(void) {
+    // 覆盖层已显示时不得调用底页输出。/ An already presented overlay must bypass the underlying page presenter.
+    reset();
+    app_ctx_t done_ctx={0};
+    app_desc_t done_page={.present=done_present_probe};
+    app_present(&done_ctx,&done_page,APP_REDRAW_DONE);
+    assert(!done_present_calls);
+    app_present(&done_ctx,&done_page,APP_REDRAW_PAGE);
+    assert(done_present_calls==1);
+
     // 第一帧报点立即切页，尚未抬手也能响应；同次停留和释放不重复。
     // The first contact switches before lift; its subsequent hold and release never repeat navigation.
     for(int policy=0;policy<3;++policy) {
@@ -646,7 +664,7 @@ int main(void) {
     reset();first.on_gesture=gesture;
     add(300,20,1,0);add(300,110,1,0);add(300,120,1,0);add(0,0,0,0);
     add(300,500,1,0);add(0,0,0,0);add(100,400,1,0);add(0,0,0,0);run();
-    assert(quick_draws==1&&quick_opens==1&&!quick_du&&fulls==2);
+    assert(quick_draws==1&&quick_opens==1&&quick_closes==1&&gl_areas==2&&!du_areas&&fulls==1);
     assert(events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_TAP]==1);
     reset();main_fast=true;saved_wifi=true;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
@@ -673,7 +691,11 @@ int main(void) {
         reset();main_fast=policy==1;main_water=policy==2;check_clean_action=true;
         add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
         add(100,284,1,0);add(0,0,0,0);add(100,500,1,0);add(0,0,0,0);run();
-        assert(clean_action_fulls==1&&quick_draws==1&&touch_calls==1);
+        assert(clean_action_fulls==1&&!quick_closes&&quick_draws==1&&touch_calls==1);
+        reset();main_fast=policy==1;main_water=policy==2;
+        add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
+        add(300,500,1,0);add(0,0,0,0);run();
+        assert(quick_opens==1&&quick_closes==1&&gl_areas==2&&!du_areas&&fulls==1);
     }
     // 网络ready只改变内部状态，不重画菜单；异步WiFi停止只刷WiFi圆钮。
     // Network readiness is nonvisual; an asynchronous stop refreshes only its WiFi control.

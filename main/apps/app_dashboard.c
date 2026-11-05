@@ -14,6 +14,8 @@
  *
  * 用户修订：快刷只保留 1 位封面，转码后立即释放灰阶；切换模式或对比度清理旧格式。
  * User revision: fast Home retains only a 1-bit cover, releases gray after conversion, and drops stale formats on mode/contrast changes.
+ * 用户2026-11-05修订：完全简洁首页保留灰阶封面用于打开的书壳及锁屏同款背景，其他首页不变。
+ * User revision 2026-11-05: fully simple Home retains gray art for the open book and lock-style background; other Home modes keep their policy.
  * 用户修订：首页原比例点阵独立落卡，复用灰阶缩略图；普通/水波纹复用灰阶缓存，始终预留内存。
  * User revision: persist proportional Home monochrome separately and reuse gray thumbnail files; ordinary/water reuse gray caches with a memory reserve.
  * 中文：首页使用真实续读、完整缓存书摘、可选书夹/时钟与月阅读记录；绘图不读卡。
@@ -108,7 +110,7 @@ static EXT_RAM_BSS_ATTR home_cover_cache_t s_cover_cache[7];
 static int s_cover_next;
 static bool s_scan_pending;
 static bool s_books_cache_valid;
-static bool s_cached_simple_ui;
+static bool s_cached_simple_ui,s_cached_simple_full_ui;
 static bool s_cached_sd_present;
 static bool s_cached_sd_mounted;
 static unsigned s_cached_store_revision;
@@ -381,7 +383,7 @@ static bool s_cover_waiting;
 static bool load_cover(home_book_t *item,int slot) {
     s_cover_waiting=false;
     if(!pico_boot_asset_allowed(item->path))return false;
-    book_cover_job_t request={.list=true,.natural=true,.fast=app_settings_main_fast_refresh(),
+    book_cover_job_t request={.list=true,.natural=true,.fast=app_settings_main_fast_refresh()&&!app_settings_simple_full_ui(),
         .contrast=app_settings_system_contrast(),.phase=17};
     snprintf(request.path,sizeof(request.path),"%s",item->path);
     snprintf(request.title,sizeof(request.title),"%s",item->title);
@@ -580,6 +582,74 @@ static void draw_cover(uint8_t *fb,const home_book_t *item,EpdRect bounds) {
     } else ui_fill_round_rect(fb,box,12,0xe0);
     home_frame(fb,box,12);
 }
+// 双线性采样完整封面；坐标为0..65535，不新增位图缓存。
+// Bilinear sample of the complete cover at 0..65535 coordinates, without another bitmap cache.
+static uint8_t open_book_sample(const home_book_t *book,unsigned u,unsigned v) {
+    if(!book->cover||!book->cover_width||!book->cover_height)return 0xd0;
+    unsigned w=book->cover_width,h=book->cover_height;
+    uint32_t sx=u*(w-1),sy=v*(h-1);
+    unsigned x=sx>>16,y=sy>>16,fx=(sx>>8)&255,fy=(sy>>8)&255;
+    unsigned x1=x+1<w?x+1:x,y1=y+1<h?y+1:y;
+    unsigned xs[2]={x,x1},ys[2]={y,y1},tone[2];
+    for(unsigned row=0;row<2;++row){
+        unsigned a[2];
+        for(unsigned col=0;col<2;++col)a[col]=book->cover_fast?
+            ((book->cover[ys[row]*((w+7)/8)+xs[col]/8]&(1u<<(xs[col]&7)))?255:0):
+            book->cover[ys[row]*w+xs[col]];
+        tone[row]=(a[0]*(256-fx)+a[1]*fx)>>8;
+    }
+    return ui_contrast_gray((tone[0]*(256-fy)+tone[1]*fy)>>8);
+}
+// 固定几何书壳复用当前封面；逐像素绘制不访问存储、不分配内存。
+// A fixed book shell borrows the current cover; painting performs no I/O or allocation.
+static void draw_open_book(uint8_t *fb,const home_book_t *book,EpdRect box) {
+    if(box.width<2||box.height<2)return;
+    for(int y=0;y<box.height;++y)for(int x=0;x<box.width;++x){
+        int px=x*1000/(box.width-1),py=y*1000/(box.height-1);
+        int tone=255;
+        // 柔和椭圆投影位于书壳下方。/ A soft elliptical shadow sits below the book.
+        int dx=px-510,dy=(py-940)*5;
+        int distance=dx*dx+dy*dy;
+        if(distance<210000)tone=255-(210000-distance)*65/210000;
+        // 后封板、纸张和页边保持在前封面右侧。/ Back board, paper and page edges remain behind the front cover.
+        if(px>=740&&px<=930&&py>=100&&py<=898){
+            int edge=930-px;
+            tone=(edge<9||py<109||py>889)?48:112;
+            if(px<912&&py>=119&&py<=877){
+                tone=238;
+                if(px>888)tone=((px-888)%7<2)?145:213;
+                if(py>856)tone=((py-856)%7<2)?155:220;
+                if(px<870&&py<849){
+                    int shade=(870-px)*24/610;
+                    tone=250-shade;
+                    if(px>755&&px<854&&py>192&&py<754&&(py-192)%43<2)tone=180;
+                    if(px>850&&px<854&&py>154&&py<803)tone=184;
+                }
+            }
+        }
+        // 梯形封面：右侧较高，左侧书脊较远。/ Trapezoid cover: the right edge is taller, the left spine recedes.
+        if(px>=110&&px<=760){
+            int u=(px-110)*65535/650;
+            int top=147-(int)((int64_t)u*130/65535);
+            int bottom=864+(int)((int64_t)u*101/65535);
+            if(py>=top&&py<=bottom){
+                tone=38;
+                if(px>120&&px<750&&py>top+6&&py<bottom-6){
+                    tone=170;
+                    if(px>129&&px<741&&py>top+12&&py<bottom-12){
+                        unsigned cu=(unsigned)(px-129)*65535/612;
+                        unsigned cv=(unsigned)(py-top-12)*65535/(bottom-top-24);
+                        tone=open_book_sample(book,cu,cv);
+                        if(px<153)tone=tone*(155+(px-129)*100/24)/255;
+                        else if(px<162)tone=tone*(230+(px-153)*25/9)/255;
+                    }
+                }
+            }
+        }
+        epd_draw_pixel(box.x+x,box.y+y,(uint8_t)tone,fb);
+    }
+}
+
 static unsigned folder_books(home_book_t *books[3]) {
     unsigned n=0;
     if(s_current.path[0]&&s_current.has_progress)books[n++]=&s_current;
@@ -863,6 +933,7 @@ static void render_simple_root(uint8_t *fb) {
     home_book_t *b=featured();
     if(full) {
         book_ticket_draw_background(fb,b->cover,b->cover_width,b->cover_height,b->cover_fast);
+        book_ticket_draw_shadow(fb);
         book_ticket_draw_paper(fb);
         draw_simple_ticket_status(fb);
         ui_draw_separator(fb, 140, 72, 540, UI_GRAY_LIGHT);
@@ -881,7 +952,8 @@ static void render_simple_root(uint8_t *fb) {
         home_bold_label(fb,60,222,26,"Đọc tiếp",EPD_DRAW_ALIGN_LEFT,UI_GRAY_WHITE);
     }
     if(b->path[0]) {
-        draw_cover(fb,b,simple_cover_rect());
+        if(full)draw_open_book(fb,b,simple_cover_rect());
+        else draw_cover(fb,b,simple_cover_rect());
         if(app_settings_simple_full_ui()) {
             int y=820,title_px=40,author_px=29;
             // Keep the lower text group above the progress row at large UI scales.
@@ -1233,7 +1305,7 @@ static void on_enter(app_ctx_t *ctx) {
     s_component_dirty=(EpdRect){0};
     bool simple=app_settings_simple_ui();
     if(simple)app_book_release_shelf_cache();
-    if(simple!=s_cached_simple_ui){clear_cover_cache();s_books_cache_valid=false;app_home_release_clock_cache();s_cached_simple_ui=simple;}
+    if(simple!=s_cached_simple_ui||app_settings_simple_full_ui()!=s_cached_simple_full_ui){clear_cover_cache();s_books_cache_valid=false;app_home_release_clock_cache();s_cached_simple_ui=simple;s_cached_simple_full_ui=app_settings_simple_full_ui();}
     s_cover_generation=book_cover_jobs_begin();
     const uint32_t progress_revision=book_progress_revision();
     s_clock_base_attempted=false;

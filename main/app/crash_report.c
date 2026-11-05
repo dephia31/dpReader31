@@ -14,6 +14,7 @@
 #include "esp_random.h"
 #include "esp_log.h"
 #include <stdint.h>
+#include <time.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -23,6 +24,11 @@
 #define REPORT_MAGIC UINT32_C(0x43525032)
 #define REPORT_SLOTS 4
 #define REPORT_DIR "/sdcard/crash_log"
+#define REPORT_FIRST_VALID_TIME UINT32_C(1704067200)
+#define REPORT_LAST_VALID_TIME UINT32_C(4102444799)
+typedef struct {
+    uint32_t seconds, check;
+} report_stamp_t;
 typedef struct {
     uint32_t magic, id, reason, loop, previous_uptime_s, checksum;
     char version[32], previous_version[32], panic[112], sleep[256];
@@ -32,10 +38,33 @@ typedef struct {
     uint32_t magic, session, next_id, loop, uptime_s, dropped;
     char version[32];
     report_t pending[REPORT_SLOTS];
+    // Keep the original RTC report layout so older queued events can still be exported.
+    report_stamp_t stamps[REPORT_SLOTS];
 } retained_t;
 static RTC_NOINIT_ATTR retained_t s_retained;
 static int64_t s_retry_at;
 static bool s_started;
+static uint32_t report_clock(void) {
+    time_t now = time(NULL);
+    return now >= REPORT_FIRST_VALID_TIME && now <= REPORT_LAST_VALID_TIME ? (uint32_t)now : 0;
+}
+static void report_set_stamp(const report_t *r, uint32_t seconds) {
+    size_t slot = (size_t)(r - s_retained.pending);
+    s_retained.stamps[slot] = (report_stamp_t){
+        seconds, seconds ^ s_retained.session ^ r->id ^ UINT32_C(0x361f7ab2)
+    };
+}
+static uint32_t report_get_stamp(const report_t *r) {
+    report_stamp_t stamp = s_retained.stamps[r - s_retained.pending];
+    uint32_t expected = stamp.seconds ^ s_retained.session ^ r->id ^ UINT32_C(0x361f7ab2);
+    if (stamp.check == expected && (stamp.seconds == UINT32_MAX ||
+        (stamp.seconds >= REPORT_FIRST_VALID_TIME && stamp.seconds <= REPORT_LAST_VALID_TIME)))
+        return stamp.seconds;
+    uint32_t now = report_clock();
+    // Freeze the selected name before writing so a retry cannot create a duplicate.
+    report_set_stamp(r, now ? now : UINT32_MAX);
+    return now;
+}
 static uint32_t report_checksum(const report_t *r) {
     const unsigned char *p=(const unsigned char *)r->version;
     uint32_t h=r->id ^ r->reason ^ r->loop ^ r->previous_uptime_s;
@@ -61,6 +90,7 @@ void crash_report_boot(void) {
     r->magic=0;
     memset(r,0,sizeof(*r));
     r->id=id;r->reason=reason;r->loop=s_retained.loop;r->previous_uptime_s=previous_uptime;
+    report_set_stamp(r, report_clock());
     snprintf(r->version,sizeof(r->version),"%s",version);
     snprintf(r->previous_version,sizeof(r->previous_version),"%s",s_retained.version);
     /* A retained flash pointer is only interpreted for a panic in this same image. */
@@ -85,18 +115,30 @@ static const char *report_reason(uint32_t reason) {
 }
 static bool report_write(const report_t *r) {
     if(mkdir(REPORT_DIR,0775)!=0 && errno!=EEXIST)return false;
-    char path[112],tmp[116];
+    char path[180],tmp[184];
     snprintf(path,sizeof(path),REPORT_DIR "/crash_%08lx_%08lx.txt",(unsigned long)s_retained.session,(unsigned long)r->id);
-    snprintf(tmp,sizeof(tmp),"%s.tmp",path);
     struct stat st;
+    // A committed file from the previous naming scheme may still be queued in RTC.
+    if(stat(path,&st)==0 && st.st_size>0)return true;
+    uint32_t seconds = report_get_stamp(r);
+    char date[24] = "unknown-time";
+    if (seconds && seconds != UINT32_MAX) {
+        time_t local = (time_t)seconds + 7 * 3600;
+        struct tm calendar;
+        if (gmtime_r(&local, &calendar))
+            (void)strftime(date, sizeof(date), "%Y-%m-%d_%H-%M-%S", &calendar);
+    }
+    snprintf(path,sizeof(path),REPORT_DIR "/crash_%s_%08lx_%08lx_%s.txt",
+             date,(unsigned long)s_retained.session,(unsigned long)r->id,report_reason(r->reason));
+    snprintf(tmp,sizeof(tmp),"%s.tmp",path);
     /* A reset after rename but before clearing RTC must not duplicate a committed report. */
     if(stat(path,&st)==0)return st.st_size>0;
     FILE *f=fopen(tmp,"w");
     if(!f)return false;
     bool ok=fprintf(f,"dpReader crash_log\nfirmware=%s\nprevious_firmware=%s\nreset_reason=%lu (%s)\n"
-        "event=%08lx:%08lx\nprevious_uptime_s=%lu\nconsecutive_short_boots=%lu\n"
+        "recorded_at=%s (UTC+07:00, boot or first export)\nevent=%08lx:%08lx\nprevious_uptime_s=%lu\nconsecutive_short_boots=%lu\n"
         "older_events_not_retained=%lu\n%s\n%s\nprevious_boot_breadcrumbs (newest first):\n",
-        r->version,r->previous_version,(unsigned long)r->reason,report_reason(r->reason),
+        r->version,r->previous_version,(unsigned long)r->reason,report_reason(r->reason),date,
         (unsigned long)s_retained.session,(unsigned long)r->id,(unsigned long)r->previous_uptime_s,
         (unsigned long)r->loop,(unsigned long)s_retained.dropped,r->panic,r->sleep)>=0;
     for(unsigned i=0;ok && i<RP_CRASH_LOG_LINES;++i)

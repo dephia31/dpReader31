@@ -6,56 +6,39 @@
 
 <p align="center">
   <a href="https://dephia31.github.io/dpReader31/"><img src="https://img.shields.io/badge/Web%20Flasher-C%E1%BA%ADp%20nh%E1%BA%ADt%20tr%E1%BB%B1c%20tuy%E1%BA%BFn%201--Click-success?style=for-the-badge&logo=googlechrome" alt="Web Flasher Trực Tuyến"></a>
-  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.3.1--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.3.2--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
 </p>
 
-**dpReader** (`v1.3.1-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
+**dpReader** (`v1.3.2-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
 
 > ⚡ **Nạp Firmware Trực Tuyến 1-Click (Không cần cài phần mềm):**  
 > Truy cập ngay **[Web Flasher chính thức](https://dephia31.github.io/dpReader31/)** trên trình duyệt Google Chrome hoặc Microsoft Edge để nạp firmware trực tiếp qua cáp USB-C. Tự động nhận diện phiên bản mới nhất, tự xóa `otadata` và tự khởi động lại máy sau khi nạp!
 
 ---
 
-## Hai thiết kế giao diện: Đầy đủ và Đơn giản
+## Hai thiết kế giao diện: Đầy đủ và I Love Book
 
-Ba giao diện dùng chung trình đọc TXT/EPUB, thiết lập chữ và tiến độ đọc.
+Hai giao diện dùng chung trình đọc TXT/EPUB, thiết lập chữ và tiến độ đọc.
 
 | Giao diện | Home | Cách mở sách |
 |---|---|---|
 | Đầy đủ | Thẻ Đọc tiếp, Tiện Ích và sách gần đây | Tủ sách với bìa và công cụ quản lý |
-| Đơn giản | Thẻ Đọc tiếp, Tiện Ích và hai nút điều hướng | Duyệt thư mục TXT/EPUB |
-| Đơn giản hoàn toàn | Một thẻ Đọc tiếp lớn trên nền bìa sách | Chạm thẻ để đọc tiếp hoặc vuốt lên mở Pop menu |
+| I Love Book | Thẻ Đọc tiếp lớn, bìa sách hé mở và nền viền từ ảnh bìa | Chạm thẻ để đọc tiếp hoặc vuốt lên mở Pop menu |
 
-Chọn chế độ tại **Cài đặt → Cá nhân hóa → Giao diện**. Lựa chọn được giữ qua khởi động lại, Sleep và khôi phục thiết lập thông thường.
+Chọn tại **Cài đặt → Cá nhân hóa → Giao diện**. Chọn thành công sẽ về Home và làm sạch toàn màn hình. Lựa chọn được giữ qua khởi động lại, Sleep và khôi phục thiết lập thông thường. Lựa chọn Đơn giản hoặc Đơn giản hoàn toàn từ phiên bản cũ chuyển sang I Love Book.
 
-### Giao diện Đơn giản
+### Giao diện I Love Book
 
-Chọn **Đơn giản** tại **Cài đặt → Cá nhân hóa → Giao diện**. Thanh điều hướng còn
-**Đọc tiếp** và **Cài đặt**; thẻ Đọc tiếp lớn hơn, không có hàng sách gần đây.
-Thẻ Tiện Ích có bốn slot cùng kiểu tag
-với Home thường: hai slot đầu cố định **Mở sách / Thêm sách**, hai slot sau
-tùy chọn bằng biểu tượng bút hoặc chạm ô trống, rồi bấm **Lưu tiện ích**. Hai
-shortcut tùy chọn cùng **Viền icon / Nhãn shortcut** lưu riêng, không đổi
-shortcut Home thường. Tắt nhãn sẽ hiển thị icon lớn hơn; bấm **Lưu tiện ích** để
-lưu thay đổi. Tiêu đề Home đơn giản hiển thị **Xin Chào, tên đã lưu**. **Mở sách** mở trình
-chọn TXT/EPUB trên thẻ nhớ; **Thêm sách**
-mở hai lựa chọn **Truyền file** và **Thư viện OPDS**. Dịch vụ chỉ chạy sau khi
-chọn phương thức, không tự chạy khi mở Home hoặc menu Thêm sách.
-Chạm thư mục để vào, nút quay lại để lên thư mục cha; tại gốc thẻ nhớ sẽ về Home.
-Danh sách theo thứ tự trên thẻ, có phân trang; chỉ giữ tối đa tám tên mỗi trang
-trong PSRAM, không tải bìa hay lập chỉ mục toàn bộ thư viện. Rời trang sẽ giải
-phóng danh sách. Thư mục trống hoặc không có TXT/EPUB sẽ hiện thông báo.
+Home hiển thị lời chào, bìa cuốn đang đọc dưới dạng sách hé mở, tên sách,
+tác giả, trích đoạn hoặc tên chương và tiến độ đọc. Viền nền dùng ảnh bìa xám,
+bóng tấm giấy giống màn hình khóa. Chạm thẻ để đọc tiếp; vuốt lên mở Pop menu
+với Mở sách, Truyền file, OPDS và Cài đặt; vuốt xuống mở Quick Settings.
 
-Chế độ này giữ tiến độ đọc và tác vụ chuẩn bị trang, ngừng quét giá sách/lịch sử
-cho Home và giải phóng cache giá sách cũ. Home vẫn giữ một bìa đọc tiếp. Chọn **Đầy đủ** để trở lại giao diện thường và các shortcut đã lưu. Mức RAM thực tế cần đo
-trên thiết bị; tùy chọn này không tắt tác vụ đọc thẻ, nguồn, phím hay màn hình.
-
-Tên sách dài trong Home đơn giản có tối đa ba dòng và dấu lược
-cuối nếu vượt quá vùng hiển thị. Chế độ giao diện đã chọn được lưu riêng: khởi
-động lại, Sleep/wake, nhập bản sao hoặc khôi phục thiết lập thông thường không
-tự thay đổi lựa chọn đó. Đổi chế độ trong mục **Giao diện**.
-Xóa toàn bộ NVS/flash hoặc phần mềm cũ không hỗ trợ tùy chọn này nằm ngoài phạm
-vi bảo đảm; firmware không thể suy ra dữ liệu đã bị xóa hoàn toàn.
+Mở sách dùng trình chọn TXT/EPUB theo thư mục trên thẻ. Chạm thư mục để vào,
+quay lại để lên thư mục cha; tại gốc sẽ về Home. Danh sách phân trang và giữ
+tối đa tám tên mỗi trang trong PSRAM. Chế độ này bỏ quét giá sách/lịch sử cho
+Home và giải phóng cache giá sách, nhưng vẫn giữ bìa cuốn đang đọc. Giao diện
+Đầy đủ giữ các shortcut đã lưu riêng.
 
 S31 có lịch bật/tắt hằng ngày riêng cho đèn trắng và đèn ấm tại
 **Cài đặt → Hiển thị → Đèn nền & Rung**. Mỗi lịch có giờ bật, giờ tắt và độ sáng;
@@ -70,7 +53,7 @@ Quy tắc bật/tắt WiFi, Bluetooth và bảo vệ tác vụ đang chạy xem
 
 ## 📸 Giao diện dpReader
 
-| Đơn giản | Đơn giản hoàn toàn |
+| Giao diện Đơn giản trước đây | I Love Book (bố cục tham khảo) |
 | :---: | :---: |
 | <img src="docs/screenshots/10_home_simple_preview.png" width="320" alt="Bản xem trước Home Đơn giản với thẻ Đọc tiếp và Tiện Ích"> | <img src="docs/screenshots/11_home_fully_simple_preview.png" width="320" alt="Bản xem trước Home Đơn giản hoàn toàn với thẻ Đọc tiếp kiểu vé"> |
 

@@ -232,7 +232,7 @@ void book_ticket_draw_paper(uint8_t *fb) {
     ui_fill_rect_fast((EpdRect){left, top + 20, 1, bottom - top - 40}, UI_GRAY_BLACK, fb);
     ui_fill_rect_fast((EpdRect){right - 1, top + 20, 1, bottom - top - 40}, UI_GRAY_BLACK, fb);
 }
-static void ticket_shadow_draw(uint8_t *fb) {
+void book_ticket_draw_shadow(uint8_t *fb) {
     const int left = 48, right = 636, top = 58, bottom = 1158;
     for (int x = left; x < right; ++x) {
         int cut = notch_depth(x);
@@ -364,7 +364,7 @@ bool book_ticket_draw(uint8_t *fb, bool reader_background) {
     unsigned cover_width=0,cover_height=0;
     uint8_t *gray = cover_load(path, title, author, &cover_width, &cover_height);
     book_ticket_draw_background(fb, gray, cover_width, cover_height, false);
-    ticket_shadow_draw(fb);
+    book_ticket_draw_shadow(fb);
     book_ticket_draw_paper(fb);
     ui_text(fb, 82, 98, 28, "dpReader  /  Thẻ đọc sách", EPD_DRAW_ALIGN_LEFT, false);
     ui_hairline(fb, 156, 82, 520, UI_GRAY_BLACK);

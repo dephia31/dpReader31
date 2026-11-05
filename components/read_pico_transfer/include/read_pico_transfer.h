@@ -92,6 +92,8 @@ void read_pico_transfer_resume_after_sleep(void);
 #if KIIKO_BOARD_METALIO47
 /// UI tail only, after a successful reader frame; collect deferred WiFi restoration.
 void read_pico_transfer_resume_service(void);
+/// 显式联网前完成已请求的唤醒清理。/ Finish requested wake cleanup before explicit networking.
+void read_pico_transfer_prepare_network(void);
 bool read_pico_transfer_sleep_blocked(void);
 #endif
 /// 跨任务复制一致状态快照。/ Copy a consistent snapshot across tasks.

@@ -11,15 +11,18 @@ u=r'''
 #include <string.h>
 typedef struct{int static_rx_buf_num, dynamic_rx_buf_num, rx_ba_win, ampdu_rx_enable, nvs_enable;}wifi_init_config_t;
 #include <stdio.h>
-typedef int esp_err_t;typedef int wifi_interface_t;
+typedef int esp_err_t;typedef int wifi_interface_t;typedef int wifi_ps_type_t;
 #define ESP_OK 0
 #define WIFI_PS_NONE 0
+#define WIFI_PS_MIN_MODEM 1
+#define WIFI_IF_STA 0
+#define WIFI_IF_AP 1
 #define WIFI_PROTOCOL_11B 1
 #define WIFI_PROTOCOL_11G 2
 #define WIFI_PROTOCOL_11N 4
-static int calls,fail,selected;
+static int calls,fail,selected,expected_ps;
 static int next(void){return ++calls==fail?-7:0;}
-static int esp_wifi_set_ps(int mode){assert(!mode);assert(calls==0);return next();}
+static int esp_wifi_set_ps(int mode){assert(mode==expected_ps);assert(calls==0);return next();}
 static int esp_wifi_set_protocol(int interface,uint8_t protocol){assert(interface==selected&&protocol==7&&calls==1);return next();}
 static int esp_wifi_set_max_tx_power(int8_t power){assert(power==48&&calls==2);return next();}
 #include "transfer_s31_radio_profile.h"
@@ -44,7 +47,15 @@ int main(void){
  wifi_init_config_t variants[]={{16,64,12,1,0},{6,8,12,1,0},{6,64,32,1,0},{6,64,0,1,0}};
  for(unsigned i=0;i<sizeof(variants)/sizeof(variants[0]);++i){wifi_init_config_t old=variants[i];transfer_s31_bulk_receive_config(&variants[i],true);assert(!memcmp(&old,&variants[i],sizeof(old)));}
  transfer_s31_bulk_receive_config(NULL,true);
- for(selected=0;selected<2;++selected)for(fail=0;fail<4;++fail){calls=0;int err=transfer_s31_radio_profile(selected);assert(err==(fail?-7:0));assert(calls==(fail?fail:3));}puts("PASS: bounded bulk RX/BA, PSRAM16 minimum, normal STA/disabled AMPDU/unsupported budgets unchanged; STA/AP PS_NONE, BGN and12dBm unchanged; failures propagate");}
+ for(selected=WIFI_IF_STA;selected<=WIFI_IF_AP;++selected)for(int bulk=0;bulk<2;++bulk){
+  expected_ps=bulk&&selected==WIFI_IF_STA?WIFI_PS_NONE:WIFI_PS_MIN_MODEM;
+  for(fail=0;fail<4;++fail){
+   calls=0;int err=transfer_s31_radio_profile(selected,bulk);
+   assert(err==(fail?-7:0));assert(calls==(fail?fail:3));
+  }
+ }
+ puts("PASS: bounded bulk RX/BA, STA transfer keeps RX awake, other sessions retain modem sleep, BGN and 12 dBm, failure propagation");
+}
 '''
 with tempfile.TemporaryDirectory() as tmp:
  p=Path(tmp);(p/'esp_wifi.h').write_text('');(p/'test.c').write_text(u)

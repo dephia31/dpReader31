@@ -195,6 +195,7 @@ esp_err_t kosync_compute_doc_md5(const char *file_path, char out_hex[33]) {
 /* ---- Quản lý kết nối mạng WiFi tạm thời hoặc tái sử dụng STA đang bật ---- */
 static esp_err_t kosync_acquire_network(bool *started_by_us, char *msg, size_t msg_cap) {
     *started_by_us = false;
+    read_pico_transfer_prepare_network();
     if(!read_pico_transfer_network_shareable()){if(msg&&msg_cap)snprintf(msg,msg_cap,"WiFi đang được trang truyền file sử dụng");return ESP_ERR_INVALID_STATE;}
     read_pico_transfer_status_t st = {0};
     read_pico_transfer_get_status(&st);
