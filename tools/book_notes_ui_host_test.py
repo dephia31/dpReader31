@@ -21,6 +21,12 @@ header=r'''
 #include "book_dictionary.h"
 #include "ui_text_edit.h"
 typedef struct {int x,y,width,height;} EpdRect;
+typedef int esp_err_t;
+#define ESP_OK 0
+#define ESP_FAIL -1
+typedef struct {size_t start,end;char href[128];} html_link_t;
+typedef esp_err_t (*book_notes_footnote_fn)(const char *href,char **utf8,size_t *len);
+void book_notes_bind_links(const html_link_t *links,size_t count,book_notes_footnote_fn load);
 typedef struct {int64_t now_ms;uint8_t *fb;} app_ctx_t;
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_PAGE,APP_REDRAW_AREA} app_redraw_t;
 typedef enum {UI_GESTURE_PRESS,UI_GESTURE_MOVE,UI_GESTURE_LONG_PRESS,UI_GESTURE_TAP,UI_GESTURE_CANCEL} gesture_type;
@@ -85,6 +91,13 @@ unit=adapter+r'''
 #include <assert.h>
 #include <unistd.h>
 static app_ctx_t ctx;
+static uint8_t fbuf[1];
+static const char *note_body="Note text";
+static char note_href[128];
+static esp_err_t note_load(const char *href,char **utf8,size_t *len){
+ snprintf(note_href,sizeof(note_href),"%s",href);if(!note_body)return ESP_FAIL;
+ *utf8=strdup(note_body);*len=strlen(note_body);return ESP_OK;
+}
 static EpdRect body={20,240,640,800};
 static app_redraw_t redraw;
 static bool event(gesture_type t,int x,int y){ui_gesture_event_t e={.type=t,.x=x,.y=y,.x0=x,.y0=y};(void)body;return reader_notes_gesture(&ctx,&e,&redraw);}
@@ -137,9 +150,9 @@ int main(void){
  assert(event(UI_GESTURE_LONG_PRESS,60,310));assert(event(UI_GESTURE_MOVE,240,310));assert(event(UI_GESTURE_CANCEL,240,310));
  assert(action(0));assert(s->mode==LOOKUP&&!s->searching);
  s->dictionary.state=4;strcpy(s->dictionary.text,"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven");
- panel_frames=definition_lines=0;book_notes_draw(NULL,0,body_rect(),24);assert(panel_frames==1&&definition_lines==10);
+ panel_frames=definition_lines=0;book_notes_draw(fbuf,0,body_rect(),24);assert(panel_frames==1&&definition_lines==10);
  for(int i=0;i<10;++i)assert(definition_ys[i]==260+i*44);
- s->definition_page=1;definition_lines=0;book_notes_draw(NULL,0,body_rect(),24);assert(definition_lines==1&&definition_ys[0]==260);
+ s->definition_page=1;definition_lines=0;book_notes_draw(fbuf,0,body_rect(),24);assert(definition_lines==1&&definition_ys[0]==260);
  panel_frames=0;book_notes_draw(NULL,0,body_rect(),24);assert(panel_frames==1);
  assert(event(UI_GESTURE_TAP,100,400)&&s->mode==LOOKUP);
  assert(event(UI_GESTURE_TAP,240,830)&&s->mode==LOOKUP); // Page control stays usable.
@@ -166,6 +179,30 @@ int main(void){
  assert(book_annotations_put(&s->annotations,test_text,6,12,"second"));
  assert(book_notes_open_list(0));assert(event(UI_GESTURE_TAP,100,340));assert(s->mode==SELECT&&s->start==6);
  assert(book_notes_open_list(0));assert(event(UI_GESTURE_TAP,580,350));assert(s->annotations.count==1&&s->annotations.items[0].start==0);
+ /* Footnote popup: a tap on a bound reference opens it, outside or close dismisses it. */
+ book_notes_bind("notes.epub",0,test_text,strlen(test_text));glyph_y=700;
+ static const html_link_t links[]={{6,12,"notes.xhtml#n1"}};
+ assert(!event(UI_GESTURE_TAP,170,710)&&!book_notes_active()); // Unbound links: tap passes through.
+ book_notes_bind_links(links,1,note_load);
+ assert(!event(UI_GESTURE_TAP,50,710)&&!book_notes_active()); // Far from the reference.
+ assert(event(UI_GESTURE_TAP,170,710)&&redraw==APP_REDRAW_PAGE&&s->mode==FOOTNOTE);
+ assert(!strcmp(note_href,"notes.xhtml#n1")&&!strcmp(s->footnote,"Note text")&&s->footnote_lines==1);
+ assert(s->footnote_panel.y==88); // Reference in the lower half: popup above it.
+ definition_lines=0;book_notes_draw(fbuf,0,body_rect(),24);assert(definition_lines==1&&definition_ys[0]==112);
+ assert(event(UI_GESTURE_TAP,100,120)&&s->mode==FOOTNOTE); // Inside the panel keeps it.
+ EpdRect close=footnote_button(2);
+ assert(event(UI_GESTURE_TAP,close.x+close.width/2,close.y+close.height/2)&&!book_notes_active()&&!s->footnote);
+ assert(event(UI_GESTURE_TAP,170,710)&&s->mode==FOOTNOTE);
+ assert(event(UI_GESTURE_TAP,100,1100)&&!book_notes_active()&&!s->footnote); // Outside closes.
+ glyph_y=300;assert(event(UI_GESTURE_TAP,170,310)&&s->footnote_panel.y+s->footnote_panel.height==1152);book_notes_cancel();
+ note_body="1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11";glyph_y=700;
+ assert(event(UI_GESTURE_TAP,170,710)&&s->footnote_lines==11);
+ EpdRect next=footnote_button(1);
+ assert(event(UI_GESTURE_TAP,next.x+next.width/2,next.y+next.height/2)&&s->definition_page==1);
+ definition_lines=0;book_notes_draw(fbuf,0,body_rect(),24);assert(definition_lines==1);
+ book_notes_cancel();
+ note_body=NULL;assert(!event(UI_GESTURE_TAP,170,710)&&!book_notes_active()); // Load failure.
+ note_body="Note text";vertical=true;assert(!event(UI_GESTURE_TAP,170,710));vertical=false;
  book_notes_reset();assert(!s);
  /* RC3..5 migration: copy old snapshots once, preserve originals and generation. */
  assert(!mkdir("legacy.sdr",0775));
