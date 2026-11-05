@@ -57,5 +57,23 @@ int main(void) {
     assert(!book_shake_feed(&g, 700, 0, -1000, false, 4000));
     assert(!book_shake_feed(&g, -700, 0, -1000, false, 10));
     assert(!book_shake_feed(NULL, 0, 0, 0, false, 0));
+    // 主循环约40ms采样：中等力度（约200mg）也能翻页，约0.6s后可再翻。
+    // The loop samples about every 40ms: a moderate ~200mg flick turns, and another turns ~0.6s later.
+    const int moderate[] = {60, 140, 200, 150, 40, -60, -20, 0};
+    g = (book_shake_gate_t){0};
+    for (int t = 0; t <= 160; t += 40) assert(!book_shake_feed(&g, 0, 0, -1000, false, t));
+    int64_t at = 200; int turns = 0;
+    for (int round = 0; round < 2; ++round) {
+        for (size_t i = 0; i < sizeof(moderate) / sizeof(moderate[0]); ++i, at += 40) {
+            int dir = book_shake_feed(&g, moderate[i], 30, -1000, false, at);
+            if (dir) { assert(dir == 1); ++turns; }
+        }
+        for (int i = 0; i < 8; ++i, at += 40) assert(!book_shake_feed(&g, 0, 0, -1000, false, at));
+    }
+    assert(turns == 2 && at < 1600);
+    // 40ms采样下缓慢倾斜到侧放仍不翻页。/ Slowly tilting onto the side at 40ms sampling does not turn.
+    g = (book_shake_gate_t){0};
+    for (int t = 0; t <= 200; t += 40) assert(!book_shake_feed(&g, 0, 0, -1000, false, t));
+    for (int i = 0; i <= 50; ++i) assert(!book_shake_feed(&g, i * 14, 0, -1000 + i * 10, false, 240 + i * 40));
     puts("PASS book position and directional shake: left/right, rebound, tilt and suppression");
 }

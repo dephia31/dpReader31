@@ -5,6 +5,9 @@
  * 阅读进度换算和晃动判定，不访问硬件。/ Reading position and shake policy without hardware access.
  * 用户修订：横向一次动作翻页，按方向返回 -1/+1；冷却800ms并静止120ms后再接受动作。
  * User revision: one horizontal impulse returns -1/+1; rearm after 800ms cooldown and 120ms at rest.
+ * 用户2026-11-05反馈需大力且偏慢：门槛降到160mg、主轴优势1.25倍，冷却450ms、静止80ms。
+ * Per the user's 2026-11-05 report that shakes needed force and felt slow: 160mg, 1.25x axis
+ * dominance, 450ms cooldown and 80ms rest.
  */
 #pragma once
 #include <stdbool.h>
@@ -46,17 +49,17 @@ static inline int book_shake_feed(book_shake_gate_t* g, int x, int y, int z,
     const int ax = book_shake_abs(dx), ay = book_shake_abs(dy), az = book_shake_abs(dz);
     const int jerk = book_shake_abs(x - g->previous_x);
     g->previous_x = x;
-    if (g->armed && now >= g->cooldown_ms && ax >= 210 && jerk >= 35 &&
-        ax > ay * 3 / 2 + 30 && ax > az * 3 / 2 + 30) {
+    if (g->armed && now >= g->cooldown_ms && ax >= 160 && jerk >= 35 &&
+        ax > ay * 5 / 4 + 20 && ax > az * 5 / 4 + 20) {
         g->armed = false;
         g->quiet_ms = now;
-        g->cooldown_ms = now + 800;
+        g->cooldown_ms = now + 450;
         return dx > 0 ? 1 : -1;
     }
     const bool quiet = ax < 80 && ay < 80 && az < 80;
     if (!quiet) g->quiet_ms = now;
-    if (now < g->cooldown_ms || ax >= 210 || ay >= 210 || az >= 210) g->armed = false;
-    if (quiet && now >= g->cooldown_ms && now - g->quiet_ms >= 120) g->armed = true;
+    if (now < g->cooldown_ms || ax >= 160 || ay >= 160 || az >= 160) g->armed = false;
+    if (quiet && now >= g->cooldown_ms && now - g->quiet_ms >= 80) g->armed = true;
     // 静止或缓慢倾斜时跟踪姿态，不让重力产生翻页信号。/ Track posture at rest or during slow tilts.
     if (quiet || jerk < 35) {
         g->gravity[0] += dx / 8; g->gravity[1] += dy / 8; g->gravity[2] += dz / 8;
