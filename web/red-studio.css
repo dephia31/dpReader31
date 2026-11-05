@@ -100,3 +100,10 @@ header h1{font-size:29px}
 .community-link:hover{background:#2d65c6;color:#fff}
 .community-link:focus-visible{outline:3px solid #b7d1ff;outline-offset:4px}
 @media(max-width:740px){.community-card{flex-wrap:wrap;gap:14px;padding:22px 18px}.community-icon{flex-basis:44px;width:44px;height:44px}.community-copy{flex-basis:calc(100% - 60px)}.community-copy h2{font-size:20px}.community-link{width:100%;margin-top:3px}}
+
+.community-actions{display:flex;flex-direction:column;gap:10px;flex:0 0 250px}
+.community-actions .community-link{width:100%}
+.community-link-google{flex-direction:column;gap:2px;border-color:#82682b;background:#332b18;color:#ffe5a0}
+.community-link-google:hover{background:#493b1d;color:#fff0c6}
+.community-stars{font-size:18px;line-height:1.2;letter-spacing:3px;color:#ffd167}
+@media(max-width:740px){.community-actions{flex:1 0 100%;width:100%}.community-actions .community-link{margin-top:0}}
