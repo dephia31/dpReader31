@@ -1,10 +1,11 @@
-## dpReader 1.3.1-vn · 2026-11-04
+## dpReader 1.3.2-vn · 2026-11-05
 
-- Home có ba chế độ **Đầy đủ**, **Đơn giản** và **Đơn giản hoàn toàn**. Chế độ Đơn giản hoàn toàn dùng thẻ Đọc tiếp lớn, nền bìa sách, lời chào cá nhân và trích đoạn hoặc tên chương. Vuốt lên mở **Pop menu** (Mở sách, Truyền file, OPDS, Cài đặt), vuốt xuống ở cả ba chế độ mở **Quick Settings**.
-- Giữ lựa chọn font Bitter tích hợp khi khôi phục cấu hình.
-- Danh mục Tải Font chữ thay các mục font tiếng Trung bằng Literata, Lora, Noto Serif, Merriweather và Source Serif 4 từ Google Fonts, có hỗ trợ tiếng Việt.
-- Việt hóa toàn bộ thông báo kết nối, tải, kiểm tra tệp, hoàn tất và lỗi trong phần Tải Font chữ.
-- Sửa bố cục xác nhận OTA khi có bản mới và ưu tiên xuống dòng ghi chú theo từ.
+- Giao diện chỉ còn **Đầy đủ** và **I Love Book**. Lựa chọn Đơn giản cũ chuyển sang I Love Book; chọn giao diện sẽ về Home và làm sạch toàn màn hình.
+- I Love Book hiển thị bìa đang đọc thành cuốn sách hé mở, giữ ảnh xám cho nền viền và dùng bóng tấm giấy giống màn hình khóa.
+- Sửa Quick Settings bị Home vẽ đè sau khi vuốt xuống từ vùng dưới status bar; đóng bảng khôi phục nền bằng GL16.
+- Phục hồi quyền WiFi sau Sleep khi dùng KoSync, OPDS hoặc truyền file; dọn trạng thái lỗi khi tài nguyên đã được giải phóng và hủy yêu cầu truyền file còn chờ khi rời trang.
+- Giữ thêm một trang ảnh EPUB trong PSRAM khi đủ bộ nhớ; giảm xử lý giải mã và thu nhỏ JPEG.
+- Hiện thông báo mở/đóng sách; vuốt lên từ chân trang để về Home. Chỉnh bố cục menu nguồn và tên tệp báo cáo reset theo giờ Việt Nam.
+- Phiên truyền file STA giữ WiFi thức để giảm độ trễ nhận dữ liệu.
 
-
-Trong **Cài đặt → Cá nhân hóa → Giao diện**, chọn Đơn giản hoặc Đơn giản hoàn toàn để dùng Home mới. Các font tải về hỗ trợ tiếng Việt và được lưu trên thẻ nhớ.
+Chế độ dark/invert chưa được tích hợp trong bản này.
