@@ -37,6 +37,7 @@ static bool held,vertical;
 static unsigned generation=1;
 static int writes,icon_calls,panel_frames,definition_lines;
 static int definition_ys[10];
+static char definition_texts[10][192];
 static int glyph_y=300;
 typedef enum {UI_ICON_SEARCH,UI_ICON_HIGHLIGHTER,UI_ICON_PENCIL,UI_ICON_SAVE,UI_ICON_LIST,UI_ICON_CHEVRON_LEFT,UI_ICON_CHEVRON_RIGHT,UI_ICON_X,UI_ICON_REFRESH_CW} ui_icon_t;
 static void ui_draw_icon(uint8_t *fb,int x,int y,int size,ui_icon_t icon,uint8_t color){(void)fb;(void)x;(void)y;(void)size;(void)icon;(void)color;++icon_calls;}
@@ -57,7 +58,7 @@ static void ui_text_input_draw(uint8_t *f,ui_text_edit_t *e,EpdRect r,int p,bool
 static void ui_text_input_tap(ui_text_edit_t *e,EpdRect r,int p,bool m,void *s,int x,int y){(void)e;(void)r;(void)p;(void)m;(void)s;(void)x;(void)y;}
 static void ui_fill_round_rect(uint8_t *f,EpdRect r,int radius,int c){(void)f;(void)r;(void)radius;(void)c;}
 static void ui_draw_control_frame(uint8_t *f,EpdRect r,int radius,int c){(void)f;if(r.y==240){assert(radius==16&&c==0&&((r.x==36&&r.width==612&&r.height==650)||(r.x==24&&r.width==636&&r.height==700)));++panel_frames;}}
-static void ui_text_box(uint8_t *f,EpdRect r,int px,const char *t,enum EpdFontFlags a,bool inv){(void)f;(void)t;(void)a;(void)inv;if(px==32){assert(r.x==62&&r.width==560&&r.height==44&&r.y+r.height<=720);assert(definition_lines<10);definition_ys[definition_lines++]=r.y;}}
+static void ui_text_box(uint8_t *f,EpdRect r,int px,const char *t,enum EpdFontFlags a,bool inv){(void)f;(void)t;(void)a;(void)inv;if(px==32){assert(r.x==62&&r.width==560&&r.height==44&&r.y+r.height<=720);assert(definition_lines<10);snprintf(definition_texts[definition_lines],192,"%s",t);definition_ys[definition_lines++]=r.y;}}
 static void ui_fill_rect_fast(EpdRect r,int c,uint8_t *f){(void)f;(void)r;(void)c;}
 static void epd_fill_rect(EpdRect r,int c,uint8_t *f){(void)f;(void)r;(void)c;writes++;}
 static int ttf_text_width_px(int p,const char *t){(void)p;(void)t;return 12;}
@@ -200,6 +201,18 @@ int main(void){
  EpdRect next=footnote_button(1);
  assert(event(UI_GESTURE_TAP,next.x+next.width/2,next.y+next.height/2)&&s->definition_page==1);
  definition_lines=0;book_notes_draw(fbuf,0,body_rect(),24);assert(definition_lines==1);
+ book_notes_cancel();
+ // Wrap at spaces (46 glyphs of 12px fit); a spaceless run still breaks per glyph.
+ note_body="alpha12345 bravo12345 charl12345 delta12345 echo123456 foxtr12345";
+ assert(event(UI_GESTURE_TAP,170,710)&&s->footnote_lines==2);
+ definition_lines=0;book_notes_draw(fbuf,0,body_rect(),24);assert(definition_lines==2);
+ assert(!strcmp(definition_texts[0],"alpha12345 bravo12345 charl12345 delta12345"));
+ assert(!strcmp(definition_texts[1],"echo123456 foxtr12345"));
+ book_notes_cancel();
+ note_body="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+ assert(event(UI_GESTURE_TAP,170,710)&&s->footnote_lines==2);
+ definition_lines=0;book_notes_draw(fbuf,0,body_rect(),24);
+ assert(strlen(definition_texts[0])==46&&strlen(definition_texts[1])==14);
  book_notes_cancel();
  note_body=NULL;assert(!event(UI_GESTURE_TAP,170,710)&&!book_notes_active()); // Load failure.
  note_body="Note text";vertical=true;assert(!event(UI_GESTURE_TAP,170,710));vertical=false;

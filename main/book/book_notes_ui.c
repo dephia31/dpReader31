@@ -205,17 +205,23 @@ static void underline(void *ctx,size_t a,size_t b,EpdRect r) {
     }
 }
 /* Page text by explicit bounded UTF-8 lines, avoiding an unbounded text-box layout.
- * A NULL framebuffer counts every line instead of drawing one page. */
+ * A NULL framebuffer counts every line instead of drawing one page.
+ * Wrap at the last space so Vietnamese words stay whole; a spaceless row (CJK, long token) breaks per glyph. */
 static unsigned definition_draw(uint8_t *fb,const char *t,int x,int y) {
     size_t at=0;unsigned line=0,first=(unsigned)s->definition_page*DEFINITION_LINES;
     while(t[at]&&(!fb||line<first+DEFINITION_LINES)) {
-        char row[192];size_t used=0;int width=0;
+        char row[192];size_t used=0,cut_used=0,cut_at=0;int width=0;
         while(t[at]&&t[at]!='\n'&&used+5<sizeof(row)) {
             size_t end=ui_text_edit_next(t,at),n=end-at;char glyph[5]={0};
             if(n>4)return line;
             memcpy(glyph,t+at,n);
             int w=ttf_text_width_px(DEFINITION_PX,glyph);
-            if(width+w>560&&used)break;
+            if(width+w>560&&used) {
+                if(t[at]==' ')at=end;
+                else if(cut_used){used=cut_used;at=cut_at;}
+                break;
+            }
+            if(t[at]==' '&&used){cut_used=used;cut_at=end;}
             memcpy(row+used,t+at,n);used+=n;at=end;width+=w;
         }
         row[used]=0;if(t[at]=='\n')++at;
