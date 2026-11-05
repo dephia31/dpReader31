@@ -200,6 +200,9 @@ void app_settings_set_reader_turn_effect(uint8_t effect);
 /// 阅读正文里短按电源键翻下一页；默认关闭。/ Short power press turns forward only in reader body; off by default.
 bool app_settings_reader_power_turn(void);
 void app_settings_set_reader_power_turn(bool on);
+/// 阅读正文里左右晃动机身翻页；默认关闭，仅存 NVS 不进备份。/ Shake left/right in the reader body to turn; off by default, NVS only and not in backups.
+bool app_settings_reader_shake_turn(void);
+void app_settings_set_reader_shake_turn(bool on);
 /// 旧备份兼容字段；阅读不再使用全屏模式。/ Legacy backup field; the reader no longer uses full screen.
 bool app_settings_reader_immersive(void);
 void app_settings_set_reader_immersive(bool on);

@@ -258,5 +258,38 @@ int main(void) {
     assert(t.run_count == 0 && t.runs == NULL);
     html_text_free(&t);
 
+    // 脚注引用：noteref 语义或短编号链接才进表；目录与普通链接不进。
+    // Footnote references: only noteref semantics or short numbered links are recorded; TOC and ordinary links are not.
+    {
+        const char *h = "<nav epub:type='toc'><a href='c1.xhtml#n1'>1</a></nav>"
+                        "<p>Văn bản<a epub:type='noteref' href='notes.xhtml#fn1'><sup>[1]</sup></a> tiếp "
+                        "<a href='#fn2'>²</a> và <a href='other.xhtml'>2</a> rồi <a href='#x'>đọc thêm</a>"
+                        " <a epub:type='backlink' href='#r1'>3</a></p>";
+        html_text_t t = {0};
+        assert(html_to_blocks(h, strlen(h), &t) == ESP_OK);
+        assert(t.link_count == 2);
+        assert(!strcmp(t.links[0].href, "notes.xhtml#fn1"));
+        assert(t.links[0].end - t.links[0].start == 3 && !memcmp(t.utf8 + t.links[0].start, "[1]", 3));
+        assert(!strcmp(t.links[1].href, "#fn2"));
+        assert(!memcmp(t.utf8 + t.links[1].start, "²", t.links[1].end - t.links[1].start));
+        html_text_free(&t);
+        assert(t.links == NULL && t.link_count == 0);
+    }
+    // 脚注目标：跟到元素闭合；空锚点由调用方补块；缺失片段报 NOT_FOUND。
+    // Note targets follow the element to its close; a bare anchor is left to the caller; a missing fragment is NOT_FOUND.
+    {
+        const char *h = "<p>Chính văn</p><aside epub:type='footnote' id='fn1'><p>Ghi chú một.</p><p>Dòng hai.</p></aside>"
+                        "<p><a id='fn2'/>Ghi chú hai.</p>";
+        html_text_t t = {0};
+        size_t a = 0, b = 0;
+        assert(html_to_blocks_note(h, strlen(h), "fn1", &a, &b, &t) == ESP_OK);
+        assert(b > a && !memcmp(t.utf8 + a, "Ghi chú một.\nDòng hai.", b - a));
+        html_text_free(&t);
+        assert(html_to_blocks_note(h, strlen(h), "fn2", &a, &b, &t) == ESP_OK);
+        assert(a == b && !strncmp(t.utf8 + a, "Ghi chú hai.", strlen("Ghi chú hai.")));
+        html_text_free(&t);
+        assert(html_to_blocks_note(h, strlen(h), "missing", &a, &b, &t) == ESP_ERR_NOT_FOUND);
+        assert(t.utf8 == NULL);
+    }
     puts("html_text_host_test: PASS");
 }

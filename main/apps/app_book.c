@@ -429,6 +429,9 @@ static blk_t* s_blocks;
 // parse, and the layout borrows them.
 static html_run_t* s_runs;
 static size_t s_run_count;
+// 本章脚注引用，借给笔记层做点按弹窗。/ This chapter's footnote references, lent to the notes layer for tap popups.
+static html_link_t* s_links;
+static size_t s_link_count;
 // 上一次排版用的书内字体开关：字体页改过之后，回阅读页要重排当前章才看得出来。
 // The embedded-face setting the current layout was built with: after the font page changes
 // it, the reader must re-typeset the chapter before the change is visible.
@@ -2958,7 +2961,7 @@ static EpdRect reading_setting_rect(int index) {
 }
 static int reading_settings_top(void) { return 580-reader_ui_extra(204); }
 static EpdRect reading_toggle_rect(int index) {
-    return reading_setting_rect(index == 0 ? 3 : index == 2 ? 5 : 6);
+    return reading_setting_rect(index == 0 ? 3 : index == 1 ? 7 : index == 2 ? 5 : 6);
 }
 static void draw_reading_switch(uint8_t *fb, EpdRect track, bool on) {
     ui_fill_round_rect(fb, track, 19, on ? 0x38 : 0xc4);
@@ -3022,6 +3025,9 @@ static void draw_reading_settings(uint8_t* fb) {
     draw_reading_card(fb, 4, "Điều khiển phím", "Tùy chỉnh 3 phím", false);
     draw_reading_toggle(fb, 2, "Ẩn ảnh minh họa trong sách", "Bỏ qua ảnh minh họa trong bài, giữ nguyên tệp sách", app_settings_reader_hide_images());
     draw_reading_toggle(fb, 3, "Chữ dọc (Phải sang trái)", NULL, app_settings_book_vertical());
+#if KIIKO_BOARD_METALIO47
+    draw_reading_toggle(fb, 1, "Lật trang bằng lắc máy", NULL, app_settings_reader_shake_turn());
+#endif
     ui_fill_round_rect(fb, (EpdRect){36, 1141, 612, 58}, 20, UI_GRAY_BLACK);
     reader_panel_text_vc(fb, 342, 1170, 26, "Xong", EPD_DRAW_ALIGN_CENTER, true);
 }
@@ -4969,6 +4975,9 @@ static void free_book(void) {
     free(s_text);
     free(s_blocks);
     free(s_runs);
+    free(s_links);
+    s_links = NULL;
+    s_link_count = 0;
     for (size_t i = 0; i < s_image_count; ++i) free(s_images[i]);
     free(s_images);
     s_images = NULL; s_image_count = 0;
@@ -5145,6 +5154,9 @@ static bool heading_text_matches(const char *text, const char *toc, const char *
 }
 
 static bool notes_chapter_title(size_t i,char *out,size_t cap) {return book_chapter_title(i,out,cap)==ESP_OK;}
+static esp_err_t reader_footnote_load(const char *href, char **utf8, size_t *len) {
+    return book_chapter_note(s_chapter, href, utf8, len);
+}
 static bool load_chapter_at(app_ctx_t* ctx, size_t chapter, size_t offset,
                             bool last_page, const char *anchor, size_t source_offset) {
     bool clear_toc = chapter != s_chapter || (!anchor && source_offset == SIZE_MAX);
@@ -5256,6 +5268,9 @@ static bool load_chapter_at(app_ctx_t* ctx, size_t chapter, size_t offset,
     s_block_count = loaded.count;
     s_runs = loaded.runs;
     s_run_count = loaded.run_count;
+    free(s_links);
+    s_links = loaded.links;
+    s_link_count = loaded.link_count;
     for (size_t i = 0; i < s_image_count; ++i) free(s_images[i]);
     free(s_images);
     s_images = loaded.images; s_image_count = loaded.image_count;
@@ -5277,6 +5292,7 @@ static bool load_chapter_at(app_ctx_t* ctx, size_t chapter, size_t offset,
     s_message[0] = 0;
     unlock_draw();
     book_notes_bind(s_path,(uint32_t)s_chapter,s_text,s_text_len);
+    book_notes_bind_links(s_links,s_link_count,reader_footnote_load);
     book_notes_catalog(book_chapter_count(),notes_chapter_title);
     prepare_inline_image();
     // 开书这条链上有解析、解压和字体装载，栈曾经在这里溢出过；留一个可观测的水位。
@@ -6442,6 +6458,12 @@ static app_redraw_t apply_reader_option(app_ctx_t* ctx, int kind) {
         app_settings_set_reader_power_turn(!app_settings_reader_power_turn());
         return APP_REDRAW_PAGE;
     }
+#if KIIKO_BOARD_METALIO47
+    if (kind == 1) {
+        app_settings_set_reader_shake_turn(!app_settings_reader_shake_turn());
+        return APP_REDRAW_PAGE;
+    }
+#endif
     if (!s_text || kind < 2 || kind > 3) return APP_REDRAW_NONE;
     bool previous = kind == 2 ? app_settings_reader_hide_images() : app_settings_book_vertical();
     // 重新开启插图时，先补齐尺寸；文件读取必须在绘制锁外。
@@ -6744,7 +6766,11 @@ static app_redraw_t reading_settings_action(app_ctx_t *ctx, uint16_t x, uint16_t
     } else if (ui_rect_hit(reading_setting_rect(4), x, y)) {
         s_reader_panel = READER_PANEL_KEY_SETTINGS;
     } else {
+#if KIIKO_BOARD_METALIO47
+        const int options[] = {0, 1, 2, 3};
+#else
         const int options[] = {0, 2, 3};
+#endif
         for (unsigned i = 0; i < sizeof(options) / sizeof(options[0]); ++i)
             if (ui_rect_hit(reading_toggle_rect(options[i]), x, y)) return apply_reader_option(ctx, options[i]);
         return APP_REDRAW_NONE;
@@ -7915,6 +7941,9 @@ static void on_enter(app_ctx_t* ctx) {
 #if KIIKO_BOARD_METALIO47
 static void reader_edge_light_cancel(void);
 #endif
+#if KIIKO_BOARD_METALIO47
+static void reader_shake_stop(app_ctx_t *ctx);
+#endif
 static void book_on_exit(app_ctx_t* ctx) {
     opds_session_end();
     opds_set_network_observer(NULL,NULL);
@@ -7924,6 +7953,7 @@ static void book_on_exit(app_ctx_t* ctx) {
     book_notes_cancel();
 #if KIIKO_BOARD_METALIO47
     reader_edge_light_cancel();
+    reader_shake_stop(ctx);
 #endif
     const int64_t exit_started=esp_timer_get_time();
     // A worker may own a CPU lease: stop under the draw barrier before deletion/free.
@@ -9081,6 +9111,48 @@ bool app_book_background_radio_ready(void) {
     return s_view!=READING || (s_text && s_reader_display_ready && s_presented_view==READING);
 }
 
+#if KIIKO_BOARD_METALIO47
+/* ---- 晃动翻页 / Shake turning ---- */
+// 共享 IRQ 脚只轮询：开启期间 50Hz 采样，离开正文后恢复空闲配置并静默 XYZ。
+// The shared IRQ pin stays polled: sample at 50Hz while live, then restore the idle config and silence XYZ.
+static book_shake_gate_t s_shake_gate;
+static bool s_shake_live;
+static int64_t s_shake_retry_ms;
+
+static void reader_shake_stop(app_ctx_t *ctx) {
+    if (!s_shake_live) return;
+    s_shake_live = false;
+    if (!ctx || !ctx->acc) return;
+    const sc7a20h_sensor_config_t idle = SC7A20H_CONFIG_IDLE;
+    if (sc7a20h_apply_config(ctx->acc, &idle) == ESP_OK) (void)sc7a20h_shared_irq_idle(ctx->acc);
+}
+
+// 返回 -1/+1 翻页方向，0 不动；锁屏浅睡会静默传感器，回来后重新上电。
+// Return a -1/+1 turn or 0; light sleep silences the sensor, so power it again on return.
+static int reader_shake_tick(app_ctx_t *ctx) {
+    bool want = app_settings_reader_shake_turn() && ctx->sensor_ready && ctx->acc &&
+                s_view == READING && s_text && !s_toolbar && s_reader_panel == READER_PANEL_NONE &&
+                !s_clear_confirm && !s_reader_choice.open && !s_zoom_active && !book_notes_active();
+    if (!want) { reader_shake_stop(ctx); return 0; }
+    if (!s_shake_live || !sc7a20h_powered(ctx->acc)) {
+        if (ctx->now_ms < s_shake_retry_ms) return 0;
+        const sc7a20h_sensor_config_t live = {
+            .odr = SC7A20H_ODR_50, .fs = SC7A20H_FS_2G, .mode = SC7A20H_MODE_LP,
+            .osr = SC7A20H_OSR_OFF, .dlpf = SC7A20H_DLPF_OFF, .hpf = SC7A20H_HPF_OFF,
+            .axis_mask = SC7A20H_AXIS_XYZ,
+        };
+        if (sc7a20h_apply_config(ctx->acc, &live) != ESP_OK) { s_shake_retry_ms = ctx->now_ms + 2000; return 0; }
+        s_shake_live = true;
+        s_shake_gate = (book_shake_gate_t){0};
+        return 0;
+    }
+    sc7a20h_sample_t sample;
+    if (read_pico_accel_read(ctx->acc, &sample) != ESP_OK || !(sample.status & 0x08)) return 0;
+    bool touched = ctx->touch && ctx->touch->touched;
+    return book_shake_feed(&s_shake_gate, sample.x_mg, sample.y_mg, sample.z_mg, touched, ctx->now_ms);
+}
+#endif
+
 static app_redraw_t on_tick(app_ctx_t* ctx) {
     if(s_view!=OPDS && opds_session_active())opds_session_end();
     if(app_settings_simple_ui()&&(s_view==SHELF||s_view==BULK)) {
@@ -9155,6 +9227,14 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
             return turn_page(ctx, ble_dir);
         }
     }
+#if KIIKO_BOARD_METALIO47
+    int shake = reader_shake_tick(ctx);
+    if (shake) {
+        ctx->user_activity = true;
+        s_stats_activity_ms = ctx->now_ms;
+        return turn_page(ctx, shake);
+    }
+#endif
     if (s_chapter_jump_undo.valid && ctx->now_ms >= s_chapter_jump_undo.until_ms) {
         bool visible=reader_chapter_undo_visible();s_chapter_jump_undo.valid=false;
         invalidate_prep();
@@ -9299,6 +9379,9 @@ static int64_t reader_next_tick_ms(app_ctx_t *ctx) {
        s_reader_tap.pending || s_chapter_jump_undo.valid || s_indent_hold.active || s_zoom_active || s_reader_clock_pending || book_notes_active() ||
        s_font_choice_pending || s_font_recovery_pending || s_font_restart_pending || s_save_failed ||
        s_reader_notice[0] || app_settings_kosync_auto() ||
+#if KIIKO_BOARD_METALIO47
+       s_shake_live ||
+#endif
        strcmp(s_font_path,ttf_font_path()) || app_settings_book_background_path()[0] ||
        book_layout_page_image_count(s_page) ||
        (app_settings_lock_style()==0 && !s_ticket_cover_done))return 0;

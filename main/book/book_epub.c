@@ -1972,6 +1972,59 @@ esp_err_t book_epub_load_target(book_epub_t *book, size_t i, const char *anchor,
     if (err == ESP_OK) chapter_breaks_prepare(book, i, out);
     free(css); free(text); return err;
 }
+// 脚注弹窗只要目标元素的纯文字：太短（空锚点或只有编号）就向后补到成句，过长截断加省略号。
+// The note popup wants plain target text: extend a bare anchor or number-only element through
+// following blocks, and cut overly long notes with an ellipsis.
+#define EPUB_NOTE_MIN 24u
+#define EPUB_NOTE_MAX 1500u
+esp_err_t book_epub_note(book_epub_t *book, size_t chapter, const char *href, char **utf8, size_t *len) {
+    if (!book || chapter >= book->count || !href || !utf8 || !len) return ESP_ERR_INVALID_ARG;
+    *utf8 = NULL; *len = 0;
+    const char *hash = strchr(href, '#');
+    if (!hash || !hash[1] || strlen(hash + 1) >= 128) return ESP_ERR_NOT_FOUND;
+    char anchor[128];
+    strcpy(anchor, hash + 1);
+    char path[EPUB_PATH_CAP];
+    if (!resolve_path(zip_entry_name(book->zip, book->chapters[chapter].zip_index), href, path)) return ESP_ERR_INVALID_ARG;
+    char *html; size_t html_len;
+    esp_err_t err = load_entry(book, zip_find(book->zip, path), &html, &html_len);
+    if (err != ESP_OK) return err;
+    html_text_t note = {0};
+    size_t start = 0, end = 0;
+    err = html_to_blocks_note(html, html_len, anchor, &start, &end, &note);
+    free(html);
+    if (err != ESP_OK) return err;
+    size_t a = start, b = end;
+    while (a < note.len && (note.utf8[a] == '\n' || note.utf8[a] == ' ')) ++a;
+    if (b < a) b = a;
+    size_t i = 0;
+    while (i < note.count && note.blocks[i].offset + note.blocks[i].len <= a) ++i;
+    for (; i < note.count && b - a < EPUB_NOTE_MIN; ++i) {
+        size_t block_end = note.blocks[i].offset + note.blocks[i].len;
+        if (block_end > b) b = block_end;
+    }
+    char *copy = psram(EPUB_NOTE_MAX + 8);
+    if (!copy) { html_text_free(&note); return ESP_ERR_NO_MEM; }
+    size_t used = 0;
+    bool cut = false;
+    // 跳过插图占位符，段间换行保留给弹窗分段。/ Drop illustration placeholders and keep paragraph breaks.
+    for (size_t p = a; p < b;) {
+        if (b - p >= 3 && !memcmp(note.utf8 + p, "\xef\xbf\xbc", 3)) { p += 3; continue; }
+        unsigned char c = (unsigned char)note.utf8[p];
+        size_t n = c >= 0xf0 ? 4 : c >= 0xe0 ? 3 : c >= 0xc0 ? 2 : 1;
+        if (p + n > b) break;
+        if (used + n > EPUB_NOTE_MAX) { cut = true; break; }
+        memcpy(copy + used, note.utf8 + p, n);
+        used += n; p += n;
+    }
+    while (used && (copy[used - 1] == '\n' || copy[used - 1] == ' ')) --used;
+    if (cut && used) { memcpy(copy + used, "\xe2\x80\xa6", 3); used += 3; }
+    copy[used] = 0;
+    html_text_free(&note);
+    if (!used) { free(copy); return ESP_ERR_NOT_FOUND; }
+    *utf8 = copy; *len = used;
+    return ESP_OK;
+}
 esp_err_t book_epub_load_anchor(book_epub_t *book, size_t i, const char *anchor,
                                 size_t *anchor_offset, html_text_t *out) {
     return book_epub_load_target(book, i, anchor, SIZE_MAX, anchor_offset, out);

@@ -42,6 +42,8 @@ esp_err_t book_epub_load_anchor(book_epub_t *book, size_t index, const char *anc
                                  size_t *anchor_offset, html_text_t *out);
 esp_err_t book_epub_load_target(book_epub_t *book, size_t index, const char *anchor,
                                  size_t source_offset, size_t *text_offset, html_text_t *out);
+/// 按章内 href（含 #片段）取脚注纯文字，最多约 1.5KB；调用方 free。/ Load plain footnote text for an in-chapter href with a #fragment, up to about 1.5KB; caller frees.
+esp_err_t book_epub_note(book_epub_t *book, size_t chapter, const char *href, char **utf8, size_t *len);
 /// 加载章内 JPEG/PNG；仅允许 ZIP 内相对路径，调用方释放数据。/ Load an in-book JPEG/PNG from a relative path; caller frees data.
 esp_err_t book_epub_image(book_epub_t *book, size_t chapter, const char *src, uint8_t **data, size_t *size, bool *png);
 /// spine 原始 HTML 未压缩字节总量，不等于 EPUB 文件大小。/ Total uncompressed source HTML bytes in the spine, not EPUB file size.

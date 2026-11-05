@@ -108,6 +108,9 @@ esp_err_t book_chapter_load_blocks_target(size_t i, const char *anchor,
     if (s_epub) return book_epub_load_target(s_epub, i, anchor, source_offset, text_offset, out);
     return book_chapter_load_blocks(i, out);
 }
+esp_err_t book_chapter_note(size_t chapter, const char *href, char **utf8, size_t *len) {
+    return s_epub ? book_epub_note(s_epub, chapter, href, utf8, len) : ESP_ERR_NOT_SUPPORTED;
+}
 uint32_t book_total_bytes(void) { return s_epub ? book_epub_total_bytes(s_epub) : s_book.total; }
 uint32_t book_chapter_byte_offset(size_t i) {
     return s_epub ? book_epub_chapter_byte_offset(s_epub, i) : i < s_book.count ? s_book.entries[i].offset : 0;

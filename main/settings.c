@@ -136,6 +136,7 @@ static esp_err_t backup_nvs_set_str(nvs_handle_t h, const char *key, const char 
 #define NVS_KEY_READER_FULL "rd_gc16"
 #define NVS_KEY_READER_TURN "rd_turn"
 #define NVS_KEY_POWER_TURN "rd_power"
+#define NVS_KEY_SHAKE_TURN "rd_shake_v2"
 #define NVS_KEY_IMMERSIVE "rd_immersive"
 #define NVS_KEY_HIDE_IMAGES "rd_no_image"
 #define NVS_KEY_HOLD_REFRESH "rd_hold_full"
@@ -236,6 +237,7 @@ static uint8_t s_reader_full_pages = 3;
 static uint8_t s_reader_turn_effect;
 static uint8_t s_book_line = 130, s_book_para = 50, s_book_margin = 24;
 static bool s_reader_power_turn;
+static bool s_reader_shake_turn;
 static bool s_reader_immersive;
 static bool s_reader_hide_images;
 static bool s_reader_hold_refresh;
@@ -599,6 +601,8 @@ void app_settings_init(void) {
         s_reader_turn_effect = reader_turn_effect;
     uint8_t power_turn = 0;
     if (nvs_get_u8(h, NVS_KEY_POWER_TURN, &power_turn) == ESP_OK) s_reader_power_turn = power_turn == 1;
+    uint8_t shake_turn = 0;
+    if (nvs_get_u8(h, NVS_KEY_SHAKE_TURN, &shake_turn) == ESP_OK) s_reader_shake_turn = shake_turn == 1;
     uint8_t immersive = 0;
     if (nvs_get_u8(h, NVS_KEY_IMMERSIVE, &immersive) == ESP_OK) s_reader_immersive = immersive == 1;
     uint8_t hold_refresh = 0;
@@ -1123,6 +1127,12 @@ void app_settings_set_reader_power_turn(bool on) {
     if (s_reader_power_turn == on) return;
     s_reader_power_turn = on;
     nvs_put_u8(NVS_KEY_POWER_TURN, on ? 1 : 0);
+}
+bool app_settings_reader_shake_turn(void) { return s_reader_shake_turn; }
+void app_settings_set_reader_shake_turn(bool on) {
+    if (s_reader_shake_turn == on) return;
+    s_reader_shake_turn = on;
+    nvs_put_u8(NVS_KEY_SHAKE_TURN, on ? 1 : 0);
 }
 bool app_settings_reader_immersive(void) { return s_reader_immersive; }
 void app_settings_set_reader_immersive(bool on) {

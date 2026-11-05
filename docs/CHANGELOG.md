@@ -1,5 +1,10 @@
 # Nhật ký thay đổi / Changelog
 
+## Chưa phát hành / Unreleased
+
+- Chạm vào số chú thích trong sách EPUB (liên kết noteref hoặc số/ký hiệu ngắn như `[1]`, `²`, `*`) để xem nội dung chú thích trong cửa sổ nhỏ ngay trên trang, không phải nhảy chương. Chú thích dài có nút **Trang trước**/**Trang sau**; chạm ra ngoài hoặc **Đóng** để tắt, vuốt để vừa đóng vừa lật trang.
+- Thêm **Cài đặt đọc sách → Lật trang bằng lắc máy** (mặc định tắt): hất nhanh máy sang phải để sang trang, sang trái để lùi trang. Nghiêng chậm không lật trang. Sau mỗi lần lật có 0,8 giây chờ, và không lật khi đang chạm màn hình hoặc đang mở menu.
+
 ## dpReader 1.3.1-vn · 2026-11-04
 
 - Home có ba chế độ **Đầy đủ**, **Đơn giản** và **Đơn giản hoàn toàn**. Chế độ Đơn giản hoàn toàn dùng thẻ Đọc tiếp lớn, nền bìa sách, lời chào cá nhân và trích đoạn hoặc tên chương. Vuốt lên mở **Pop menu** (Mở sách, Truyền file, OPDS, Cài đặt), vuốt xuống ở cả ba chế độ mở **Quick Settings**.
