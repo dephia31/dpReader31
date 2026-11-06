@@ -53,6 +53,15 @@ typedef struct {
     size_t run_count; ///< 本块的 run 数；零表示整块用系统字体 / Runs owned by this block; zero means the system face throughout
 } blk_t;
 
+#define HTML_LINK_HREF_MAX 127u
+#define HTML_LINK_MAX 512u
+
+/// 疑似脚注引用的链接：noteref 语义或短编号文字。/ Likely footnote reference: noteref semantics or short numbered text.
+typedef struct {
+    size_t start, end; ///< 规范化正文的字节区间 / Byte range in normalized text
+    char href[HTML_LINK_HREF_MAX + 1]; ///< 原文 href，含 #片段 / Source href including its #fragment
+} html_link_t;
+
 typedef struct {
     char* utf8; ///< 模块分配且零结尾的文本 / Owned NUL-terminated text
     size_t len; ///< 不含结尾零的字节数 / Bytes excluding terminating NUL
@@ -62,6 +71,8 @@ typedef struct {
     size_t image_count; ///< 图片数 / Image count
     html_run_t* runs; ///< 模块分配的 run 表，被块表借用 / Owned run table, borrowed by the blocks
     size_t run_count; ///< run 总数 / Total run count
+    html_link_t* links; ///< 模块分配的脚注引用表，按正文顺序 / Owned footnote references in text order
+    size_t link_count; ///< 脚注引用数 / Footnote reference count
 } html_text_t;
 
 /// 输出须为空；成功交出所有权，失败清空输出；空输入成功且零块。/ Output must be empty; success transfers ownership, failure clears output; empty input succeeds with zero blocks.
@@ -84,6 +95,10 @@ esp_err_t html_to_blocks_with_css_target(const char* html, size_t len,
                                           const html_font_map_t* fonts,
                                           const char* anchor, size_t source_offset,
                                           size_t* text_offset, html_text_t* out);
+/// 解析脚注所在文件并给出 #片段元素对应的正文区间；找不到片段返回 ESP_ERR_NOT_FOUND。
+/// Parse a note document and report the text range of the #fragment element; a missing fragment returns ESP_ERR_NOT_FOUND.
+esp_err_t html_to_blocks_note(const char* html, size_t len, const char* anchor,
+                              size_t* start, size_t* end, html_text_t* out);
 /// 释放文本与块表并清零；可重复调用。/ Free text and blocks and reset; safe to repeat.
 void html_text_free(html_text_t* text);
 

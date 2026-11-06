@@ -433,6 +433,9 @@ static blk_t* s_blocks;
 // parse, and the layout borrows them.
 static html_run_t* s_runs;
 static size_t s_run_count;
+// 本章脚注引用，借给笔记层做点按弹窗。/ This chapter's footnote references, lent to the notes layer for tap popups.
+static html_link_t* s_links;
+static size_t s_link_count;
 // 上一次排版用的书内字体开关：字体页改过之后，回阅读页要重排当前章才看得出来。
 // The embedded-face setting the current layout was built with: after the font page changes
 // it, the reader must re-typeset the chapter before the change is visible.
@@ -4858,6 +4861,9 @@ static void free_book(void) {
     free(s_text);
     free(s_blocks);
     free(s_runs);
+    free(s_links);
+    s_links = NULL;
+    s_link_count = 0;
     for (size_t i = 0; i < s_image_count; ++i) free(s_images[i]);
     free(s_images);
     s_images = NULL; s_image_count = 0;
@@ -5099,6 +5105,9 @@ static bool heading_text_matches(const char *text, const char *toc, const char *
 }
 
 static bool notes_chapter_title(size_t i,char *out,size_t cap) {return book_chapter_title(i,out,cap)==ESP_OK;}
+static esp_err_t reader_footnote_load(const char *href, char **utf8, size_t *len) {
+    return book_chapter_note(s_chapter, href, utf8, len);
+}
 static bool load_chapter_at(app_ctx_t* ctx, size_t chapter, size_t offset,
                             bool last_page, const char *anchor, size_t source_offset) {
     bool clear_toc = chapter != s_chapter || (!anchor && source_offset == SIZE_MAX);
@@ -5210,6 +5219,9 @@ static bool load_chapter_at(app_ctx_t* ctx, size_t chapter, size_t offset,
     s_block_count = loaded.count;
     s_runs = loaded.runs;
     s_run_count = loaded.run_count;
+    free(s_links);
+    s_links = loaded.links;
+    s_link_count = loaded.link_count;
     for (size_t i = 0; i < s_image_count; ++i) free(s_images[i]);
     free(s_images);
     s_images = loaded.images; s_image_count = loaded.image_count;
@@ -5231,6 +5243,7 @@ static bool load_chapter_at(app_ctx_t* ctx, size_t chapter, size_t offset,
     s_message[0] = 0;
     unlock_draw();
     book_notes_bind(s_path,(uint32_t)s_chapter,s_text,s_text_len);
+    book_notes_bind_links(s_links,s_link_count,reader_footnote_load);
     book_notes_catalog(book_chapter_count(),notes_chapter_title);
     prepare_inline_image();
     // 开书这条链上有解析、解压和字体装载，栈曾经在这里溢出过；留一个可观测的水位。

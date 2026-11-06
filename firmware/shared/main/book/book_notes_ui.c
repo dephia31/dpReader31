@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0
  * Long-press text selects instead of opening TOC; TOC remains in reader tools.
  * Geometry and annotations are restricted to horizontal text in this first version.
+ * A tap on an EPUB footnote reference opens its text in a small popup instead of jumping pages.
  */
 #include "book_notes_ui.h"
 #include "book_annotations.h"
@@ -21,8 +22,10 @@
 #ifndef DICT_ROOT
 #define DICT_ROOT "/sdcard/dict"
 #endif
-enum { CLOSED, SELECT, EDIT_NOTE, LOOKUP, LIST };
+enum { CLOSED, SELECT, EDIT_NOTE, LOOKUP, LIST, FOOTNOTE };
 enum { DEFINITION_PX=32, DEFINITION_LINE_H=44, DEFINITION_LINES=10, NOTES_LIST_ROWS=7, NOTES_LIST_ROW_H=80 };
+// 脚注引用的触控外扩，编号字很小。/ Touch slop around tiny footnote markers.
+enum { FOOTNOTE_SLOP=28, FOOTNOTE_TEXT_X=62, FOOTNOTE_BUTTON_H=58 };
 typedef struct {
     book_annotations_t annotations, committed;
     book_dictionary_t dictionary;
@@ -35,6 +38,12 @@ typedef struct {
     ui_text_edit_t edit;
     DIR *root,*child;
     char child_path[512],book_path[512],storage_root[512];
+    const html_link_t *links;
+    size_t link_count;
+    book_notes_footnote_fn footnote_load;
+    char *footnote;
+    unsigned footnote_lines;
+    EpdRect footnote_panel;
 } notes_t;
 static notes_t *s;
 static const EpdRect dictionary_panel={36,240,612,650};
@@ -49,6 +58,7 @@ void book_notes_cancel(void) {
     ui_gesture_enable_held_drag(false);
     if(s->mode==EDIT_NOTE)ui_keyboard_end();
     book_dictionary_close(&s->dictionary);close_dirs();s->mode=CLOSED;s->dragging=false;
+    free(s->footnote);s->footnote=NULL;
 }
 void book_notes_reset(void) { if(!s)return;book_notes_cancel();free(s);s=NULL; }
 bool book_notes_active(void) {return s&&s->mode!=CLOSED;}
@@ -108,6 +118,10 @@ void book_notes_bind(const char *path,uint32_t chapter,const char *text,size_t l
     }
     s->committed=s->annotations;
     if(s->valid)sync_notes();
+}
+void book_notes_bind_links(const html_link_t *links,size_t count,book_notes_footnote_fn load) {
+    if(!s)return;
+    s->links=links;s->link_count=links?count:0;s->footnote_load=load;
 }
 static bool hit(EpdRect r,int x,int y){return x>=r.x&&y>=r.y&&x<r.x+r.width&&y<r.y+r.height;}
 static ui_icon_t action_icon(const char *label) {
@@ -190,23 +204,93 @@ static void underline(void *ctx,size_t a,size_t b,EpdRect r) {
         if(r.width>0&&r.y>=paint->clip.y)epd_fill_rect(r,selected?0x00:0x60,fb);
     }
 }
-/* Page text by explicit bounded UTF-8 lines, avoiding an unbounded text-box layout. */
-static void definition_draw(uint8_t *fb) {
-    const char *t=s->dictionary.text;size_t at=0;unsigned line=0,first=(unsigned)s->definition_page*DEFINITION_LINES;
-    while(t[at]&&line<first+DEFINITION_LINES) {
-        char row[192];size_t used=0;int width=0;
+/* Page text by explicit bounded UTF-8 lines, avoiding an unbounded text-box layout.
+ * A NULL framebuffer counts every line instead of drawing one page.
+ * Wrap at the last space so Vietnamese words stay whole; a spaceless row (CJK, long token) breaks per glyph. */
+static unsigned definition_draw(uint8_t *fb,const char *t,int x,int y) {
+    size_t at=0;unsigned line=0,first=(unsigned)s->definition_page*DEFINITION_LINES;
+    while(t[at]&&(!fb||line<first+DEFINITION_LINES)) {
+        char row[192];size_t used=0,cut_used=0,cut_at=0;int width=0;
         while(t[at]&&t[at]!='\n'&&used+5<sizeof(row)) {
             size_t end=ui_text_edit_next(t,at),n=end-at;char glyph[5]={0};
-            if(n>4)return;
+            if(n>4)return line;
             memcpy(glyph,t+at,n);
             int w=ttf_text_width_px(DEFINITION_PX,glyph);
-            if(width+w>560&&used)break;
+            if(width+w>560&&used) {
+                if(t[at]==' ')at=end;
+                else if(cut_used){used=cut_used;at=cut_at;}
+                break;
+            }
+            if(t[at]==' '&&used){cut_used=used;cut_at=end;}
             memcpy(row+used,t+at,n);used+=n;at=end;width+=w;
         }
         row[used]=0;if(t[at]=='\n')++at;
-        if(line>=first)ui_text_box(fb,(EpdRect){62,260+(int)(line-first)*DEFINITION_LINE_H,560,DEFINITION_LINE_H},DEFINITION_PX,row,EPD_DRAW_ALIGN_LEFT,false);
+        if(fb&&line>=first)ui_text_box(fb,(EpdRect){x,y+(int)(line-first)*DEFINITION_LINE_H,560,DEFINITION_LINE_H},DEFINITION_PX,row,EPD_DRAW_ALIGN_LEFT,false);
         ++line;
     }
+    return line;
+}
+/* ---- 脚注弹窗 / Footnote popup ---- */
+static EpdRect footnote_button(int index) {
+    EpdRect p=s->footnote_panel;
+    return (EpdRect){p.x+12+index*190,p.y+p.height-FOOTNOTE_BUTTON_H-14,index==2?p.width-24-380:178,FOOTNOTE_BUTTON_H};
+}
+static bool footnote_paged(void) {return s->footnote_lines>DEFINITION_LINES;}
+// 引用表按正文顺序；二分找包含该字节的链接。/ References are in text order; binary-search the one containing the byte.
+static size_t link_find(size_t at) {
+    size_t lo=0,hi=s->link_count;
+    while(lo<hi) {
+        size_t mid=lo+(hi-lo)/2;
+        if(s->links[mid].end<=at)lo=mid+1;
+        else if(s->links[mid].start>at)hi=mid;
+        else return mid;
+    }
+    return SIZE_MAX;
+}
+typedef struct {int x,y,best,glyph_y;size_t link;} link_pick_t;
+static void link_pick(void *ctx,size_t a,size_t b,EpdRect r) {
+    (void)b;link_pick_t *p=ctx;
+    size_t i=link_find(a);if(i==SIZE_MAX)return;
+    int dx=p->x<r.x?r.x-p->x:p->x>=r.x+r.width?p->x-r.x-r.width+1:0;
+    int dy=p->y<r.y?r.y-p->y:p->y>=r.y+r.height?p->y-r.y-r.height+1:0;
+    if(dx>FOOTNOTE_SLOP||dy>FOOTNOTE_SLOP)return;
+    int d=dx*dx+dy*dy;
+    if(p->link==SIZE_MAX||d<p->best){p->best=d;p->link=i;p->glyph_y=r.y;}
+}
+// 弹窗避开被点的引用：引用在上半屏就放下方，否则放上方；高度随行数收缩。
+// Keep the popup clear of the tapped reference: below it in the upper half, above otherwise; height follows the lines.
+static bool footnote_open(size_t page,EpdRect body,int px,int x,int y) {
+    if(!s->link_count||!s->footnote_load||book_layout_vertical())return false;
+    link_pick_t p={.x=x,.y=y,.link=SIZE_MAX};
+    if(!book_layout_visit_page(page,body,px,link_pick,&p)||p.link==SIZE_MAX)return false;
+    char *text=NULL;size_t length=0;
+    if(s->footnote_load(s->links[p.link].href,&text,&length)!=ESP_OK||!text||!length){free(text);return false;}
+    free(s->footnote);s->footnote=text;
+    s->definition_page=0;
+    s->footnote_lines=definition_draw(NULL,text,0,0);
+    unsigned lines=s->footnote_lines<DEFINITION_LINES?s->footnote_lines:DEFINITION_LINES;
+    if(!lines)lines=1;
+    int height=24+(int)lines*DEFINITION_LINE_H+16+FOOTNOTE_BUTTON_H+14;
+    int top=p.glyph_y<body.y+body.height/2?body.y+body.height-height-8:body.y+8;
+    s->footnote_panel=(EpdRect){36,top,612,height};
+    s->start=s->links[p.link].start;s->end=s->links[p.link].end;
+    s->mode=FOOTNOTE;s->page=page;s->generation=book_layout_generation();s->message[0]=0;
+    return true;
+}
+static void footnote_draw(uint8_t *fb) {
+    EpdRect p=s->footnote_panel;
+    ui_fill_round_rect(fb,p,16,0xff);
+    ui_draw_control_frame(fb,p,16,0x00);
+    definition_draw(fb,s->footnote,FOOTNOTE_TEXT_X,p.y+24);
+    if(footnote_paged()){button(fb,footnote_button(0),"Trang trước");button(fb,footnote_button(1),"Trang sau");}
+    button(fb,footnote_button(2),"Đóng");
+}
+static void footnote_gesture(const ui_gesture_event_t *ev,app_redraw_t *redraw) {
+    int x=ev->x,y=ev->y;
+    if(!hit(s->footnote_panel,x,y)||hit(footnote_button(2),x,y)){book_notes_cancel();*redraw=APP_REDRAW_PAGE;return;}
+    unsigned pages=(s->footnote_lines+DEFINITION_LINES-1)/DEFINITION_LINES;
+    if(footnote_paged()&&hit(footnote_button(0),x,y)&&s->definition_page){s->definition_page--;*redraw=APP_REDRAW_PAGE;}
+    else if(footnote_paged()&&hit(footnote_button(1),x,y)&&(unsigned)s->definition_page+1<pages){s->definition_page++;*redraw=APP_REDRAW_PAGE;}
 }
 /* Preview only: retain the full annotation in storage and the editor. */
 static void note_preview(const char *text,char out[128]) {
@@ -233,6 +317,7 @@ void book_notes_draw(uint8_t *fb,size_t page,EpdRect body,int px) {
     if(s->annotations.count||s->mode)book_layout_visit_page(page,body,px,underline,&paint);
     if(!s->mode)return;
     if(s->mode==SELECT&&s->dragging)return; /* Never cover text under the held finger. */
+    if(s->mode==FOOTNOTE){footnote_draw(fb);return;}
     int menu_y=s->mode==SELECT?s->menu_y:0;
     ui_fill_round_rect(fb,(EpdRect){24,menu_y,636,72},12,0xff);
     ui_draw_control_frame(fb,(EpdRect){24,menu_y,636,72},12,0x50);
@@ -255,7 +340,7 @@ void book_notes_draw(uint8_t *fb,size_t page,EpdRect body,int px) {
     } else if(s->mode==LOOKUP) {
         ui_fill_round_rect(fb,dictionary_panel,16,0xff);
         ui_draw_control_frame(fb,dictionary_panel,16,0x00);
-        if(s->dictionary.state==4)definition_draw(fb);
+        if(s->dictionary.state==4)definition_draw(fb,s->dictionary.text,62,260);
         else ui_text_box(fb,(EpdRect){62,260,560,130},23,s->message,EPD_DRAW_ALIGN_LEFT,false);
         ui_text_box(fb,(EpdRect){62,720,560,60},19,s->dictionary.name,EPD_DRAW_ALIGN_LEFT,false);
         button(fb,(EpdRect){48,810,170,58},"Trang trước");button(fb,(EpdRect){230,810,170,58},"Trang sau");button(fb,(EpdRect){412,810,224,58},"Từ điển kế");
@@ -330,10 +415,17 @@ bool book_notes_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev,size_t page,
     *redraw=APP_REDRAW_NONE;if(!s)return false;
     if(s->mode&& (page!=s->page||s->generation!=book_layout_generation()))book_notes_cancel();
     if(!s->mode) {
+        if(ev->type==UI_GESTURE_TAP&&hit(body,ev->x,ev->y)&&footnote_open(page,body,px,ev->x,ev->y)){*redraw=APP_REDRAW_PAGE;return true;}
         if(ev->type!=UI_GESTURE_LONG_PRESS||!hit(body,ev->x0,ev->y0)||book_layout_vertical())return false;
         if(!select_at(page,body,px,ev->x0,ev->y0,&s->start,&s->end))return false;
         s->anchor_start=s->start;s->anchor_end=s->end;s->mode=SELECT;s->page=page;s->generation=book_layout_generation();s->dragging=true;s->message[0]=0;place_menu(page,body,px);ui_gesture_enable_held_drag(true);
         *redraw=APP_REDRAW_PAGE;return true;
+    }
+    if(s->mode==FOOTNOTE) {
+        // 弹窗只吞轻点和按住类事件；滑动关掉弹窗后照常翻页。/ The popup keeps taps and holds; a swipe closes it and turns pages as usual.
+        if(ev->type==UI_GESTURE_TAP)footnote_gesture(ev,redraw);
+        else if(ev->type!=UI_GESTURE_PRESS&&ev->type!=UI_GESTURE_MOVE&&ev->type!=UI_GESTURE_LONG_PRESS&&ev->type!=UI_GESTURE_CANCEL){book_notes_cancel();return false;}
+        return true;
     }
     if(ev->type==UI_GESTURE_CANCEL){if(s->dragging){s->dragging=false;place_menu(page,body,px);*redraw=APP_REDRAW_PAGE;}return true;}
     if(ev->type==UI_GESTURE_MOVE&&s->dragging) {

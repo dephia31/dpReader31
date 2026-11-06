@@ -74,6 +74,14 @@ typedef struct {
     // Inline tags switch faces too: record the slot per open depth and fall back on close.
     uint8_t family_at[CSS_ANCESTOR_MAX];
     bool family_rules;
+    // 当前打开链接的起点与 href（借用输入）；闭合时判断是否像脚注引用。
+    // Start and borrowed href of the open link; on close it is checked for a footnote reference.
+    size_t link_start, link_cap;
+    const char *link_href;
+    size_t link_href_len;
+    bool link_note;
+    // 脚注目标元素的深度，闭合时记下正文终点。/ Depth of the note target element; its close records the text end.
+    size_t anchor_depth;
 } writer_t;
 
 static unsigned char lower(unsigned char c) {
@@ -400,6 +408,7 @@ void html_text_free(html_text_t* text) {
     for (size_t i = 0; i < text->image_count; ++i) free(text->images[i]);
     free(text->images);
     free(text->runs);
+    free(text->links);
     *text = (html_text_t){0};
 }
 
@@ -667,14 +676,72 @@ static esp_err_t add_image(writer_t* w, const char* path) {
     return err;
 }
 
+/* ---- 脚注引用 / Footnote references ---- */
+
+// 短编号文字：数字、上标数字、* † ‡ 与括号，至少含一个标记。
+// Short numbered label: digits, superscript digits, * † ‡ and brackets, with at least one mark.
+static bool note_label(const char* s, size_t n) {
+    if (!n || n > 12) return false;
+    bool mark = false;
+    for (size_t i = 0; i < n;) {
+        unsigned char c = (unsigned char)s[i];
+        unsigned char c1 = i + 1 < n ? (unsigned char)s[i + 1] : 0;
+        unsigned char c2 = i + 2 < n ? (unsigned char)s[i + 2] : 0;
+        if ((c >= '0' && c <= '9') || c == '*') { mark = true; ++i; }
+        else if (c == '[' || c == ']' || c == '(' || c == ')' || c == '.' || c == ' ') ++i;
+        else if (c == 0xc2 && (c1 == 0xb2 || c1 == 0xb3 || c1 == 0xb9)) { mark = true; i += 2; }
+        else if (c == 0xe2 && c1 == 0x80 && (c2 == 0xa0 || c2 == 0xa1)) { mark = true; i += 3; }
+        else if (c == 0xe2 && c1 == 0x81 && c2 >= 0xb0 && c2 <= 0xb9) { mark = true; i += 3; }
+        else if (c == 0xe2 && c1 == 0x82 && c2 >= 0x80 && c2 <= 0x89) { mark = true; i += 3; }
+        else return false;
+    }
+    return mark;
+}
+
+static bool attr_has(const char* at, const char* end, const char* name, const char* needle) {
+    const char* value = NULL; size_t length = 0;
+    return attr_value(at, end, name, &value, &length) && bounded_case_find(value, value + length, needle);
+}
+
+// 链接闭合：去掉首尾空白，符合条件就记进表；表满或不符合时安静跳过。
+// On link close, trim the range and record it when it qualifies; skip quietly when full or unqualified.
+static esp_err_t link_close(writer_t* w) {
+    const char* href = w->link_href;
+    size_t href_len = w->link_href_len;
+    w->link_href = NULL;
+    if (!href || w->auxiliary_depth || href_len > HTML_LINK_HREF_MAX || !memchr(href, '#', href_len)) return ESP_OK;
+    size_t a = w->link_start, b = w->text.len;
+    while (a < b && (w->text.utf8[a] == '\n' || w->text.utf8[a] == ' ')) ++a;
+    while (b > a && w->text.utf8[b - 1] == ' ') --b;
+    if (a >= b || memchr(w->text.utf8 + a, '\n', b - a)) return ESP_OK;
+    if (!(w->link_note ? b - a <= 48 : note_label(w->text.utf8 + a, b - a))) return ESP_OK;
+    if (w->text.link_count >= HTML_LINK_MAX) return ESP_OK;
+    if (w->text.link_count == w->link_cap) {
+        size_t cap = w->link_cap ? w->link_cap * 2 : 16;
+        if (cap > HTML_LINK_MAX) cap = HTML_LINK_MAX;
+        html_link_t* links = heap_caps_realloc(w->text.links, cap * sizeof(*links), PSRAM_CAPS);
+        if (!links) return ESP_ERR_NO_MEM;
+        w->text.links = links;
+        w->link_cap = cap;
+    }
+    html_link_t* link = &w->text.links[w->text.link_count++];
+    link->start = a;
+    link->end = b;
+    memcpy(link->href, href, href_len);
+    link->href[href_len] = 0;
+    return ESP_OK;
+}
+
 static esp_err_t html_to_blocks_core(const char* html, size_t len,
                                           const char* css, size_t css_len,
                                           const html_font_map_t* fonts,
                                           const char* anchor, size_t source_offset,
-                                          size_t* anchor_offset, html_text_t* out, html_source_map_t *map) {
+                                          size_t* anchor_offset, html_text_t* out, html_source_map_t *map,
+                                          size_t* anchor_end) {
     if (!out) return ESP_ERR_INVALID_ARG;
     *out = (html_text_t){0};
     if (anchor_offset) *anchor_offset = 0;
+    if (anchor_end) *anchor_end = SIZE_MAX;
     if ((!html && len) || (!css && css_len)) return ESP_ERR_INVALID_ARG;
     if (len > HTML_TEXT_MAX_BYTES) return ESP_ERR_INVALID_SIZE;
     writer_t w = {0};
@@ -738,8 +805,17 @@ static esp_err_t html_to_blocks_core(const char* html, size_t len,
                 }
                 // 在块结束之前保留其来源；关闭容器后不影响后面的正文块。
                 // Preserve provenance until the block ends; closing a container must not taint later body text.
+                bool opened = false;
                 if (closing) {
-                    if (w.depth == w.link_depth) w.link_depth = 0;
+                    if (w.link_depth && w.depth == w.link_depth) {
+                        err = link_close(&w);
+                        if (err != ESP_OK) goto fail;
+                        w.link_depth = 0;
+                    }
+                    if (w.anchor_depth && w.depth == w.anchor_depth) {
+                        *anchor_end = w.text.len;
+                        w.anchor_depth = 0;
+                    }
                     if (w.depth == w.auxiliary_depth) w.auxiliary_depth = 0;
                     if (w.depth) --w.depth;
                     if (w.family_rules && w.depth <= CSS_ANCESTOR_MAX)
@@ -747,6 +823,7 @@ static esp_err_t html_to_blocks_core(const char* html, size_t len,
                 } else if (!self_closing && !void_tag(name) &&
                            !name_equal(name, "head") && !name_equal(name, "script") && !name_equal(name, "style")) {
                     ++w.depth;
+                    opened = true;
                     // 内联标签也会换字体（<span class="num">），所以每层都算一次；本层没声明
                     // 就继承父层。没有 font-family 规则、标签也不带 style 时整段跳过，
                     // 正文一分钱不花；带 style 的标签只看属性、不跑整套选择器匹配。
@@ -776,8 +853,16 @@ static esp_err_t html_to_blocks_core(const char* html, size_t len,
                         w.auxiliary_depth = w.depth;
                     const char* href = NULL; size_t href_len = 0;
                     if (!w.link_depth && name_equal(name, "a") &&
-                        attr_value(html + at, html + end, "href", &href, &href_len) && href_len)
+                        attr_value(html + at, html + end, "href", &href, &href_len) && href_len) {
                         w.link_depth = w.depth;
+                        w.link_start = w.text.len;
+                        bool back = attr_has(html + at, html + end, "epub:type", "backlink") ||
+                                    attr_has(html + at, html + end, "role", "backlink");
+                        w.link_href = back ? NULL : href;
+                        w.link_href_len = href_len;
+                        w.link_note = attr_has(html + at, html + end, "epub:type", "noteref") ||
+                                      attr_has(html + at, html + end, "role", "noteref");
+                    }
                 }
                 if (!closing && (name_equal(name, "img") || name_equal(name, "image") ||
                                  name_equal(name, "svg:image") || name_equal(name, "object"))) {
@@ -822,7 +907,14 @@ static esp_err_t html_to_blocks_core(const char* html, size_t len,
                          attr_value(html + at, html + end, "xml:id", &value, &length) ||
                          attr_value(html + at, html + end, "name", &value, &length)) &&
                         length == strlen(anchor) && !memcmp(value, anchor, length)) matched = true;
-                    if (matched)
+                    if (matched && anchor_end) {
+                        // 脚注只认第一个同名目标，并跟踪到它闭合。/ Notes take the first matching target and follow it to its close.
+                        if (*anchor_end == SIZE_MAX && tag_offset != source_offset) {
+                            *anchor_offset = w.text.len + (!w.active && w.text.count ? 1 : 0);
+                            *anchor_end = *anchor_offset;
+                            if (opened) w.anchor_depth = w.depth;
+                        }
+                    } else if (matched)
                         *anchor_offset = w.text.len + (!w.active && w.text.count ? 1 : 0);
                 }
                 continue;
@@ -848,6 +940,7 @@ static esp_err_t html_to_blocks_core(const char* html, size_t len,
         }
         pos += n;
     }
+    if (w.anchor_depth) *anchor_end = w.text.len;
     err = finish_block(&w, false);
     if (err == ESP_OK) err = reserve_text(&w, 0);
     if (err != ESP_OK) goto fail;
@@ -865,12 +958,18 @@ fail:
 
 esp_err_t html_to_blocks_with_css_target(const char* html,size_t len,const char* css,size_t css_len,
     const html_font_map_t* fonts,const char* anchor,size_t source_offset,size_t* anchor_offset,html_text_t* out) {
-    return html_to_blocks_core(html,len,css,css_len,fonts,anchor,source_offset,anchor_offset,out,NULL);
+    return html_to_blocks_core(html,len,css,css_len,fonts,anchor,source_offset,anchor_offset,out,NULL,NULL);
 }
 esp_err_t html_to_blocks_mapped(const char* html,size_t len,html_source_map_t* map,html_text_t* out) {
     if (!map) return ESP_ERR_INVALID_ARG;
     map->source_found=map->text_found=false;
-    return html_to_blocks_core(html,len,NULL,0,NULL,NULL,SIZE_MAX,NULL,out,map);
+    return html_to_blocks_core(html,len,NULL,0,NULL,NULL,SIZE_MAX,NULL,out,map,NULL);
+}
+esp_err_t html_to_blocks_note(const char* html,size_t len,const char* anchor,size_t* start,size_t* end,html_text_t* out) {
+    if (!anchor || !*anchor || !start || !end) return ESP_ERR_INVALID_ARG;
+    esp_err_t err = html_to_blocks_core(html,len,NULL,0,NULL,anchor,SIZE_MAX,start,out,NULL,end);
+    if (err == ESP_OK && *end == SIZE_MAX) { html_text_free(out); return ESP_ERR_NOT_FOUND; }
+    return err;
 }
 
 esp_err_t html_to_blocks_with_css_anchor(const char* html, size_t len,
