@@ -45,6 +45,8 @@ esp_err_t book_chapter_load_blocks_anchor(size_t i, const char *anchor,
 esp_err_t book_chapter_load_blocks_target(size_t i, const char *anchor,
                                            size_t source_offset, size_t *text_offset,
                                            html_text_t *out);
+/// 按章内 href 读取 EPUB 脚注纯文字；TXT 不支持。调用方 free。/ Read plain EPUB footnote text for an in-chapter href; unsupported for TXT. Caller frees.
+esp_err_t book_chapter_note(size_t chapter, const char *href, char **utf8, size_t *len);
 /// 读取当前 EPUB 章内图片。/ Read an image from the current EPUB chapter.
 esp_err_t book_chapter_image(size_t chapter, const char *src, uint8_t **data, size_t *size, bool *png);
 /// TXT 为源文件字节；EPUB 为 spine 原始 HTML 未压缩累计字节，不是 ZIP 文件大小。

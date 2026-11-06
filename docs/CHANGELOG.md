@@ -1,3 +1,7 @@
+## dpReader 1.3.4RC1-vn / 1.3.4RC1-love-vn · Bản thử
+
+- Chạm tham chiếu chú thích EPUB để đọc trong popup. Popup chú thích và từ điển ngắt dòng theo từ.
+
 ## dpReader 1.3.3-vn / 1.3.3-love-vn · 2026-11-06
 
 ### Giới thiệu Love Book
