@@ -65,6 +65,13 @@
         <div><span class="step">2</span> Lựa chọn Firmware & Chế độ nạp</div>
       </div>
 
+      <div class="form-group">
+        <label for="firmware-edition">Phiên bản firmware</label>
+        <select id="firmware-edition">
+          <option value="full">Full — đầy đủ tính năng và thư viện</option>
+          <option value="love-book">Love Book — I Love Book, mở sách bằng file, không TTS/kệ sách</option>
+        </select>
+      </div>
       <div class="radio-cards">
         <label class="radio-card radio-card-first-install active">
           <input type="radio" name="flash-mode" id="mode-full" checked>
@@ -85,7 +92,7 @@
       <div class="form-group" style="margin-bottom:16px;">
         <label for="release-version">Phiên bản để nạp:</label>
         <select id="release-version">
-          <option value="" selected>1.3.2-vn — mới nhất</option>
+          <option value="" selected>1.3.3-vn — mới nhất</option>
           <option value="1.3.0-vn">1.3.0-vn — bản chính thức trước</option>
           <option value="1.2.9-vn">1.2.9-vn</option>
         </select>
@@ -96,7 +103,7 @@
       <div id="release-info-banner">
         <div>
           <span>
-            Phiên bản đã chọn: <span id="latest-version-name">v1.3.2-vn</span>
+            Phiên bản đã chọn: <span id="latest-version-name">v1.3.3-vn</span>
           </span>
           <span id="latest-version-size">Đang tải...</span>
         </div>
@@ -218,6 +225,6 @@
     </footer>
   </div>
 
-  <script type="module" src="red-studio-app.js?v=1"></script>
+  <script type="module" src="red-studio-app.js?v=2"></script>
 </body>
 </html>

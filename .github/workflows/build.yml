@@ -7,6 +7,21 @@ on:
   workflow_dispatch:
 
 jobs:
+  firmware-editions-host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python3 tools/firmware_editions_host_test.py
+      - run: python3 tools/firmware_layout_host_test.py
+      - run: python3 tools/ota_edition_choice_host_test.py
+      - run: node tools/web_editions_host_test.mjs
+
   sleep-host-tests:
     runs-on: ubuntu-latest
     steps:
@@ -168,13 +183,15 @@ jobs:
           . "$IDF_PATH/export.sh"
           extra=()
           if [ "${{ matrix.board }}" = metalio47 ]; then extra=(--s31-pie --s31-text-ripple); fi
-          python tools/build_firmware.py --board "${{ matrix.board }}" \
+          python tools/build_firmware.py --board "${{ matrix.board }}" --edition all \
             --idf-${{ matrix.board }} "$IDF_PATH" --python "$(command -v python)" \
             --output build/boards "${extra[@]}"
       - uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.board }}
-          path: build/boards/packages/
+          path: |
+            build/boards/full/packages/
+            build/boards/love-book/packages/
 
   data-protection-host-tests:
     runs-on: ubuntu-latest

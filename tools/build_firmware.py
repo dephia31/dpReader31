@@ -18,13 +18,19 @@ from board_source_view import BOARDS, BOARD_ALIASES, canonical_board, materializ
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def metadata(board):
+def metadata(board, edition="full"):
     board = canonical_board(board)
     if board not in BOARDS:
         raise ValueError('Unknown board: ' + board)
     value = json.loads((ROOT / 'boards' / board / 'board.json').read_text())
     if value['id'] != board or value['idf_target'] not in ('esp32s3', 'esp32s31'):
         raise ValueError('Invalid board metadata')
+    if edition not in ('full', 'love-book'):
+        raise ValueError('Unknown firmware edition: ' + edition)
+    value['edition'] = edition
+    if edition == 'love-book':
+        value['version'] = value['version'].removesuffix('-vn') + '-love-vn'
+        value['name'] += ' / Love Book'
     return value
 
 
@@ -38,8 +44,8 @@ def partition_entries(data):
     return result
 
 
-def check_image(data, board):
-    info = metadata(board)
+def check_image(data, board, edition="full"):
+    info = metadata(board, edition)
     if len(data) < 288 or data[0] != 0xe9 or struct.unpack_from('<I', data, 32)[0] != 0xabcd5432:
         raise ValueError('Invalid ESP app image')
     field = lambda start: data[start:start + 32].split(b'\0')[0].decode('ascii')
@@ -135,10 +141,10 @@ exit 0
     (output / 'FLASH_USB.command').chmod(0o755)
 
 
-def export(build, output, board):
-    info = metadata(board)
+def export(build, output, board, edition="full"):
+    info = metadata(board, edition)
     app = build / (info['project'] + '.bin')
-    identity = check_image(app.read_bytes(), board)
+    identity = check_image(app.read_bytes(), board, edition)
     entries = partition_entries((build / 'partition_table/partition-table.bin').read_bytes())
     csv = (ROOT / 'boards' / board / info['partitions']).read_text()
     expected = {}
@@ -185,7 +191,7 @@ def export(build, output, board):
     experimental_fast_panels = board == 'metalio47' and cache.exists() and 'METALIO_FAST_READER_PANELS:BOOL=ON' in cache.read_text()
     experimental_network = board == 'metalio47' and cache.exists() and 'METALIO_NETWORK_PROBE:BOOL=ON' in cache.read_text()
     transfer_start = board == 'metalio47' and cache.exists() and 'METALIO_LOCAL_TRANSFER_START:BOOL=ON' in cache.read_text()
-    manifest = {'name': info['name'], 'version': identity['version'], 'board': board,
+    manifest = {'edition': edition, 'name': info['name'], 'version': identity['version'], 'board': board,
                 'experimental_pie_pixels': bool(experimental_pie),
                 'experimental_text_ripple': bool(experimental_ripple),
                 'experimental_reader_panel37': bool(experimental_panel37),
@@ -244,7 +250,7 @@ def export(build, output, board):
     config_text = (build / 'config/sdkconfig.h').read_text()
     auto_backup = '#define CONFIG_DPREADER_AUTO_BACKUP 1' in config_text
     auto_restore = '#define CONFIG_DPREADER_AUTO_RESTORE 1' in config_text
-    result = {'board': board, 'target': info['idf_target'], **identity,
+    result = {'edition': edition, 'board': board, 'target': info['idf_target'], **identity,
               'partitions': entries, 'bootloader_offset': expected_offsets['bootloader'],
               'esptool_stub': loader['stub'], 'free_app_bytes': entries['ota_0'][3] - identity['size'],
               'firmware_bin': str(output / 'dpReader_metalio47_firmware.bin'),
@@ -300,7 +306,7 @@ def export_test_bundle(source, destination):
 
 
 def build_one(board, args):
-    info = metadata(board)
+    info = metadata(board, args.edition)
     sdk_argument = getattr(args, 'idf_' + board)
     sdk = Path(sdk_argument or os.environ.get('KIIKO_IDF_' + board.upper(), '') or os.environ.get('IDF_PATH', '')).resolve()
     if not (sdk / 'tools/idf.py').is_file() or not (sdk / 'components/soc' / info['idf_target']).is_dir():
@@ -323,6 +329,7 @@ def build_one(board, args):
                 f.unlink()
     command = [str(python), str(sdk / 'tools/idf.py'), '-B', str(build),
                '-DIDF_TARGET=' + info['idf_target'], '-DKIIKO_BOARD=' + board,
+               '-DKIIKO_EDITION=' + args.edition,
                '-DSDKCONFIG=' + str(work / 'sdkconfig'),
                '-DSDKCONFIG_DEFAULTS=' + str(source / 'boards' / board / info['sdkconfig']),
                '-DCCACHE_ENABLE=OFF', '-DMETALIO_LOCAL_LATENCY=OFF',
@@ -388,7 +395,7 @@ def build_one(board, args):
     if result.returncode:
         print((work / 'build.log').read_text(errors='replace')[-8000:])
         raise RuntimeError(f'{board} build failed; see {work / "build.log"}')
-    result = export(build, args.output.resolve() / 'packages' / board, board)
+    result = export(build, args.output.resolve() / 'packages' / board, board, args.edition)
     if 'RC' in info['version'] and not getattr(args, 'no_test_export', False):
         destination = ROOT / 'Test Build' / info['version']
         export_test_bundle(args.output.resolve() / 'packages' / board, destination)
@@ -400,7 +407,8 @@ def build_one(board, args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--board', choices=(*BOARDS, *BOARD_ALIASES, 'all'), default='metalio47')
-    parser.add_argument('--output', type=Path, default=ROOT / 'build/boards')
+    parser.add_argument('--edition', choices=('full', 'love-book', 'all'), default='all')
+    parser.add_argument('--output', type=Path, help='Build root; edition subdirectories are always isolated')
     parser.add_argument('--python', type=Path, default=Path(sys.executable))
     parser.add_argument('--tools', type=Path)
     for board in BOARDS:
@@ -434,10 +442,18 @@ def main():
         parser.error('--s31-transfer-startup-test requires metalio47 or all')
     boards = BOARDS if args.board == 'all' else (args.board,)
     if args.list:
-        print(json.dumps([metadata(board) for board in boards], ensure_ascii=False, indent=2))
+        print(json.dumps([metadata(board, edition) for board in boards for edition in (('full','love-book') if args.edition=='all' else (args.edition,))], ensure_ascii=False, indent=2))
         return
-    for board in boards:
-        build_one(board, args)
+    editions = ('full', 'love-book') if args.edition == 'all' else (args.edition,)
+    output = args.output or ROOT / 'build/editions'
+    for edition in editions:
+        args.edition = edition
+        args.output = output / edition
+        for board in boards:
+            build_one(board, args)
+    if editions == ('full', 'love-book') and 'metalio47' in boards and not args.dry_run and not args.no_test_export and 'RC' not in metadata('metalio47')['version']:
+        from stage_edition_web import stage
+        stage(output, output / 'web-preview')
 
 
 if __name__ == '__main__':

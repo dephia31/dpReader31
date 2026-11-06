@@ -4,6 +4,8 @@
 from pathlib import Path
 import json
 import re
+import os
+from firmware_sources import expand_fragments, legacy_text
 
 BOARDS = ('metalio47',)
 BOARD_ALIASES = {
@@ -31,6 +33,9 @@ def select_source(text, board):
         active = lambda: all(value for kind, value in stack if kind == 'board')
         if directive:
             op, condition = directive.groups()
+            if op == 'if' and condition.strip() == 'KIIKO_BOARD_METALIO47 && !KIIKO_LOVE_BOOK':
+                # The S31 view has already selected the board. Keep the edition guard.
+                line = line.replace('KIIKO_BOARD_METALIO47 && !KIIKO_LOVE_BOOK', '!KIIKO_LOVE_BOOK', 1)
             if op == 'if' and condition.strip() == 'KIIKO_BOARD_METALIO47':
                 stack.append(('board', board == 'metalio47'))
                 continue
@@ -94,13 +99,35 @@ def materialize(root, destination, board, tests=False):
             # 生产构建由C编译器选择板型分支；旧主机测试的函数提取器需要预选后的视图。
             # Production uses compiler board guards; legacy host extractors need preselected sources.
             if tests and path.suffix in ('.c', '.h', '.cpp') and 'boards' not in relative.parts and path.name != 'stb_truetype.h':
-                write(relative, select_source(path.read_text(), board).encode())
+                write(relative, select_source(expand_fragments(path.read_text(),root), board).encode())
             else:
                 write(relative, path.read_bytes())
+    layout_path=root/'firmware/layout.json'
+    if layout_path.exists():
+        aliases=json.loads(layout_path.read_text())['legacy_aliases']
+        for legacy,owned in aliases.items():
+            path=(root/owned).resolve()
+            if not path.is_relative_to(root/'firmware'):
+                raise ValueError('Invalid firmware source ownership')
+            text=path.read_text()
+            if tests:
+                text=select_source(expand_fragments(legacy_text(text,owned,legacy,aliases,root),root),board)
+            elif Path(legacy).suffix=='.h':
+                include=os.path.relpath(owned,str(Path(legacy).parent)).replace(os.sep,'/')
+                text='#pragma once\n#include "'+include+'"\n'
+            write(Path(legacy),text.encode())
     overlay = root / 'boards' / board / 'src'
     for path in overlay.rglob('*'):
         if path.is_file():
-            write(path.relative_to(overlay), path.read_bytes())
+            relative=path.relative_to(overlay)
+            aliases=json.loads(layout_path.read_text())['legacy_aliases'] if layout_path.exists() else {}
+            owned=aliases.get(str(relative))
+            if not tests and owned and path.suffix=='.h':
+                write(Path(owned),path.read_bytes())
+                include=os.path.relpath(owned,str(relative.parent)).replace(os.sep,'/')
+                write(relative,('#pragma once\n#include "'+include+'"\n').encode())
+            else:
+                write(relative, path.read_bytes())
     write(Path('dependencies.lock'), (root / 'boards' / board / 'dependencies.lock').read_bytes())
     if tests:
         overlay = root / 'boards' / board / 'tests'

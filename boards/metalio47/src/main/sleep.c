@@ -9,7 +9,8 @@
  * 用户修订：票根从任意页面进入均用系统字体；浅睡唤醒恢复此前阅读字体，深睡由启动检查点恢复。
  * User revision: tickets use the system face from every page; light wake restores the previous reader face, while deep wake uses the startup checkpoint.
  * 用户修订：单击锁屏提示复用Pico布局；双击/PIN和S31外设休眠顺序保持。
- * User revision: use Pico's single-click hint layout, retaining double-click/PIN and S31 peripheral sleep sequencing.
+ * User revision: use Pico's single-click hint layout and retain S31 sleep sequencing.
+ * 用户修订：Love Book仅休眠和按键唤醒，取消密码验证。/ Love Book sleeps and wakes via the power key without PIN authentication.
  * 用户2026-10-31修订：锁屏浅睡；0小时不关机，其余1..24小时后关机；定时维护不重启外设，真实唤醒后输入恢复失败重试。
  * User revision 2026-10-31: manual/idle locks light-sleep immediately; 0 hours means sleep only, otherwise selected1..24 hours then off. Timer slices retain parked peripherals to avoid the reported resume power-glitch loop; retry failed input restoration after actual wake.
  */
@@ -807,6 +808,7 @@ static void lock_wait_for_unlock(sc7a20h_handle_t acc) {
     while(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_TIMEOUT)vTaskDelay(pdMS_TO_TICKS(100));
 }
 
+#if !KIIKO_LOVE_BOOK
 bool lock_pin_grace_active(void) {
     if(!lock_pin_enabled() || !lock_pin_available() || !app_settings_pin_grace_minutes())return false;
     const time_t now=time(NULL);
@@ -815,6 +817,7 @@ bool lock_pin_grace_active(void) {
     return (uint64_t)now-locked_at<(uint64_t)app_settings_pin_grace_minutes()*60u;
 }
 
+#endif
 void enter_lock_and_sleep(
     EpdiyHighlevelState* hl, int64_t* ignore_until_ms, sc7a20h_handle_t acc, cst836u_handle_t touch,
     bool reader_background
@@ -911,12 +914,15 @@ void enter_lock_and_sleep(
     epd_poweroff();
     s_lock_sleep_touch=touch;
     lock_hint_begin(hl);
+#if !KIIKO_LOVE_BOOK
     if(lock_pin_enabled()) {
         time_t now=time(NULL);
         app_settings_record_pin_lock(now>=1704067200 && now<=4102444799LL?(uint32_t)now:0);
         lock_screen_authenticate(hl,touch,acc,false);
     }
-    else lock_wait_for_unlock(acc);
+    else
+#endif
+        lock_wait_for_unlock(acc);
     lock_hint_end();
     s_lock_sleep_touch=NULL;
     s_lock_deep_ready=false;s_lock_frame_cached=false;
@@ -957,6 +963,7 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
         ble_pt_resume_after_sleep();
         return;
     }
+#if !KIIKO_LOVE_BOOK
     // 卡挂载有界等待仅为了字体/锁屏图；没有卡仍必须验证。
     // Bound mount waiting for the face/art only; absent media still requires authentication.
     read_pico_sd_info_t info;
@@ -979,4 +986,6 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
     (void)app_lock_resume_frame(NULL);
     app_font_end_lock(&saved);
     ble_pt_resume_after_sleep();
+#endif
+
 }

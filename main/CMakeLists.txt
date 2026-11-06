@@ -56,8 +56,6 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "metalio_text_ripple.c"
         "sleep.c"
         "time_service.c"
-        "lock_pin.c"
-        "lock_pin_flow.c"
         "lock_screen.c"
         "settings.c"
         "factory_reset.c"
@@ -74,7 +72,6 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "ui/ui_keyboard.c"
         "ui/ui_gesture.c"
         "ui/ui_glass.c"
-        "ui/ui_pinpad.c"
         "ui/ui_power_dialog.c"
         "ui/ui_quick_menu.c"
         "ui/ui_ai_menu.c"
@@ -89,7 +86,6 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "ui/ui_home_clock.c"
         "ui/ui_image_dither.c"
         "ui/ui_wallpaper.c"
-        "ui/ui_avatar.c"
         "ui/ui_reader_background.c"
         "apps/app_book.c"
         "apps/book_toc.c"
@@ -148,11 +144,14 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
 if(KIIKO_BOARD STREQUAL "metalio47")
     list(APPEND kiiko_selected_sources "app/crash_report.c")
 endif()
+if(NOT KIIKO_EDITION STREQUAL "love-book")
+    list(APPEND kiiko_selected_sources "lock_pin.c" "lock_pin_flow.c" "ui/ui_pinpad.c" "ui/ui_avatar.c")
+endif()
 idf_component_register(
     LDFRAGMENTS "metalio_crash.lf"
     SRCS ${kiiko_selected_sources}
     REQUIRES ${main_requires}
-    INCLUDE_DIRS "." "app" "apps" "font" "ui" "factory" "book"
+    INCLUDE_DIRS "." "app" "apps" "font" "ui" "factory" "book" "${KIIKO_SOURCE_ROOT}"
     EMBED_FILES
         "assets/lock_4bpp.bin"
         "assets/startup_logo_4bpp.bin"

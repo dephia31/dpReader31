@@ -8,6 +8,8 @@
  */
 #include "kosync_client.h"
 #include "ota_online.h"
+#include "firmware_edition.h"
+#include "settings.h"
 #include "esp_private/cache_utils.h"
 #include "esp_app_desc.h"
 #include "esp_app_format.h"
@@ -32,6 +34,7 @@ static SemaphoreHandle_t s_mutex, s_done;
 static pico_update_status_t *s_status;
 static atomic_bool s_cancel;
 static bool s_joinable, s_download;
+static bool s_target_love;
 static const esp_partition_t *s_verified;
 
 static bool initialize(void) {
@@ -110,6 +113,7 @@ static bool layout_valid(void) {
         a->size == 0x500000 && b->size == 0x500000 && data->address == 0xd000 && data->size == 0x2000;
 }
 static bool online(bool *owned) {
+    read_pico_transfer_prepare_network();
     if(!read_pico_transfer_network_shareable()){state(PICO_UPDATE_FAILED,"Vui lòng thoát trang truyền file trước");return false;}
     read_pico_transfer_status_t status;
     read_pico_transfer_get_status(&status);
@@ -230,7 +234,12 @@ static bool check_feed(void) {
     if (!json || !release) { state(PICO_UPDATE_FAILED, "Không đủ bộ nhớ, hãy thoát truyền sách rồi thử lại"); goto failed; }
     // GitHub Pages清单优先，官网清单备用；同一缓冲区顺序请求，无并发TLS连接。
     // Prefer GitHub Pages metadata, falling back to the website with one shared buffer and no concurrent TLS clients.
-    static const char *const feeds[] = {PICO_OTA_FEED_URL, PICO_OTA_FEED_FALLBACK_URL};
+    const char *feeds[] = {
+        s_target_love ? "https://dephia31.github.io/dpReader31/releases/love-book/metalio-s31-update.json"
+                      : "https://dephia31.github.io/dpReader31/metalio-s31-update.json",
+        s_target_love ? "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/love-book/metalio-s31-update.json"
+                      : "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/metalio-s31-update.json"
+    };
     bool valid = false;
     for (size_t source = 0; source < sizeof(feeds) / sizeof(feeds[0]) && !atomic_load(&s_cancel); ++source) {
         char url[192]; snprintf(url, sizeof(url), "%s?t=%lld", feeds[source], (long long)time(NULL));
@@ -257,15 +266,23 @@ static bool check_feed(void) {
     const esp_app_desc_t *running = esp_app_get_description();
     bool project_matches = !strcmp(release->project, running->project_name) ||
         (!strcmp(release->project, "dpReader") && !strcmp(running->project_name, "Kiikoread_Metalio_S31"));
-    if (!project_matches || !layout_valid() ||
+    bool same_edition = firmware_same_edition(release->version,sizeof(release->version),
+                                               running->version,sizeof(running->version));
+    bool target_matches = firmware_same_edition(release->version, sizeof(release->version),
+        s_target_love ? "0.0.0-love-vn" : "0.0.0-vn",
+        s_target_love ? sizeof("0.0.0-love-vn") : sizeof("0.0.0-vn"));
+    if (!project_matches || !target_matches || !layout_valid() ||
         pico_version_compare(running->version, release->minimum_base_version) < 0) {
         state(PICO_UPDATE_FAILED, "Gói cơ sở không tương thích, cần nạp lại toàn bộ ROM"); goto failed;
     }
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     memcpy(&s_status->release, release, sizeof(*release));
     xSemaphoreGive(s_mutex);
-    state(pico_version_compare(release->version, running->version) > 0 ? PICO_UPDATE_AVAILABLE : PICO_UPDATE_LATEST,
-          pico_version_compare(release->version, running->version) > 0 ? "Có phiên bản mới, sẵn sàng tải và cài đặt" : "Đang ở phiên bản mới nhất");
+    int comparison = pico_version_compare(release->version, running->version);
+    bool available = comparison > 0 || (!same_edition && comparison == 0);
+    state(available ? PICO_UPDATE_AVAILABLE : PICO_UPDATE_LATEST,
+          available ? (same_edition ? "Có phiên bản mới, sẵn sàng tải và cài đặt" : "Sẵn sàng chuyển sang nhánh firmware đã chọn")
+                    : "Đang ở phiên bản mới nhất");
     heap_caps_free(json); heap_caps_free(release);
     return true;
 failed:
@@ -293,9 +310,9 @@ static bool download(void) {
     }
     // 两个允许的 HTTPS 源使用同一固定文件名和 SHA，连接失败才切换备用源。
     // Both trusted HTTPS origins use the same immutable name/hash; switch only after connection failure.
-    static const char *const origins[] = {
-        "https://dephia31.github.io/dpReader31/releases/",
-        "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/"
+    const char *origins[] = {
+        s_target_love ? "https://dephia31.github.io/dpReader31/releases/love-book/" : "https://dephia31.github.io/dpReader31/releases/",
+        s_target_love ? "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/love-book/" : "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/"
     };
     const char *filename = strrchr(release->url, '/');
     if (!filename || !pico_release_url_valid(release->url)) goto failed;
@@ -416,11 +433,14 @@ static void worker(void *unused) {
     vTaskDelete(NULL);
 }
 static esp_err_t start(bool downloading) {
+    uint8_t edition = app_settings_ota_edition();
+    if (edition > 1) return ESP_ERR_INVALID_STATE;
     if(kosync_busy())return ESP_ERR_INVALID_STATE;
     if (!initialize()) return ESP_ERR_NO_MEM;
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     bool busy = s_status->busy;
-    bool available = s_status->state == PICO_UPDATE_AVAILABLE;
+    bool available = s_status->state == PICO_UPDATE_AVAILABLE &&
+        ((strstr(s_status->release.version, "-love-vn") != NULL) == (edition == 1));
     xSemaphoreGive(s_mutex);
     if (busy || (downloading && !available)) return ESP_ERR_INVALID_STATE;
     if (s_joinable) { xSemaphoreTake(s_done, portMAX_DELAY); s_joinable = false; }
@@ -429,6 +449,7 @@ static esp_err_t start(bool downloading) {
         return ESP_ERR_NO_MEM;
     }
     atomic_store(&s_cancel, false);
+    s_target_love = edition == 1;
     s_download = downloading; s_verified = NULL;
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_status->busy = true; s_status->received = 0;

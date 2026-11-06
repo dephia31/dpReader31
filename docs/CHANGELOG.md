@@ -1,3 +1,76 @@
+## dpReader 1.3.3-vn / 1.3.3-love-vn · 2026-11-06
+
+### Giới thiệu Love Book
+
+Love Book là firmware gọn cho người muốn mở sách và đọc trực tiếp với giao diện I Love Book. Bản này giữ TXT/EPUB, bìa sách, tiến độ, ghi chú, OPDS, KoSync, Wi-Fi, USB và điều khiển lật trang BLE; bỏ thư viện/kệ sách, PIN và ảnh đại diện.
+
+Để cài, mở [Web Flash dpReader](https://dephia31.github.io/dpReader31/), chọn **Love Book** ở mục phiên bản firmware rồi cắm máy đọc bằng USB và làm theo hướng dẫn. Từ firmware 1.3.3, lần kiểm tra OTA đầu tiên cho chọn Full hoặc Love Book và lưu nhánh cho những lần sau. Nếu chuyển nhánh, thiết bị yêu cầu xác nhận trước khi tải. Máy đang ở bản cũ cần cập nhật lên 1.3.3 trước để có lựa chọn này. Cập nhật từ thẻ nhớ dùng đúng nhánh đang cài.
+
+- Phát hành hai firmware Full và Love Book. Web Flash cho chọn từng bản. Lần OTA đầu tiên cho chọn và lưu nhánh, xác nhận khi chuyển nhánh. Cập nhật thẻ nhớ kiểm tra đúng nhánh đang cài.
+- Love Book dùng I Love Book, mở TXT/EPUB trực tiếp trong Books, duyệt thư mục, xóa có xác nhận và bật USB truyền sách. Bỏ thư viện/kệ sách, PIN và avatar.
+- Bật/tắt footer trong trình đọc. Khi tắt, nội dung sách dùng thêm chiều cao chân trang.
+- Giữ cache bìa Love Book lâu hơn. Full dùng lại cache bìa cho Home, Tủ sách và màn hình chờ, thu gọn theo bộ nhớ.
+- Dọn lại phiên Wi-Fi bị dừng dở trước khi tác vụ tiếp theo dùng mạng.
+- Sao lưu cấu hình thêm tài khoản KoSync/OPDS, tự đồng bộ và công tắc footer, cùng Wi-Fi, cách lật trang, chu kỳ refresh và các mục footer đã có.
+- Loại bỏ Dark mode ở cả hai bản. Mã nguồn dùng chung lõi, tách phần riêng của Full và Love Book.
+
+## dpReader 1.3.3RC13-vn / 1.3.3RC13-love-vn · Bản thử
+
+- Sao lưu cấu hình thêm tài khoản KoSync/OPDS, tự đồng bộ và công tắc footer. Khôi phục cùng Wi-Fi, cách lật trang, chu kỳ làm mới và các tùy chọn footer đã có.
+
+## dpReader 1.3.3RC12-vn / 1.3.3RC12-love-vn · Bản thử
+
+- S31 thử dọn lại phiên Wi-Fi đã dừng dở khi tác vụ kế tiếp cần mạng. Không lấy Wi-Fi khỏi phiên truyền tệp đang hoạt động.
+
+## dpReader 1.3.3RC11-vn / 1.3.3RC11-love-vn · Bản thử
+
+- Love Book bỏ ảnh đại diện và tác vụ nạp ảnh đại diện. Vẫn đổi được tên thiết bị.
+
+## dpReader 1.3.3RC10-vn / 1.3.3RC10-love-vn · Bản thử
+
+- Full giữ cache bìa Home, Tủ sách và Thẻ đọc sách lâu hơn khi đủ PSRAM. Ghép bìa dùng lại ảnh đã xử lý trong cùng cache và vẫn lưu trên thẻ nhớ qua lần khởi động.
+
+## dpReader 1.3.3RC9-vn / 1.3.3RC9-love-vn · Bản thử
+
+- Love Book giữ tối đa bốn bìa gần nhất đã giải mã trong PSRAM và ưu tiên bìa hiện tại khi bộ nhớ thấp. Bìa tạo tự động có thể dùng lại từ RAM cho màn hình chờ.
+
+## dpReader 1.3.3RC8-vn / 1.3.3RC8-love-vn · Bản thử
+
+- Love Book bỏ xác thực PIN khi khởi động và khi thức dậy. Màn hình chờ, Sleep và cách đánh thức bằng nút nguồn vẫn hoạt động.
+
+## dpReader 1.3.3RC7-vn / 1.3.3RC7-love-vn · Bản thử
+
+- Love Book thêm nút Xóa có xác nhận ngay trong trình mở Books.
+- Thêm công tắc Hiện chân trang. Khi tắt, trình đọc dàn trang lại và dùng phần chiều cao của chân trang, giữ vị trí đọc và các tùy chọn chân trang.
+
+## dpReader 1.3.3RC6-vn / 1.3.3RC6-love-vn · Bản thử
+
+- Tổ chức nguồn thành shared / full / love_book, dùng chung một lõi và tách phần thư viện/giao diện riêng.
+- Love Book bỏ module ghép bìa thư viện, bỏ tick phím kệ sách và giảm hàng đợi xử lý bìa từ 9 ô xuống 1 ô cho sách đang đọc.
+
+## dpReader 1.3.3RC5-vn / 1.3.3RC5-love-vn · Bản thử
+
+- Bỏ hoàn toàn Dark screen khỏi Full và Love Book; giao diện và ảnh dùng mức sáng gốc, không áp dụng thiết lập Dark screen cũ.
+
+## dpReader 1.3.3RC4-vn / 1.3.3RC4-love-vn · Bản thử
+
+- Tách firmware Full và Love Book; build mặc định tạo cả hai gói với phiên bản/kiểm tra riêng.
+- Love Book cố định I Love Book, bỏ thư viện/kệ sách và các thiết lập liên quan; dùng trình mở file Books có Bật USB.
+- Chặn OTA/TF cập nhật chéo Full/Love Book; thêm bộ chọn firmware trên Web Flash và gói xem thử Web Flash cục bộ.
+
+## dpReader 1.3.3RC3-vn · Bản thử
+
+- I Love Book: Mở sách mặc định vào Books, duyệt thư mục, hiển thị loại/dung lượng file, nút về Books/thư mục cha/tải lại và vuốt chuyển trang.
+- Thêm Bật USB ngay trong trình mở sách; kết thúc truyền trở lại thư mục vừa mở và đọc lại danh sách.
+
+## dpReader 1.3.3RC2-vn · Bản thử
+
+- Dark screen chỉ áp dụng Home và trình đọc; giữ nguyên ảnh bìa, nền viền bìa và ảnh trong sách. Cài đặt, thư viện, OPDS và màn hình khóa giữ giao diện sáng.
+
+## dpReader 1.3.3RC1-vn · Bản thử
+
+- Thêm Dark screen thử nghiệm trong Cài đặt → Cá nhân hóa; đảo mức xám đầu ra, làm sạch khi bật/tắt và dùng GL48 cho lật trang tối.
+
 ## dpReader 1.3.2-vn · 2026-11-05
 
 - Giao diện chỉ còn **Đầy đủ** và **I Love Book**. Lựa chọn Đơn giản cũ chuyển sang I Love Book; chọn giao diện sẽ về Home và làm sạch toàn màn hình.

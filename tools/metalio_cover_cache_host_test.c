@@ -21,7 +21,7 @@ static void *parallel(void *arg) {
     uint8_t input[64],out[64];memset(input,(int)id,sizeof(input));
     metalio_cover_key_t k=key(100+id);
     for(int i=0;i<1000;++i) {
-        assert(metalio_cover_cache_put(&k,input,sizeof(input),(metalio_cover_meta_t){8,8,false}));
+        assert(metalio_cover_cache_put(&k,input,sizeof(input),(metalio_cover_meta_t){.width=8,.height=8,.white_edge=false}));
         assert(metalio_cover_cache_get(&k,out,sizeof(out),NULL));
         assert(!memcmp(input,out,sizeof(out)));
     }
@@ -31,13 +31,15 @@ int main(void) {
     enum {CHUNK=512*1024};
     uint8_t *pixels=malloc(CHUNK),*out=malloc(CHUNK);assert(pixels&&out);
     memset(pixels,0x5a,CHUNK);
-    metalio_cover_meta_t meta={176,240,true},got;
+    metalio_cover_meta_t meta={.width=176,.height=240,.white_edge=true,.source_width=400,.source_height=600},got;
     metalio_cover_key_t k=key(0);
     oom=true;assert(!metalio_cover_cache_put(&k,pixels,CHUNK,meta));oom=false;
     assert(!metalio_cover_cache_get(&k,out,CHUNK,&got));
     for(unsigned i=0;i<8;++i){k=key(i);assert(metalio_cover_cache_put(&k,pixels,CHUNK,meta));}
     assert(metalio_cover_cache_stats().bytes==4u*1024u*1024u);
-    k=key(0);assert(metalio_cover_cache_get(&k,out,CHUNK,&got)&&got.width==176&&got.height==240&&got.white_edge);
+    k=key(0);assert(metalio_cover_cache_get(&k,NULL,0,&got)&&got.source_width==400&&got.source_height==600);
+    assert(!metalio_cover_cache_get(&k,NULL,0,NULL));
+    assert(metalio_cover_cache_get(&k,out,CHUNK,&got)&&got.width==176&&got.height==240&&got.white_edge);
     assert(!memcmp(pixels,out,CHUNK));out[0]=0;assert(metalio_cover_cache_get(&k,out,CHUNK,NULL)&&out[0]==0x5a);
     k=key(8);assert(metalio_cover_cache_put(&k,pixels,CHUNK,meta));
     k=key(1);assert(!metalio_cover_cache_get(&k,out,CHUNK,NULL));

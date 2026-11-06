@@ -73,3 +73,18 @@ Trong nội dung sách, vuốt xuống mở bảng cài đặt nhanh giống tha
 Trong giao diện Đơn giản và Đơn giản hoàn toàn, vuốt lên trên Home, kể cả ngay trên thẻ Đọc tiếp, để mở **pop menu** với Mở sách, Truyền file, OPDS và Cài đặt. Chạm ngoài hoặc vuốt xuống để đóng pop menu.
 
 Ở cả ba giao diện, vuốt xuống tại bất kỳ vùng nào trên Home để mở **Quick Settings**. Các nút điều hướng dưới Home được thực hiện khi nhấc tay, để có thể bắt đầu vuốt ngay từ vùng nút.
+
+### Mở file trong I Love Book
+
+Chọn **Mở sách** để duyệt TXT/EPUB trực tiếp trên thẻ nhớ. Mỗi lần vào mở sẵn `/sdcard/Books`; nếu không có, thử `books`, thư mục sách đã cài, rồi gốc thẻ. Chạm thư mục để vào, dùng **Thư mục cha** hoặc mũi tên trở lại để lên một cấp; tại gốc, mũi tên trở về Home. **Books** trở về thư mục sách mặc định. **Tải lại** đọc lại thư mục hiện tại từ trang đầu. Dùng Trước/Tiếp hoặc vuốt trái/phải trong danh sách để chuyển trang. Danh sách chỉ giữ tám mục mỗi trang, hiển thị định dạng và dung lượng sách, theo thứ tự trên thẻ.
+
+**Bật USB** mở trực tiếp chế độ ổ đĩa USB hiện có để chép sách từ máy tính. Tháo ổ đĩa an toàn trên máy tính rồi dừng USB trên thiết bị; trình mở sách trở lại thư mục vừa duyệt và tải lại danh sách. Khi thiếu thẻ, lỗi đọc hoặc sách đã bị chuyển/xóa, màn hình báo lỗi để thử lại.
+
+
+## Sao lưu cấu hình trên thẻ nhớ
+
+Tệp `/sdcard/dpReader-settings.backup` chứa cấu hình Wi-Fi đã lưu, tài khoản KoSync (máy chủ, tên đăng nhập, khóa xác thực và tự đồng bộ), tài khoản OPDS (địa chỉ kho, tên đăng nhập và mật khẩu), cách lật trang, ánh xạ phím, số trang giữa các lần làm mới toàn màn hình và cấu hình footer, gồm cả công tắc hiện chân trang.
+
+Dùng Sao lưu cấu hình và Khôi phục cấu hình trong Cập nhật & Khôi phục. Gói mới vẫn đọc các bản sao lưu cũ. Bản cũ chưa có tài khoản hoặc công tắc footer sẽ giữ các giá trị hiện tại của những mục đó. Tệp sao lưu có chứa thông tin đăng nhập Wi-Fi và OPDS cùng khóa KoSync ở dạng không mã hóa.
+
+Từ firmware 1.3.3, lần bấm Kiểm tra cập nhật OTA đầu tiên cho chọn Full hoặc Love Book. Máy lưu nhánh đã chọn và tự kiểm tra nhánh đó ở những lần sau. Nếu chọn khác firmware đang cài, hộp xác nhận nêu rõ việc chuyển nhánh trước khi tải và cài.

@@ -4,6 +4,9 @@ Metalio S31 源码维护于公开仓库 [Metalio-S31-kiikoread](https://github.c
 
 维护同一份 `main/` 阅读器和 UI 源码，通过 `KIIKO_BOARD` 选择设备。`boards/<设备>/` 保存该设备的配置、分区和硬件后端，`cmake/board.cmake` 选择参与编译的驱动。已有 `read_pico_*` 接口名继续作为内部兼容接口使用。
 
+默认构建同时生成Full与Love Book（`--edition all`），SDK配置/构建/产物按edition隔离。详见[双固件交付](FIRMWARE_EDITIONS.md)。
+Normal builds now produce Full and Love Book together (`--edition all`), with isolated configuration/build/package directories. See [firmware editions](FIRMWARE_EDITIONS.md).
+
 ## 支持的设备
 
 | 编译选项 | `pico` | `metalio47` |

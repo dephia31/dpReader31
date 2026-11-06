@@ -132,7 +132,7 @@ def local_experiment_flags():
         for board in BOARDS:
             (sdk/'components/soc'/metadata(board)['idf_target']).mkdir(parents=True)
             base=[sys.executable,str(ROOT/'tools/build_firmware.py'),'--board',board,
-                  '--idf-'+board,str(sdk),'--dry-run']
+                  '--idf-'+board,str(sdk),'--edition','full','--dry-run']
             plan=json.loads(subprocess.check_output(base,text=True))
             assert '-DMETALIO_PIE_PIXELS=OFF' in plan['command']
             assert '-DMETALIO_LOCAL_LATENCY=OFF' in plan['command']

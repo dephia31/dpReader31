@@ -255,3 +255,31 @@ The user explicitly requires the official OTA origin, not a GitHub firmware mirr
 
 发布前及证书续期后按 `docs/OTA_MAINTENANCE.md` 运行原正式固件信任链、完整下载和Range检查，并用已发布设备验收；浏览器可用不能代替设备校验。临时Cloudflare令牌不入仓库。
 Before publication and after certificate renewal, run the released-trust-store, download and Range checks in `docs/OTA_MAINTENANCE.md`, plus a released-device acceptance test. Browser success is insufficient; never commit temporary Cloudflare credentials.
+
+
+## 双固件交付 / Two firmware editions (2026-11-06)
+
+用户要求每次构建默认同时交付Full和Love Book。使用`tools/build_firmware.py --board metalio47`（默认`--edition all`）；只有明确要求单分支验证才使用`--edition full|love-book`。不得复制维护两套应用源码。
+The user requires both Full and Love Book on every normal build. Use `tools/build_firmware.py --board metalio47` (default `--edition all`); select `--edition full|love-book` only for explicit single-edition verification. Maintain one application source tree.
+
+两版使用隔离SDK配置/构建/包目录与不同嵌入版本：Full `X.Y.ZRCn-vn`，Love Book `X.Y.ZRCn-love-vn`（正式版本去掉RC）。选择两版均未使用的下一RC，分别导出到`Test Build/<version>/`并验证Bin、SHA和两平台USB启动器。Love Book固定I Love Book、无TTS/书架/书架样式/拼架锁屏；通过Books文件浏览器开书，保留USB/WiFi、OPDS、KoSync和核心阅读。OTA不得跨版更新；USB可主动切版，保留用户数据。
+Isolate SDK configuration, build and package paths. Embed Full `X.Y.ZRCn-vn` and Love Book `X.Y.ZRCn-love-vn` (drop RC for official releases). Select the next unused candidate for both editions, export separate `Test Build/<version>/` folders, and verify embedded versions, hashes and both USB launchers. Love Book fixes I Love Book and removes TTS/shelf/shelf-style/collage-lock features, opens books through the Books browser, and retains USB/WiFi, OPDS, KoSync and core reading. OTA must reject cross-edition updates; deliberate USB switching preserves user data.
+
+Web Flash增加Full/Love Book选择，与全量/仅应用写入模式独立。Full保持原发布路径和历史入口；Love Book使用`releases/love-book/`及独立历史。正式版双构建才生成`build/editions/web-preview/`本地预览；不得把RC写进正式发布目录或部署OTA。正式发布需同时验证两版、Web选择、各自OTA和历史入口，按现有授权流程执行；缺少某版时禁用该版，禁止回退安装另一版。详见`docs/FIRMWARE_EDITIONS.md`。
+Web Flash selects Full/Love Book independently of full-base/app-only write mode. Preserve Full release paths/history; use `releases/love-book/` and separate history for Love Book. Official dual builds stage an ignored local preview under `build/editions/web-preview/`; do not stage RCs into official release paths or deploy OTA. Official publication must verify both editions, selector, separate OTA and historical entries under existing authorization rules. Disable unavailable editions and never silently install the other edition. See `docs/FIRMWARE_EDITIONS.md`.
+
+用户2026-11-06补充：Web Flash只接收正式版，禁止RC（包括本地Web预览）。RC仅生成本地USB/TF测试包；RC双构建不得自动生成Web Flash预览，网页及打包器都必须拒绝RC。不得上传RC到网页、Pages或OTA。
+User clarification2026-11-06: Web Flash accepts official releases only, including local previews. RCs remain local USB/TF test bundles; RC dual builds must not stage Web Flash previews, and both the page and staging tool must reject RCs. Never upload RCs to web/Pages/OTA. This supersedes the earlier automatic RC preview rule.
+
+用户2026-11-06取消Dark screen：Full与Love Book均只保留亮色界面；不保留开关、NVS读取或输出反色包装器。旧dark键忽略，不清除其他设置。
+User decision2026-11-06 removes Dark screen from both Full and Love Book: keep light UI only, with no toggle, NVS reader or output inversion wrappers. Ignore the old dark key without clearing other settings.
+
+
+## 固件源码归属 / Firmware ownership (2026-11-06)
+
+用户要求`firmware/shared`、`firmware/full`与`firmware/love_book`分别维护共享/Full专用/Love专用源码。`main/`中的源码和头文件为兼容相对符号链接，唯一实际文件由`firmware/layout.json`记录；不要另建副本。修改共享功能只改shared，私有界面/功能改对应分支。Full可复用I Love Book可选界面；Love不得链接Full书架/拼贴实现。板级覆盖继续由boards选择。测试视图由生成器展开私有片段并生成旧路径的实际文件。详见`firmware/README.md`。
+Maintain common/Full-specific/Love-specific code in `firmware/shared`, `firmware/full` and `firmware/love_book`. Legacy `main/` source/header paths are relative compatibility symlinks; `firmware/layout.json` records the single owned file. Never maintain copied implementations. Edit shared features once and private features in their edition folder. Full may reuse the optional I Love Book UI; Love must not link Full shelf/collage implementations. Board overrides remain selected by boards. Generate host views to expand private fragments and materialize legacy paths. See `firmware/README.md`.
+
+
+用户2026-11-06修订：首次OTA检查允许用户明确选择Full/Love Book并保存，后续检查沿所选分支。跨版必须明确确认后下载，保留型号/分区/版本/SHA验证；TF更新仍只接受当前分支。此项取代上文OTA一律禁止跨版的限制。
+User revision2026-11-06: the first OTA check lets the user explicitly choose Full/Love Book and persists that choice for later OTA checks. Cross-edition installation requires confirmation before download and retains chip/project/partition/version/SHA validation. TF updates remain limited to the installed edition. This supersedes the unconditional OTA cross-edition prohibition above.

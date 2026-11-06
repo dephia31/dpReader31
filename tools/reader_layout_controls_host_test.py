@@ -35,6 +35,7 @@ for name in ('app_settings_book_paragraph_value','app_settings_book_paragraph_le
     u+=function(name,r/'main/settings.c')+'\n'
 u+=function('slider_index',f)+'\n'
 u += '#define READER_FOOTER_TOP (1216 - 96)\n'
+u += 'static int reader_content_bottom(void){return READER_FOOTER_TOP;}\n'
 for n in ('body_rect_for_tracking','reader_margin_width','reader_margin_levels','reader_margin_level_for','reader_margin_for_level','reader_margin_input'):
     u+=function(n,f)+'\n'
 for n in ('app_settings_book_indent_adjust','app_settings_set_book_indent_adjust'):

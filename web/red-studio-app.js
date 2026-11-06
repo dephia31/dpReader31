@@ -26,13 +26,16 @@ let device = null;
 let transport = null;
 let esploader = null;
 let isFlashing = false;
+let editionReady = false;
+const editionSelect = document.getElementById("firmware-edition");
 const riskAccepted = document.getElementById("risk-accepted");
 const flashReadiness = document.getElementById("flash-readiness");
 function updateFlashReadiness() {
-  flashBtn.disabled = !esploader || isFlashing || !riskAccepted.checked;
+  flashBtn.disabled = !esploader || isFlashing || !riskAccepted.checked || (!radioCustom.checked && !editionReady);
   riskAccepted.disabled = isFlashing;
   flashReadiness.textContent = isFlashing ? "Đang nạp, hãy giữ kết nối USB."
     : !esploader ? "Kết nối thiết bị và tích chấp nhận rủi ro để bắt đầu."
+    : !radioCustom.checked && !editionReady ? "Chưa có gói firmware hợp lệ cho lựa chọn này."
     : !riskAccepted.checked ? "Đã kết nối. Tích chấp nhận rủi ro để bật nút Bắt đầu nạp."
     : "Đã kết nối và chấp nhận rủi ro. Sẵn sàng bắt đầu nạp.";
 }
@@ -160,15 +163,38 @@ let currentReleaseInfo = null;
 // English: Allow only archived versions so current and previous firmware install independently.
 function selectedReleaseFolder() {
   const version = document.getElementById("release-version")?.value || "";
-  return /^\d+\.\d+\.\d+-vn$/.test(version) ? `releases/${version}` : "releases";
+  const base = editionSelect?.value === "love-book" ? "releases/love-book" : "releases";
+  return /^\d+\.\d+\.\d+(?:-love)?-vn$/.test(version) ? `${base}/${version}` : base;
 }
 const releaseVersionSelect = document.getElementById("release-version");
-releaseVersionSelect?.addEventListener("change", () => {
+let previousEdition = editionSelect?.value || "full";
+const releaseOptions = new Map();
+function snapshotReleaseOptions() {
+  return Array.from(releaseVersionSelect?.options || [], option => ({value: option.value, text: option.textContent}));
+}
+releaseOptions.set(previousEdition, snapshotReleaseOptions());
+function releaseSelectionChanged() {
   resetRiskAgreement();
   const folder = selectedReleaseFolder();
   document.getElementById("release-tf-download").href = `./${folder}/dpReader_metalio47_firmware.bin`;
   document.getElementById("release-usb-download").href = `./${folder}/dpReader_metalio47_full.bin`;
+  editionReady = false;
+  updateFlashReadiness();
   fetchLatestRelease();
+}
+releaseVersionSelect?.addEventListener("change", releaseSelectionChanged);
+editionSelect?.addEventListener("change", () => {
+  releaseOptions.set(previousEdition, snapshotReleaseOptions());
+  previousEdition = editionSelect.value;
+  if (releaseVersionSelect) {
+    const options = releaseOptions.get(previousEdition) || [{value:"", text:"Mới nhất"}];
+    releaseVersionSelect.replaceChildren(...options.map(item => {
+      const option = document.createElement("option");
+      option.value = item.value; option.textContent = item.text; return option;
+    }));
+    releaseVersionSelect.value = "";
+  }
+  releaseSelectionChanged();
 });
 
 async function fetchLatestRelease() {
@@ -192,7 +218,7 @@ async function fetchLatestRelease() {
       } catch (_) {}
     }
 
-    if (!data || !data.version) {
+    if ((!data || !data.version) && editionSelect?.value !== "love-book") {
       try {
         const selectedVer = document.getElementById("release-version")?.value;
         const targetTag = selectedReleaseFolder() === "releases" ? "latest" : `tags/v${selectedVer}`;
@@ -209,7 +235,8 @@ async function fetchLatestRelease() {
     }
 
     if (requestedFolder !== selectedReleaseFolder()) return;
-    if (data && data.version) {
+    if (data && typeof data.version === "string" && /^\d+\.\d+\.\d+(?:-love)?-vn$/.test(data.version) && Number.isSafeInteger(data.size) && data.size > 0 && /^[a-f0-9]{64}$/i.test(data.sha256 || "") && ((data.version.includes("-love-vn")) === (editionSelect?.value === "love-book"))) {
+      editionReady = true;
       currentReleaseInfo = data;
       if (latestVerName) latestVerName.textContent = `v${data.version}`;
       if (releaseTagApp) releaseTagApp.textContent = `Dành cho máy đã cài dpReader · v${data.version}`;
@@ -221,12 +248,13 @@ async function fetchLatestRelease() {
       }
 
       // Tự động đồng bộ và chọn đúng bản mới nhất trong dropdown
-      if (requestedFolder === "releases" && releaseVersionSelect) {
+      if ((requestedFolder === "releases" || requestedFolder === "releases/love-book") && releaseVersionSelect) {
         const firstOpt = releaseVersionSelect.options[0];
         if (firstOpt && firstOpt.value === "") {
           firstOpt.textContent = `${data.version} — mới nhất`;
         }
-        if (data.previous_version && releaseVersionSelect.options.length > 1) {
+        if (data.previous_version) {
+          if (releaseVersionSelect.options.length < 2) releaseVersionSelect.appendChild(document.createElement("option"));
           releaseVersionSelect.options[1].value = data.previous_version;
           releaseVersionSelect.options[1].textContent = `${data.previous_version} — bản chính thức trước`;
         }
@@ -235,8 +263,21 @@ async function fetchLatestRelease() {
           releaseVersionSelect.selectedIndex = 0;
         }
       }
+    } else {
+      editionReady = false;
+      currentReleaseInfo = null;
+      if (latestVerName) latestVerName.textContent = "Chưa phát hành";
+      if (latestVerSize) latestVerSize.textContent = "";
+      if (latestVerNotes) latestVerNotes.textContent = "Chưa có gói cho phiên bản đã chọn.";
     }
+    for (const id of ["release-tf-download", "release-usb-download"]) {
+      const link = document.getElementById(id);
+      link.hidden = !editionReady;
+    }
+    updateFlashReadiness();
   } catch (err) {
+    editionReady = false;
+    updateFlashReadiness();
     console.warn("Không thể tải thông tin release mới nhất:", err);
   }
 }
@@ -337,6 +378,23 @@ async function fetchBinary(primaryUrl, fallbackUrl) {
   }
 }
 
+// 核对实际应用头和哈希，防止选择正确但下载了另一分支。/ Verify actual app identity/hash before any writes.
+async function verifySelectedFirmware(buffer, appOffset, release, edition) {
+  if (!release || !/^\d+\.\d+\.\d+(?:-love)?-vn$/.test(release.version)) throw new Error("Web Flash chỉ nhận bản chính thức, không nạp RC.");
+  const bytes = new Uint8Array(buffer);
+  const app = bytes.subarray(appOffset, appOffset + release.size);
+  const view = new DataView(app.buffer, app.byteOffset, app.byteLength);
+  const field = offset => new TextDecoder().decode(app.subarray(offset, offset + 32)).split("\0")[0];
+  if (app.length !== release.size || app.length < 288 || app[0] !== 0xe9 ||
+      view.getUint16(12, true) !== 32 || view.getUint32(32, true) !== 0xabcd5432 ||
+      field(48) !== release.version || field(80) !== "Kiikoread_Metalio_S31" ||
+      field(48).includes("-love-vn") !== (edition === "love-book")) {
+    throw new Error("Firmware không khớp bản Full/Love Book, phiên bản hoặc chip đã chọn.");
+  }
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", app)), value => value.toString(16).padStart(2, "0")).join("");
+  if (digest !== release.sha256.toLowerCase()) throw new Error("SHA-256 firmware không khớp. Đã dừng trước khi ghi.");
+}
+
 // Bắt đầu nạp Flash
 flashBtn.addEventListener("click", async () => {
   if (!esploader) {
@@ -344,7 +402,7 @@ flashBtn.addEventListener("click", async () => {
     return;
   }
 
-  if (isFlashing) return;
+  if (isFlashing || (!radioCustom.checked && !editionReady)) return;
   if (!riskAccepted.checked) {
     updateFlashReadiness();
     riskAccepted.focus();
@@ -357,6 +415,7 @@ flashBtn.addEventListener("click", async () => {
     customFileInput.disabled = true;
     customOffsetInput.disabled = true;
     if (releaseVersionSelect) releaseVersionSelect.disabled = true;
+    if (editionSelect) editionSelect.disabled = true;
     flashBtn.disabled = true;
     disconnectBtn.disabled = true;
     progressContainer.style.display = "block";
@@ -412,6 +471,7 @@ flashBtn.addEventListener("click", async () => {
       binaryData = await file.arrayBuffer();
     }
 
+    if (!radioCustom.checked) await verifySelectedFirmware(binaryData, radioFull.checked ? 0x10000 : 0, currentReleaseInfo, editionSelect?.value || "full");
     terminal.writeLine(`[+] Kích thước tệp: ${binaryData.byteLength.toLocaleString()} bytes`);
     terminal.writeLine(`[*] Vị trí ghi (Offset): 0x${offset.toString(16).toUpperCase()}`);
     terminal.writeLine("[*] Đang chuẩn bị dữ liệu và bắt đầu nạp...");
@@ -486,6 +546,7 @@ flashBtn.addEventListener("click", async () => {
     customOffsetInput.disabled = false;
     resetRiskAgreement();
     if (releaseVersionSelect) releaseVersionSelect.disabled = false;
+    if (editionSelect) editionSelect.disabled = false;
     // Sau khi nạp thành công cổng đã được nhả; chỉ bật lại nút khi còn kết nối.
     // After a successful flash the port is released; only re-enable the button while still connected.
     if (esploader) {

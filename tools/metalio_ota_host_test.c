@@ -39,10 +39,18 @@ static void fixture(esp_chip_id_t chip,const char *project,const char *version) 
 }
 int main(void) {
     pico_ota_info_t info; char message[96];
+    fixture(ESP_CHIP_ID_ESP32S31,"Kiikoread_Metalio_S31","1.3.3RC4-love-vn");
+    assert(pico_ota_inspect(path,&info)==ESP_ERR_INVALID_RESPONSE&&!info.ready);
+    snprintf(current.version,sizeof(current.version),"1.3.3RC4-love-vn");
+    fixture(ESP_CHIP_ID_ESP32S31,"Kiikoread_Metalio_S31","1.3.3RC4-vn");
+    assert(pico_ota_inspect(path,&info)==ESP_ERR_INVALID_RESPONSE&&!info.ready);
+    fixture(ESP_CHIP_ID_ESP32S31,"Kiikoread_Metalio_S31","1.3.3-love-vn");
+    assert(pico_ota_inspect(path,&info)==ESP_OK&&info.ready);
+    snprintf(current.version,sizeof(current.version),"0.3.3-rc90-metalio-test1");
     fixture(ESP_CHIP_ID_ESP32S3,"Read_Pico","0.3.3-rc90");
     assert(pico_ota_inspect(path,&info)==ESP_ERR_INVALID_RESPONSE&&!info.ready);
     fixture(ESP_CHIP_ID_ESP32S31,"Metalio-E-Ink4-Plus","2.0.76");
-    assert(pico_ota_inspect(path,&info)==ESP_ERR_INVALID_RESPONSE&&!info.ready);
+    assert(pico_ota_inspect(path,&info)==ESP_OK&&info.ready);
     fixture(ESP_CHIP_ID_ESP32S31,"Read_Pico","0.3.3-rc91");
     assert(pico_ota_inspect(path,&info)==ESP_ERR_INVALID_RESPONSE&&!info.ready);
     fixture(ESP_CHIP_ID_ESP32S31,current.project_name,current.version);

@@ -26,11 +26,11 @@ struct app_desc_s {
  const char *title,*detail;bool owns_keys,enter_full,persistent_navigation;
  bool(*menu_handle_enabled)(app_ctx_t*);
  bool(*on_main_key)(app_ctx_t*,int,app_redraw_t*);
- void(*on_enter)(app_ctx_t*),(*on_exit)(app_ctx_t*),(*on_media_lost)(app_ctx_t*),(*on_media_ready)(app_ctx_t*);
+ void(*on_enter)(app_ctx_t*),(*on_exit)(app_ctx_t*),(*on_media_lost)(app_ctx_t*),(*on_media_ready)(app_ctx_t*),(*on_before_lock)(app_ctx_t*);
  void(*render)(app_ctx_t*,uint8_t*);app_redraw_t(*on_tick)(app_ctx_t*);
  app_redraw_t(*on_gesture)(app_ctx_t*,const ui_gesture_event_t*),(*on_key)(app_ctx_t*,int);
 };
-enum {APP_REDRAW_NONE,APP_REDRAW_PAGE,APP_REDRAW_FULL,UI_GESTURE_TAP,ESP_ERR_NOT_FINISHED};
+enum {APP_REDRAW_NONE,APP_REDRAW_PAGE,APP_REDRAW_FULL,UI_GESTURE_TAP,UI_GESTURE_SWIPE_L,UI_GESTURE_SWIPE_R,ESP_ERR_NOT_FINISHED};
 #define UI_KEY_1 0
 #define UI_KEY_2 1
 #define UI_KEY_3 2
@@ -40,8 +40,10 @@ enum {UI_ICON_FOLDER_OPEN,UI_ICON_BOOK_OPEN,EPD_DRAW_ALIGN_LEFT,EPD_DRAW_ALIGN_C
 #define UI_LOCK_WIDTH 684
 #define UI_LOCK_HEIGHT 1216
 #define UI_NAV_TOUCH_TOP 1080
-static bool simple=true,media=true,alloc_fail,read_fail;
-static int nav=-1,probes,visited,closed,opened;
+static bool simple=true,media=true,alloc_fail,read_fail,open_fail,stat_fail,books_missing;
+static int nav=-1,probes,visited,closed,opened,usb_requests;
+static const app_desc_t app_transfer;
+static void app_transfer_request_usb_start(void){++usb_requests;}
 static size_t allocated;
 static const app_desc_t apps[6];
 static const app_desc_t *app_at(int i){assert(i>=0&&i<6);return &apps[i];}
@@ -54,7 +56,7 @@ static void read_pico_sd_start_probe(void){++probes;}
 static void *heap_caps_calloc(size_t n,size_t z,int caps){assert(caps==3);allocated=n*z;return alloc_fail?NULL:calloc(n,z);}
 static bool book_file_path_supported(const char *p){const char *e=strrchr(p,'.');return e&&(!strcasecmp(e,".txt")||!strcasecmp(e,".epub"));}
 static char selected[288];
-static bool app_book_request_open_from_home(const char *p){snprintf(selected,sizeof(selected),"%s",p);++opened;return true;}
+static bool app_book_request_open_from_home(const char *p){snprintf(selected,sizeof(selected),"%s",p);++opened;return !open_fail;}
 #define ui_nav_status(...) ((void)0)
 #define ui_nav_back(...) ((void)0)
 #define ui_clear_page(...) ((void)0)
@@ -75,8 +77,18 @@ static struct dirent *fake_read(DIR *d){(void)d;static struct dirent e;
 static int fake_close(DIR *d){(void)d;++closed;return 0;}
 static int fake_stat(const char *p,struct stat *s){memset(s,0,sizeof(*s));
  const char *name=strrchr(p,'/');name=name?name+1:p;
- s->st_mode=(!strcmp(name,"books")||!strcmp(name,"folder"))?S_IFDIR:S_IFREG;return 0;
+ if(stat_fail||(books_missing&&(!strcmp(name,"Books")||!strcmp(name,"books"))))return -1;
+ s->st_size=2048;
+ s->st_mode=(!strcmp(name,"Books")||!strcmp(name,"sdcard")||!strcmp(name,"books")||!strcmp(name,"folder"))?S_IFDIR:S_IFREG;return 0;
 }
+#if KIIKO_LOVE_BOOK
+static int deletes, forgotten, cleared, changes;
+static int fake_unlink(const char *path) { assert(!strcmp(path, "/sdcard/Books/Việt.EPUB")); ++deletes; return 0; }
+static int book_progress_forget(const char *path) { assert(strstr(path,"Việt.EPUB")); ++forgotten; return 0; }
+static int book_title_clear(const char *path) { assert(strstr(path,"Việt.EPUB")); ++cleared; return 0; }
+static void book_store_notify_changed(void) { ++changes; }
+#define unlink fake_unlink
+#endif
 #define opendir fake_open
 #define readdir fake_read
 #define closedir fake_close
@@ -109,7 +121,7 @@ int main(void){
  ui_nav_request(&ctx,2);assert(ctx.request_app==app_at(5));ctx.request_app=NULL;
  entries[0]=".hidden.epub";entries[1]="ignored.png";entries[2]="folder";entries[3]="Việt.EPUB";
  for(unsigned i=4;i<20;++i)entries[i]="book.txt";total=20;
- enter(&ctx);assert(probes==1&&s_pending);tick(&ctx);
+ enter(&ctx);assert(probes==1&&s_pending);tick(&ctx);assert(!strcmp(s_directory,"/sdcard/Books"));
  assert(s_count==8&&s_more&&visited==11&&closed==1&&allocated==8*sizeof(picker_item_t));
  EpdRect left=page_button(0),right=page_button(1),label=page_label();
  assert(left.x+left.width<label.x&&label.x+label.width<right.x);
@@ -117,8 +129,17 @@ int main(void){
  tap(&ctx,342,1040);assert(s_page==0&&!s_pending);
  tap(&ctx,10,1040);assert(s_page==0&&!s_pending);
  assert(s_items[0].directory&&!strcmp(s_items[1].name,"Việt.EPUB"));
- tap(&ctx,160,244+88+10);assert(opened==1&&!strcmp(selected,"/sdcard/books/Việt.EPUB")&&ctx.request_app==app_at(1));
- ctx.request_app=NULL;tap(&ctx,550,1040);assert(s_page==1&&s_pending);tick(&ctx);assert(s_count==8&&s_more);
+ tap(&ctx,160,PICK_TOP+PICK_ROW_H+10);assert(opened==1&&!strcmp(selected,"/sdcard/Books/Việt.EPUB")&&ctx.request_app==app_at(1));
+ ctx.request_app=NULL;
+ open_fail=true;tap(&ctx,160,PICK_TOP+PICK_ROW_H+10);assert(!ctx.request_app&&strstr(s_notice,"Không thể mở"));open_fail=false;
+ stat_fail=true;tap(&ctx,160,PICK_TOP+PICK_ROW_H+10);assert(!ctx.request_app&&strstr(s_notice,"Tải lại"));stat_fail=false;
+ tap(&ctx,550,260);assert(s_pending&&s_page==0);tick(&ctx);
+ tap(&ctx,160,PICK_TOP+10);assert(s_pending&&!strcmp(s_directory,"/sdcard/Books/folder"));tick(&ctx);
+ tap(&ctx,300,260);assert(s_pending&&!strcmp(s_directory,"/sdcard/Books"));tick(&ctx);
+ ui_gesture_event_t swipe={UI_GESTURE_SWIPE_L,200,PICK_TOP+10};
+ assert(gesture(&ctx,&swipe)==APP_REDRAW_PAGE&&s_page==1);tick(&ctx);
+ swipe.type=UI_GESTURE_SWIPE_R;assert(gesture(&ctx,&swipe)==APP_REDRAW_PAGE&&s_page==0);tick(&ctx);
+ tap(&ctx,550,1040);assert(s_page==1&&s_pending);tick(&ctx);assert(s_count==8&&s_more);
  tap(&ctx,550,1040);tick(&ctx);assert(s_count==2&&!s_more);tap(&ctx,100,1040);assert(s_page==1);tick(&ctx);
  back(&ctx);assert(!strcmp(s_directory,"/sdcard")&&s_pending);tick(&ctx);
  back(&ctx);assert(ctx.request_app==app_at(0));ctx.request_app=NULL;
@@ -128,14 +149,39 @@ int main(void){
  read_fail=true;scan_page();assert(!s_count&&s_notice[0]);read_fail=false;
  lost(&ctx);assert(!s_items&&!s_pending&&!s_count&&!s_more);
  media=false;ready(&ctx);assert(tick(&ctx)==APP_REDRAW_NONE&&s_pending);
- media=true;tick(&ctx);assert(!s_pending);leave(&ctx);
- puts("PASS simple picker: bounded page, formats/hidden files, pagination, Unicode, open routing, parent/root, media loss, OOM/read fault; both nav modes");
+ media=true;tick(&ctx);assert(!s_pending&&!strcmp(s_directory,"/sdcard/Books"));leave(&ctx);
+ books_missing=true;enter(&ctx);tick(&ctx);assert(!strcmp(s_directory,"/sdcard"));
+ tap(&ctx,300,260);assert(!s_pending&&!ctx.request_app);
+ books_missing=false;tap(&ctx,100,260);tick(&ctx);assert(!strcmp(s_directory,"/sdcard/Books"));
+ total=20;reload(false);tick(&ctx);
+ tap(&ctx,160,PICK_TOP+10);tick(&ctx);assert(!strcmp(s_directory,"/sdcard/Books/folder"));
+ tap(&ctx,550,110);assert(usb_requests==1&&ctx.request_app==&app_transfer&&s_return_from_usb);
+ leave(&ctx);ctx.request_app=NULL;enter(&ctx);tick(&ctx);
+ assert(!strcmp(s_directory,"/sdcard/Books/folder")&&!s_return_from_usb);
+ leave(&ctx);enter(&ctx);tick(&ctx);assert(!strcmp(s_directory,"/sdcard/Books"));
+ assert(!card_path("/sdcard/../other")&&!card_path("/sdcard/books/./bad")&&!card_path("/sdcard2"));
+ for(unsigned i=0;i<3;++i){EpdRect r=tool_button(i);assert(r.y+r.height<=PICK_TOP&&r.x+r.width<=648);}
+ assert(PICK_TOP+PICK_ROWS*PICK_ROW_H<=984);
+#if KIIKO_LOVE_BOOK
+ unsigned book_y=PICK_TOP+PICK_ROW_H+20;
+ tap(&ctx,590,book_y);assert(s_delete_path[0]&&!deletes);
+ tap(&ctx,100,730);assert(!s_delete_path[0]&&!deletes);
+ tap(&ctx,590,book_y);app_book_picker.on_before_lock(&ctx);
+ tap(&ctx,400,730);assert(!deletes);
+ tap(&ctx,590,book_y);s_delete_stat.st_size++;
+ tap(&ctx,400,730);assert(!deletes&&!s_delete_path[0]);
+ tap(&ctx,590,book_y);tap(&ctx,400,730);
+ assert(deletes==1&&forgotten==1&&cleared==1&&changes==1&&!s_delete_path[0]&&s_page==0);
+#endif
+ leave(&ctx);
+ puts("PASS Love Book picker: Books default/fallback, folder navigation, refresh, buttons/swipes, Unicode/size, open errors, USB route/return/rescan, SD loss, OOM/read faults; both nav modes");
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
  path=Path(tmp)/'test.c';path.write_text(unit)
- subprocess.run(['cc','-std=gnu11','-fsanitize=undefined','-g',str(path),'-o',str(Path(tmp)/'test')],check=True)
- subprocess.run([str(Path(tmp)/'test')],check=True)
+ for edition in (0,1):
+  subprocess.run(['cc','-std=gnu11',f'-DKIIKO_LOVE_BOOK={edition}','-fsanitize=undefined','-g',str(path),'-o',str(Path(tmp)/'test')],check=True)
+  subprocess.run([str(Path(tmp)/'test')],check=True)
 
 # Full settings implementation with the S31 device-bound backup fixture.
 from board_source_view import materialize

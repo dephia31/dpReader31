@@ -2,14 +2,20 @@
 """中文：先校验并上传完整草稿，再公开正式Release；不覆盖已发布字节。/ English: Validate/upload a complete draft before publication; never overwrite published bytes."""
 from pathlib import Path
 import argparse,hashlib,json,os,subprocess,urllib.request,urllib.error
-from verify_metalio_release import verify
+from verify_metalio_release import verify_all
 ROOT=Path(__file__).resolve().parents[1]
 REPO='dephia31/dpReader31'
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--dry-run',action='store_true');args=parser.parse_args()
-    manifest=verify();version=manifest['version'];tag='v'+version
+    manifest,love=verify_all();version=manifest['version'];tag='v'+version
     names=['dpReader_metalio47_firmware.bin','dpReader_metalio47_full.bin','SHA256SUMS.txt','metalio-s31-update.json','verification.json',f'dpReader-metalio47-{version}-USB.zip',f'dpReader-metalio47-{version}-TF.zip']
-    assert all((ROOT/'releases'/n).is_file() for n in names)
+    assets=[(n,ROOT/'releases'/n) for n in names]
+    if love:
+        love_version=love['version']
+        love_names=['dpReader_metalio47_firmware.bin','dpReader_metalio47_full.bin','SHA256SUMS.txt','metalio-s31-update.json','verification.json',f'dpReader-metalio47-{love_version}-USB.zip',f'dpReader-metalio47-{love_version}-TF.zip']
+        assets.extend((n if love_version in n else 'love-book-'+n,ROOT/'releases/love-book'/n) for n in love_names)
+    names=[n for n,_ in assets]
+    assert len(names)==len(set(names)) and all(path.is_file() for _,path in assets)
     if args.dry_run:print('Ready to publish',tag,':',', '.join(names));return
     if os.environ.get('GITHUB_REF_TYPE')=='tag' and os.environ.get('GITHUB_REF_NAME')!=tag:
         raise RuntimeError('Workflow tag differs from release manifest')
@@ -31,8 +37,8 @@ def main():
     except urllib.error.HTTPError as error:
         if error.code!=404:raise
         release=api('releases','POST',{'tag_name':tag,'name':'dpReader Metalio 4.7 Firmware '+tag,'body':notes,'draft':True,'prerelease':False})
-    for name in names:
-        data=(ROOT/'releases'/name).read_bytes();digest='sha256:'+hashlib.sha256(data).hexdigest()
+    for name,path in assets:
+        data=path.read_bytes();digest='sha256:'+hashlib.sha256(data).hexdigest()
         old=next((a for a in release['assets'] if a['name']==name),None)
         if old:
             if old.get('digest')!=digest or old['size']!=len(data):raise RuntimeError('Immutable asset differs: '+name)

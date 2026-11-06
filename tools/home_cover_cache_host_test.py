@@ -8,7 +8,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 def function(name, path):
-    text = path.read_text()
+    from firmware_sources import source_text
+    text = source_text(path)
     scan = re.sub(r'''//[^\n]*|/\*[\s\S]*?\*/|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"''', lambda m: ' ' * len(m[0]), text)
     start = re.search(r'^(?:static )?(?:[A-Za-z_]\w*(?:\s+|\s*\*\s*))+' + name + r'\([^;{}]*?\)\s*\{', scan, re.M)
     assert start, name
@@ -93,10 +94,35 @@ ready:
 """
     unit += function('ui_contrast_gray', ROOT/'main/ui/ui_kit.c')+'\n'
     unit += function('book_cover_crop', ROOT/'main/book/book_cover.c')+'\n'
-    for name in ('book_at','clear_cover_cache','app_home_cover_mode_changed','restore_cover_cache','load_cover'):
+    for name in ('book_at','clear_cover_cache'):
+        unit += function(name, home)+'\n'
+    unit += '#if KIIKO_LOVE_BOOK\n'
+    for name in ('love_cover_drop','app_home_trim_cover_history','love_cover_bind','love_cover_restore','love_cover_make_room'):
+        unit += function(name, home)+'\n'
+    unit += '#endif\n'
+    for name in ('app_home_cover_mode_changed','restore_cover_cache','load_cover'):
         unit += function(name, home)+'\n'
     unit += r'''
 static void book(int slot,int id){home_book_t *b=book_at(slot);memset(b,0,sizeof(*b));if(id<0)return;snprintf(b->path,sizeof(b->path),"/book%d.epub",id);snprintf(b->title,sizeof(b->title),"title%d",id);strcpy(b->author,"author");}
+#if KIIKO_LOVE_BOOK
+int main(void){
+    full_mode=true;
+    for(int id=0;id<5;++id){book(0,id);restore_cover_cache();assert(!s_current.cover);assert(load_cover(&s_current,0));}
+    assert(live_bytes==4u*176*240 && loads==5);
+    for(int id=1;id<5;++id){book(0,id);restore_cover_cache();assert(s_current.cover==s_cover_cache[0].pixels&&s_current.cover);}
+    assert(loads==5);
+    book(0,0);restore_cover_cache();assert(!s_current.cover);
+    modified=4;book(0,4);restore_cover_cache();assert(!s_current.cover&&live_bytes==3u*176*240);
+    modified=-1;book(0,3);restore_cover_cache();assert(s_current.cover);
+    uint8_t *current=s_current.cover;
+    psram=2u*1024u*1024u;
+    app_home_trim_cover_history();
+    assert(live_bytes==176u*240&&s_current.cover==current);
+    app_home_cover_mode_changed();
+    assert(!live_bytes&&!s_current.cover);
+    puts("PASS: four Love covers, LRU eviction and reuse, modified-file invalidation, PSRAM pressure and cache clear");
+}
+#else
 static void seed(void){clear_cover_cache();for(int i=0;i<7;++i){book(i,i);assert(load_cover(book_at(i),i));}assert(live_bytes==7u*176*240);}
 int main(void){
     unsigned rng=1;
@@ -130,9 +156,13 @@ int main(void){
     app_home_cover_mode_changed();alloc_fail=true;assert(!load_cover(book_at(0),0)&&!live_bytes);alloc_fail=false;asset_allowed=false;before=loads;assert(!load_cover(book_at(0),0)&&loads==before);
     puts("PASS: 300 actual in-place Home reorderings; duplicate/missing/modified identities; no stale pointer or double free; fast 5,280-byte BW only; gray-only ordinary/ripple; checked OOM and recovery");
 }
+#endif
 '''
     with tempfile.TemporaryDirectory(dir=ROOT/'build') as folder:
         c, exe = Path(folder)/'test.c',Path(folder)/'test'
         c.write_text(unit)
-        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(ROOT/'main/ui'),'-I'+str(ROOT/'main/book'),str(c),str(ROOT/'main/ui/ui_image_dither.c'),'-o',str(exe)],check=True)
-        subprocess.run([str(exe)],check=True)
+        for edition in (0,1):
+            subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+                            f'-DKIIKO_LOVE_BOOK={edition}','-I'+str(ROOT/'main/ui'),'-I'+str(ROOT/'main/book'),
+                            str(c),str(ROOT/'main/ui/ui_image_dither.c'),'-o',str(exe)],check=True)
+            subprocess.run([str(exe)],check=True)

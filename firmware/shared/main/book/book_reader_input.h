@@ -1,0 +1,59 @@
+/* SPDX-License-Identifier: Apache-2.0
+ * 中文：正文单击翻页与双击识别；页面处理插图缩放并取消离页/锁屏/滑动后的等待。
+ * English: Recognize page taps and double taps; pages own illustration zoom and cancellation on exit, lock or swipe.
+ */
+#pragma once
+#include <stdbool.h>
+#include <stdint.h>
+#include "epdiy.h"
+
+#define BOOK_READER_DOUBLE_MS 340
+#define BOOK_READER_TAP_DOUBLE 2
+
+typedef struct {
+    bool pending;
+    int direction;
+    int64_t at_ms;
+    int x, y;
+} book_reader_tap_t;
+
+/// rtl 表示竖排从右到左：横向分区的「上一页」在右半边，左右翻转。
+/// rtl marks right-to-left vertical text: the previous-page half is the right one.
+static inline int book_reader_tap_direction(EpdRect body, int x, int y, bool vertical, bool rtl) {
+    if (x < body.x || x >= body.x + body.width || y < body.y || y >= body.y + body.height) return 0;
+    if (vertical) return y < body.y + body.height / 3 ? -1 : 1;
+    bool previous_half = rtl ? x >= body.x + body.width / 2 : x < body.x + body.width / 2;
+    return previous_half ? -1 : 1;
+}
+static inline int book_reader_tap_feed(book_reader_tap_t *tap, EpdRect body,
+                                      int x, int y, bool vertical, bool rtl, int64_t now_ms) {
+    // Text taps are independent, including consecutive taps in the former double-tap window.
+    (void)now_ms;
+    tap->pending = false;
+    return book_reader_tap_direction(body, x, y, vertical, rtl);
+}
+static inline int book_reader_tap_tick(book_reader_tap_t *tap, int64_t now_ms, bool touching) {
+    if (!tap->pending) return 0;
+    if (now_ms < tap->at_ms) { tap->pending = false; return 0; }
+    if (touching || now_ms - tap->at_ms <= BOOK_READER_DOUBLE_MS) return 0;
+    tap->pending = false;
+    return tap->direction;
+}
+/// 整页插图用：任意位置的双击都算双击，单击一律延后到双击窗口结束才翻页。
+/// For a whole-page illustration a double tap counts anywhere, and a single tap is deferred until
+/// the double-tap window expires before it turns the page.
+static inline int book_reader_tap_feed_any(book_reader_tap_t *tap, EpdRect body,
+                                          int x, int y, bool vertical, bool rtl, int64_t now_ms) {
+    const int direction = book_reader_tap_direction(body, x, y, vertical, rtl);
+    if (!direction) { tap->pending = false; return 0; }
+    const int dx = x - tap->x, dy = y - tap->y;
+    if (tap->pending && now_ms >= tap->at_ms && now_ms - tap->at_ms <= BOOK_READER_DOUBLE_MS &&
+        dx * dx + dy * dy <= 120 * 120) {
+        tap->pending = false;
+        return BOOK_READER_TAP_DOUBLE;
+    }
+    const int expired = tap->pending && now_ms >= tap->at_ms &&
+        now_ms - tap->at_ms > BOOK_READER_DOUBLE_MS ? tap->direction : 0;
+    *tap = (book_reader_tap_t){true, direction, now_ms, x, y};
+    return expired;
+}

@@ -147,7 +147,9 @@ static void ui_text_fixed_vc(uint8_t *fb,int x,int y,int px,const char *s,int al
 }
 '''
 render += define_block + '\n'
-for name in ('reader_area', 'progress_rect', 'reader_footer_visible',
+render += 'static int s_footer_layout_override=-1; static bool footer_enabled=true; static bool app_settings_book_footer_enabled(void){return footer_enabled;}\n'
+render += 'static int s_margin=24; static bool vertical; static bool app_settings_book_vertical(void){return vertical;}\n'
+for name in ('reader_content_bottom', 'body_rect_for_tracking', 'reader_area', 'progress_rect', 'reader_footer_visible',
              'reader_progress_bar_height', 'reader_footer_chapter_rect', 'reader_footer_meta_rect',
              'reader_footer_bar_rect', 'draw_reader_footer'):
     render += function(name, BOOK) + '\n'
@@ -156,6 +158,37 @@ render += key_enum + '\nstatic uint8_t s_reader_keys[3],s_reader_hold_action,s_v
 for name in ('app_settings_reader_key_action', 'app_settings_reader_hold_action',
              'app_settings_volume_key_action', 'app_settings_reader_key_action_allowed'):
     render += function(name, SETTINGS) + '\n'
+render += r'''
+enum {APP_REDRAW_NONE,APP_REDRAW_FULL};
+typedef int app_redraw_t;
+static const char *s_text="abc";
+static size_t s_text_len=3,s_block_count,s_page=2;
+static const void *s_blocks;
+static int s_px=48, builds, saves;
+static int fail_build, fail_write;
+static bool s_reader_footer_pending, locked;
+static char s_reader_notice[80];
+static int64_t s_reader_notice_until;
+static void lock_draw(void){assert(!locked);locked=true;}
+static void unlock_draw(void){assert(locked);locked=false;}
+static void invalidate_prep(void){assert(locked);}
+static void refresh_chapter_lead(void){assert(locked);}
+static EpdRect body_rect(void){return body_rect_for_tracking(0);}
+static size_t book_layout_page_start_offset(size_t page){return page*100;}
+static size_t book_layout_page_for_offset(size_t offset){assert(offset==200);return 2;}
+static bool book_layout_build_blocks(const char *text,size_t len,const void *blocks,size_t count,EpdRect rect,int px){
+ assert(text==s_text&&len==3&&!blocks&&!count&&px==48&&locked);
+ assert(rect.y+rect.height==reader_content_bottom()-2);
+ ++builds;
+ if(fail_build){--fail_build;return false;}
+ return true;
+}
+static bool app_settings_set_book_footer_enabled(bool on){if(fail_write)return false;footer_enabled=on;return true;}
+static void save_progress(void){assert(!locked);++saves;}
+static int64_t esp_timer_get_time(void){return 1000000;}
+'''
+render += function('copy_text', BOOK) + '\n'
+render += function('toggle_reader_footer', BOOK) + '\n'
 render += r'''
 int main(void){
  assert(READER_FOOTER_LINE_PX==40&&READER_FOOTER_META_PX==40);
@@ -177,6 +210,23 @@ int main(void){
   assert(area.y+area.height==UI_LOCK_HEIGHT-2&&area.height==94);
   assert(body.y+body.height<=chapter.y);assert(area.y<=chapter.y&&area.y+area.height>=page_y);
  }
+ footer_enabled=false;clears=0;texts=0;bars=0;
+ draw_reader_footer(NULL,20);
+ assert(!reader_footer_visible()&&!clears&&!texts&&!bars);
+ EpdRect expanded=reader_area();
+ assert(expanded.y+expanded.height==UI_LOCK_HEIGHT-2);
+ for (int axis=0;axis<2;++axis) {
+  vertical=axis;
+  EpdRect tall=body_rect_for_tracking(0);
+  s_footer_layout_override=1;
+  EpdRect short_body=body_rect_for_tracking(0);
+  assert(tall.height==short_body.height+94 && tall.y==short_body.y && tall.width==short_body.width);
+  s_footer_layout_override=-1;
+ }
+ s_footer_layout_override=1;
+ assert(reader_area().height==expanded.height-94);
+ s_footer_layout_override=-1;
+ footer_enabled=true;
  mask=7;style=2;page_count=1000000;draw_reader_footer(NULL,20);
  EpdRect fixed=reader_footer_bar_rect(page_w,pct_w,true,true);
  assert(READER_FOOTER_CHAPTER_TOP==4);
@@ -206,6 +256,13 @@ int main(void){
   assert(one.x-left==right-(one.x+one.width));
  }
 
+ vertical=false;
+ assert(toggle_reader_footer()==APP_REDRAW_FULL&&!footer_enabled&&s_page==2&&saves==1&&builds==1);
+ assert(toggle_reader_footer()==APP_REDRAW_FULL&&footer_enabled&&saves==2&&builds==2);
+ fail_build=1;
+ assert(toggle_reader_footer()==APP_REDRAW_FULL&&footer_enabled&&saves==2&&builds==4&&s_reader_notice[0]);
+ fail_write=1;
+ assert(toggle_reader_footer()==APP_REDRAW_FULL&&footer_enabled&&saves==2&&builds==6&&!locked&&s_footer_layout_override==-1);
  puts("PASS: footer labels/toggles/styles with stale-cache clearing, shared row, long page counts and body/refresh bounds");
 }
 '''

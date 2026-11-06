@@ -3,10 +3,11 @@
 from pathlib import Path
 import hashlib,json,re,struct,zipfile
 ROOT=Path(__file__).resolve().parents[1]
-def verify(folder=None):
+def verify(folder=None, edition="full"):
     folder=Path(folder or ROOT/'releases')
     manifest=json.loads((folder/'metalio-s31-update.json').read_text())
-    version=manifest['version'];assert re.fullmatch(r'\d+\.\d+\.\d+-vn',version)
+    version=manifest['version'];assert re.fullmatch(r'\d+\.\d+\.\d+'+('-love-vn' if edition=='love-book' else '-vn'),version)
+    assert manifest.get('edition',edition)==edition
     assert len(manifest['notes'].encode())<384
     info=json.loads((folder/'verification.json').read_text())
     app=(folder/'dpReader_metalio47_firmware.bin').read_bytes();full=(folder/'dpReader_metalio47_full.bin').read_bytes()
@@ -17,10 +18,15 @@ def verify(folder=None):
     assert digest==manifest['sha256']==info['sha256'] and len(app)==manifest['size']==info['size']
     assert full[0x10000:]==app and full[0x2000]==0xe9 and struct.unpack_from('<H',full,0x200c)[0]==32
     assert not any(v for k,v in info.items() if k.startswith('experimental_') or k=='local_transfer_start_test')
-    previous=manifest['previous_version'];assert previous!=version
-    old=json.loads((folder/previous/'metalio-s31-update.json').read_text())
-    old_app=(folder/previous/'dpReader_metalio47_firmware.bin').read_bytes()
-    assert len(old_app)==old['size'] and hashlib.sha256(old_app).hexdigest()==old['sha256']
+    previous=manifest.get('previous_version')
+    if previous:
+        assert previous!=version and re.fullmatch(r'\d+\.\d+\.\d+'+('-love-vn' if edition=='love-book' else '-vn'),previous)
+        old=json.loads((folder/previous/'metalio-s31-update.json').read_text())
+        old_app=(folder/previous/'dpReader_metalio47_firmware.bin').read_bytes()
+        assert len(old_app)==old['size'] and hashlib.sha256(old_app).hexdigest()==old['sha256']
+    else:
+        assert edition=='love-book', 'Full must retain a previous release'
+
     for kind in ('USB','TF'):
         with zipfile.ZipFile(folder/f'dpReader-metalio47-{version}-{kind}.zip') as z:
             assert not z.testzip() and all('/' not in n and '\\' not in n for n in z.namelist())
@@ -33,4 +39,13 @@ def verify(folder=None):
     for name,digest in sums.items():assert hashlib.sha256((folder/name).read_bytes()).hexdigest()==digest,name
     print('Verified official S31 release:',version,'app bytes=',len(app))
     return manifest
-if __name__=='__main__':verify()
+def verify_all():
+    full=verify()
+    love_folder=ROOT/'releases/love-book'
+    required=tuple(int(x) for x in full['version'].removesuffix('-vn').split('.')) >= (1,3,3)
+    love=verify(love_folder,'love-book') if required or love_folder.exists() else None
+    if love:
+        assert love['version'].removesuffix('-love-vn')==full['version'].removesuffix('-vn')
+    return full,love
+
+if __name__=='__main__':verify_all()

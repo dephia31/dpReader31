@@ -59,6 +59,11 @@ static void corrupt_primary(bool foreign_device) {
 static void convert_to_v25(void) {
     unsigned char bytes[8192]; FILE *file = fopen(BACKUP_FILE, "rb"); assert(file);
     size_t len = fread(bytes, 1, sizeof(bytes), file); assert(feof(file)); fclose(file);
+    size_t accounts_offset=(size_t)identity_offset()+sizeof(backup_identity_t);
+    assert(len>=accounts_offset+sizeof(settings_backup_accounts_t));
+    memmove(bytes+accounts_offset,bytes+accounts_offset+sizeof(settings_backup_accounts_t),
+            len-accounts_offset-sizeof(settings_backup_accounts_t));
+    len-=sizeof(settings_backup_accounts_t);
     settings_backup_v1_t base; memcpy(&base,bytes,sizeof(base)); base.magic[7]='P';backup_seal(&base);
     memcpy(bytes,&base,sizeof(base)); uint8_t *ext=bytes+sizeof(base);
     uint32_t hash=backup_shutdown_checksum(&base,ext[0],ext[1],ext[2]);
@@ -75,6 +80,11 @@ static void convert_to_v25(void) {
 static void convert_to_v26(void) {
     unsigned char bytes[8192];FILE *file=fopen(BACKUP_FILE,"rb");assert(file);
     size_t len=fread(bytes,1,sizeof(bytes),file);assert(feof(file));fclose(file);
+    size_t accounts_offset=(size_t)identity_offset()+sizeof(backup_identity_t);
+    assert(len>=accounts_offset+sizeof(settings_backup_accounts_t));
+    memmove(bytes+accounts_offset,bytes+accounts_offset+sizeof(settings_backup_accounts_t),
+            len-accounts_offset-sizeof(settings_backup_accounts_t));
+    len-=sizeof(settings_backup_accounts_t);
     settings_backup_v1_t base;memcpy(&base,bytes,sizeof(base));base.magic[7]='Q';backup_seal(&base);
     memcpy(bytes,&base,sizeof(base));uint8_t *ext=bytes+sizeof(base);
     uint32_t hash=backup_shutdown_checksum(&base,ext[0],ext[1],ext[2]);

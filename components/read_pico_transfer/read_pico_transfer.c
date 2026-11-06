@@ -662,7 +662,8 @@ extern const char upload_end[] asm("_binary_upload_html_end");
 
 bool read_pico_transfer_network_shareable(void) {
     portENTER_CRITICAL(&s_lock);
-    bool allowed=!s_sleep_blocked && (s_status.state==READ_PICO_TRANSFER_STOPPED||s_cfg.network_only);
+    bool allowed = !s_sleep_blocked && !s_shutdown_only &&
+        (s_status.state == READ_PICO_TRANSFER_STOPPED || (s_cfg.network_only && !s_stopping));
     portEXIT_CRITICAL(&s_lock);return allowed;
 }
 void read_pico_transfer_get_status(read_pico_transfer_status_t *out) {
@@ -918,7 +919,7 @@ time_cleanup:
             s_wifi=true;s_started=wifi_started&&stopped!=ESP_OK&&stopped!=ESP_ERR_WIFI_NOT_STARTED;
             s_netif=netif;s_loop_owned=loop_owned;netif=NULL;loop_owned=false;
             s_ble_network_reserved=true;s_shutdown_only=true;retained_driver=true;err=closed;
-            portENTER_CRITICAL(&s_lock);s_status.state=READ_PICO_TRANSFER_ERROR;s_status.last_error=closed;portEXIT_CRITICAL(&s_lock);
+            portENTER_CRITICAL(&s_lock);s_status.state=READ_PICO_TRANSFER_ERROR;s_status.last_error=closed;s_status.network_ready=false;portEXIT_CRITICAL(&s_lock);
         }
     }
     if (netif) esp_netif_destroy_default_wifi(netif);
@@ -1096,7 +1097,7 @@ cleanup:
         if (deinit_err != ESP_OK && deinit_err!=ESP_ERR_WIFI_NOT_INIT) {
             s_wifi=true;s_started=started;s_netif=scan_netif;s_loop_owned=loop_owned;
             scan_netif=NULL;loop_owned=false;s_ble_network_reserved=true;s_shutdown_only=true;err=deinit_err;
-            portENTER_CRITICAL(&s_lock);s_status.state=READ_PICO_TRANSFER_ERROR;s_status.last_error=deinit_err;portEXIT_CRITICAL(&s_lock);
+            portENTER_CRITICAL(&s_lock);s_status.state=READ_PICO_TRANSFER_ERROR;s_status.last_error=deinit_err;s_status.network_ready=false;portEXIT_CRITICAL(&s_lock);
         }
     }
     if (scan_netif) esp_netif_destroy_default_wifi(scan_netif);
@@ -2205,10 +2206,11 @@ void read_pico_transfer_prepare_network(void) {
     TRANSFER_NETWORK_GUARD_OR_RETURN();
     read_pico_transfer_resume_service();
     if (read_pico_transfer_sleep_blocked()) return;
-    // 只清理已无资源的失败状态，不抢断服务、上传或配置。
-    // Clear only resource-free failures; never preempt a server, upload or configuration.
-    if (s_status.state == READ_PICO_TRANSFER_ERROR && !s_started && !s_wifi &&
-        !s_http && !s_netif && !s_config_busy && !s_time_active && !s_upload_active)
+    // Retry an interrupted teardown before admitting the next network user.
+    // A failed live session is still page-owned until its owner asks to stop.
+    if (s_status.state == READ_PICO_TRANSFER_ERROR &&
+        !s_config_busy && !s_time_active && !s_upload_active &&
+        (s_shutdown_only || s_stopping || (!s_started && !s_wifi && !s_http && !s_netif)))
         read_pico_transfer_stop();
 }
 
@@ -2242,7 +2244,11 @@ void read_pico_transfer_stop(void) {
     transfer_network_guard_t network_scope __attribute__((cleanup(transfer_network_guard_end)))={read_pico_transfer_network_begin()};
     if(!network_scope.held){read_pico_transfer_network_request_stop();return;}
     if (!cancel_time_sync(false)) return;
-    portENTER_CRITICAL(&s_lock); s_stopping = true; portEXIT_CRITICAL(&s_lock);
+    portENTER_CRITICAL(&s_lock);
+    s_stopping = true;
+    s_status.network_ready = false;
+    s_status.url[0] = 0;
+    portEXIT_CRITICAL(&s_lock);
     if (s_http) { esp_err_t err=httpd_stop(s_http);if(err!=ESP_OK){set_error(err);return;} s_http = NULL; }
     if (s_started) { esp_err_t err=esp_wifi_stop();if(err!=ESP_OK && err!=ESP_ERR_WIFI_NOT_INIT && err!=ESP_ERR_WIFI_NOT_STARTED){set_error(err);return;} s_started = false; }
     if (s_events) { esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, s_events); s_events = NULL; }

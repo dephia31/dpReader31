@@ -30,6 +30,15 @@ elseif(DEFINED ENV{PICO_PROJECT_VER} AND NOT "$ENV{PICO_PROJECT_VER}" STREQUAL "
 else()
     set(PROJECT_VER "${KIIKO_PROJECT_VER}")
 endif()
+set(KIIKO_EDITION "full" CACHE STRING "Firmware edition: full or love-book")
+if(KIIKO_EDITION STREQUAL "love-book")
+    set(KIIKO_LOVE_BOOK 1)
+elseif(KIIKO_EDITION STREQUAL "full")
+    set(KIIKO_LOVE_BOOK 0)
+else()
+    message(FATAL_ERROR "Unknown KIIKO_EDITION: ${KIIKO_EDITION}")
+endif()
+add_compile_definitions(KIIKO_LOVE_BOOK=${KIIKO_LOVE_BOOK} KIIKO_FIRMWARE_VERSION="${PROJECT_VER}")
 project(${KIIKO_PROJECT_NAME})
 
 # 固件描述时间统一为 UTC，与概览页标识一致；保留已有编译缓存启动器。
