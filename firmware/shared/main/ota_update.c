@@ -36,7 +36,7 @@
 const __attribute__((section(".rodata_desc"))) esp_app_desc_t esp_app_desc = {
     .magic_word = ESP_APP_DESC_MAGIC_WORD,
 #ifndef KIIKO_FIRMWARE_VERSION
-#define KIIKO_FIRMWARE_VERSION "1.3.4RC1-vn"
+#define KIIKO_FIRMWARE_VERSION "1.3.3-vn"
 #endif
     .version = KIIKO_FIRMWARE_VERSION,
     .project_name = "Kiikoread_Metalio_S31",

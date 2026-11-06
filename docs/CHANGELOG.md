@@ -1,4 +1,4 @@
-## dpReader 1.3.4RC1-vn / 1.3.4RC1-love-vn · Bản thử
+## Chưa phát hành
 
 - Chạm tham chiếu chú thích EPUB để đọc trong popup. Popup chú thích và từ điển ngắt dòng theo từ.
 
