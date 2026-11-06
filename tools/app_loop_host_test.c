@@ -718,6 +718,7 @@ void ui_avatar_invalidate(void) {}
 bool book_cover_jobs_quiesce(unsigned timeout){(void)timeout;return step>covers_busy_until;}
 bool ui_avatar_quiesce(unsigned timeout){(void)timeout;return step>avatar_busy_until;}
 void book_lock_collage_invalidate(void) {}
+void metalio_cover_cache_clear(void) {}
 
 bool ble_pt_connected(void) { return false; }
 bool ble_pt_scanning(void){return false;}

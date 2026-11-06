@@ -35,8 +35,12 @@ int main(void) {
     for(unsigned i=0;i<4;++i)ext[3+i]=hash>>(8*i);
     settings_backup_profile_t profile;memcpy(&profile,ext+7,sizeof(profile));hash=backup_profile_checksum(&base,ext[0],ext[1],ext[2],&profile);
     for(unsigned i=0;i<4;++i)profile.checksum[i]=hash>>(8*i);
-    memcpy(ext+7,&profile,sizeof(profile));assert(len>(size_t)offset+sizeof(reader_backup_t));
-    memmove(bytes+offset,bytes+offset+sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t),len-offset-sizeof(reader_backup_t)-sizeof(settings_backup_utilities_t));len-=sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t);
+    memcpy(ext+7,&profile,sizeof(profile));
+    size_t removed=sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+
+        sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t);
+    assert(len>=(size_t)offset+removed);
+    memmove(bytes+offset,bytes+offset+removed,len-offset-removed);
+    len-=removed;
     file=fopen(BACKUP_FILE,"wb");assert(file);assert(fwrite(bytes,1,len,file)==len);fclose(file);
     assert(app_settings_backup_restore()==ESP_OK);
     puts("PASS unified backup: all reader fields, WiFi and history restored in one operation; tracking survives reboot; corrupt reader block rejected before commit");

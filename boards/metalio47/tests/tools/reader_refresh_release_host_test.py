@@ -104,7 +104,8 @@ static bool reader_slider_feedback_present(app_ctx_t *ctx,app_redraw_t redraw){(
 '''
 unit+='static bool reader_panel_short_ready(app_redraw_t r){return test_panel_short&&r==APP_REDRAW_PAGE;}\nstatic bool reader_panel_fast_present(app_ctx_t *ctx,app_redraw_t redraw){(void)ctx;(void)redraw;return false;}\nstatic void reader_panel_record(enum EpdDrawError err){(void)err;}\nstatic bool display_page_prepare_begin(void){return false;}\nstatic void display_page_prepare_end(bool held){(void)held;}\n'
 unit += '#define READER_FOOTER_TOP (UI_LOCK_HEIGHT-96)\n#define READER_FOOTER_HEIGHT 94\n'
-for name in ('reader_area','progress_rect'):
+unit += '#define READER_FOOTER_BOTTOM_GAP 2\nstatic int s_footer_layout_override=-1;\nstatic bool app_settings_book_footer_enabled(void){return true;}\n'
+for name in ('reader_content_bottom','reader_area','progress_rect'):
  unit+=function(name,root/'main/apps/app_book.c')+'\n'
 unit+=function('present',root/'main/apps/app_book.c')
 unit+=r'''
