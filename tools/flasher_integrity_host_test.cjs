@@ -117,6 +117,8 @@ async function verify(snapshot) {
     const customFileInput = {files: [{name: 'rc-app.bin', arrayBuffer: async () => payload.buffer}]};
     const customOffsetInput = {value: customOffset}, progressStatus = {}, terminal = {writeLine() {}};
     const fetched = [];
+    const editionSelect = {value: "full"}, currentReleaseInfo = {};
+    const verifySelectedFirmware = async () => {}; // Actual validation is exercised in web_editions_host_test.mjs.
     const timestamp = 1, fetchBinary = async (...urls) => {fetched.push(urls); return payload;}, selectedReleaseFolder = () => folder || "releases";
     let binaryData = null, offset = 0, fileName = '', clearOtadata = false;
     ${branch}
@@ -139,7 +141,7 @@ async function verify(snapshot) {
   const source=fs.readFileSync(path.join(__dirname,'../web/red-studio-app.js'),'utf8');
   const helper=source.slice(source.indexOf('function selectedReleaseFolder()'),source.indexOf('const releaseVersionSelect'));
   for(const value of ['', '1.1.7-vn', '../../private', '1.1.6-vn']) {
-    const context={document:{getElementById:()=>({value})}};
+    const context={editionSelect:{value:"full"},document:{getElementById:()=>({value})}};
     vm.runInNewContext(helper,context);
     assert.equal(context.selectedReleaseFolder(),(value==='1.1.7-vn'||value==='1.1.6-vn')?`releases/${value}`:'releases');
   }
