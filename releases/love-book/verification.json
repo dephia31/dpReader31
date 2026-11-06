@@ -1,0 +1,72 @@
+{
+  "edition": "love-book",
+  "board": "metalio47",
+  "target": "esp32s31",
+  "chip_id": 32,
+  "project": "Kiikoread_Metalio_S31",
+  "version": "1.3.3-love-vn",
+  "size": 4645136,
+  "sha256": "b3606910ad02a6b4872b6a8892e619db3a7333148abef7a1da6a2054a27d0812",
+  "partitions": {
+    "nvs": [
+      1,
+      2,
+      36864,
+      16384
+    ],
+    "otadata": [
+      1,
+      0,
+      53248,
+      8192
+    ],
+    "phy_init": [
+      1,
+      1,
+      61440,
+      4096
+    ],
+    "ota_0": [
+      0,
+      16,
+      65536,
+      5242880
+    ],
+    "ota_1": [
+      0,
+      17,
+      5308416,
+      5242880
+    ],
+    "storage": [
+      1,
+      129,
+      10551296,
+      6160384
+    ],
+    "coredump": [
+      1,
+      3,
+      16711680,
+      65536
+    ]
+  },
+  "bootloader_offset": 8192,
+  "esptool_stub": false,
+  "free_app_bytes": 597744,
+  "firmware_bin": "/Users/phanhuy/Docs/dpReader/Metalio-S31-kiikoread/build/editions/love-book/packages/metalio47/dpReader_metalio47_firmware.bin",
+  "full_bin": "/Users/phanhuy/Docs/dpReader/Metalio-S31-kiikoread/build/editions/love-book/packages/metalio47/dpReader_metalio47_full.bin",
+  "experimental_pie_pixels": false,
+  "experimental_text_ripple": false,
+  "experimental_reader_panel37": false,
+  "experimental_shelf37": false,
+  "experimental_fast_reader_panels": false,
+  "experimental_network_probe": false,
+  "local_transfer_start_test": false,
+  "automatic_backup": true,
+  "automatic_restore": false,
+  "runtime_memory_validation": "not_performed_by_build",
+  "built": true,
+  "device_flashed": false,
+  "published": false
+}
