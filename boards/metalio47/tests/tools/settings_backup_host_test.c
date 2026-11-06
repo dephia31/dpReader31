@@ -153,7 +153,7 @@ esp_err_t nvs_erase_key(nvs_handle_t h, const char *key) { (void)h; (void)key; r
 esp_err_t nvs_commit(nvs_handle_t h) { (void)h; ++commit_count; return commit_fails ? ESP_FAIL : ESP_OK; }
 
 /* Fields added after V13 must be removed when constructing historical fixtures. */
-#define POST_V13_BYTES (2*sizeof(settings_backup_background_t)+sizeof(settings_backup_home_t)+sizeof(settings_backup_indent_adjust_t)+sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t))
+#define POST_V13_BYTES (2*sizeof(settings_backup_background_t)+sizeof(settings_backup_home_t)+sizeof(settings_backup_indent_adjust_t)+sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t))
 
 int main(void) {
     assert(app_settings_book_px()==74);
@@ -766,7 +766,7 @@ int main(void) {
         /* V19 ends with bookmark + history, without V21+ additions. */
         assert(fseek(legacy_file,-8,SEEK_END)==0);long history_at=ftell(legacy_file);
         char history[8];assert(fread(history,1,8,legacy_file)==8);
-        history_at-=(long)(sizeof(settings_backup_indent_adjust_t)+sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t));
+        history_at-=(long)(sizeof(settings_backup_indent_adjust_t)+sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t));
         assert(fseek(legacy_file,history_at,SEEK_SET)==0&&fwrite(history,1,8,legacy_file)==8);
         assert(fflush(legacy_file)==0&&ftruncate(fileno(legacy_file),history_at+8)==0&&fclose(legacy_file)==0);
         s_book_tracking=255;assert(app_settings_backup_restore()==ESP_OK);
