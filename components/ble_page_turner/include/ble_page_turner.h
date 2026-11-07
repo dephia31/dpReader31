@@ -141,13 +141,16 @@ void ble_pt_reset_failure(void);
 /// than disconnect() when the user turns Bluetooth off, so memory-hungry work such as EPUB
 /// inflate can allocate again. Waits at most timeout_ms (capped at 2s).
 esp_err_t ble_pt_stop(uint32_t timeout_ms);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// S31睡眠前关闭无线，醒后恢复目标；不改用户开关。/ Suspend radios while preserving user settings.
 esp_err_t ble_pt_suspend_for_sleep(void);
 void ble_pt_resume_after_sleep(void);
 #else
 #endif
 bool ble_pt_running(void);
+
+/// SDK đã báo lỗi khi dừng và tài nguyên BLE còn được giữ để tránh khởi động lại sai trạng thái.
+bool ble_pt_stop_failed(void);
 /// WiFi 分配前释放蓝牙并禁止重启，结束后释放占用；失败不允许继续分配网络。
 /// Stop BLE before WiFi allocations and inhibit restarts until released; abort networking on failure.
 esp_err_t ble_pt_network_acquire(void);
@@ -220,7 +223,7 @@ bool ble_pt_take_passkey(uint32_t *out);
 
 uint8_t ble_pt_bond_count(void);
 const ble_pt_bond_t *ble_pt_bond(uint8_t index);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 esp_err_t ble_pt_forget(const char *addr);
 #else
 void ble_pt_forget(const char *addr);
@@ -242,6 +245,9 @@ bool ble_pt_pop_key(ble_pt_event_t *out);
 /// press; when no release report ever comes, poll closes the press after 150 ms of silence so the
 /// next press of the same key counts again.
 bool ble_pt_pop_raw(ble_pt_raw_t *out);
+
+/// Xóa các sự kiện đầu vào đang chờ mà không thay đổi kết nối hay ánh xạ nút.
+void ble_pt_discard_input(void);
 
 /* ---- 手动映射 / Manual bindings ---- */
 

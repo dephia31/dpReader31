@@ -1,27 +1,27 @@
 # AGENTS.md
 
-面向 AI agent 的仓库入口。人类也可读。产品概述、硬件表、引脚、编译命令见 [README.md](README.md)。
+Hướng dẫn làm việc trong kho mã nguồn cho cả người bảo trì và AI. Tổng quan sản phẩm, bảng phần cứng, sơ đồ chân và lệnh build xem tại [README.md](README.md).
 
 Agent entry for this tree. Humans can read it too. Product overview, hardware, pinout and flash commands live in [README.md](README.md).
 
-新人（人或 agent）上手看 [docs/ONBOARDING.md](docs/ONBOARDING.md)；接手进行中的任务先看 [docs/HANDOFF.md](docs/HANDOFF.md)。
+Khi mới vào dự án, đọc [docs/ONBOARDING.md](docs/ONBOARDING.md). Khi tiếp quản việc đang làm, đọc trước [docs/HANDOFF.md](docs/HANDOFF.md).
 
 Newcomers (human or agent): read [docs/ONBOARDING.md](docs/ONBOARDING.md). Taking over an in-flight task: read [docs/HANDOFF.md](docs/HANDOFF.md) first.
 
-## 当前工作：双板型本地整合 / Current work: local multi-board integration
+## Tích hợp nhiều bo mạch
 
-用户2026-10-18明确要求同一源码选择pico/metalio47编译，取代两套独立维护应用源码的要求。共享阅读/UI保留同一份文件，平台驱动由boards选择；不得把S31供电/波形/引脚/分区用于S3。用户2026-10-25明确要求将Metalio-S31-kiikoread仓库公开，取代此前源码私有的限制；main维护S31源码，沿用现有分文件许可和第三方权利。官网继续按白名单发布已验证固件与安装资源，源码公开不改变官网部署范围。
+Ngày 18/10/2026, người dùng yêu cầu dùng chung một cây nguồn cho Pico và Metalio 4.7. Trình đọc và giao diện dùng chung mã, còn trình điều khiển do từng bo chọn. Giữ riêng nguồn, waveform, chân và phân vùng S31 khỏi S3. Ngày 25/10/2026, người dùng yêu cầu công khai kho Metalio-S31-kiikoread. Nhánh main duy trì mã S31 theo giấy phép từng tệp và quyền của bên thứ ba. Website chỉ phát hành firmware và tài nguyên cài đặt đã xác minh nằm trong danh sách cho phép.
 The user explicitly requested one source tree for pico/metalio47 on 2026-10-18. Shared reader/UI code lives once; boards select platform drivers. Never apply S31 power, waveforms, pins or partitions to S3. On 2026-10-25 the user explicitly requested making Metalio-S31-kiikoread public, superseding the earlier private-source restriction. Main maintains S31 sources with existing per-file licenses and third-party rights. Website deployment remains an allowlist of verified firmware and installer assets; repository visibility does not broaden the website artifact scope.
 
-构建入口tools/build_firmware.py，--board pico|metalio47|all；独立SDK/配置/构建/输出目录。芯片、项目名和分区必须匹配。Metalio原始GC48/GL48/DU20不得手改，供电和VCOM保留既有顺序；不得写永久TPS OTP或ESP eFuse。用户2026-10-19已明确授权直接调试连接的S31实现300ms，可按原MAC/精确分区/启动槽/已验证回退备份保护流程刷写本地调试与交付应用；该授权不包括其他设备、清数据或发布。调试USB命令入口不得留在最终交付固件。
+Dùng tools/build_firmware.py với --board pico|metalio47|all. Tách SDK, cấu hình, thư mục build và đầu ra. Xác minh chip, project và phân vùng. Giữ nguyên GC48/GL48/DU20 cùng thứ tự cấp nguồn và VCOM. Cấm ghi TPS OTP hoặc ESP eFuse. Quyền gỡ lỗi S31 ngày 19/10/2026 chỉ áp dụng cho thiết bị đã duyệt MAC, phân vùng, khe khởi động và bản phục hồi. Bản giao cuối phải gỡ lệnh gỡ lỗi USB.
 Use tools/build_firmware.py with --board pico|metalio47|all and separate SDK/config/build/output directories. Validate chip/project/partitions. Preserve Metalio's raw GC48/GL48/DU20, power/VCOM sequencing, and never write permanent TPS OTP or ESP eFuses. On 2026-10-19 the user explicitly authorized direct debugging of the connected S31 toward 300ms, including local diagnostic/delivery application writes guarded by the approved MAC, exact partitions/boot slot and verified recovery backup. This does not authorize other devices, erasing data or publication. Remove the diagnostic USB command reader from the final delivery firmware.
 
-## 构建 / Build
+## Biên dịch
 
-双板型统一入口是 `tools/build_firmware.py --board pico|metalio47|all`，先读 [docs/BOARDS.md](docs/BOARDS.md)。必须使用独立SDK/配置/依赖锁和产物目录；共享功能修改主源码，生成的设备视图不可作为维护源码。已有主机测试用 `board_source_view.py --tests` 生成指定设备视图后运行；CI分别选择Pico和S31，使用匹配SDK并隔离构建。
+Đọc [docs/BOARDS.md](docs/BOARDS.md) trước khi dùng tools/build_firmware.py --board pico|metalio47|all. Tách SDK, cấu hình, khóa phụ thuộc và đầu ra. Sửa mã nguồn được duy trì. Dùng board_source_view.py --tests để dựng cây kiểm thử theo từng bo. CI dùng SDK phù hợp và thư mục riêng cho Pico và S31.
 Use the board build driver and isolated SDK/config/lock/artifact directories. Edit maintained sources, not generated device views. Legacy host tests run in the board test view. CI separately builds Pico and S31 with matching SDKs and isolated outputs.
 
-Pico需要 ESP-IDF v6.1。`components/read_pico/read_pico_flash_hpm.c` 依赖 v6 才有的 `esp_flash_chips/spi_flash_override.h`。
+Pico cần ESP-IDF v6.1 vì read_pico_flash_hpm.c dùng esp_flash_chips/spi_flash_override.h.
 
 Requires ESP-IDF v6.1. `components/read_pico/read_pico_flash_hpm.c` needs `esp_flash_chips/spi_flash_override.h` (v6 only).
 
@@ -33,9 +33,9 @@ idf.py build
 - `sdkconfig.defaults`：真机 120 MHz flash / PSRAM 时序，依赖板上 Zbit 型号。/ Board timing for 120 MHz flash / PSRAM; depends on the Zbit part.
 - `sdkconfig.ci`：默认时序，只验证能否编过。/ Default timing; compile-only CI check.
 
-不要在没有对应 flash 的机器上把 CI 配置当产品默认。/ Do not ship the CI timing as the product default.
+Cấu hình CI chỉ dùng để kiểm tra biên dịch. Dùng cấu hình sản phẩm phù hợp với flash trên thiết bị.
 
-### 版本号与本地测试 / Versions and local tests
+### Số phiên bản và bản thử cục bộ
 
 用户2026-10-29修订，取代2026-10-06的同版本测试规则：每次交付新的测试构建必须自动递增测试版本，不得沿用当前安装或上一测试构建的版本号。以当前正式版为基线，下一正式版的基础号递增一次并加大写 `RC1`，后续同一正式版候选依次为 `RC2`、`RC3`，直到发布去掉 RC 的正式版。例如 `1.16` → `1.17RC1` → `1.17RC2` → `1.17`；本仓库 `1.1.6-vn` → `1.1.7RC1-vn` → `1.1.7RC2-vn` → `1.1.7-vn`。下一次测试需核对当前版本、已有 `Test Build/` 产物和板型元数据，选择尚未使用且递增的 RC；同一测试构建内的编译重试不另算新交付。同步板型元数据、应用内版本描述和设备版本显示，并从最终 Bin 读取确认版本；不得仅改文件名。正式发布时同步设备、刷机页、升级包与日志。
 Per the user's 2026-10-29 revision, superseding the 2026-10-06 same-version test rule, automatically increment the test version for every newly delivered test build; never reuse the currently installed or previous test version. Advance the current official release's base number once for the next official release and append uppercase `RC1`; subsequent candidates use `RC2`, `RC3`, and so on until the official release drops RC. Examples: `1.16` → `1.17RC1` → `1.17RC2` → `1.17`; in this repository, `1.1.6-vn` → `1.1.7RC1-vn` → `1.1.7RC2-vn` → `1.1.7-vn`. Check the current version, existing `Test Build/` artifacts and board metadata before choosing the next unused RC. Compilation retries within one test delivery do not consume another RC. Synchronize board metadata, the embedded app descriptor and device version display, then verify the version read from the final Bin; renaming alone is insufficient. On official publication, synchronize device, flasher, upgrade image and changelog.
@@ -49,7 +49,7 @@ Every local test build must include an executable macOS `FLASH_USB.command` and 
 用户2026-10-29要求：新的正式版本在 GitHub Release 成功发布并核对正式附件与校验值后，自动清理本地 `Test Build/` 中已被该正式版本取代的 RC 目录；如曾发布对应 RC Release/tag，也一并删除对应 RC Release/tag。仅清理版本不高于新正式版的候选版本，保留未来版本 RC、正式版和用户数据；发布失败不得清理。本规则不授权删除 Git 历史或正式版归档。
 After a new official GitHub Release is successfully published and its assets/checksums verified, automatically delete superseded local RC folders under `Test Build/` and corresponding RC GitHub Releases/tags if any were published. Remove only candidates whose base version is no newer than that official release; preserve future RCs, official archives and user data. Do not clean on failed publication or delete Git history.
 
-### 正式版发布 / Official releases
+### Phát hành chính thức
 
 用户 2026-10-09 确认：之后每次发布正式版，都在 `wegooo-cell/read-pico-reader` 创建对应版本的 Git tag 和 GitHub Release，附上经验证的 TF/OTA 应用 Bin、完整 USB 刷机包、SHA-256 校验值和简要更新日志；所有附件来自同一次正式构建。
 Per the user's 2026-10-09 decision, publish every future official firmware version with a matching Git tag and GitHub Release in `wegooo-cell/read-pico-reader`. Attach the verified TF/OTA application Bin, complete USB flash bundle, SHA-256 checksums and brief release notes, all from the same official build.
@@ -60,7 +60,7 @@ Publish GitHub Releases alongside the web flasher, TF downloads and online OTA. 
 用户2026-10-21要求每次保留上一正式版的官网刷机与TF下载入口。替换正式清单前，使用tools/archive_current_release.py归档原Release的四件套和校验值；releases.json保留历次归档，manifest.previous_version指向上一版，发布工具校验该入口存在。不得以本地同号测试包代替原正式字节。TF包是完整应用镜像；引导程序、分区表及用户存储不由TF升级写入，整机四件套继续通过USB安装。
 The user requires a previous-release web/TF entry for every publication. Archive the original Release parts with tools/archive_current_release.py before replacing metadata; retain earlier releases.json entries and verify manifest.previous_version. Never substitute a same-version local test. TF updates use a complete application image; bootloader, partition table and user storage remain untouched, with full base installation through USB.
 
-### dpReader Metalio 4.7 (ESP32-S31) 发布流程 / dpReader Release & Web Flash Workflow
+### Phát hành dpReader Metalio 4.7 (ESP32-S31) và Web Flash
 
 dpReader Metalio 4.7 固件与 Web Flasher 完整发布步骤详见 [docs/QUY_TRINH_COMMIT_VA_RELEASE.md](docs/QUY_TRINH_COMMIT_VA_RELEASE.md)。
 Detailed commit, release and Web Flasher steps for dpReader Metalio 4.7 live in [docs/QUY_TRINH_COMMIT_VA_RELEASE.md](docs/QUY_TRINH_COMMIT_VA_RELEASE.md).
@@ -69,7 +69,7 @@ Detailed commit, release and Web Flasher steps for dpReader Metalio 4.7 live in 
 - **提交与标签 / Commit & tag**: commit changes, tag `vX.Y.Z-vn`, push `main` and tag `vX.Y.Z-vn` to `origin`.
 - **发布 / Publish**: Run `python3 tools/publish_release.py` or trigger `.github/workflows/release.yml`. Web Flasher auto-deploys via `.github/workflows/pages.yml`.
 
-## 目录职责 / Layout
+## Cấu trúc mã nguồn
 
 用户2026-10-21明确指定GitHub Pages为默认OTA清单及应用来源，rc97真机已下载并校验原rc98成功。新固件优先GitHub清单、官网清单备用；原已发布rc97/98仍依照其原内置顺序请求。官网网页刷机独立保持，正式Bin及历史包继续归档GitHub Release；旧OTA不能直接使用会重定向的Release附件URL。保留双槽、HTTPS与完整SHA校验；不得因官网证书问题重现而自动改回官网应用地址，也不得外推为任意镜像或关闭TLS校验。后续更改默认来源先获得用户指示并验证旧信任库与实际下载。
 The user selected GitHub Pages as the default OTA metadata/image source on 2026-10-21; a real rc97 device downloaded and verified original rc98. New builds prefer Pages metadata and retain the website fallback; released clients keep their baked-in order. Keep web flashing separate and archive original binaries/packages in Releases; legacy OTA cannot follow Release redirects. Retain dual slots, HTTPS and full SHA checks. Do not silently restore the incompatible site image origin or allow arbitrary mirrors; future default-source changes require user direction and legacy/device validation.
@@ -97,7 +97,7 @@ The user selected GitHub Pages as the default OTA metadata/image source on 2026-
 
 功能操作见三份 README；页面契约以本文及 `main/app/app.h` 为准。/ See the READMEs for feature usage; this file and `main/app/app.h` define the page contract.
 
-### 文档交付边界 / Documentation delivery boundary
+### Phạm vi bàn giao tài liệu
 
 对外交付功能实现、可复跑测试、功能说明及必要的维护契约。功能变化只在 `docs/CHANGELOG.md` 按版本轻量记录；代码演进由 Git 管理，不另建逐任务变更账本。
 Deliver implementation, reproducible tests, feature documentation and necessary maintenance contracts. Summarize feature changes only in `docs/CHANGELOG.md`; Git owns code history, not per-task ledgers.
@@ -105,7 +105,7 @@ Deliver implementation, reproducible tests, feature documentation and necessary 
 计划、检查点、过程审查、验收结果和调试日志在 `docs/local/` 或被忽略的构建目录内部闭环，不加入提交。长期有效的行为与限制整理进对应功能文档，不要求读者查内部计划。只有需要交接未完功能或责任时才按 `docs/HANDOFF.md` 提供最小必要摘要；本机账本仍不入库。
 Keep plans, checkpoints, review records, acceptance results and debug logs in ignored `docs/local/` or build directories. Put lasting behavior and limits in feature documentation without dependencies on internal plans. Use `docs/HANDOFF.md` for the minimal necessary handoff of unfinished work or responsibility; the local ledger remains untracked.
 
-### demo 页 / Demo pages
+### Các màn hình demo
 
 每个文件只导出 `app_desc_t`。顺序与 `app_registry.c` 一致。
 
@@ -137,7 +137,7 @@ To add a page: create it in `main/apps/`, implement its callbacks, and append it
 用户2026-10-29修订：阅读正文更靠近状态栏，底部页脚紧凑且贴近屏幕下沿；音量键使用独立保存的快捷操作，按住及去抖期间采样任务不得等待下一次IRQ。系统「Phím cứng & Nút bấm」各项通过带当前选择的菜单直接设置，不再点击轮换；提供首页、灯光、翻页/翻章、工具栏、全刷及同步等适用快捷操作。首页快捷操作直接回首页。
 Per the user's 2026-10-29 revision, text sits closer to the status bar with a compact footer near the bottom edge. Volume keys use independently saved shortcuts; the sampler must keep running while held or debouncing instead of waiting for another IRQ. The system “Phím cứng & Nút bấm” entries open menus showing the current choice rather than cycling on taps, exposing applicable Home, light, page/chapter, tools, refresh and sync actions. The Home shortcut goes directly home.
 
-## `app_desc_t` 契约 / Contract
+## Hợp đồng `app_desc_t`
 
 定义在 [`main/app/app.h`](main/app/app.h)。主循环按返回值刷屏，见 [`main/app/app_loop.c`](main/app/app_loop.c) 的 `app_present()`。
 
@@ -176,7 +176,7 @@ Defined in [`main/app/app.h`](main/app/app.h). The loop presents via `app_presen
 
 `app_ctx_t.request_app` 非空时，主循环在本轮末尾切页；`request_menu` 请求打开根菜单。同时设置时切页优先。/ At tick end, `request_app` switches pages and `request_menu` opens the root menu; a page request takes priority.
 
-## 术语表 / Glossary
+## Thuật ngữ
 
 | 术语 / Term | 中文 | English |
 | --- | --- | --- |
@@ -197,9 +197,9 @@ Defined in [`main/app/app.h`](main/app/app.h). The loop presents via `app_presen
 
 注释里不要再展开这些词。/ Do not re-explain these terms in comments.
 
-## 硬约束 / Hard rules
+## Quy tắc bắt buộc
 
-- 用户 2026-10-09 确认项目品牌为小写 `kiikoread`，网页设备称「墨水屏」，页面底色采用明亮纯白。保留 `wegooo-cell/read-pico-reader` 仓库网址与已发布下载/OTA地址、备份文件名和内部协议标识。用户最新要求固件界面也统一命名，主站 OTA 使用 kiikoread.com，并保留 GitHub 回退源。/ Per the user’s 2026-10-09 decision, use lowercase `kiikoread` for the project and “墨水屏” for devices on the bright-white website. Preserve repository/download/OTA URLs, backup filenames and protocol identifiers. The latest instruction also rebrands the firmware UI, with kiikoread.com as the primary OTA host and GitHub retained as fallback.
+- Dùng tên thương hiệu `dpReader` trong giao diện, mã nguồn và tài liệu của dự án. Giữ các URL đã phát hành và định danh dữ liệu cũ khi firmware hoặc công cụ còn cần chúng để tương thích.
 
 `冻结 / Frozen:` 段落是产品决策，不是建议。改行为前必须先改这段，并说明为什么决策变了。
 
@@ -212,9 +212,9 @@ A `冻结 / Frozen:` block is a decision, not a hint. Change the behavior only a
 - 不要手改 `main/font/fallback.h`、`main/font/stb_truetype.h`、`components/e0470_epaper_waveform/waveforms/*.h`。/ Do not hand-edit generated or vendored tables.
 - 不改 UI 字面量或日志字符串，除非任务明确要求。/ Do not change UI strings or log text unless asked.
 
-## 注释规范 / Comment style
+## Quy ước ghi chú mã nguồn
 
-### 授权声明 / License notices
+### Thông báo giấy phép
 
 用户 2026-10-15 要求新增原创内容仅限个人学习、不得未经书面授权商用。适用边界以根目录 [LICENSE](LICENSE) 和 [CONTRIBUTING.md](CONTRIBUTING.md) 为准；这是今后明确标注的新原创内容的许可，不撤销 rc93 及以前的授权，不覆盖第三方或其他贡献者的权利。新原创文件只有在权利人明确同意时使用 `LicenseRef-Kiikoread-Personal-Study-1.0`，保留真实版权人。不要将下面的 Apache 文件头示例机械用于新原创文件，也不要批量替换既有文件头。
 Per the user's 2026-10-15 decision, explicitly marked new original material is for personal study, with commercial use requiring written permission. [LICENSE](LICENSE) and [CONTRIBUTING.md](CONTRIBUTING.md) define the scope; rc93 and earlier grants and third-party or other contributors' rights remain intact. Use `LicenseRef-Kiikoread-Personal-Study-1.0` on new original files only with the rights holder's explicit consent and accurate attribution. Do not mechanically apply the Apache example below to new original files or replace existing headers in bulk.
@@ -257,7 +257,7 @@ The user explicitly requires the official OTA origin, not a GitHub firmware mirr
 Before publication and after certificate renewal, run the released-trust-store, download and Range checks in `docs/OTA_MAINTENANCE.md`, plus a released-device acceptance test. Browser success is insufficient; never commit temporary Cloudflare credentials.
 
 
-## 双固件交付 / Two firmware editions (2026-11-06)
+## Hai bản firmware (2026-11-06)
 
 用户要求每次构建默认同时交付Full和Love Book。使用`tools/build_firmware.py --board metalio47`（默认`--edition all`）；只有明确要求单分支验证才使用`--edition full|love-book`。不得复制维护两套应用源码。
 The user requires both Full and Love Book on every normal build. Use `tools/build_firmware.py --board metalio47` (default `--edition all`); select `--edition full|love-book` only for explicit single-edition verification. Maintain one application source tree.
@@ -275,7 +275,7 @@ User clarification2026-11-06: Web Flash accepts official releases only, includin
 User decision2026-11-06 removes Dark screen from both Full and Love Book: keep light UI only, with no toggle, NVS reader or output inversion wrappers. Ignore the old dark key without clearing other settings.
 
 
-## 固件源码归属 / Firmware ownership (2026-11-06)
+## Quyền sở hữu từng phần mã nguồn (2026-11-06)
 
 用户要求`firmware/shared`、`firmware/full`与`firmware/love_book`分别维护共享/Full专用/Love专用源码。`main/`中的源码和头文件为兼容相对符号链接，唯一实际文件由`firmware/layout.json`记录；不要另建副本。修改共享功能只改shared，私有界面/功能改对应分支。Full可复用I Love Book可选界面；Love不得链接Full书架/拼贴实现。板级覆盖继续由boards选择。测试视图由生成器展开私有片段并生成旧路径的实际文件。详见`firmware/README.md`。
 Maintain common/Full-specific/Love-specific code in `firmware/shared`, `firmware/full` and `firmware/love_book`. Legacy `main/` source/header paths are relative compatibility symlinks; `firmware/layout.json` records the single owned file. Never maintain copied implementations. Edit shared features once and private features in their edition folder. Full may reuse the optional I Love Book UI; Love must not link Full shelf/collage implementations. Board overrides remain selected by boards. Generate host views to expand private fragments and materialize legacy paths. See `firmware/README.md`.

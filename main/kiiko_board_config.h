@@ -1,1 +1,0 @@
-../firmware/shared/main/kiiko_board_config.h

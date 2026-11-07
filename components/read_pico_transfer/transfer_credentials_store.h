@@ -9,10 +9,10 @@
 #endif
 #include "transfer_policy.h"
 
-static esp_err_t load_credentials(transfer_credentials_t *out) {
+static esp_err_t load_legacy_credentials(transfer_credentials_t *out) {
     memset(out, 0, sizeof(*out));
     nvs_handle_t handle;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     esp_err_t err = nvs_open("metalio_wifi", NVS_READONLY, &handle);
 #else
     esp_err_t err = nvs_open("rp_wifi", NVS_READONLY, &handle);
@@ -30,10 +30,10 @@ static esp_err_t load_credentials(transfer_credentials_t *out) {
     return ESP_OK;
 }
 
-static esp_err_t store_credentials(const transfer_credentials_t *next) {
+static esp_err_t store_legacy_credentials(const transfer_credentials_t *next) {
     if (next && !credentials_valid(next)) return ESP_ERR_INVALID_ARG;
     nvs_handle_t handle;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     esp_err_t err = nvs_open("metalio_wifi", NVS_READWRITE, &handle);
 #else
     esp_err_t err = nvs_open("rp_wifi", NVS_READWRITE, &handle);
@@ -45,3 +45,11 @@ static esp_err_t store_credentials(const transfer_credentials_t *next) {
     nvs_close(handle);
     return err;
 }
+
+
+#if DPREADER_BOARD_METALIO47 && (defined(ESP_PLATFORM) || defined(TRANSFER_WIFI_PROFILES_TEST))
+#include "transfer_wifi_profiles.h"
+#else
+#define load_credentials load_legacy_credentials
+#define store_credentials store_legacy_credentials
+#endif

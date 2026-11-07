@@ -1,30 +1,28 @@
-# 小纸 Pico 0.3.3-rc69 更新说明
+# Ghi chú lịch sử Read Pico 0.3.3-rc69
 
-发布日期：2026 年 10 月 5 日
+Phát hành ngày 05/10/2026 cho MindReset Read Pico RDP-G01-W (ESP32-S3, flash 16 MB).
 
-适用设备：MindReset Read Pico RDP-G01-W（ESP32-S3，16 MB Flash）
+Bản này sửa lỗi màn hình khóa, tải kệ sách, khôi phục cấu hình và một số trang cài đặt. Nạp thông thường qua web giữ cài đặt và thẻ TF. Bản sao lưu có mật khẩu Wi-Fi ở dạng văn bản rõ.
 
-本版修复锁屏、书架加载、配置恢复和部分设置界面的已发现问题。普通网页刷机保留设备现有设置与 TF 卡内容；建议刷机前在设备上保存配置备份，并妥善保管含有 WiFi 密码的备份文件。
+## Ổn định
 
-## 稳定性
+- Màn hình khóa kiểu vé kiểm tra nút nguồn định kỳ và tìm cách trở lại trang có thể thao tác nếu ngắt cảm ứng kéo dài hoặc liên tục không vào được chế độ ngủ. Màn hình chỉ đọc cache bìa và metadata hiện có để tránh phân tích EPUB lớn khi khóa.
+- Quét thư mục nhiều cấp bằng duyệt tường minh để giảm stack. Lần liệt kê đầu ưu tiên metadata EPUB có sẵn.
+- Trình quản lý tệp đưa đường dẫn lớn và bộ đệm sao chép vào bộ nhớ ngoài khi sao chép, xóa hoặc sửa thư mục. Trả lỗi khi cấp phát thất bại.
 
-- 票根锁屏期间定时补查电源键；当触控按键持续中断或睡眠连续失败时，尝试返回可操作页面。票根仅读取已有封面和元数据缓存，避免锁屏时解析大型 EPUB。
-- 书架多级目录扫描由递归调用改为显式遍历，降低任务栈占用；初次列书优先使用已有 EPUB 元数据缓存，减少封面加载前的解析压力。
-- 文件管理的递归复制、删除和目录变更把较大的路径及复制缓冲放到外部内存，分配失败时返回错误，降低任务栈溢出风险。
+## Khôi phục cấu hình
 
-## 配置恢复
+- Kiểm tra bản sao lưu trước khi thay bản ghi đọc trên máy, tránh giữ tiến độ và danh sách đọc gần đây cũ sau khi khôi phục.
+- Đọc lại thông tin Wi-Fi sau khi ghi để xác nhận. Kết nối lại Wi-Fi sau khi khôi phục thành công.
 
-- 恢复阅读记录前先校验备份，并替换设备中的旧记录，避免恢复后旧进度或最近阅读数据继续生效。
-- 写回保存的 WiFi 凭据后读取核对；恢复成功后需重新连接 WiFi。备份中的网络密码以明文保存，请妥善保管 TF 卡和备份文件。
+## Giao diện
 
-## 界面
+- Tăng cỡ chữ và độ đậm đường viền trong cài đặt làm mới khi đọc.
+- Cắt tên phông vượt chiều rộng thẻ để tránh chồng lên tùy chọn bên cạnh.
 
-- 阅读界面「刷新设置」增大选项文字，加深边框，提高墨水屏可读性。
-- 阅读字体和系统字体名称过长时，只显示卡片宽度内的前半部分，避免相邻选项文字重叠。
+## Xác minh của đợt phát hành
 
-## 验证范围
+- Build cấu hình sản phẩm với ESP-IDF v6.1 thành công. Kiểm thử máy tính cho sách, EPUB, sao lưu, thao tác tệp, Wi-Fi và giao diện đều qua.
+- Đã xử lý các đường gọi dùng nhiều stack phát hiện được khi rà mã. Hiện tượng thỉnh thoảng khởi động lại ở kệ sách chưa tái hiện ổn định. Khóa lâu và khôi phục còn cần xác minh trên thiết bị.
 
-- ESP-IDF v6.1 产品配置编译成功；书籍、EPUB、设置备份、文件操作、WiFi 和界面宿主回归测试通过。
-- 已修复代码检查中发现的明确大栈占用路径。偶发的书架重启此前未能稳定复现，长时间锁屏及配置恢复也仍需在实体设备上验证；目前不能保证所有重启原因均已排除。
-
-此前 rc59–rc68 的功能变化见 [rc68 更新说明](RELEASE_NOTES_0.3.3-rc68.md)，完整记录见 [CHANGELOG](CHANGELOG.md)。
+Xem [ghi chú rc68](RELEASE_NOTES_0.3.3-rc68.md) và [changelog](CHANGELOG.md).

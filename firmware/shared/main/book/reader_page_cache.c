@@ -7,8 +7,8 @@
 #include "metalio_cover_cache.h"
 #include <stdlib.h>
 #include <string.h>
-#define FRAME_SLOTS KIIKO_BOARD_PAGE_CACHE_SLOTS
-#define FRAME_BYTES_MAX (KIIKO_BOARD_PAGE_CACHE_MAX_KB * 1024u)
+#define FRAME_SLOTS DPREADER_BOARD_PAGE_CACHE_SLOTS
+#define FRAME_BYTES_MAX (DPREADER_BOARD_PAGE_CACHE_MAX_KB * 1024u)
 typedef struct {uint8_t *pixels;size_t page,bytes;uint32_t generation;bool ready,writing;} frame_t;
 static frame_t s_frames[FRAME_SLOTS];
 static size_t distance(size_t a,size_t b) {return a>b?a-b:b-a;}

@@ -17,7 +17,7 @@ unit = r'''
 #include <string.h>
 #include "esp_heap_caps.h"
 #include "metalio_cover_cache.h"
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define LOCK_IMAGE_PIXELS (128u * 1024u)
 #define LOCK_CACHE_MAGIC UINT32_C(0x4c434431)
 #define LOCK_CACHE_VERSION 1u
@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory() as directory:
     source.write_text(unit)
     executable = work / 'test'
     subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-pthread',
-                    '-fsanitize=address,undefined', '-DKIIKO_BOARD_METALIO47=1',
+                    '-fsanitize=address,undefined', '-DDPREADER_BOARD_METALIO47=1',
                     '-I' + str(ROOT / 'tools/metalio_cache_host_stubs'),
                     '-I' + str(ROOT / 'main/book'), str(source),
                     str(ROOT / 'main/book/metalio_cover_cache.c'), '-o', str(executable)], check=True)

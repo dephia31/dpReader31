@@ -11,7 +11,7 @@
 #include <string.h>
 #include "nvs.h"
 
-#if defined(ESP_PLATFORM) && KIIKO_BOARD_METALIO47
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
 #include "esp_heap_caps.h"
 #define history_alloc(size) heap_caps_malloc((size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
 #else
@@ -23,7 +23,7 @@
 #define HISTORY_RECORD_HEADER 20
 
 static const char *const namespaces[] = {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     "mt_books", "mt_ticket", "mt_marks", "mt_favs", "mt_titles", "mt_shelf"
 #else
     "rp_books", "rp_ticket", "rp_marks", "rp_favs", "rp_titles", "rp_shelf"

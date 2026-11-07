@@ -101,7 +101,7 @@ typedef struct {
     uint16_t diag_host_rst;
     uint16_t diag_adc;
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
     bool display_soc_valid; ///< 主机高段稳定结果有效；原始PMU字段不变 / Host upper-SOC result; raw PMU fields remain intact
     uint16_t display_soc_permille;
@@ -115,7 +115,7 @@ typedef struct {
     pmu_event_t event;
     pmu_config_t config;
     uint32_t unix_sec;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
     uint16_t unix_millis; ///< TIME_GET 毫秒部分 / Millisecond fraction
 #endif
@@ -146,7 +146,7 @@ static inline int pmu_battery_percent(const pmu_snapshot_t *p) {
         if (!p->status_ok || !(p->flags & PMU_STATUS_BATTERY_VALID)) return -1;
         soc = p->soc_permille;
     }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
     if(soc<=1000 && p->display_soc_valid)soc=p->display_soc_permille;
 #endif
@@ -219,7 +219,7 @@ bool read_pico_pmu_take_key_short(void);
 bool read_pico_pmu_take_key_wakeup(void);
 /// 单击策略消费新去抖动作；不读取持续按住电平。/ Single policy consumes a fresh debounced action, never a held level.
 bool read_pico_pmu_take_key_wakeup_single(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// S31改动扩展口方向前暂停采样；有待处理按键时拒绝，恢复后重新同步电平。
 /// Pause S31 sampling before changing expander directions; reject pending keys and resync levels on resume.
 esp_err_t read_pico_pmu_keys_pause(void);

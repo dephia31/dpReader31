@@ -37,10 +37,10 @@ with tempfile.TemporaryDirectory() as d:
     assert 'int x,board' in (test/'main/api.h').read_text()
 with tempfile.TemporaryDirectory() as d:
     p=Path(d)
-    unit='#include <assert.h>\n#include "book_cover_jobs.h"\n#include "book_lock_collage.h"\nint main(void){\n#if KIIKO_LOVE_BOOK\nassert(BOOK_COVER_JOB_SLOTS==1);assert(!book_lock_collage_draw(0));assert(!book_lock_collage_prepare(0));assert(!book_lock_collage_warm_cover(0));book_lock_collage_cache_commit(0);book_lock_collage_invalidate();\n#else\nassert(BOOK_COVER_JOB_SLOTS==9);\n#endif\n}\n'
+    unit='#include <assert.h>\n#include "book_cover_jobs.h"\n#include "book_lock_collage.h"\nint main(void){\n#if DPREADER_LOVE_BOOK\nassert(BOOK_COVER_JOB_SLOTS==1);assert(!book_lock_collage_draw(0));assert(!book_lock_collage_prepare(0));assert(!book_lock_collage_warm_cover(0));book_lock_collage_cache_commit(0);book_lock_collage_invalidate();\n#else\nassert(BOOK_COVER_JOB_SLOTS==9);\n#endif\n}\n'
     (p/'slots.c').write_text(unit)
     for love in (0,1):
-        command=['cc','-std=c11','-Wall','-Wextra','-Werror','-DKIIKO_LOVE_BOOK='+str(love),'-I'+str(ROOT/'firmware/shared/main/book'),str(p/'slots.c')]
+        command=['cc','-std=c11','-Wall','-Wextra','-Werror','-DDPREADER_LOVE_BOOK='+str(love),'-I'+str(ROOT/'firmware/shared/main/book'),str(p/'slots.c')]
         if love:command.append(str(ROOT/'firmware/love_book/no_library.c'))
         command+=['-o',str(p/'test')]
         subprocess.run(command,check=True);subprocess.run([str(p/'test')],check=True)

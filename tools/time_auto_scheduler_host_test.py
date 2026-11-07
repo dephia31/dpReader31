@@ -11,7 +11,7 @@ for n in module.body:
  elif isinstance(n,ast.AugAssign) and isinstance(n.target,ast.Name) and n.target.id=='scheduler':nodes.append(n)
 env={'root':root};exec(compile(ast.Module(body=nodes,type_ignores=[]),'scheduler-fixture','exec'),env)
 with tempfile.TemporaryDirectory() as d:
- p=Path(d);(p/'test.c').write_text(env['scheduler'].replace('assert(!strcmp(ns,"kiiko_clock"))','assert(!strcmp(ns,KIIKO_BOARD_METALIO47?"mt_clock":"kiiko_clock"))'))
+ p=Path(d);(p/'test.c').write_text(env['scheduler'].replace('assert(!strcmp(ns,"kiiko_clock"))','assert(!strcmp(ns,DPREADER_BOARD_METALIO47?"mt_clock":"kiiko_clock"))'))
  for board in (0,1):
-  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-fsanitize=undefined',f'-DKIIKO_BOARD_METALIO47={board}',str(p/'test.c'),'-o',str(p/'test')],check=True)
+  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-fsanitize=undefined',f'-DDPREADER_BOARD_METALIO47={board}',str(p/'test.c'),'-o',str(p/'test')],check=True)
   subprocess.run([str(p/'test')],check=True)

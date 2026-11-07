@@ -11,7 +11,7 @@
 #include "ui_nav.h"
 #include "ui_glass.h"
 #include "esp_heap_caps.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include <string.h>
 enum { KEY_SIDE=2*UI_QUICK_RADIUS, KEY_BYTES=KEY_SIDE*KEY_SIDE/2, TOP_BYTES=UI_LOCK_WIDTH*UI_QUICK_HEIGHT/2 };
 static uint8_t *s_underlay,*s_key_pixels,*s_frame;
@@ -34,7 +34,7 @@ static EpdRect key_rect(int button) {
     return (EpdRect){center_x(button)-UI_QUICK_RADIUS,UI_QUICK_CIRCLE_Y-UI_QUICK_RADIUS,KEY_SIDE,KEY_SIDE};
 #endif
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static void restore_tile(uint8_t *fb,EpdRect r,const uint8_t *saved) {
     for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x){size_t at=(size_t)y*r.width+x;epd_draw_pixel(r.x+x,r.y+y,(uint8_t)(((saved[at/2]>>((at&1)*4))&15)<<4),fb);}
 #else
@@ -42,7 +42,7 @@ void ui_quick_menu_end(void) {
     heap_caps_free(s_underlay);heap_caps_free(s_key_pixels);s_underlay=s_key_pixels=s_key_frame=NULL;
 #endif
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 bool ui_quick_menu_restore(uint8_t *fb) {
     if(!s_underlay||s_frame!=fb||s_rotation!=epd_get_rotation())return false;
     restore_tile(fb,(EpdRect){0,0,UI_LOCK_WIDTH,UI_QUICK_HEIGHT},s_underlay);return true;
@@ -54,7 +54,7 @@ static void draw_solid_key(uint8_t *fb,int button) {
     epd_draw_circle(cx,UI_QUICK_CIRCLE_Y,UI_QUICK_RADIUS-2,0x60,fb);
 #endif
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static void restore_circle(uint8_t *fb,unsigned i) {
     int cx=UI_QUICK_CENTER_X(i),cy=UI_QUICK_CENTER_Y(i),rad=UI_QUICK_RADIUS;
     for(int y=cy-rad;y<cy+rad;++y)for(int x=cx-rad;x<cx+rad;++x){int dx=2*(x-cx)+1,dy=2*(y-cy)+1;if(dx*dx+dy*dy>4*rad*rad)continue;
@@ -67,7 +67,7 @@ static void draw_badge(uint8_t *fb,int button,bool active) {
     epd_draw_circle(cx+30,UI_QUICK_CIRCLE_Y-30,5,0x50,fb);
 #endif
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static void solid_key(uint8_t *fb,unsigned i) {
     epd_fill_circle(UI_QUICK_CENTER_X(i),UI_QUICK_CENTER_Y(i),UI_QUICK_RADIUS-1,UI_GRAY_WHITE,fb);
     epd_draw_circle(UI_QUICK_CENTER_X(i),UI_QUICK_CENTER_Y(i),UI_QUICK_RADIUS-1,0x60,fb);
@@ -105,7 +105,7 @@ bool ui_quick_menu_draw_button(uint8_t *fb,int button,bool active,bool pressed,E
 #endif
     *dirty=r;return true;
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 EpdRect ui_quick_menu_draw_notice(uint8_t *fb,const char *text) {
     EpdRect box={24,348,636,34};
     ui_fill_round_rect(fb,box,10,UI_GRAY_WHITE);
@@ -123,7 +123,7 @@ void ui_quick_menu_draw_status(uint8_t *fb) {
     ui_nav_status(fb);
 #endif
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 EpdRect ui_quick_slider_change_rect(bool warmth,unsigned before,unsigned after) {
     const int height=UI_QUICK_SLIDER_Y1-UI_QUICK_SLIDER_Y0;
     if(before>(unsigned)height) before=height;
@@ -169,7 +169,7 @@ static uint8_t *save_underlay(const uint8_t *fb) {
         if(at&1)saved[at/2]|=(uint8_t)(v<<4);else saved[at/2]=v;
 #endif
     }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // 图标固定白底，填充只在深灰和白色间变化；原厂DU只到黑白，灰阶仍用已有FOLLOW差分。
     // The icon well stays white; gray/white changes use existing FOLLOW diff, not binary-only native DU.
     epd_fill_circle(x0+UI_QUICK_SLIDER_WIDTH/2,UI_QUICK_SLIDER_Y1-54,32,UI_GRAY_WHITE,fb);
@@ -179,7 +179,7 @@ static uint8_t *save_underlay(const uint8_t *fb) {
     return saved;
 #endif
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
 bool ui_quick_menu_restore(uint8_t *fb) {
     if(!s_underlay||s_key_frame!=fb||s_key_rotation!=epd_get_rotation())return false;
@@ -190,7 +190,7 @@ bool ui_quick_menu_restore(uint8_t *fb) {
     return true;
 }
 #endif
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool frontlight,unsigned brightness,unsigned warmth,bool soften_text) {
 #else
 static void restore_circle(uint8_t *fb,const uint8_t *saved,int cx) {
@@ -207,7 +207,7 @@ static void restore_circle(uint8_t *fb,const uint8_t *saved,int cx) {
 void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool soften_text) {
 #endif
     ui_quick_menu_end();
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(!fb||epd_rotated_display_width()!=UI_LOCK_WIDTH||epd_rotated_display_height()<UI_QUICK_HEIGHT)return;
     s_underlay=heap_caps_malloc(TOP_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);s_frame=fb;s_rotation=epd_get_rotation();
     if(s_underlay)save_tile(fb,(EpdRect){0,0,UI_LOCK_WIDTH,UI_QUICK_HEIGHT},s_underlay);
@@ -233,7 +233,7 @@ void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool soften_text) {
     // Release glass workspaces before saving four keys, excluding mutable badges and press rings from the baseline.
 #endif
     s_key_pixels=heap_caps_malloc(UI_QUICK_BUTTON_COUNT*KEY_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(s_key_pixels)for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i)save_tile(fb,key_rect(i),s_key_pixels+i*KEY_BYTES);
     for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i){EpdRect dirty;ui_quick_menu_draw_button(fb,i,(i==0&&wifi)||(i==1&&bluetooth)||(i==4&&frontlight),false,&dirty);}
     ui_quick_menu_draw_slider(fb,false,ui_quick_brightness_position(brightness));ui_quick_menu_draw_slider(fb,true,warmth);

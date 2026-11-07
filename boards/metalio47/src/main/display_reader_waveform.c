@@ -15,7 +15,7 @@
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
 #endif
-#if KIIKO_S31_FAST_READER_PANELS
+#if DPREADER_S31_FAST_READER_PANELS
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
 #define PANEL_LUT_ATTR EXT_RAM_BSS_ATTR
@@ -160,14 +160,14 @@ bool display_reader_panel_gray4_prepare(uint8_t* target,EpdRect area) {
     return prepare_target(target,area,true);
 }
 bool display_reader_fast_panels_enabled(void) {
-#if KIIKO_S31_FAST_READER_PANELS
+#if DPREADER_S31_FAST_READER_PANELS
     return true;
 #else
     return false;
 #endif
 }
 const EpdWaveform* display_reader_panel_gray4_waveform(bool erase_underlay) {
-#if KIIKO_S31_FAST_READER_PANELS
+#if DPREADER_S31_FAST_READER_PANELS
     enum{FAST_PHASES=16,ERASE_WHITE=18,ENTRY_PHASES=26};
     static PANEL_LUT_ATTR uint8_t fast[FAST_PHASES][16][4],entry[ENTRY_PHASES][16][4];
     static const EpdWaveformPhases phases[]={

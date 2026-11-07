@@ -16,8 +16,8 @@
 
 #include "settings.h"
 #include "esp_app_desc.h"
-#include "kiiko_board_config.h"
-#define READER_TURN_EFFECT_MAX KIIKO_BOARD_READER_TURN_EFFECT_MAX
+#include "dpreader_board_config.h"
+#define READER_TURN_EFFECT_MAX DPREADER_BOARD_READER_TURN_EFFECT_MAX
 static bool reader_full_pages_valid(uint8_t pages) {
     return pages == 0 || pages == 1 || pages == 3 || pages == 5 || pages == 8 || pages == 10 || pages == 15 || pages == 20 || pages == 30;
 }
@@ -39,7 +39,7 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #include "read_pico_transfer.h"
 #include "book/book_history_backup.h"
 
-#if defined(ESP_PLATFORM) && KIIKO_BOARD_METALIO47
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
 #include "esp_heap_caps.h"
 #include "esp_attr.h"
 #include "esp_mac.h"
@@ -55,7 +55,7 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #endif
 
 #if CONFIG_DPREADER_AUTO_BACKUP
-#if defined(ESP_PLATFORM) && (!KIIKO_BOARD_METALIO47 || !CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY)
+#if defined(ESP_PLATFORM) && (!DPREADER_BOARD_METALIO47 || !CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY)
 #error "Automatic backup requires S31 with external BSS enabled"
 #endif
 #include "book/book_progress.h"
@@ -98,13 +98,13 @@ static esp_err_t backup_nvs_set_str(nvs_handle_t h, const char *key, const char 
 #endif
 
 #define TAG "settings"
-#define NVS_NS KIIKO_BOARD_SETTINGS_NAMESPACE
-#define SIMPLE_UI_NS KIIKO_BOARD_SETTINGS_NAMESPACE "_ui"
+#define NVS_NS DPREADER_BOARD_SETTINGS_NAMESPACE
+#define SIMPLE_UI_NS DPREADER_BOARD_SETTINGS_NAMESPACE "_ui"
 #define NVS_KEY_SLEEP "sleep"
 #define NVS_KEY_SLEEP_OFF_HOURS "slp_off_h"
 #define NVS_KEY_SHUTDOWN_MODE "shutdown"
 #define NVS_KEY_WAKE_PRESSES "wake_press"
-#if KIIKO_BOARD_METALIO47 && !KIIKO_LOVE_BOOK
+#if DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK
 #define NVS_KEY_PIN_GRACE "pin_grace"
 #define NVS_KEY_PIN_LOCK_AT "pin_lck_at"
 #endif
@@ -177,13 +177,13 @@ static esp_err_t backup_nvs_set_str(nvs_handle_t h, const char *key, const char 
 
 static app_sleep_mode_t s_sleep = APP_SLEEP_DEEP;
 static uint8_t s_sleep_off_hours=APP_SLEEP_OFF_HOURS_DEFAULT;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static bool s_staged_shutdown = true;
 #else
 static bool s_staged_shutdown;
 #endif
 static uint8_t s_wake_presses = 1;
-#if KIIKO_BOARD_METALIO47 && !KIIKO_LOVE_BOOK
+#if DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK
 static uint8_t s_pin_grace_code_v;
 static uint32_t s_pin_locked_at;
 #endif
@@ -202,7 +202,7 @@ static const char *s_home_utility_keys[]={"home_util0","home_util1","home_util2"
 static app_home_component_t s_home_component = APP_HOME_FOLDER;
 static uint8_t s_home_goal_minutes = 30;
 static app_main_refresh_mode_t s_main_refresh;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static char s_device_name[64] = "dpReader";
 #else
 static char s_device_name[64] = "dpReader";
@@ -215,7 +215,7 @@ static uint8_t s_ota_edition = 255;
 static char s_opds_url[160] = DPREADER_DEFAULT_OPDS_URL;
 static char s_opds_user[64];
 static char s_opds_pass[64];
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
 static char s_avatar[288];
 #endif
 static char s_status_signature[96];
@@ -253,7 +253,7 @@ static bool s_reader_swipe_up_tools = true;
 static bool s_reader_edge_brightness=true,s_reader_edge_warmth=true;
 static bool s_reader_swipe_bottom_home = true;
 static bool s_ble_turner;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static app_ai_action_t s_ai_short=APP_AI_REFRESH;
 static uint32_t s_action_menu=APP_ACTION_MENU_DEFAULT;
 static bool s_power_action_menu;
@@ -299,7 +299,7 @@ static uint8_t book_progress_style_from_legacy(uint8_t stored) {
     return stored <= APP_BOOK_PROGRESS_STYLE_HAIRLINE - 1
         ? (uint8_t)(stored + 1) : APP_BOOK_PROGRESS_STYLE_THIN;
 }
-#if KIIKO_BOARD_METALIO47 && !KIIKO_LOVE_BOOK
+#if DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK
 static void nvs_put_u32(const char* key,uint32_t value);
 #endif
 
@@ -473,7 +473,7 @@ void app_settings_init(void) {
         s_sleep = (app_sleep_mode_t)raw;
     }
     raw = 0;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (nvs_get_u8(h, NVS_KEY_SHUTDOWN_MODE, &raw) == ESP_OK && raw <= 1)
 #else
     if (nvs_get_u8(h, NVS_KEY_SHUTDOWN_MODE, &raw) == ESP_OK)
@@ -482,7 +482,7 @@ void app_settings_init(void) {
     raw = 1;
     if (nvs_get_u8(h, NVS_KEY_WAKE_PRESSES, &raw) != ESP_OK || (raw != 1 && raw != 2)) raw = 1;
     s_wake_presses = raw;
-#if KIIKO_BOARD_METALIO47 && !KIIKO_LOVE_BOOK
+#if DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK
     s_pin_grace_code_v=0;raw=0;
     if(nvs_get_u8(h,NVS_KEY_PIN_GRACE,&raw)==ESP_OK && raw<=4)s_pin_grace_code_v=raw;
     s_pin_locked_at=0;
@@ -545,7 +545,7 @@ void app_settings_init(void) {
     if (nvs_get_str(h, NVS_KEY_OPDS_USER, s_opds_user, &value_len) != ESP_OK) s_opds_user[0] = 0;
     value_len = sizeof(s_opds_pass);
     if (nvs_get_str(h, NVS_KEY_OPDS_PASS, s_opds_pass, &value_len) != ESP_OK) s_opds_pass[0] = 0;
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
     value_len = sizeof(s_avatar);
     if (nvs_get_str(h, NVS_KEY_AVATAR, s_avatar, &value_len) != ESP_OK ||
         (s_avatar[0] && strncmp(s_avatar, "/sdcard/", 8))) s_avatar[0] = 0;
@@ -629,7 +629,7 @@ void app_settings_init(void) {
     uint8_t hide_images = 0, recent_sort = 0, ble_turner = 0, book_fonts = 1, book_vertical = 0;
     if (nvs_get_u8(h, NVS_KEY_HIDE_IMAGES, &hide_images) == ESP_OK) s_reader_hide_images = hide_images == 1;
     if (nvs_get_u8(h, NVS_KEY_BLE_TURNER, &ble_turner) == ESP_OK) s_ble_turner = ble_turner == 1;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     uint32_t menu_mask;
     if(nvs_get_u32(h,"action_menu",&menu_mask)==ESP_OK&&(menu_mask&~APP_ACTION_MENU_ALLOWED)==0)s_action_menu=menu_mask;
     uint8_t power_menu=0;
@@ -770,7 +770,7 @@ esp_err_t app_settings_set_sleep_off_hours(uint8_t hours) {
 bool app_settings_staged_shutdown(void) { return s_staged_shutdown; }
 void app_settings_set_staged_shutdown(bool staged) {
     if (staged == s_staged_shutdown) return;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     nvs_handle_t h;
     if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK) return;
     esp_err_t err=backup_nvs_set_u8(h,NVS_KEY_SHUTDOWN_MODE,staged?1:0);
@@ -790,7 +790,7 @@ void app_settings_set_wake_presses(uint8_t presses) {
     nvs_put_u8(NVS_KEY_WAKE_PRESSES, presses);
 }
 
-#if KIIKO_BOARD_METALIO47 && !KIIKO_LOVE_BOOK
+#if DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK
 uint8_t app_settings_pin_grace_code(void) { return s_pin_grace_code_v; }
 void app_settings_set_pin_grace_code(uint8_t code) {
     if (code > 4) code = 0;
@@ -821,7 +821,7 @@ static void nvs_put_u32(const char* key, uint32_t value) {
 
 uint8_t app_settings_simple_utility(unsigned slot) {
     uint8_t action=slot>=2&&slot<4?s_simple_utilities[slot-2]:APP_HOME_UTIL_NONE;
-    return KIIKO_LOVE_BOOK&&action==APP_HOME_UTIL_LIBRARY?APP_HOME_UTIL_FILES:action;
+    return DPREADER_LOVE_BOOK&&action==APP_HOME_UTIL_LIBRARY?APP_HOME_UTIL_FILES:action;
 }
 bool app_settings_simple_utility_labels(void){return s_simple_labels;}
 bool app_settings_simple_utility_border(void){return s_simple_border;}
@@ -881,13 +881,13 @@ esp_err_t app_settings_set_home_goal_minutes(uint8_t minutes) {
     return err;
 }
 
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
 bool app_settings_simple_ui(void) { return s_simple_ui; }
 bool app_settings_simple_full_ui(void) { return s_simple_ui; }
 #endif
 uint8_t app_settings_ui_mode(void) { return app_settings_simple_ui() ? 2 : 0; }
 esp_err_t app_settings_set_ui_mode(uint8_t mode) {
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     return mode==2 ? ESP_OK : ESP_ERR_NOT_SUPPORTED;
 #else
     if(mode>2)return ESP_ERR_INVALID_ARG;
@@ -957,7 +957,7 @@ void app_settings_set_device_name(const char *name) {
     if (!name || !name[0] || strnlen(name, sizeof(s_device_name)) >= sizeof(s_device_name)) return;
     if (nvs_put_str(NVS_KEY_DEVICE_NAME, name)) strlcpy(s_device_name, name, sizeof(s_device_name));
 }
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
 const char *app_settings_avatar_path(void) { return s_avatar; }
 void app_settings_set_avatar_path(const char *path) {
     if (!path || (path[0] && strncmp(path, "/sdcard/", 8)) ||
@@ -1000,7 +1000,7 @@ void app_settings_set_system_contrast(uint8_t percent) {
     s_system_contrast = percent;
     nvs_put_u8(NVS_KEY_SYS_CONTRAST, percent);
 }
-uint8_t app_settings_lock_style(void) { return KIIKO_LOVE_BOOK && s_lock_style==2 ? 0 : s_lock_style; }
+uint8_t app_settings_lock_style(void) { return DPREADER_LOVE_BOOK && s_lock_style==2 ? 0 : s_lock_style; }
 void app_settings_set_lock_style(uint8_t style) {
     if (style > 3 || style == s_lock_style) return;
     s_lock_style = style;
@@ -1171,7 +1171,7 @@ void app_settings_set_book_vertical(bool on) {
     s_book_vertical = on;
     nvs_put_u8(NVS_KEY_BOOK_VERTICAL, on ? 1 : 0);
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 uint32_t app_settings_action_menu(void){return s_action_menu;}
 esp_err_t app_settings_set_action_menu(uint32_t mask){
     if(mask&~APP_ACTION_MENU_ALLOWED)return ESP_ERR_INVALID_ARG;
@@ -1273,7 +1273,7 @@ bool app_settings_set_volume_key_action(unsigned key, app_reader_key_action_t ac
     return err == ESP_OK;
 }
 uint8_t app_settings_control_hold(unsigned key) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(key>=7)return APP_CONTROL_HOLD_DEFAULT;
     return key==4?(uint8_t)app_settings_reader_hold_action():s_control_holds[key];
 #else
@@ -1281,7 +1281,7 @@ uint8_t app_settings_control_hold(unsigned key) {
 #endif
 }
 bool app_settings_set_control_hold(unsigned key,uint8_t action) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(key>=7 || (action!=APP_CONTROL_HOLD_DEFAULT && !app_settings_reader_key_action_allowed(3,action)))return false;
     if(key==4)return app_settings_set_reader_hold_action(action==APP_CONTROL_HOLD_DEFAULT?APP_READER_KEY_HOME:action);
     if(s_control_holds[key]==action)return true;
@@ -1545,7 +1545,7 @@ bool app_settings_set_opds_pass(const char *pass) {
 #ifndef APP_SETTINGS_BACKUP_ROOT
 #define APP_SETTINGS_BACKUP_ROOT "/sdcard"
 #endif
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define BACKUP_FILE APP_SETTINGS_BACKUP_ROOT "/dpReader-settings.backup"
 #define BACKUP_TEMP APP_SETTINGS_BACKUP_ROOT "/dpReader-settings.backup.tmp"
 #define BACKUP_PREVIOUS APP_SETTINGS_BACKUP_ROOT "/dpReader-settings.backup.previous"
@@ -1982,7 +1982,7 @@ static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     for (int i = 0; i < 4; ++i) work->extension[i + 3] = (uint8_t)(extension_hash >> (i * 8));
 
     strlcpy(work->profile.device_name, s_device_name, sizeof(work->profile.device_name));
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
     strlcpy(work->profile.avatar, s_avatar, sizeof(work->profile.avatar));
 #endif
     strlcpy(work->profile.status_signature, s_status_signature, sizeof(work->profile.status_signature));
@@ -2281,10 +2281,10 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     uint8_t indent = 2, rule_offset = 4, staged_shutdown = 0;
     work->adjust.encoded = 20;
     work->weight.encoded = 2;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     strlcpy(work->profile.device_name, "Metalio S31", sizeof(work->profile.device_name));
 #else
-    strlcpy(work->profile.device_name, "kiikoread", sizeof(work->profile.device_name));
+    strlcpy(work->profile.device_name, "dpReader", sizeof(work->profile.device_name));
 #endif
     work->keys.actions[0] = APP_READER_KEY_PREV; work->keys.actions[1] = APP_READER_KEY_TOOLS; work->keys.actions[2] = APP_READER_KEY_NEXT;
 
@@ -2436,7 +2436,7 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_HIDE_IMAGES, (work->profile.home_full_refresh & 2) != 0);
     if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_SHELF_RECENT, (work->profile.home_full_refresh & 4) != 0);
     if (err == ESP_OK) err = backup_nvs_set_str(h, NVS_KEY_DEVICE_NAME, work->profile.device_name);
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
     if (err == ESP_OK) err = backup_nvs_set_str(h, NVS_KEY_AVATAR, work->profile.avatar);
 #endif
     if (err == ESP_OK) err = backup_nvs_set_str(h, NVS_KEY_STATUS_SIGNATURE, work->profile.status_signature);
@@ -2525,7 +2525,7 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     s_reader_hide_images = (work->profile.home_full_refresh & 2) != 0;
     s_shelf_recent_sort = (work->profile.home_full_refresh & 4) != 0;
     strlcpy(s_device_name, work->profile.device_name, sizeof(s_device_name));
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
     strlcpy(s_avatar, work->profile.avatar, sizeof(s_avatar));
 #endif
     strlcpy(s_status_signature, work->profile.status_signature, sizeof(s_status_signature));

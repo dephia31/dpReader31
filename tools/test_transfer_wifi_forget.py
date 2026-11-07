@@ -2,6 +2,7 @@
 """运行生产遗忘入口，复用 NVS 故障替身验证失败重试与资源保护。
 Exercise the production forget API with existing NVS fault shims and resource guards.
 """
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -35,11 +36,13 @@ enum {READ_PICO_TRANSFER_STOPPED, READ_PICO_TRANSFER_STARTING, READ_PICO_TRANSFE
 typedef struct {int mode,state;bool wifi_configured;char wifi_ssid[33];} read_pico_transfer_status_t;
 static read_pico_transfer_status_t s_status;
 static bool s_wifi,s_started,s_config_busy;
+static bool network_owner = true;
 static bool cancel_time_sync(bool automatic_only){(void)automatic_only;return true;}
 static void *s_http,*s_netif;
 #define portENTER_CRITICAL(lock) ((void)0)
 #define portEXIT_CRITICAL(lock) ((void)0)
 #define ESP_LOGI(...) ((void)0)
+#define TRANSFER_NETWORK_GUARD_OR_RETURN(error) do { if (!network_owner) return (error); } while (0)
 '''
 harness += "\n".join(function(name) for name in (
     "read_pico_transfer_get_status", "claim_config", "release_config",
@@ -59,6 +62,9 @@ int main(void) {
     // 已清理的失败连接可遗忘；NVS 提交失败保留配置与公开状态，下一次确认可重试。
     // A cleaned-up failed connection can be forgotten; failed commits retain credentials and allow retry.
     saved_network(READ_PICO_TRANSFER_MODE_STA, READ_PICO_TRANSFER_ERROR);
+    network_owner=false;
+    assert(read_pico_transfer_forget_wifi()==ESP_ERR_INVALID_STATE && present);
+    network_owner=true;
     fail_commit=1;
     assert(read_pico_transfer_forget_wifi()==ESP_FAIL && present && s_status.wifi_configured);
     assert(!s_config_busy && !handles && !strcmp(s_status.wifi_ssid,"saved"));
@@ -98,11 +104,11 @@ with tempfile.TemporaryDirectory(prefix="kiikoread-wifi-forget-") as directory:
     source.write_text(harness)
     cjson = ROOT / "managed_components/espressif__cjson/cJSON"
     if not (cjson / "cJSON.c").exists():
-        import os
-        cjson = Path(os.environ["KIIKO_CJSON_DIR"])
+        cjson = Path(os.environ["DPREADER_CJSON_DIR"])
+    sanitizers = os.environ.get("DPREADER_TEST_SANITIZERS", "address,undefined")
     subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-Wno-misleading-indentation",
                     "-Wno-deprecated-declarations",
-                    "-g", "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
+                    "-g", f"-fsanitize={sanitizers}", "-fno-omit-frame-pointer",
                     "-I" + str(cjson), str(source), str(cjson / "cJSON.c"), "-lm",
                     "-o", str(work / "test")], check=True)
     subprocess.run([str(work / "test")], check=True)

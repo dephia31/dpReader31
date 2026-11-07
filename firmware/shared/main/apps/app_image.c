@@ -26,7 +26,7 @@
 #include "ui_kit.h"
 #include "ui_menu.h"
 #include "ui_nav.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "settings.h"
 #include "ui_glass.h"
 #include "e0470_epaper_waveform.h"
@@ -34,7 +34,7 @@
 
 #define IMAGE_MAX 96
 #define IMAGE_BYTES_MAX BOOK_IMAGE_FILE_MAX
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define IMAGE_ROWS 8
 #else
 #define IMAGE_ROWS ((UI_LOCK_HEIGHT - 254) / 101)
@@ -42,7 +42,7 @@
 extern const uint8_t display_test_png_start[] asm("_binary_display_test_png_start");
 extern const uint8_t display_test_png_end[] asm("_binary_display_test_png_end");
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define IMAGE_PATH_MAX 288
 #else
 #define IMAGE_PATH_MAX 256
@@ -63,7 +63,7 @@ static uint8_t *s_gray;
 static unsigned s_width, s_height;
 static char s_message[96];
 static bool s_viewing;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 typedef enum {IMAGE_LOCK_ANY, IMAGE_LOCK_WALLPAPER, IMAGE_LOCK_BOOKMARK} image_lock_mode_t;
 static image_lock_mode_t s_lock_mode, s_requested_lock_mode;
 static bool s_lock_menu;
@@ -102,13 +102,13 @@ static char s_requested_path[IMAGE_PATH_MAX];
 bool app_image_request_open(const char *path) {
     if (!path || !path[0] || strnlen(path, sizeof(s_requested_path)) >= sizeof(s_requested_path)) return false;
     snprintf(s_requested_path, sizeof(s_requested_path), "%s", path);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     s_requested_lock_mode=IMAGE_LOCK_ANY;
 #endif
     return true;
 }
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 bool app_image_request_lock_picker(const char *path, bool transparent) {
     // 入口目的只在进入时消费；取消或重新从文件管理打开不会继承上次限制。
     // Consume the entry purpose on enter; cancellation and later Files opens cannot inherit it.
@@ -127,7 +127,7 @@ static bool image_name(const char *name, bool *png) {
     const char *ext = strrchr(name, '.');
     if (!ext) return false;
     *png = !strcasecmp(ext, ".png");
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(s_lock_mode==IMAGE_LOCK_BOOKMARK)return *png;
 #endif
     return *png || !strcasecmp(ext, ".jpg") || !strcasecmp(ext, ".jpeg");
@@ -180,7 +180,7 @@ static void scan_images(void) {
         scan_dir(root);
         return;
     }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     s_count=s_lock_mode==IMAGE_LOCK_ANY?1:0;
 #else
     s_count = 1;
@@ -193,11 +193,11 @@ static void scan_images(void) {
     if (sd.mounted) {
         scan_dir("/sdcard/pictures");
         scan_dir("/sdcard/images");
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if(s_lock_mode!=IMAGE_LOCK_ANY)scan_dir("/sdcard");
 #endif
     }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(!s_count&&s_lock_mode!=IMAGE_LOCK_ANY)
         snprintf(s_message,sizeof(s_message),"%s",sd.mounted?"Không tìm thấy ảnh, hãy chép vào thư mục pictures":"Vui lòng gắn thẻ nhớ trước");
 #endif
@@ -223,7 +223,7 @@ static bool load_image(int index) {
                                   : book_image_dimensions(data, size, item->png, &width, &height);
     if (!dimensions_ok || !width || !height) { strcpy(s_message, "Định dạng ảnh không hỗ trợ"); return false; }
     unsigned fit_w = UI_LOCK_WIDTH, fit_h = (uint64_t)height * fit_w / width;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     const unsigned image_height = UI_LOCK_HEIGHT - 56;
     if (fit_h > image_height) { fit_h = image_height; fit_w = (uint64_t)width * fit_h / height; }
 #else
@@ -244,7 +244,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     (void)ctx;
     ui_clear_page(fb);
     if (s_viewing && s_gray) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         int x0 = (UI_LOCK_WIDTH - s_width) / 2, y0 = (UI_LOCK_HEIGHT - 56 - s_height) / 2;
 #else
         int x0 = (UI_LOCK_WIDTH - s_width) / 2, y0 = (UI_LOCK_HEIGHT - s_height) / 2;
@@ -253,7 +253,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
             for (unsigned x = 0; x < s_width; ++x)
                 epd_draw_pixel(x0 + x, y0 + y,
                     ui_image_dither_gray(s_gray[(size_t)y * s_width + x], x0 + x, y0 + y), fb);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if (!s_lock_menu)
             ui_text_vc(fb,342,UI_LOCK_HEIGHT-28,20,s_lock_mode==IMAGE_LOCK_BOOKMARK?
                 "Vuốt trái/phải đổi ảnh · Chạm để đặt khung khóa":"Vuốt trái/phải đổi ảnh · Chạm để đặt hình nền",EPD_DRAW_ALIGN_CENTER,false);
@@ -267,14 +267,14 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     }
     ui_nav_status(fb);
     ui_nav_back(fb, 36, 79);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     ui_text_vc(fb,342,107,34,s_lock_mode==IMAGE_LOCK_WALLPAPER?"Hình nền khóa":
         s_lock_mode==IMAGE_LOCK_BOOKMARK?"Khung PNG trong suốt":"Hình ảnh",EPD_DRAW_ALIGN_CENTER,false);
 #else
     ui_text_vc(fb, 342, 107, 34, "Hình ảnh", EPD_DRAW_ALIGN_CENTER, false);
 #endif
     char caption[64];
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     snprintf(caption,sizeof(caption),s_lock_mode==IMAGE_LOCK_BOOKMARK?"%d ảnh · PNG trong suốt":"%d ảnh · JPG / PNG",s_count);
 #else
     snprintf(caption, sizeof(caption), "%d ảnh · JPG / PNG", s_count);
@@ -294,7 +294,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 }
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     render_content(ctx,fb);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (!s_viewing) display_monochrome_frame(fb);
 #endif
 }
@@ -302,7 +302,7 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
 
 static bool present(app_ctx_t *ctx, app_redraw_t redraw) {
     if (redraw == APP_REDRAW_NONE) return true;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (!s_viewing) {
         // 列表单独继承系统黑白策略，预览不能由通用黑白分支抢先提交。
         // Scope the system BW policy to the list; previews must reach their dedicated presenter.
@@ -318,7 +318,7 @@ static bool present(app_ctx_t *ctx, app_redraw_t redraw) {
     if (!s_viewing) return false;
 #endif
     render(ctx, ctx->fb);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // 切图/弹窗只输出一次真实灰阶迁移；显式全刷及故障恢复继续走原出口。
     // Image/dialog actions output one true grayscale transition; explicit full/fault recovery retains its existing outlet.
     const bool binary = display_system_binary_set(false);
@@ -334,7 +334,7 @@ static bool present(app_ctx_t *ctx, app_redraw_t redraw) {
     return true;
 }
 static void on_enter(app_ctx_t *ctx) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     s_lock_menu=false;
     s_lock_mode=s_requested_lock_mode;s_requested_lock_mode=IMAGE_LOCK_ANY;
 #endif
@@ -346,18 +346,18 @@ static void on_enter(app_ctx_t *ctx) {
     }
 }
 static void image_on_exit(app_ctx_t *ctx) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     s_lock_menu=false;s_lock_mode=IMAGE_LOCK_ANY;
 #endif
     (void)ctx; free(s_gray); s_gray = NULL; s_viewing = false;
 }
 static void on_media_lost(app_ctx_t *ctx) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     s_lock_menu=false;
 #endif
     (void)ctx; free(s_gray); s_gray = NULL; s_viewing = false; scan_images();
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define IMAGE_ACTION_REDRAW APP_REDRAW_PAGE
 #else
 #define IMAGE_ACTION_REDRAW APP_REDRAW_FULL
@@ -369,14 +369,14 @@ static app_redraw_t move_image(int delta) {
     return IMAGE_ACTION_REDRAW;
 }
 static app_redraw_t on_key(app_ctx_t *ctx, int key) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(s_lock_menu){s_lock_menu=false;s_message[0]=0;return IMAGE_ACTION_REDRAW;}
 #endif
     if (key == UI_KEY_2) { ctx->request_app = app_home_page(); return APP_REDRAW_NONE; }
     if (s_viewing) {
         s_viewing = false; free(s_gray); s_gray = NULL; return APP_REDRAW_PAGE;
     }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(s_lock_mode!=IMAGE_LOCK_ANY)app_device_settings_resume_lock_style();
 #endif
     ctx->request_return = true;
@@ -385,7 +385,7 @@ static app_redraw_t on_key(app_ctx_t *ctx, int key) {
 static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) {
     (void)ctx;
     if (s_viewing) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if(s_lock_menu){
             if(event->type!=UI_GESTURE_TAP)return APP_REDRAW_NONE;
             const unsigned actions=image_lock_action_count();
@@ -417,7 +417,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) 
         if (event->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
         if (event->x0 < UI_LOCK_WIDTH / 3) return move_image(-1);
         if (event->x0 > UI_LOCK_WIDTH * 2 / 3) return move_image(1);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         s_lock_menu=true;s_message[0]=0;return IMAGE_ACTION_REDRAW;
 #else
         s_viewing = false; free(s_gray); s_gray = NULL; return APP_REDRAW_PAGE;
@@ -433,7 +433,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) 
     }
     if (event->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
     if (event->y0 < 160 && event->x0 < 120) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if(s_lock_mode!=IMAGE_LOCK_ANY)app_device_settings_resume_lock_style();
 #endif
         ctx->request_return = true; return APP_REDRAW_NONE;
@@ -451,7 +451,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *event) 
 }
 static bool image_edge_back(app_ctx_t *ctx) {
     (void)ctx;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     return !s_viewing&&!s_lock_menu;
 #else
     return true;
@@ -459,7 +459,7 @@ static bool image_edge_back(app_ctx_t *ctx) {
 }
 static bool menu_handle_enabled(app_ctx_t *ctx) { (void)ctx; return false; }
 const app_desc_t app_image = {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     .binary_ui = false,
 #else
     .binary_ui = true,

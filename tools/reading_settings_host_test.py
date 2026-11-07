@@ -64,8 +64,8 @@ int main(void){
 with tempfile.TemporaryDirectory(dir=ROOT/'build') as folder:
     c,exe=Path(folder)/'test.c',Path(folder)/'test'
     c.write_text(unit)
-    view=ROOT/".kiiko-source-view.json"
+    view=ROOT/".dpreader-source-view.json"
     boards=(int(json.loads(view.read_text())["board"]=="metalio47"),) if view.exists() else (0,1)
     for board in boards:
-        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',f'-DKIIKO_BOARD_METALIO47={board}',str(c),'-o',str(exe)],check=True)
+        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',f'-DDPREADER_BOARD_METALIO47={board}',str(c),'-o',str(exe)],check=True)
         subprocess.run([str(exe)],check=True)

@@ -14,7 +14,7 @@
 #include "ui_font.h"
 #include "ui_hanzi.h"
 #include "ui_hanzi_scale.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "ttf_mono.h"
 #include "ttf_aa_tone.h"
 #endif
@@ -46,7 +46,7 @@ typedef struct {
 extern const uint8_t builtin_ttf_start[] asm("_binary_builtin_ttf_start");
 static stbtt_fontinfo s_font;
 static bool s_ready, s_attempted;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 extern const uint8_t builtin_ttf_end[] asm("_binary_builtin_ttf_end");
 static ttf_mono_face_t *s_hint_face;
 static bool ui_font_read(void *context,uint32_t offset,void *buffer,size_t bytes) {
@@ -78,7 +78,7 @@ static bool ready(void) {
     int offset = stbtt_GetFontOffsetForIndex(builtin_ttf_start, 0);
     s_ready = offset >= 0 && stbtt_InitFont(&s_font, builtin_ttf_start, offset);
     for (int i = 0; i < 256; ++i) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         s_cover[i] = ttf_aa_coverage((uint8_t)i);
 #else
         s_cover[i] = (uint8_t)lroundf(255.f * powf((float)i / 255.f, 0.4f));
@@ -186,7 +186,7 @@ static ui_glyph_t *glyph(uint32_t cp, int px) {
         y1 = y0 + (extra[3] * px + UI_HANZI_BASE_PX - 1) / UI_HANZI_BASE_PX;
         fallback_advance = (extra[4] * px + UI_HANZI_BASE_PX / 2) / UI_HANZI_BASE_PX;
     }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     ttf_mono_bitmap_t hinted={0};
     bool use_hint=false;
     if(!supplemental) {
@@ -212,7 +212,7 @@ static ui_glyph_t *glyph(uint32_t cp, int px) {
         if (supplemental) for (int y = 0; y < g->height; ++y) for (int x = 0; x < g->width; ++x) {
             g->bitmap[y * g->width + x] = ui_hanzi_coverage(extra, g->width, g->height, x, y);
         }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         else if(use_hint) for(int y=0;y<g->height;++y)
             memcpy(g->bitmap+(size_t)y*g->width,hinted.pixels+(size_t)y*hinted.pitch,(size_t)g->width);
 #endif

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include "book_cover.h"
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 #define BOOK_COVER_JOB_SLOTS 1
 #else
 #define BOOK_COVER_JOB_SLOTS 9

@@ -24,7 +24,7 @@ typedef enum {
 
 void app_settings_init(void);
 app_sleep_mode_t app_settings_sleep_mode(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 typedef enum {
     APP_AI_REFRESH,
     APP_AI_BOOKMARK,
@@ -54,7 +54,7 @@ esp_err_t app_settings_set_ai_short(app_ai_action_t action);
 #endif
 void app_settings_set_sleep_mode(app_sleep_mode_t mode);
 const char* app_sleep_mode_name(app_sleep_mode_t mode);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// S31关机：默认按所选小时浅睡后同步RTC并硬关机；false立即断电。/ S31 powers off after selected light-sleep hours by default; false powers off immediately.
 #else
 /// 电源菜单“关机”：false 为彻底断电，true 为先浅睡 10 分钟再由 PMU 软睡断电。
@@ -73,7 +73,7 @@ void app_settings_set_staged_shutdown(bool staged);
 /// Power-key boot presses: 1 boots on a single press, 2 needs a double click; defaults to 1 and retains an explicit saved choice.
 uint8_t app_settings_wake_presses(void);
 void app_settings_set_wake_presses(uint8_t presses);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 可选密码宽限期0/5/60/480/1440分钟，默认关闭。/ Optional PIN grace0/5/60/480/1440min, off by default.
 uint8_t app_settings_pin_grace_code(void);
 void app_settings_set_pin_grace_code(uint8_t code);
@@ -83,15 +83,15 @@ void app_settings_record_pin_lock(uint32_t unix_seconds);
 #endif
 /// 首页进入时强制全刷；默认关闭。/ Full refresh when entering Home; off by default.
 /// Local UI choice survives profile restore/reset; only the explicit setter changes it.
-#ifndef KIIKO_LOVE_BOOK
-#define KIIKO_LOVE_BOOK 0
+#ifndef DPREADER_LOVE_BOOK
+#define DPREADER_LOVE_BOOK 0
 #endif
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 static inline bool app_settings_simple_ui(void) { return true; }
 #else
 bool app_settings_simple_ui(void);
 #endif
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 static inline bool app_settings_simple_full_ui(void) { return true; }
 #else
 bool app_settings_simple_full_ui(void);
@@ -149,7 +149,7 @@ uint8_t app_settings_ble_timeout_minutes(void);
 void app_settings_set_ble_timeout_minutes(uint8_t minutes);
 const char *app_settings_device_name(void);
 void app_settings_set_device_name(const char *name);
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
 const char *app_settings_avatar_path(void);
 void app_settings_set_avatar_path(const char *path);
 #endif

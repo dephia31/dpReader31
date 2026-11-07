@@ -62,7 +62,7 @@ enum EpdDrawError update_display_fast_page(EpdiyHighlevelState* hl);
 /// 为下一次主页面输出启用固定底栏；标记书架切出与真正切页，避免同页重绘播放动画。
 /// Arm fixed navigation for the next main-screen output; tag shelf exit and actual navigation so same-page repaints do not animate.
 void display_main_transition_arm(const void* owner, bool leaving_shelf, bool changing_page);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// Scope extra white erasure to an actual switch between visible main tabs; returns the previous scope.
 bool display_main_switch_erase_set(bool active);
 /// 仅书架切回首页的下半内容区增强擦白，返回旧作用域。/ Scope stronger lower-body white drive to shelf-to-home only; returns prior scope.
@@ -96,7 +96,7 @@ void display_main_transition_disarm(void);
 /// 取消尚未使用的入口；不打断物理波形，无延迟补刷任务。
 /// Cancel unused permission without interrupting a physical waveform; no deferred completion exists.
 void display_main_transition_cancel(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 注册书架封面及书夹区，供独立37相实验使用；普通灰区不启用。/ Register shelf art for the isolated37-phase experiment; generic gray bands are unaffected.
 void display_main_transition_cover_bands(const EpdRect* bands, unsigned count);
 #endif
@@ -148,13 +148,13 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
                                              e0470_turn_dir_t dir);
 /// 同步普通文字翻页沿用水波纹的全部灰阶相位，单带同时输出并恢复原节拍。/ Ordinary text uses all ripple gray phases in one synchronous band and restores pacing.
 enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// S31图文：同色保持，实际灰阶迁移用完整灰阶，黑白目标用原厂DU20，不量化图片。
 /// S31 images: hold equal pixels; retain complete gray transitions or native DU20 for actual BW changes, without quantization.
 enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl, EpdRect area);
 #endif
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 已验证未变正文上的面板：保留原厂GL48及完整目标灰阶，一次区域定稿；不借文字22相或速读黑白。
 /// Panels over verified unchanged text retain vendorGL48/full target grays in one regional settle, independent of text22-phase/FastBW.
 enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect area);

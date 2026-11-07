@@ -62,7 +62,7 @@ void ui_avatar_request(const char *path,int side) {
     int slot=slot_for(side);
     if(slot<0)return;
     if(!path||!path[0]||strnlen(path,sizeof(s_path))>=sizeof(s_path)){ui_avatar_invalidate();return;}
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
     // 重挂时不能因切页重新启动TF头像任务；挂载完成后由原页面重新请求。
     // Navigation must not restart TF avatar I/O during remount; media-ready callbacks request it again.

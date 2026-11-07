@@ -12,13 +12,13 @@
 #include <stdint.h>
 #include "esp_err.h"
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define PICO_OTA_IMAGE_MAX 0x500000
 #define PICO_OTA_PROJECT "Kiikoread_Metalio_S31"
 #define PICO_OTA_LAYOUT "metalio-s31-dual-5m-v1"
 #define PICO_OTA_BOARD "Metalio-EINK4-Plus-S31"
 #define PICO_OTA_CAPABILITY "dpReader/1.0 (Metalio47; ESP32-S31)"
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 #define PICO_OTA_FEED_URL "https://dephia31.github.io/dpReader31/releases/love-book/metalio-s31-update.json"
 #define PICO_OTA_FEED_FALLBACK_URL "https://raw.githubusercontent.com/dephia31/dpReader31/main/releases/love-book/metalio-s31-update.json"
 #else
@@ -59,7 +59,7 @@ bool pico_release_url_valid(const char *url);
 esp_err_t pico_online_check(void);
 esp_err_t pico_online_download(void);
 bool pico_online_busy(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 仅固件更新事务，不包含KoSync待办。/ Firmware-update transaction only, excluding queued KoSync work.
 bool pico_online_update_busy(void);
 #endif

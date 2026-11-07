@@ -26,8 +26,8 @@ static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static void lock(void) { pthread_mutex_lock(&mutex); }
 static void unlock(void) { pthread_mutex_unlock(&mutex); }
 #endif
-#define CACHE_SLOTS KIIKO_BOARD_COVER_RAM_SLOTS
-#define CACHE_BUDGET (KIIKO_BOARD_COVER_RAM_BUDGET_KB * 1024u)
+#define CACHE_SLOTS DPREADER_BOARD_COVER_RAM_SLOTS
+#define CACHE_BUDGET (DPREADER_BOARD_COVER_RAM_BUDGET_KB * 1024u)
 typedef struct {
     metalio_cover_key_t key;
     metalio_cover_meta_t meta;

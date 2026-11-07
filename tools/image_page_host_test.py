@@ -39,7 +39,7 @@ typedef struct {bool mounted;} read_pico_sd_info_t;
 static int test_alloc_fail,test_malloc_fail,test_dimensions_fail,test_decode_fail,test_decodes,test_presentations;
 static unsigned test_pixels,test_mono_calls,test_list_calls,test_hint_calls;
 static bool test_tall;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static char wallpaper[288],bookmark[288];static unsigned lock_style_returns;
 static void app_device_settings_resume_lock_style(void){++lock_style_returns;}static unsigned lock_style,setting_writes;
 static const char *app_settings_wallpaper_path(void){return wallpaper;}
@@ -53,7 +53,7 @@ static bool test_mounted;
 enum EpdDrawError {EPD_DRAW_SUCCESS};
 #define MODE_DU 1
 #define MODE_GL16 5
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static const int E0470_FULL_WAVEFORM=0;
 static bool test_binary;
 static void display_main_transition_cancel(void){}
@@ -110,7 +110,7 @@ int main(void){
  assert(present(&ctx,APP_REDRAW_PAGE)&&test_presentations==1&&test_pixels==(size_t)s_width*s_height);
  assert(test_mono_calls==before_mono);
  unsigned levels=0;for(size_t i=0;i<sizeof(fb);++i){assert(fb[i]%17==0);levels|=1u<<(fb[i]/17);}assert(levels==65535);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  assert(test_hint_calls==1);
  assert(!app_image.binary_ui);
  uint8_t *decoded=s_gray;int selected=s_selected;
@@ -136,7 +136,7 @@ int main(void){
 #endif
  assert(move_image(1)==IMAGE_ACTION_REDRAW&&s_viewing&&s_selected==1&&!strcmp(s_items[1].path,other));
  test_tall=true;assert(load_image(0));
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  assert(s_height==1160);
  for(unsigned policy=0;policy<2;++policy){test_binary=policy;assert(present(&ctx,APP_REDRAW_PAGE));assert(test_binary==policy);}
 #else
@@ -144,7 +144,7 @@ int main(void){
 #endif
  test_tall=false;
  image_on_exit(&ctx);assert(!s_gray&&!s_viewing);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  for(unsigned policy=0;policy<2;++policy){test_binary=policy;assert(present(&ctx,APP_REDRAW_PAGE));assert(test_binary==policy);assert(present(&ctx,APP_REDRAW_FULL));assert(test_binary==policy);}
  assert(test_list_calls==4&&test_mono_calls==before_mono+4);
 #else
@@ -157,7 +157,7 @@ int main(void){
  test_dimensions_fail=1;assert(app_image_request_open(path));on_enter(&ctx);assert(!s_gray&&!s_viewing);test_dimensions_fail=0;
  test_decode_fail=1;assert(app_image_request_open(path));on_enter(&ctx);assert(!s_gray&&!s_viewing);test_decode_fail=0;
  assert(app_image_request_open(path));on_enter(&ctx);assert(s_viewing);on_media_lost(&ctx);assert(!s_gray&&!s_viewing);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  // 两个受限入口用同一16灰呈现器，取消/退出/重新从文件管理打开不得串模式。
  // Both scoped entries share the16-tone presenter; cancellation/exit/later Files opens cannot leak modes.
  for(int transparent=0;transparent<2;++transparent){
@@ -191,6 +191,6 @@ for board in ('pico','metalio47'):
     with tempfile.TemporaryDirectory() as folder:
         c,binary=Path(folder)/'test.c',Path(folder)/'test'
         c.write_text(prefix+source+tail)
-        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-function',f'-DKIIKO_BOARD_METALIO47={int(board=="metalio47")}','-fsanitize=address,undefined',str(c),str(root/'main/ui/ui_image_dither.c'),'-o',str(binary)],check=True)
+        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-function',f'-DDPREADER_BOARD_METALIO47={int(board=="metalio47")}','-fsanitize=address,undefined',str(c),str(root/'main/ui/ui_image_dither.c'),'-o',str(binary)],check=True)
         subprocess.run([str(binary)],check=True)
         print(board,'verified',flush=True)

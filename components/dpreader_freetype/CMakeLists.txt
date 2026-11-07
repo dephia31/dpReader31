@@ -9,12 +9,12 @@ idf_component_register(SRCS
     "vendor/src/base/ftsystem.c" "vendor/src/base/ftdebug.c"
     "vendor/src/base/ftbitmap.c" "vendor/src/base/ftmm.c" "vendor/src/base/fttype1.c"
     "vendor/src/truetype/truetype.c" "vendor/src/sfnt/sfnt.c"
-    "vendor/src/smooth/smooth.c" "vendor/src/raster/raster.c" "kiiko_autofit.c"
+    "vendor/src/smooth/smooth.c" "vendor/src/raster/raster.c" "dpreader_autofit.c"
     "vendor/src/psnames/psnames.c"
     INCLUDE_DIRS "vendor/include" "."
     PRIV_INCLUDE_DIRS "vendor/src/autofit" "${CMAKE_CURRENT_BINARY_DIR}/autofit")
 target_compile_definitions(${COMPONENT_LIB} PRIVATE FT2_BUILD_LIBRARY
-    FT_CONFIG_MODULES_H="kiiko_ftmodule.h" FT_CONFIG_OPTIONS_H="kiiko_ftoption.h")
+    FT_CONFIG_MODULES_H="dpreader_ftmodule.h" FT_CONFIG_OPTIONS_H="dpreader_ftoption.h")
 
 # Keep compiler stack-frame evidence for the embedded raster; do not grow task stacks.
 target_compile_options(${COMPONENT_LIB} PRIVATE -fstack-usage -Werror=frame-larger-than=4096)

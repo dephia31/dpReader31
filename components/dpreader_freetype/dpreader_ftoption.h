@@ -13,8 +13,8 @@
 
 /* The mono raster's pool is a local array, not an FT_Memory allocation.
  * Keep it within the16KiB main/12KiB prep stacks. FreeType sub-bands on overflow. */
-#ifndef KIIKO_MONO_RENDER_POOL_SIZE
-#define KIIKO_MONO_RENDER_POOL_SIZE 2048L
+#ifndef DPREADER_MONO_RENDER_POOL_SIZE
+#define DPREADER_MONO_RENDER_POOL_SIZE 2048L
 #endif
 #undef FT_RENDER_POOL_SIZE
-#define FT_RENDER_POOL_SIZE KIIKO_MONO_RENDER_POOL_SIZE
+#define FT_RENDER_POOL_SIZE DPREADER_MONO_RENDER_POOL_SIZE

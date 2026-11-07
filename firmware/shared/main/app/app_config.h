@@ -45,7 +45,7 @@
 // 阅读页另有独立的可选整屏清残影周期。
 // Count only whole system-page transitions; local controls, dialogs and cover updates do not advance
 // the cleanup cadence. Reading keeps its own configurable full-screen cleanup interval.
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define APP_UI_GC16_EVERY 6
 #define APP_UI_GC16_MIN_INTERVAL_US 3000000LL
 #else
@@ -54,7 +54,7 @@
 // Cân bằng toàn màn hình định kỳ (settle) mỗi 4 trang để triệt tiêu bóng mờ vi sai an toàn, tiết kiệm pin
 #define APP_UI_FAST_GL16_SETTLE_EVERY 4
 // Toàn bộ điểm ảnh làm mới GC16 định kỳ
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define APP_UI_FAST_GC16_EVERY 6
 #else
 #define APP_UI_FAST_GC16_EVERY 12

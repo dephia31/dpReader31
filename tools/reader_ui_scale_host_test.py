@@ -122,7 +122,7 @@ unit+=r'''
 static bool overlap(EpdRect a,EpdRect b){return a.x<b.x+b.width&&b.x<a.x+a.width&&a.y<b.y+b.height&&b.y<a.y+a.height;}
 int main(void){uint8_t fb[1]={0};
  for(face=0;face<3;++face)for(scale=100;scale<=200;scale+=10){
-   image_probe=KIIKO_BOARD_METALIO47;image_text_count=0;draw_reading_toggle(fb,2,"关闭书内图片","跳过正文插图，保留原书文件",true);image_probe=false;
+   image_probe=DPREADER_BOARD_METALIO47;image_text_count=0;draw_reading_toggle(fb,2,"关闭书内图片","跳过正文插图，保留原书文件",true);image_probe=false;
    ui_text_box(fb,(EpdRect){36,240,612,100},32,"Cỡ chữ hệ thống và đọc sách",EPD_DRAW_ALIGN_LEFT,false);
    draw_reading_font_name(fb,(EpdRect){36,360,612,100},"Testing font name");assert(!antialias&&selected_slot==2);
    for(int i=0;i<4;++i){EpdRect a=reader_font_card(i);assert(a.y>=reader_font_top()+100&&a.y+a.height<1141);for(int j=0;j<i;++j)assert(!overlap(a,reader_font_card(j)));}
@@ -131,7 +131,7 @@ int main(void){uint8_t fb[1]={0};
    for(int i=0;i<9;++i){EpdRect a=reader_font_pick_rect(i);assert(a.y>reader_font_picker_top()+120&&a.y+a.height<1141);for(int j=0;j<i;++j)assert(!overlap(a,reader_font_pick_rect(j)));}
    for(int edit=0;edit<2;++edit){s_bookmark_edit=edit;assert(bookmark_rows()>=3);for(int row=0;row<bookmark_rows();++row){EpdRect a=bookmark_row_rect(row);assert(a.y+a.height<=560+(edit?520:600));if(row)assert(!overlap(a,bookmark_row_rect(row-1)));}}
  }
- assert(glyphs>100&&image_switches==(KIIKO_BOARD_METALIO47?33u:0u));
+ assert(glyphs>100&&image_switches==(DPREADER_BOARD_METALIO47?33u:0u));
  scaling=false;scale=200;assert(ui_text_effective_px(30)==32);
  puts("PASS: 100–200% native glyph bounds for 3 font metrics, paired sheet/sliders/switches and shared hits, expanded font grid and bookmark rows; body scaling isolated");
 }
@@ -139,8 +139,8 @@ int main(void){uint8_t fb[1]={0};
 with tempfile.TemporaryDirectory(dir=ROOT/'build') as folder:
     c,b=Path(folder)/'test.c',Path(folder)/'test'
     c.write_text(unit)
-    view=ROOT/".kiiko-source-view.json"
+    view=ROOT/".dpreader-source-view.json"
     boards=(int(json.loads(view.read_text())["board"]=="metalio47"),) if view.exists() else (0,1)
     for board in boards:
-        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-fsanitize=address,undefined',f'-DKIIKO_BOARD_METALIO47={board}',str(c),'-o',str(b)],check=True)
+        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-fsanitize=address,undefined',f'-DDPREADER_BOARD_METALIO47={board}',str(c),'-o',str(b)],check=True)
         subprocess.run([str(b)],check=True)

@@ -72,7 +72,7 @@ with tempfile.TemporaryDirectory() as folder:
     source=source.split('#if defined(CONFIG_IDF_TARGET_ESP32S31)\n#include "output_common/lut.h"')[0]
     (r/'unit.c').write_text(source+UNIT)
     subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unknown-attributes',
-                    '-fsanitize=address,undefined','-DCONFIG_IDF_TARGET_ESP32S31=1','-DKIIKO_LOCAL_LATENCY=1',
+                    '-fsanitize=address,undefined','-DCONFIG_IDF_TARGET_ESP32S31=1','-DDPREADER_LOCAL_LATENCY=1',
                     '-I'+str(r),'-I'+str(ROOT/'boards/metalio47/src/components/epdiy/src'),
                     str(r/'unit.c'),'-o',str(r/'test')],check=True)
     subprocess.run([str(r/'test')],check=True)

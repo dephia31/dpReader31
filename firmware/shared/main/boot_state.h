@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "esp_err.h"
-#include "kiiko_board_config.h"
+#include "dpreader_board_config.h"
 
 #define PICO_BOOT_PATH_MAX 288
 typedef struct {
@@ -20,7 +20,7 @@ void pico_boot_init(bool abnormal_reset);
 /// 首个完整界面输出成功后标记启动完成。/ Mark startup complete after a successful first full presentation.
 void pico_boot_ready(void);
 bool pico_boot_recovery(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 异常启动暂用内建字体；用户本次启动明确重选成功后重新允许TF字体。
 /// Abnormal boots start on the built-in face; an explicit successful choice this boot re-admits TF faces.
 void pico_boot_allow_font(void);
@@ -28,7 +28,7 @@ bool pico_boot_font_allowed(void);
 #endif
 /// 只观察恢复检查点，不消费也不改写Flash。/ Inspect the resume checkpoint without consuming it or writing Flash.
 bool pico_boot_has_resume(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 异常启动禁用自动开书，但不能因此丢失先前锁定状态。/ Abnormal boots disable book resume without discarding the prior lock gate.
 bool pico_boot_lock_pending(void);
 #endif

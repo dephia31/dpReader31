@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define PICO_OTA_UPDATE_PATH "/sdcard/dpReader-update.bin"
 #else
 #define PICO_OTA_UPDATE_PATH "/sdcard/dpReader-update.bin"

@@ -11,7 +11,7 @@ typedef enum {
 // 两个有界槽容纳首页及放大时间页；只缓存字体无关底图，动态区域可裁剪复用。
 // Two bounded slots fit Home and enlarged time faces; font-independent bases support cropped motion restores.
 #define UI_HOME_CLOCK_BASE_SLOT_BYTES (504u*460u/2u)
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 // 两槽保留实时底图，另按样式保留固定预览，调用方统一分配PSRAM。
 // Two live bases plus one fixed complete preview per style in the caller-owned PSRAM pool.
 #define UI_HOME_CLOCK_BASE_CACHE_SLOTS (2u+UI_HOME_CLOCK_COUNT)
@@ -23,7 +23,7 @@ typedef enum {
 void ui_home_clock_bind_base_cache(uint8_t *memory,size_t bytes);
 const char *ui_home_clock_name(ui_home_clock_style_t style);
 void ui_home_clock_style_draw(uint8_t *fb,EpdRect bounds,const struct tm *date,bool binary,ui_home_clock_style_t style);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// Fixed 10:10:30 preview; reuse complete rasters without moving hands or numerals.
 void ui_home_clock_preview_draw(uint8_t *fb,EpdRect bounds,bool binary,ui_home_clock_style_t style);
 void ui_home_clock_preview_invalidate(void);

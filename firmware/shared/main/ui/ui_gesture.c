@@ -1,9 +1,9 @@
 /*
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
- * 中文：单指手势状态机，页面负责解释事件与绘制。
+ * Bộ nhận diện cử chỉ một ngón. Từng màn hình xử lý sự kiện và vẽ giao diện.
  * English: Single-finger gesture state machine; pages interpret and draw events.
- * 冻结：翻页不画按下态；引用 ui_kit.h 阈值；短拖取消以免误翻。
+ * Quy tắc cố định: lật trang không vẽ trạng thái nhấn. Dùng ngưỡng trong ui_kit.h và hủy thao tác kéo ngắn để tránh lật nhầm.
  * Frozen: No pressed decoration for page turns; use ui_kit.h thresholds; short drags cancel to avoid accidental turns.
  * User revision 2026-11-03: all four swipe directions use a shorter 60px threshold.
  */
@@ -48,7 +48,7 @@ bool ui_gesture_feed(ui_gesture_t *g, const app_ctx_t *ctx, ui_gesture_event_t *
     g->x = touch->x; g->y = touch->y;
     int32_t dx = (int32_t)g->x - g->x0, dy = (int32_t)g->y - g->y0;
     int32_t ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
-    // 容差使用二维距离，移回起点也不恢复轻点资格。/ Slop uses two-dimensional distance; returning to the origin never restores tap eligibility.
+    // Tính dung sai theo khoảng cách hai chiều. Kéo về điểm bắt đầu vẫn không tính là chạm./ Slop uses two-dimensional distance; returning to the origin never restores tap eligibility.
     if ((int64_t)dx * dx + (int64_t)dy * dy > (int64_t)UI_TOUCH_SLOP_PX * UI_TOUCH_SLOP_PX) g->moved = true;
     if (ctx->released || !touch->touched) {
         ui_gesture_type_t type = UI_GESTURE_CANCEL;
@@ -58,6 +58,7 @@ bool ui_gesture_feed(ui_gesture_t *g, const app_ctx_t *ctx, ui_gesture_event_t *
             else if (!g->moved) type = UI_GESTURE_TAP;
         }
         bool result = emit(g, type, ctx->now_ms, out);
+        out->swipe_leftward = ctx->released && !g->long_fired && dx <= -UI_SWIPE_MIN_PX;
         ui_gesture_reset(g);
         return result;
     }

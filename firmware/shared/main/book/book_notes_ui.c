@@ -25,7 +25,7 @@
 enum { CLOSED, SELECT, EDIT_NOTE, LOOKUP, LIST, FOOTNOTE };
 enum { DEFINITION_PX=32, DEFINITION_LINE_H=44, DEFINITION_LINES=10, NOTES_LIST_ROWS=7, NOTES_LIST_ROW_H=80 };
 // 脚注引用的触控外扩，编号字很小。/ Touch slop around tiny footnote markers.
-enum { FOOTNOTE_SLOP=28, FOOTNOTE_TEXT_X=62, FOOTNOTE_BUTTON_H=58 };
+enum { FOOTNOTE_SLOP=8, FOOTNOTE_TEXT_X=62, FOOTNOTE_BUTTON_H=58 };
 typedef struct {
     book_annotations_t annotations, committed;
     book_dictionary_t dictionary;
@@ -247,10 +247,14 @@ static size_t link_find(size_t at) {
     }
     return SIZE_MAX;
 }
-typedef struct {int x,y,best,glyph_y;size_t link;} link_pick_t;
+typedef struct {int x,y,best,glyph_y;size_t link;bool on_body_text;} link_pick_t;
 static void link_pick(void *ctx,size_t a,size_t b,EpdRect r) {
     (void)b;link_pick_t *p=ctx;
-    size_t i=link_find(a);if(i==SIZE_MAX)return;
+    size_t i=link_find(a);
+    if(i==SIZE_MAX) {
+        if(hit(r,p->x,p->y))p->on_body_text=true;
+        return;
+    }
     int dx=p->x<r.x?r.x-p->x:p->x>=r.x+r.width?p->x-r.x-r.width+1:0;
     int dy=p->y<r.y?r.y-p->y:p->y>=r.y+r.height?p->y-r.y-r.height+1:0;
     if(dx>FOOTNOTE_SLOP||dy>FOOTNOTE_SLOP)return;
@@ -261,8 +265,20 @@ static void link_pick(void *ctx,size_t a,size_t b,EpdRect r) {
 // Keep the popup clear of the tapped reference: below it in the upper half, above otherwise; height follows the lines.
 static bool footnote_open(size_t page,EpdRect body,int px,int x,int y) {
     if(!s->link_count||!s->footnote_load||book_layout_vertical())return false;
+    const size_t first=book_layout_page_start_offset(page);
+    const size_t end=page+1<book_layout_page_count()?book_layout_page_start_offset(page+1):s->length;
+    size_t lo=0,hi=s->link_count;
+    while(lo<hi) {
+        const size_t mid=lo+(hi-lo)/2;
+        if(s->links[mid].end<=first)lo=mid+1;
+        else hi=mid;
+    }
+    // Chương có chú thích ở trang khác không cần duyệt lại chữ của trang đang chạm.
+    if(lo==s->link_count||s->links[lo].start>=end)return false;
     link_pick_t p={.x=x,.y=y,.link=SIZE_MAX};
     if(!book_layout_visit_page(page,body,px,link_pick,&p)||p.link==SIZE_MAX)return false;
+    // Dung sai chỉ áp dụng ở khoảng trống, không lấn vào chữ bên cạnh.
+    if(p.best!=0&&p.on_body_text)return false;
     char *text=NULL;size_t length=0;
     if(s->footnote_load(s->links[p.link].href,&text,&length)!=ESP_OK||!text||!length){free(text);return false;}
     free(s->footnote);s->footnote=text;
@@ -286,7 +302,7 @@ static void footnote_draw(uint8_t *fb) {
     button(fb,footnote_button(2),"Đóng");
 }
 static void footnote_gesture(const ui_gesture_event_t *ev,app_redraw_t *redraw) {
-    int x=ev->x,y=ev->y;
+    int x=ev->x0,y=ev->y0;
     if(!hit(s->footnote_panel,x,y)||hit(footnote_button(2),x,y)){book_notes_cancel();*redraw=APP_REDRAW_PAGE;return;}
     unsigned pages=(s->footnote_lines+DEFINITION_LINES-1)/DEFINITION_LINES;
     if(footnote_paged()&&hit(footnote_button(0),x,y)&&s->definition_page){s->definition_page--;*redraw=APP_REDRAW_PAGE;}
@@ -415,7 +431,7 @@ bool book_notes_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev,size_t page,
     *redraw=APP_REDRAW_NONE;if(!s)return false;
     if(s->mode&& (page!=s->page||s->generation!=book_layout_generation()))book_notes_cancel();
     if(!s->mode) {
-        if(ev->type==UI_GESTURE_TAP&&hit(body,ev->x,ev->y)&&footnote_open(page,body,px,ev->x,ev->y)){*redraw=APP_REDRAW_PAGE;return true;}
+        if(ev->type==UI_GESTURE_TAP&&hit(body,ev->x0,ev->y0)&&footnote_open(page,body,px,ev->x0,ev->y0)){*redraw=APP_REDRAW_PAGE;return true;}
         if(ev->type!=UI_GESTURE_LONG_PRESS||!hit(body,ev->x0,ev->y0)||book_layout_vertical())return false;
         if(!select_at(page,body,px,ev->x0,ev->y0,&s->start,&s->end))return false;
         s->anchor_start=s->start;s->anchor_end=s->end;s->mode=SELECT;s->page=page;s->generation=book_layout_generation();s->dragging=true;s->message[0]=0;place_menu(page,body,px);ui_gesture_enable_held_drag(true);

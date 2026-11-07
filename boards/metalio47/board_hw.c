@@ -10,8 +10,8 @@
  * the front light and the haptic motor live in components/metalio_hw; metalio_hw_init() is
  * called from read_pico's board init, so all that is left here is the board identity.
  */
-#include "kiiko_board.h"
+#include "dpreader_board.h"
 
-const char *kiiko_board_id(void) { return KIIKO_BOARD_ID; }
+const char *dpreader_board_id(void) { return DPREADER_BOARD_ID; }
 
-esp_err_t kiiko_board_extras_init(void) { return ESP_OK; }
+esp_err_t dpreader_board_extras_init(void) { return ESP_OK; }

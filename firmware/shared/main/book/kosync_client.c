@@ -4,7 +4,7 @@
  *
  * Triển khai KOSyncClient (KOReader Sync) cho dpReader trên nền ESP32-S31.
  */
-#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#if DPREADER_BOARD_METALIO47 && defined(ESP_PLATFORM)
 #include "esp_attr.h"
 // 仅普通任务访问的CPU数据；锁和ISR数据保留内部RAM。/ Task-only CPU data; locks and ISR data stay internal.
 #define CPU_STATE_RAM EXT_RAM_BSS_ATTR
@@ -712,7 +712,7 @@ static int64_t s_auto_retry_at;
 static unsigned s_auto_task_failures;
 
 static bool sync_begin(void) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(pico_online_update_busy())return false;
 #endif
     TaskHandle_t task=xTaskGetCurrentTaskHandle();
@@ -806,7 +806,7 @@ static void auto_sync_task(void *arg) {
     vTaskDelete(NULL);
 }
 void kosync_auto_poll(void) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(pico_online_update_busy())return;
 #endif
     int64_t now=esp_timer_get_time();

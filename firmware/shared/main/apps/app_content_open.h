@@ -26,7 +26,7 @@ void app_files_request_folder(int folder);
 void app_book_request_manage(void);
 void app_book_request_opds(void);
 bool app_book_reader_body_visible(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "app/app.h"
 #include "settings.h"
 /// 共用看图入口，path可空以显示列表；透明书封只收PNG。/ Shared viewer entry; an empty path opens its list, while transparent covers accept PNG only.
@@ -42,7 +42,7 @@ bool app_book_ai_bookmark(void);
 /// 模式/对比度变化时释放旧格式封面；绘制前由主循环一次调用。/ Drop obsolete cover formats once on mode/contrast changes, before drawing.
 void app_book_cover_mode_changed(void);
 void app_home_cover_mode_changed(void);
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 void app_home_trim_cover_history(void);
 #endif
 /// 开书前释放可重建的表盘底图，让解析器使用这部分 PSRAM。/ Release rebuildable clock bases before opening a book so parsing can use that PSRAM.

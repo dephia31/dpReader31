@@ -85,7 +85,7 @@ with tempfile.TemporaryDirectory() as tmp:
     native_png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',684,1216,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(native_raw))+chunk(b'IEND',b'')
     (tmp/'native.png').write_bytes(native_png)
     vendor=root/'managed_components/espressif__libpng/libpng'
-    if not vendor.exists():vendor=Path(os.environ.get('KIIKO_LIBPNG_PATH','/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng'))
+    if not vendor.exists():vendor=Path(os.environ.get('DPREADER_LIBPNG_PATH','/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng'))
     assert vendor.exists(),'Build IDF once to resolve libpng'
     (tmp/'pnglibconf.h').write_bytes((vendor/'scripts/pnglibconf.h.prebuilt').read_bytes())
     names='png pngerror pngget pngmem pngpread pngread pngrio pngrtran pngrutil pngset pngtrans pngwrite pngwio pngwtran pngwutil'.split()

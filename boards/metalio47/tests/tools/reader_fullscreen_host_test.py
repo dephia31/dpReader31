@@ -57,6 +57,8 @@ static void copy_text(char *to,size_t cap,const char *from){snprintf(to,cap,"%s"
 static void lock_draw(void){assert(!draw_locked);draw_locked=true;}
 static void unlock_draw(void){assert(draw_locked);draw_locked=false;}
 static void invalidate_prep(void){}
+static unsigned pauses;
+static void pause_reader_prep(void){++pauses;}
 static EpdRect body_rect(void){return(EpdRect){0,0,684,100};}
 static size_t book_layout_page_start_offset(size_t page){return page*layout_span;}
 static const char *s_path="/sdcard/books/test.epub";
@@ -123,6 +125,7 @@ int main(void){
   s_zoom_bits=malloc(32);assert(s_zoom_bits);s_zoom_bits_bytes=32;
   s_zoom_active=s_image_pan_active=s_image_zoom_bw=s_reader_tap.pending=true;
   s_zoom_slot=2;s_image_zoom=2000;s_image_zoom_page=2;s_image_zoom_start_distance=99;
+  unsigned prior_pauses=pauses;
   app_redraw_t r=turn_page(&ctx,dir);
   assert(!s_zoom_bits&&!s_zoom_bits_bytes&&!s_zoom_active&&!s_image_pan_active&&!s_image_zoom_bw&&!s_reader_tap.pending);
   assert(s_zoom_slot==-1&&s_image_zoom==READER_IMAGE_ZOOM_MIN&&s_image_zoom_page==SIZE_MAX&&!s_image_zoom_start_distance);
@@ -130,6 +133,7 @@ int main(void){
   assert(s_stats_pending_turns==1&&s_session_turns==1&&paints==1);
   assert(book_layout_page_start_offset(s_page)<=destination&&destination<book_layout_page_start_offset(s_page)+layout_span);
   assert(reflows==0);
+  assert(pauses==prior_pauses+(unsigned)tools);
   assert(r==(tools?APP_REDRAW_PAGE:APP_REDRAW_AREA));
   assert(s_water_turn_pending==!!(!tools));
  }
@@ -152,7 +156,7 @@ int main(void){
  reset(true,false,2,0);s_reader_image_exit_pending=true;
  assert(turn_page(&ctx,1)==APP_REDRAW_AREA&&!s_reader_image_exit_pending);
  reset(true,true,2,0);s_reader_image_frame=true;
- assert(turn_page(&ctx,1)==APP_REDRAW_PAGE&&!s_reader_image_exit_pending);
+ assert(turn_page(&ctx,1)==APP_REDRAW_PAGE&&s_reader_image_exit_pending);
  reset(false,true,0,0);assert(turn_page(&ctx,-1)==APP_REDRAW_PAGE);
  assert(!s_toolbar&&s_page==0&&!paints&&!s_stats_pending_turns);
  reset(false,true,8,1);assert(turn_page(&ctx,1)==APP_REDRAW_PAGE);

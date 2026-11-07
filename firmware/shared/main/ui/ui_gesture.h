@@ -2,10 +2,10 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * 中文：由主循环喂入触摸快照的纯状态识别器，不解释页面动作。
+ * Vòng lặp chính cấp dữ liệu cảm ứng cho bộ nhận diện. Từng màn hình quyết định hành động.
  * English: Pure state recognizer fed by loop touch snapshots; no page actions.
  *
- * 冻结：翻页不做按下反馈；阈值来自 ui_kit.h；短拖取消以免误翻。
+ * Quy tắc cố định: lật trang không có phản hồi khi nhấn. Dùng ngưỡng trong ui_kit.h và hủy thao tác kéo ngắn.
  * Frozen: No press decoration for page turns; thresholds live in ui_kit.h; short drags cancel to avoid accidental turns.
  * User revision 2026-11-03: all four swipe directions use a shorter 60px threshold.
  */
@@ -13,37 +13,38 @@
 #include "app.h"
 
 typedef enum {
-    UI_GESTURE_PRESS, ///< 按下 / Press
-    UI_GESTURE_MOVE, ///< 按住移动，用于连续滑块 / Move while held for continuous sliders
-    UI_GESTURE_LONG_PRESS, ///< 长按一次 / Single long press
-    UI_GESTURE_TAP, ///< 原点轻点 / Tap at origin
-    UI_GESTURE_SWIPE_L, ///< 左滑 / Swipe left
-    UI_GESTURE_SWIPE_R, ///< 右滑 / Swipe right
-    UI_GESTURE_SWIPE_U, ///< 上滑 / Swipe up
-    UI_GESTURE_SWIPE_D, ///< 下滑 / Swipe down
-    UI_GESTURE_CANCEL, ///< 取消 / Cancel
+    UI_GESTURE_PRESS, ///< Nhấn / Press
+    UI_GESTURE_MOVE, ///< Kéo khi đang giữ để điều khiển thanh trượt / Move while held for continuous sliders
+    UI_GESTURE_LONG_PRESS, ///< Nhấn giữ một lần / Single long press
+    UI_GESTURE_TAP, ///< Chạm tại điểm bắt đầu / Tap at origin
+    UI_GESTURE_SWIPE_L, ///< Vuốt trái / Swipe left
+    UI_GESTURE_SWIPE_R, ///< Vuốt phải / Swipe right
+    UI_GESTURE_SWIPE_U, ///< Vuốt lên / Swipe up
+    UI_GESTURE_SWIPE_D, ///< Vuốt xuống / Swipe down
+    UI_GESTURE_CANCEL, ///< Hủy / Cancel
 } ui_gesture_type_t;
 
 typedef struct ui_gesture_event_s {
-    ui_gesture_type_t type; ///< 事件类型 / Event type
-    uint16_t x0, y0; ///< 按下原点，也是 TAP 的逻辑坐标 / Press origin, also the logical TAP position
-    uint16_t x, y; ///< 当前或释放位置，供控件落外取消 / Current or release position for outside-control cancellation
-    int64_t hold_ms; ///< 非负持续时间 / Nonnegative duration
+    ui_gesture_type_t type; ///< Loại sự kiện / Event type
+    uint16_t x0, y0; ///< Tọa độ bắt đầu, cũng là tọa độ của TAP / Press origin, also the logical TAP position
+    uint16_t x, y; ///< Tọa độ hiện tại hoặc khi nhấc tay để hủy khi kéo ra ngoài / Current or release position for outside-control cancellation
+    bool swipe_leftward; ///< Released after at least UI_SWIPE_MIN_PX leftward travel.
+    int64_t hold_ms; ///< Thời lượng không âm / Nonnegative duration
 } ui_gesture_event_t;
 
 typedef struct {
-    bool active; ///< 正在跟踪 / Tracking a contact
-    uint16_t x0, y0; ///< 起点 / Origin
-    uint16_t x, y; ///< 最近有效坐标 / Last valid coordinates
-    int64_t t0_ms; ///< 起始时刻 / Start time
-    int64_t last_ms; ///< 最近时刻，倒退时取消 / Last time, cancel on clock regression
-    bool moved; ///< 曾超出容差 / Has exceeded movement slop
-    bool long_fired; ///< 已发出长按 / Long press emitted
+    bool active; ///< Đang theo dõi / Tracking a contact
+    uint16_t x0, y0; ///< Điểm bắt đầu / Origin
+    uint16_t x, y; ///< Tọa độ hợp lệ gần nhất / Last valid coordinates
+    int64_t t0_ms; ///< Thời điểm bắt đầu / Start time
+    int64_t last_ms; ///< Thời điểm gần nhất, hủy nếu đồng hồ lùi / Last time, cancel on clock regression
+    bool moved; ///< Đã vượt dung sai / Has exceeded movement slop
+    bool long_fired; ///< Đã phát sự kiện nhấn giữ / Long press emitted
 } ui_gesture_t;
 
-/// 清除状态；进出页面时调用。/ Clear state when entering or leaving a page.
+/// Xóa trạng thái khi vào hoặc rời màn hình./ Clear state when entering or leaving a page.
 void ui_gesture_reset(ui_gesture_t *gesture);
-/// 每次最多一个事件；consumed、多点或缺失快照取消活动序列。
+/// Mỗi lần phát tối đa một sự kiện. Hủy khi đầu vào đã được xử lý, chạm nhiều ngón hoặc thiếu dữ liệu.
 /// Emit at most one event; consumed, multitouch or a missing snapshot cancels an active sequence.
 bool ui_gesture_feed(ui_gesture_t *gesture, const app_ctx_t *ctx, ui_gesture_event_t *out);
 

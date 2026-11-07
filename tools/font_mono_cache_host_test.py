@@ -19,7 +19,7 @@ unit=r'''
 #include "vn_diacritics.h"
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define TTF_CACHE_LIMIT (1024*1024)
 #define TTF_CACHE_BUCKETS 256
 #define MALLOC_CAP_SPIRAM 1

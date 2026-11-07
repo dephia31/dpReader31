@@ -10,7 +10,7 @@
 #include "display_reader_waveform.h"
 #include "e0470_epaper_waveform.h"
 #include "e0470_page_turn.h"
-#ifdef KIIKO_TEST_MAIN_SWITCH_ERASE
+#ifdef DPREADER_TEST_MAIN_SWITCH_ERASE
 #include "display_main_waveform.h"
 #endif
 
@@ -171,7 +171,7 @@ static void reader_tail_test(EpdiyHighlevelState* hl,const EpdWaveform* waveform
 int main(void) {
     EpdiyHighlevelState hl={.front_fb=front,.back_fb=back,.difference_fb=difference,.dirty_lines=lines,.dirty_columns=columns};
     e0470_waveform_init();
-#ifdef KIIKO_TEST_MAIN_SWITCH_ERASE
+#ifdef DPREADER_TEST_MAIN_SWITCH_ERASE
     // Exercise the real compact main-page engine with50-gray/22-BW phases, not only LUT generation.
     const EpdWaveform *switch_sources[]={display_main_water_waveform(),display_main_bw_turn_waveform()};
     for(int kind=0;kind<2;++kind){
@@ -199,7 +199,7 @@ int main(void) {
 #endif
     uint8_t vendor[3][48*64];const int modes[]={MODE_GL16,MODE_GC16,MODE_DU};
     for(int i=0;i<3;++i){const EpdWaveformPhases*p=e0470_waveform_phases(&E0470_WAVEFORM,modes[i]);memcpy(vendor[i],p->luts,(size_t)p->phases*64);}
-#if KIIKO_S31_TEXT_RIPPLE
+#if DPREADER_S31_TEXT_RIPPLE
     assert(display_reader_fast_ripple_enabled());
     const EpdWaveform*wave=metalio_text_ripple_waveform();
     const EpdWaveformPhases*p=e0470_waveform_phases(wave,MODE_GL16);

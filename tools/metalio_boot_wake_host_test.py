@@ -3,10 +3,12 @@
 English: Execute S31 boot gates: retain real wakes without granting timer/shared-IRQ unlocks.
 """
 from pathlib import Path
+import os
 import subprocess, tempfile
 from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1]
-source=root/'main/sleep.c'
+source=root/'boards/metalio47/src/main/sleep.c'
+transfer=root/'components/read_pico_transfer/read_pico_transfer.c'
 unit=r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -34,6 +36,14 @@ static bool s_boot_from_deep,s_boot_power_wake,s_boot_power_on,s_boot_lock_draw;
 static int reset_reason,cause,wake_presses;
 static uint64_t ext1;
 static bool resume,pin,physical,queued,prior_lock;
+static bool s_sleep_blocked,s_sleep_resume_requested,s_started,s_wifi,s_http,s_netif;
+static int64_t s_sleep_resume_retry;
+static unsigned wifi_cleanups;
+#define portENTER_CRITICAL(lock) ((void)0)
+#define portEXIT_CRITICAL(lock) ((void)0)
+#define TRANSFER_NETWORK_GUARD_OR_RETURN() ((void)0)
+static int64_t esp_timer_get_time(void){return 0;}
+static void read_pico_transfer_stop(void){++wifi_cleanups;}
 static unsigned waits,latches,auth,holds,ready,frames,hints,manual_presses;
 static int esp_reset_reason(void){return reset_reason;}
 static int esp_sleep_get_wakeup_cause(void){return cause;}
@@ -52,6 +62,7 @@ static bool app_lock_resume_frame(EpdiyHighlevelState *h){assert(!h);++frames;re
 static void read_pico_pmu_latch_power_wakeup(void){assert(physical);queued=true;++latches;}
 static int app_light_sleep_wait_timed(void *acc,unsigned ms){
  assert(!acc&&!ms);++waits;
+ s_sleep_blocked=true;assert(!s_sleep_resume_requested);
  if(queued){queued=false;return APP_WAKE_KEY;}
  // The mock returns only after a later real user press; record when it was required.
  ++manual_presses;return APP_WAKE_KEY;
@@ -75,10 +86,14 @@ static enum EpdDrawError lock_present_art(EpdiyHighlevelState *h,int s){(void)s;
 static void guard_draw_result(EpdiyHighlevelState *h,enum EpdDrawError e){assert(h&&!e);}
 static void epd_poweroff(void){}
 static bool lock_screen_save(uint8_t *f){assert(f==fb);return true;}
-static void lock_screen_authenticate(EpdiyHighlevelState *h,void *t,void *a,bool b){assert(h&&t&&a&&b);++auth;}
+static void lock_screen_authenticate(EpdiyHighlevelState *h,void *t,void *a,bool b){
+ assert(h&&t&&a&&b&&!s_sleep_resume_requested);++auth;s_sleep_blocked=true;
+}
 '''
 unit+='\nstatic void ble_pt_resume_after_sleep(void){}\n'
 unit+='#include <string.h>\n'
+for name in ('read_pico_transfer_resume_after_sleep','read_pico_transfer_resume_service'):
+    unit+=function(name,transfer)+'\n'
 for name in ('app_lock_capture_boot_wakeup','lock_wait_for_unlock','app_lock_boot_gate'):
     unit+=function(name,source)+'\n'
 unit+=r'''
@@ -87,8 +102,16 @@ static void reset(void){
  reset_reason=ESP_RST_POWERON;cause=0;ext1=0;wake_presses=1;
  resume=true;pin=physical=queued=prior_lock=false;
  waits=latches=auth=holds=ready=frames=hints=manual_presses=0;
+ wifi_cleanups=0;s_sleep_blocked=s_sleep_resume_requested=false;
 }
-static void gate(void){EpdiyHighlevelState hl={0};app_lock_capture_boot_wakeup();app_lock_boot_gate(&hl,(void*)1,(void*)2);assert(!hints&&frames==1);}
+static void gate(void){
+ EpdiyHighlevelState hl={0};app_lock_capture_boot_wakeup();app_lock_boot_gate(&hl,(void*)1,(void*)2);assert(!hints&&frames==1);
+ assert(s_sleep_blocked==s_sleep_resume_requested&&!wifi_cleanups);
+ read_pico_transfer_resume_service();
+ assert(!s_sleep_blocked&&!s_sleep_resume_requested&&wifi_cleanups==(unsigned)(waits||auth));
+ read_pico_transfer_resume_service();
+ assert(wifi_cleanups==(unsigned)(waits||auth));
+}
 int main(void){
  reset();gate();assert(!waits&&!manual_presses&&ready==1&&holds==1);
  reset();reset_reason=ESP_RST_DEEPSLEEP;cause=ESP_SLEEP_WAKEUP_EXT1;ext1=4;physical=true;
@@ -103,17 +126,23 @@ int main(void){
  reset();wake_presses=2;reset_reason=ESP_RST_DEEPSLEEP;cause=ESP_SLEEP_WAKEUP_EXT1;ext1=4;physical=true;
  gate();assert(waits==1&&!latches&&manual_presses==1);
  // PIN always reaches authentication, independent of boot cause or the single/double choice.
+#if !DPREADER_LOVE_BOOK
  for(unsigned i=0;i<3;i++){
   reset();pin=true;reset_reason=i==0?ESP_RST_POWERON:ESP_RST_DEEPSLEEP;
   cause=ESP_SLEEP_WAKEUP_EXT1;ext1=4;physical=true;gate();assert(auth==1&&!latches);
  }
+#endif
  reset();resume=false;gate();assert(!waits&&!latches&&!holds);
  // Watchdog recovery may forbid book/font resume while still retaining the prior lock.
  reset();resume=false;prior_lock=true;reset_reason=7;gate();assert(waits==1&&!latches&&manual_presses==1);
- puts("PASS: S31 actual boot gate, single hardware boot, confirmed deep key, no shared-IRQ/timer/software-reset auto unlock, double/PIN retained");
+ puts("PASS: S31 boot wake and WiFi gate release (once, no restart), single/double and PIN when supported, timer/IRQ do not unlock");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s31-boot-wake-') as d:
     p=Path(d);(p/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
-    subprocess.run([str(p/'test')],check=True)
+    sanitizers = os.environ.get('DPREADER_TEST_SANITIZERS', 'address,undefined')
+    for edition in (0,1):
+        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function',
+                        '-Wno-unused-parameter',f'-DDPREADER_LOVE_BOOK={edition}',f'-fsanitize={sanitizers}',
+                        str(p/'test.c'),'-o',str(p/'test')],check=True)
+        subprocess.run([str(p/'test')],check=True)

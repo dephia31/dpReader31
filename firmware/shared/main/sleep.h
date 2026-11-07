@@ -28,7 +28,7 @@ typedef enum {
     APP_WAKE_TIMEOUT,
 } app_wake_source_t;
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 解锁后继续浅睡媒体恢复，未完成时保留挂起的字体/书籍句柄。/ Continue light-sleep media recovery after unlock, retaining pending font/book handles.
 bool app_sleep_media_ready(void);
 /// Only after closing all book/font slots: replace pending wake IO with a manual recovery transaction.
@@ -56,7 +56,7 @@ void enter_lock_and_sleep(
     EpdiyHighlevelState* hl, int64_t* ignore_until_ms, sc7a20h_handle_t acc, cst836u_handle_t touch,
     bool reader_background
 );
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
 
 /// 主动拼贴锁屏在保存进度/切字体前清白并显示圆锁；不适用于自动休眠、直接关机或升级/上传中。
@@ -70,7 +70,7 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
 /// 等电源键松开，避免进睡瞬间被同一下按住立刻唤醒。
 /// Wait for the power key to release so the same press does not wake immediately.
 void app_lock_wait_key_idle(int timeout_ms);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 // 设定小时后的交接由S31等待事务内部管理，外层超时不能被当作解锁。
 // The S31 wait transaction owns the configured-hour handoff; an outer timeout is never an unlock.
 #define APP_LOCK_IDLE_TIMEOUT_MS 0U
@@ -94,7 +94,7 @@ esp_err_t app_sync_time_to_pmu(void);
 /// 让 PMU 正常重启主控；先保存 RTC，调用后不会返回。
 /// Ask the PMU for a normal host restart after preserving RTC; does not return.
 void app_restart_host(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 准备S31下载口，等待电脑发起USJ硬件复位；不关闭字体/TF/显示。
 /// Prepare the S31 download port for host-triggered USJ reset; retain fonts/TF/display.
 esp_err_t app_enter_download(void);

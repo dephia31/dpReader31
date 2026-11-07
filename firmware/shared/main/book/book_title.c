@@ -16,7 +16,7 @@
 #define TITLE_PATH_MAX 288
 #define TITLE_MAX 120
 #define RECORD_MAX (TITLE_PATH_MAX + TITLE_MAX + 8)
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static const char *NS = "mt_titles";
 #else
 static const char *NS = "rp_titles";

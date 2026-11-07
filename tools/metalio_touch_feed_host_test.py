@@ -110,6 +110,12 @@ int main(void){
  contact(0,0);level=1;once(h);assert(wait_ticks==portMAX_DELAY&&cst836u_read(h,&out)==0&&!out.touched);
  contact(1,0);once(h);contact(0,0);once(h);
  assert(cst836u_read(h,&out)==0&&out.touched);assert(cst836u_read(h,&out)==0&&!out.touched); // Missed short tap replay.
+ // Entire swipe happens before UI wakes: replay the press and return the final coordinate on release.
+ contact(1,0);once(h);
+ contact(1,2);raw[5]=1;raw[6]=240;once(h);
+ contact(0,0);once(h);
+ assert(cst836u_read(h,&out)==0&&out.touched&&out.y==608&&!out.release_position_valid);
+ assert(cst836u_read(h,&out)==0&&!out.touched&&out.release_position_valid&&out.y==496);
  read_error=7;once(h);assert(wait_ticks==10&&cst836u_read(h,&out)==7);read_error=0;
  contact(0,0);level=0;once(h);assert(wait_ticks==10);level=1;
  assert(cst836u_set_mode(h,CST836U_MODE_DEEPSLEEP)==0);int before=reads;

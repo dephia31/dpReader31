@@ -2,7 +2,7 @@
  * SPDX-FileCopyrightText: 2026 mindreset
  * SPDX-License-Identifier: Apache-2.0
  *
- * Log export and diagnostics module for kiikoread / dpReader.
+ * Log export and diagnostics module for dpReader.
  * Captures console ESP_LOG output in an in-memory ring buffer
  * and exports complete system diagnostic reports to SD card.
  */

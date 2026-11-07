@@ -1,21 +1,12 @@
-# 小纸 Pico 固件 · 新开发者上手指南 / Read Pico Firmware Onboarding
+# Làm quen với mã nguồn dpReader
 
-本文面向**第一次接触本仓库的人类开发者和 AI agent**。目标：读完后能搭好环境、编译烧写、看懂运行时结构、知道哪些地方不能碰、并且能在不同 agent / 不同会话之间无损地接手任务。
+Nếu đang phát triển dpReader cho Metalio 4.7, bắt đầu từ [README](../README.md), [quy tắc làm việc trong kho](../AGENTS.md) và [hướng dẫn build S31](BOARDS.md). Kho hiện tại dùng bo `metalio47` và hai bản Full, Love Book. Tài liệu [hai bản firmware](FIRMWARE_EDITIONS.md) mô tả mã dùng chung và phần riêng.
 
-This document is for **first-time human developers and AI agents**. After reading you should be able to set up, build, flash, understand the runtime, know the no-go zones, and hand a task over between agents without losing state.
+Khi tiếp quản việc đang làm, dùng [quy trình bàn giao](HANDOFF.md). Khi sửa hành vi, đối chiếu các khối `Frozen` trong tệp liên quan và quy tắc hiện hành trong `AGENTS.md`.
 
-> 权威来源优先级 / Source of truth, in order:
-> 1. 代码文件头里的 `冻结 / Frozen:` 段落（产品决策）
-> 2. [AGENTS.md](../AGENTS.md)（规则、契约、术语表、注释规范）
-> 3. 本文（背景、流程、操作手册、交接约定）
-> 4. [README.md](../README.md) / [README.zh-CN.md](../README.zh-CN.md) / [README.ja-JP.md](../README.ja-JP.md)（产品概述、完整引脚表）
-> 5. 官方在线文档：<https://dot.mindreset.tech/docs/read_0>（产品）、[/start](https://dot.mindreset.tech/docs/read_0/start)（基本操作）、[/firmware](https://dot.mindreset.tech/docs/read_0/firmware)（编译刷写）
->
-> 如本文与上面 1–2 冲突，以 1–2 为准并修正本文。
+Các mục Pico bên dưới là tài liệu tham khảo lịch sử về dự án gốc. Các lệnh, chân, phân vùng và timing của Pico chỉ áp dụng cho phần cứng Pico.
 
----
-
-## 0. 阅读顺序 / Reading order
+## 0. Thứ tự đọc
 
 | 身份 | 顺序 |
 | --- | --- |
@@ -25,7 +16,7 @@ This document is for **first-time human developers and AI agents**. After readin
 
 ---
 
-## 1. 项目定位 / What this is
+## 1. Phạm vi dự án gốc
 
 - **产品**：小纸 Pico（英文/日文文案：Read Pico；型号 RDP-G01-W；内部代号 Read/0，仅限内部使用，不得出现在对外文案）。深圳 MindReset 出品的 4.7 英寸墨水屏开发板。
 - **本仓库**：随板出厂的**官方示例 / 出厂演示固件**。它有两个角色：
@@ -42,7 +33,7 @@ This document is for **first-time human developers and AI agents**. After readin
 
 ---
 
-## 2. 硬件速览 / Hardware at a glance
+## 2. Tổng quan phần cứng Pico
 
 完整引脚表与型号见 [README.md](../README.md)。这里只给开发时最常查的部分。
 
@@ -63,7 +54,7 @@ This document is for **first-time human developers and AI agents**. After readin
 
 ---
 
-## 3. 环境搭建 / Environment
+## 3. Chuẩn bị môi trường Pico
 
 ### 3.1 四条路径对比
 
@@ -164,7 +155,7 @@ Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPDeviceID -match 'VID_303A
 
 ---
 
-## 4. 编译 / 烧写 / 监视 / Build, flash, monitor
+## 4. Build, nạp và theo dõi Pico
 
 ### 4.1 标准命令（本机有 idf.py）
 
@@ -202,7 +193,7 @@ idf.py size
 
 ---
 
-## 5. 仓库地图 / Repository map
+## 5. Bản đồ kho mã nguồn
 
 详细职责表见 [AGENTS.md](../AGENTS.md) "目录职责"。下面是"我要改 X 该去哪"的速查。
 
@@ -235,7 +226,7 @@ idf.py size
 
 ---
 
-## 6. 运行时结构 / Runtime
+## 6. Cấu trúc khi chạy
 
 ### 6.1 开机流程（[main/app_main.c](../main/app_main.c)）
 
@@ -318,7 +309,7 @@ flowchart TD
 
 ---
 
-## 7. 演示页与冻结决策速查 / Demo pages & Frozen decisions
+## 7. Màn hình demo và quyết định cố định
 
 菜单顺序 = [main/app/app_registry.c](../main/app/app_registry.c) `s_apps[]`。每页文件头都有 `冻结 / Frozen:` 段，**改行为前必须先改那段并说明决策为何变化**。摘要（以文件头为准）：
 
@@ -341,7 +332,7 @@ flowchart TD
 
 ---
 
-## 8. 常见任务操作手册 / Playbooks
+## 8. Các thao tác phát triển thường gặp
 
 ### 8.1 加一个演示页
 
@@ -377,7 +368,7 @@ flowchart TD
 
 ---
 
-## 9. 硬约束清单 / Hard rules (checklist)
+## 9. Danh sách quy tắc bắt buộc
 
 来自 AGENTS.md，整理成可勾选项：
 
@@ -395,7 +386,7 @@ flowchart TD
 
 ---
 
-## 10. 代码与注释风格 / Style
+## 10. Quy ước mã và ghi chú
 
 - 格式：[.clang-format](../.clang-format)（Google 基础，4 空格，100 列，指针贴类型，`else` 跟右括号）。
 - 注释**全仓中英双语**，规范在 AGENTS.md "注释规范"。速记：
@@ -408,7 +399,7 @@ flowchart TD
 
 ---
 
-## 11. 验证与提交 / Verification & PR
+## 11. Xác minh và gửi PR
 
 ### 11.1 验证等级（账本与 PR 必须声明其一）
 
@@ -436,7 +427,7 @@ flowchart TD
 
 ---
 
-## 12. Agent 协作与交接约定 / Multi-agent collaboration & handoff
+## 12. Cộng tác và bàn giao
 
 开发者会混用多种 agent（Copilot、Claude、Cursor、Gemini、Codex……）和多次会话。**任何 agent 的私有记忆、聊天记录、会话摘要都不是仓库状态**——它们随会话丢失。能跨 agent 存活的只有：**工作区里的文件**。其中规则与协议入库共享，任务状态留在本机、不入库。
 
@@ -536,7 +527,7 @@ Read AGENTS.md, then docs/ONBOARDING.md, then docs/HANDOFF.md. Do not duplicate 
 
 ---
 
-## 13. 排障速查 / Troubleshooting
+## 13. Xử lý sự cố
 
 ### 13.1 环境与工具（实测遇到过的都在这）
 
@@ -580,7 +571,7 @@ Read AGENTS.md, then docs/ONBOARDING.md, then docs/HANDOFF.md. Do not duplicate 
 
 ---
 
-## 14. 外部资源 / Links
+## 14. Tài nguyên bên ngoài
 
 - 产品页 <https://dot.mindreset.tech/docs/read_0>（规格：2050 mAh 电池、5 V 1.8 A 充电、Wi-Fi/BLE 5.0、117.5×66.2×7.3 mm、91 g）
 - 开始使用 <https://dot.mindreset.tech/docs/read_0/start>

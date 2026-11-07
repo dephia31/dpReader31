@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include "esp_err.h"
 /// 默认关闭；按用户选择读取失败也返回关闭，不缓存失败、不修改存储。/ Default off; user-selected read failures also return off without caching failures or modifying storage.
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 static inline bool lock_pin_enabled(void) { return false; }
 #else
 bool lock_pin_enabled(void);

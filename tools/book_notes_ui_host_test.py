@@ -35,7 +35,8 @@ enum EpdFontFlags {EPD_DRAW_ALIGN_LEFT,EPD_DRAW_ALIGN_CENTER};
 typedef void (*book_layout_glyph_fn)(void*,size_t,size_t,EpdRect);
 static bool held,vertical;
 static unsigned generation=1;
-static int writes,icon_calls,panel_frames,definition_lines;
+static int writes,icon_calls,panel_frames,definition_lines,geometry_visits;
+static size_t page_start,page_end=SIZE_MAX;
 static int definition_ys[10];
 static char definition_texts[10][192];
 static int glyph_y=300;
@@ -45,7 +46,9 @@ static const char *test_text="apple banana carrot";
 static bool book_layout_vertical(void){return vertical;}
 static uint32_t book_layout_generation(void){return generation;}
 static size_t book_layout_page_for_offset(size_t off){(void)off;return 0;}
-static bool book_layout_visit_page(size_t page,EpdRect body,int px,book_layout_glyph_fn fn,void *ctx){(void)page;(void)body;(void)px;for(size_t i=0;i<strlen(test_text);i++)fn(ctx,i,i+1,(EpdRect){(int)i*20+40,glyph_y,20,30});return true;}
+static size_t book_layout_page_count(void){return 2;}
+static size_t book_layout_page_start_offset(size_t page){return page?page_end:page_start;}
+static bool book_layout_visit_page(size_t page,EpdRect body,int px,book_layout_glyph_fn fn,void *ctx){(void)page;(void)body;(void)px;++geometry_visits;for(size_t i=0;i<strlen(test_text);i++)fn(ctx,i,i+1,(EpdRect){(int)i*20+40,glyph_y,20,30});return true;}
 static void ui_gesture_enable_held_drag(bool on){held=on;}
 static void ui_keyboard_end(void){}
 static void ui_keyboard_begin(ui_text_edit_t *e,bool a){(void)e;(void)a;}
@@ -185,8 +188,24 @@ int main(void){
  static const html_link_t links[]={{6,12,"notes.xhtml#n1"}};
  assert(!event(UI_GESTURE_TAP,170,710)&&!book_notes_active()); // Unbound links: tap passes through.
  book_notes_bind_links(links,1,note_load);
+ int visits=geometry_visits;
+ page_start=12;
+ assert(!event(UI_GESTURE_TAP,170,710)&&geometry_visits==visits);
+ page_start=0;page_end=6;
+ assert(!event(UI_GESTURE_TAP,170,710)&&geometry_visits==visits);
+ page_end=7;
+ assert(event(UI_GESTURE_TAP,170,710)&&s->mode==FOOTNOTE&&geometry_visits>visits);
+ book_notes_cancel();
+ page_end=SIZE_MAX;
  assert(!event(UI_GESTURE_TAP,50,710)&&!book_notes_active()); // Far from the reference.
- assert(event(UI_GESTURE_TAP,170,710)&&redraw==APP_REDRAW_PAGE&&s->mode==FOOTNOTE);
+ assert(!event(UI_GESTURE_TAP,159,710)&&!book_notes_active()); // Adjacent text belongs to the reader.
+ assert(!event(UI_GESTURE_TAP,170,689)&&!book_notes_active()); // Outside the narrow tolerance.
+ assert(event(UI_GESTURE_TAP,170,695)&&s->mode==FOOTNOTE); // Nearby blank space is still usable.
+ book_notes_cancel();
+ ui_gesture_event_t drift={.type=UI_GESTURE_TAP,.x0=155,.y0=710,.x=170,.y=710};
+ assert(!reader_notes_gesture(&ctx,&drift,&redraw)&&!book_notes_active());
+ drift.x0=165;drift.x=155;
+ assert(reader_notes_gesture(&ctx,&drift,&redraw)&&redraw==APP_REDRAW_PAGE&&s->mode==FOOTNOTE);
  assert(!strcmp(note_href,"notes.xhtml#n1")&&!strcmp(s->footnote,"Note text")&&s->footnote_lines==1);
  assert(s->footnote_panel.y==88); // Reference in the lower half: popup above it.
  definition_lines=0;book_notes_draw(fbuf,0,body_rect(),24);assert(definition_lines==1&&definition_ys[0]==112);

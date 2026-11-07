@@ -14,7 +14,7 @@ PRE=r'''
 #include <string.h>
 #include <math.h>
 #include "ui/ui_image_dither.h"
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define UI_LOCK_WIDTH 684
 #define UI_LOCK_HEIGHT 1216
 #define MALLOC_CAP_SPIRAM 1

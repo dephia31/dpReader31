@@ -6,7 +6,7 @@ import ast, json, subprocess, tempfile
 from home_cover_cache_host_test import function
 ROOT=Path(__file__).resolve().parents[1]
 SRC=ROOT/'main/apps/app_book.c'
-view=ROOT/'.kiiko-source-view.json'
+view=ROOT/'.dpreader-source-view.json'
 # 设备视图已经裁剪平台分支；只测试实际平台，共享源码仍覆盖两机。
 # Board views have already selected platform branches; test that board, or both in shared sources.
 boards=(int(json.loads(view.read_text())['board']=='metalio47'),) if view.exists() else (0,1)
@@ -75,7 +75,7 @@ static bool ui_rect_hit(EpdRect r,int x,int y){return x>=r.x&&y>=r.y&&x<r.x+r.wi
 '''
 for name in ('reader_font_choice_begin','reader_font_choice_finish','reader_font_recovery_reset',
  'reader_font_recovery_button','reader_font_recovery_gesture','reader_font_recovery_tick'):
-    unit+=(('#if KIIKO_BOARD_METALIO47\n'+function('reader_font_fallback_observe',SRC)+'\n#endif\n') if name=='reader_font_recovery_tick' and has_observer else '')+function(name,SRC)+'\n'
+    unit+=(('#if DPREADER_BOARD_METALIO47\n'+function('reader_font_fallback_observe',SRC)+'\n#endif\n') if name=='reader_font_recovery_tick' and has_observer else '')+function(name,SRC)+'\n'
 unit+='\n/* INSERT_SELECTION */\n'
 unit+=r'''
 static void reset(void){reader_font_recovery_reset();recovery_mode=false;builtin=ready=true;load_fails=layout_fails=save_fails=s_save_failed=false;
@@ -100,7 +100,7 @@ int main(void){app_ctx_t ctx={0};ttf_font_item_t item={"new.ttf"};
  ev=tap(1);ev.x=20;assert(reader_font_recovery_gesture(&ctx,&ev)==APP_REDRAW_NONE&&!s_font_restart_pending);
  ev=tap(0);assert(reader_font_recovery_gesture(&ctx,&ev)==APP_REDRAW_PAGE);
  assert(!s_font_fallbacks&&s_reader_panel==READER_PANEL_FONT_PICKER&&!restarts);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  for(int poll=0;poll<100;++poll)assert(reader_font_recovery_tick(&ctx)==APP_REDRAW_NONE&&!s_font_fallbacks);
 #endif
  // 用户主动选内建、一次真正成功，均清零；没有主动选择的预览失败不计数。
@@ -111,13 +111,13 @@ int main(void){app_ctx_t ctx={0};ttf_font_item_t item={"new.ttf"};
  assert(select_reading_font_item(&ctx,&built)==APP_REDRAW_PAGE);reader_font_choice_finish();assert(!s_font_fallbacks&&!s_font_choice_pending&&!s_font_recovery_pending);
  reset();s_font_fallbacks=2;assert(select_reading_font_item(&ctx,&item)==APP_REDRAW_PAGE);
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  assert(!s_font_choice_pending);
 #else
  assert(s_font_choice_pending);
 #endif
  reader_font_choice_finish();assert(!s_font_recovery_pending&&!builtin);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  assert(s_font_fallbacks==2);
 #else
  assert(!s_font_fallbacks);
@@ -128,7 +128,7 @@ int main(void){app_ctx_t ctx={0};ttf_font_item_t item={"new.ttf"};
  // A successful load followed by built-in restoration from preview is still an actual fallback.
  reset();for(int i=0;i<3;++i){strcpy(active,"builtin");builtin=true;
   assert(select_reading_font_item(&ctx,&item)==APP_REDRAW_PAGE);strcpy(active,"builtin");builtin=true;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  reader_font_fallback_observe();
 #else
  reader_font_choice_finish();
@@ -145,7 +145,7 @@ int main(void){app_ctx_t ctx={0};ttf_font_item_t item={"new.ttf"};
  // Closing/leaving the book resets; ordinary polling, system faces and retries never accumulate.
  reader_font_recovery_reset();assert(!s_font_recovery_pending&&!s_font_fallbacks&&!s_font_restart_pending);
  s_view=SHELF;s_font_recovery_pending=true;assert(reader_font_recovery_tick(&ctx)==APP_REDRAW_NONE);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  // 自动/唤醒回退同次开书累计；重复tick不多计，暂时恢复不丢失计数。
  // Count runtime/wake episodes per open book, deduplicating ticks and retaining counts across temporary recovery.
  reset();
@@ -176,9 +176,9 @@ with tempfile.TemporaryDirectory() as folder:
  p=Path(folder)
  selection=s[s.index('static app_redraw_t select_reading_font_item('):s.index('static int slider_index(')]
  for board in boards:
-  selected=subprocess.run(['cc','-E','-P','-x','c',f'-DKIIKO_BOARD_METALIO47={board}','-'],input=selection,text=True,capture_output=True,check=True).stdout
+  selected=subprocess.run(['cc','-E','-P','-x','c',f'-DDPREADER_BOARD_METALIO47={board}','-'],input=selection,text=True,capture_output=True,check=True).stdout
   (p/'test.c').write_text(unit.replace('/* INSERT_SELECTION */',selected))
-  subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-Wno-unused-parameter','-fsanitize=address,undefined',f'-DKIIKO_BOARD_METALIO47={board}',str(p/'test.c'),'-o',str(p/'test')],check=True)
+  subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-Wno-unused-parameter','-fsanitize=address,undefined',f'-DDPREADER_BOARD_METALIO47={board}',str(p/'test.c'),'-o',str(p/'test')],check=True)
   subprocess.run([str(p/'test')],check=True)
 
 # Reuse the established text-box boundary probe with the actual modal and 100–200% UI sizes.

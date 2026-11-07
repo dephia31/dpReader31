@@ -2,6 +2,6 @@
 #pragma once
 #include "common.h"
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 bool app_sleep_media_ready(void);
 #endif

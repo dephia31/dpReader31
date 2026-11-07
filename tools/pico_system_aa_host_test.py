@@ -22,5 +22,5 @@ static void settings_navigation(uint8_t*f){memset(f+124,0xee,4);}
  code+='\nint main(void){uint8_t fb[128];for(int root=0;root<2;++root){app_ctx_t c={root};render(&c,fb);for(int i=0;i<124;++i)assert(fb[i]==i);}puts("PASS: actual '+filename+' renderer retains all gray edge values in roots and children");}\n'
  with tempfile.TemporaryDirectory() as d:
   p=Path(d);(p/'test.c').write_text(code)
-  subprocess.run(['cc','-std=c11','-DKIIKO_BOARD_METALIO47=0','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+  subprocess.run(['cc','-std=c11','-DDPREADER_BOARD_METALIO47=0','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-fsanitize=address,undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
   subprocess.run([str(p/'test')],check=True)

@@ -8,6 +8,16 @@
 #include <string.h>
 #include <strings.h>
 
+static inline bool book_file_path_visible(const char *path) {
+    if (!strncasecmp(path, "/sdcard/", 8)) {
+        const char *relative = path + 8;
+        while (*relative == '/') ++relative;
+        if (!strncasecmp(relative, "DPRWIFI", 7) && (!relative[7] || relative[7] == '/')) return false;
+        if (!strcasecmp(relative, "dpreader_log.txt")) return false;
+    }
+    return path[0] != '.' && !strstr(path, "/.");
+}
+
 /// 仅检查完整文件名的TXT/EPUB扩展名，不访问文件或修改记录。
 /// Check the final filename for TXT/EPUB without filesystem access or record mutation.
 static inline bool book_file_path_supported(const char *path) {

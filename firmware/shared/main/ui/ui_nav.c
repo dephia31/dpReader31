@@ -24,7 +24,7 @@
 #include "settings.h"
 #include "ble_page_turner.h"
 #include "ui_click_feedback.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "metalio_hw.h"
 #else
 #endif

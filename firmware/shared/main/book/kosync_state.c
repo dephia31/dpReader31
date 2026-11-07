@@ -15,7 +15,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
-#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#if DPREADER_BOARD_METALIO47 && defined(ESP_PLATFORM)
 #include "esp_attr.h"
 #define STATE_RAM EXT_RAM_BSS_ATTR
 #else

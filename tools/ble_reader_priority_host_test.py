@@ -3,15 +3,31 @@ import subprocess,tempfile
 from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1];book=root/'main/apps/app_book.c';loop=(root/'main/app/app_loop.c').read_text();ble=root/'components/ble_page_turner/src/ble_page_turner.c'
 fn=function('app_book_background_radio_ready',book)
+touch_gate=function('reader_touch_owns_input',book)
+tick=function('on_tick',book)
+assert tick.index('if (ble_enabled && touch_owns_input) ble_pt_discard_input();') < tick.index('book_reader_tap_tick(')
+assert 'if (ble_enabled && !touch_owns_input) {\n        int ble_dir = book_remote_direction(' in tick
 code='''#include <assert.h>
 #include <stdbool.h>
 enum{READING=1,SHELF};static char s_requested_open[20];static bool s_scan_pending,s_fonts_reload_pending,s_reader_display_ready;static const char *s_text;static int s_view,s_presented_view;
-'''+fn+'''
+typedef struct {bool touched;} touch_t;
+typedef struct {bool pressed,released,consumed; const touch_t *touch;} app_ctx_t;
+static struct {bool pending;} s_reader_tap;
+'''+fn+'\n'+touch_gate+'''
 int main(void){s_view=READING;s_text="book";s_presented_view=READING;assert(!app_book_background_radio_ready());s_reader_display_ready=true;assert(app_book_background_radio_ready());
 s_requested_open[0]='a';assert(!app_book_background_radio_ready());s_requested_open[0]=0;
 s_scan_pending=true;assert(!app_book_background_radio_ready());s_scan_pending=false;
 s_fonts_reload_pending=true;assert(!app_book_background_radio_ready());s_fonts_reload_pending=false;
-s_text=0;assert(!app_book_background_radio_ready());s_text="book";s_presented_view=SHELF;assert(!app_book_background_radio_ready());s_view=SHELF;assert(app_book_background_radio_ready());}
+s_text=0;assert(!app_book_background_radio_ready());s_text="book";s_presented_view=SHELF;assert(!app_book_background_radio_ready());s_view=SHELF;assert(app_book_background_radio_ready());
+touch_t touch={.touched=true};app_ctx_t ctx={.touch=&touch};
+assert(!reader_touch_owns_input(&ctx)); // Full shelf keeps its own remote behavior.
+s_view=READING;assert(reader_touch_owns_input(&ctx)); // Held contact even without a new press edge.
+touch.touched=false;assert(!reader_touch_owns_input(&ctx));
+ctx.pressed=true;assert(reader_touch_owns_input(&ctx));ctx.pressed=false;
+ctx.released=true;assert(reader_touch_owns_input(&ctx));ctx.released=false;
+ctx.consumed=true;assert(reader_touch_owns_input(&ctx));ctx.consumed=false;
+s_reader_tap.pending=true;assert(reader_touch_owns_input(&ctx));
+s_reader_tap.pending=false;assert(!reader_touch_owns_input(&ctx));}
 '''
 start=function('start_locked',ble);assert start.index('bonds_load();')<start.index('s_running = true;')<start.index('atomic_store(&s_recent_requested,true)')
 poll=function('poll_locked',ble);assert poll.index('if(!atomic_load(&s_host_ready))')<poll.index('reconnect_recent_requested();')

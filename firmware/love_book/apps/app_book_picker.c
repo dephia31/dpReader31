@@ -17,7 +17,7 @@
 #include "app_content_open.h"
 #include "app_transfer_mode.h"
 #include "book_file_path.h"
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 #include "book_progress.h"
 #include "book_store.h"
 #include "book_title.h"
@@ -43,7 +43,7 @@ static unsigned s_page,s_count;
 static bool s_more,s_pending,s_default_directory,s_return_from_usb;
 extern const app_desc_t app_book_picker;
 
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 static void scan_page(void);
 static char s_delete_path[PICK_PATH];
 static struct stat s_delete_stat;
@@ -84,13 +84,7 @@ static EpdRect usb_button(void) {return (EpdRect){466,80,182,72};}
 static EpdRect tool_button(unsigned i) {return (EpdRect){36+(int)i*208,236,196,60};}
 static bool card_path(const char *path) {
     if(!path || (strcmp(path,"/sdcard") && strncmp(path,"/sdcard/",8)))return false;
-    for(const char *part=path+7;*part;) {
-        if(*part=='/'){++part;continue;}
-        const char *end=strchr(part,'/');size_t len=end?(size_t)(end-part):strlen(part);
-        if((len==1&&part[0]=='.')||(len==2&&part[0]=='.'&&part[1]=='.'))return false;
-        part+=len;
-    }
-    return true;
+    return book_file_path_visible(path);
 }
 static void default_directory(void) {
     const char *choices[]={"/sdcard/Books","/sdcard/books",app_settings_books_dir(),"/sdcard"};
@@ -129,6 +123,7 @@ static void scan_page(void) {
         if(entry->d_name[0]=='.')continue;
         char path[PICK_PATH];
         if(snprintf(path,sizeof(path),"%s/%s",s_directory,entry->d_name)>=(int)sizeof(path))continue;
+        if(!book_file_path_visible(path))continue;
         struct stat st;if(stat(path,&st))continue;
         bool directory=S_ISDIR(st.st_mode);
         if(!directory&&(!S_ISREG(st.st_mode)||!book_file_path_supported(path)))continue;
@@ -150,7 +145,7 @@ static void enter(app_ctx_t *ctx) {
 }
 static void leave(app_ctx_t *ctx) {
     (void)ctx;
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     cancel_delete(ctx);
 #endif
     free(s_items);s_items=NULL;s_count=0;s_pending=false;
@@ -161,7 +156,7 @@ static void lost(app_ctx_t *ctx) {
 }
 static void ready(app_ctx_t *ctx) {
     (void)ctx;
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     cancel_delete(ctx);
 #endif
     s_pending=true;
@@ -176,7 +171,7 @@ static app_redraw_t tick(app_ctx_t *ctx) {
 }
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     (void)ctx;ui_clear_page(fb);ui_nav_status(fb);ui_nav_back(fb,36,78);
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     if (s_delete_path[0]) {
         ui_text_caption(fb, (EpdRect){48, 310, 588, 90}, 36, "Xóa sách khỏi thẻ nhớ?", EPD_DRAW_ALIGN_CENTER, false);
         ui_text_caption(fb, (EpdRect){48, 420, 588, 160}, 24, strrchr(s_delete_path, '/') + 1, EPD_DRAW_ALIGN_CENTER, false);
@@ -195,7 +190,7 @@ static void render(app_ctx_t *ctx,uint8_t *fb) {
         int top=PICK_TOP+i*PICK_ROW_H;
         ui_draw_icon(fb,65,top+38,30,s_items[i].directory?UI_ICON_FOLDER_OPEN:UI_ICON_BOOK_OPEN,0);
         int text_width = 552;
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
         if (!s_items[i].directory) {
             text_width = 424;
             ui_draw_button(fb, delete_button(top), "Xóa", false);
@@ -230,7 +225,7 @@ static app_redraw_t back(app_ctx_t *ctx) {
     s_page=0;s_pending=true;s_count=0;s_more=false;return APP_REDRAW_PAGE;
 }
 static app_redraw_t gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     if (s_delete_path[0]) {
         if (ev->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
         if (page_hit(delete_choice(true), ev->x0, ev->y0)) return confirm_delete();
@@ -277,7 +272,7 @@ static app_redraw_t gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         snprintf(s_directory,sizeof(s_directory),"%s",path);s_page=0;s_count=0;s_more=false;s_pending=true;
         return APP_REDRAW_PAGE;
     }
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     if (page_hit(delete_button(PICK_TOP + row * PICK_ROW_H), x, y)) {
         snprintf(s_delete_path, sizeof(s_delete_path), "%s", path);
         s_delete_stat = st;
@@ -289,7 +284,7 @@ static app_redraw_t gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
     return APP_REDRAW_NONE;
 }
 static app_redraw_t key(app_ctx_t *ctx,int key) {
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     if (s_delete_path[0]) { cancel_delete(ctx); return APP_REDRAW_PAGE; }
 #endif
     if(key==UI_KEY_2){ui_nav_request(ctx,0);return APP_REDRAW_NONE;}
@@ -300,7 +295,7 @@ const app_desc_t app_book_picker={
     .title="Mở sách",.detail="Chọn sách TXT / EPUB",.owns_keys=true,.enter_full=true,
     .menu_handle_enabled=no_handle,.persistent_navigation=true,
     .on_enter=enter,.on_exit=leave,.on_media_lost=lost,.on_media_ready=ready,
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     .on_before_lock=cancel_delete,
 #endif
     .render=render,.on_tick=tick,.on_gesture=gesture,.on_key=key,

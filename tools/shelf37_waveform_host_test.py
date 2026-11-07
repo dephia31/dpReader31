@@ -26,7 +26,7 @@ int main(int argc,char **argv){
  const EpdWaveformPhases *gl=e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_GL16);
  const EpdWaveformPhases *bw=e0470_waveform_phases(&E0470_FULL_WAVEFORM,MODE_DU);
  uint8_t saved[48*64];memcpy(saved,gl->luts,sizeof(saved));
-#if KIIKO_S31_SHELF37
+#if DPREADER_S31_SHELF37
  bool requested_oom=oom;oom=false;
  const EpdWaveform *prior[]={display_main_normal_waveform(),display_main_gray_waveform(),display_main_bw_waveform(),
   display_main_shelf_waveform(MODE_GL16),display_main_navigation_waveform(),display_main_bw_turn_waveform()};
@@ -80,19 +80,19 @@ int main(int argc,char **argv){
 with tempfile.TemporaryDirectory(prefix='s31-shelf37-') as folder:
     t=Path(folder);c=t/'test.c';c.write_text(unit)
     flags=['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
-      '-DKIIKO_BOARD_METALIO47=1','-Imain','-Itools/shelf_waveform_host_stubs','-Itools/waveform_host_stubs',
+      '-DDPREADER_BOARD_METALIO47=1','-Imain','-Itools/shelf_waveform_host_stubs','-Itools/waveform_host_stubs',
       '-Icomponents/epdiy/include','-Icomponents/epdiy/src','-Icomponents/e0470_epaper_waveform/include',
       '-Icomponents/e0470_epaper_waveform/metalio']
     files=[str(c),'boards/metalio47/src/main/display_main_waveform.c',
       'boards/metalio47/src/components/e0470_epaper_waveform/e0470_epaper_waveform.c',
       'components/e0470_epaper_waveform/e0470_waveform_trim.c']
-    vendor=os.environ.get('KIIKO_METALIO_OFFICIAL_TRIM')
+    vendor=os.environ.get('DPREADER_METALIO_OFFICIAL_TRIM')
     if vendor:
         (t/'epd_internals.h').write_text('#include "epd_waveform.h"\n')
         flags+=['-DHAVE_VENDOR_ORACLE=1','-I'+str(t),'-I'+vendor]
         files+=[str(Path(vendor)/'my_waveform_trim.c')]
     for enabled in (1,0):
         exe=t/f'test-{enabled}'
-        subprocess.run(flags+[f'-DKIIKO_S31_SHELF37={enabled}',*files,'-o',str(exe)],cwd=r,check=True)
+        subprocess.run(flags+[f'-DDPREADER_S31_SHELF37={enabled}',*files,'-o',str(exe)],cwd=r,check=True)
         for fail in (0,1):subprocess.run([str(exe),str(fail)],check=True)
     print('Independent vendor oracle:',bool(vendor))

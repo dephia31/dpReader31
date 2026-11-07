@@ -2,6 +2,6 @@
 #pragma once
 #include "common.h"
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 void read_pico_pmu_drain_events(void);
 #endif

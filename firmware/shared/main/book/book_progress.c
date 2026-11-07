@@ -26,7 +26,7 @@
 #define HEADER_SIZE 24
 #define RECORD_CAP (HEADER_SIZE + PATH_CAP)
 static const char* TAG = "book_progress";
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static const char* NS = "mt_books";
 #else
 static const char* NS = "rp_books";
@@ -99,7 +99,7 @@ static esp_err_t warn_error(esp_err_t err) {
     return err;
 }
 
-bool book_progress_load(const char* path, uint32_t size, book_progress_t* out) {
+bool nvs_progress_load(const char* path, uint32_t size, book_progress_t* out) {
     if (!path_valid(path) || out == NULL) return false;
     nvs_handle_t h;
     if (nvs_open(NS, NVS_READONLY, &h) != ESP_OK) return false;
@@ -120,7 +120,7 @@ bool book_progress_load(const char* path, uint32_t size, book_progress_t* out) {
     return true;
 }
 
-esp_err_t book_progress_list(book_progress_visit_fn visit, void* ctx) {
+esp_err_t nvs_progress_list(book_progress_visit_fn visit, void* ctx) {
     if (visit == NULL) return ESP_ERR_INVALID_ARG;
     nvs_iterator_t it = NULL;
     // 只遍历 blob：同命名空间的 seq 与 last 不是书。
@@ -173,7 +173,7 @@ static esp_err_t check_owner(nvs_handle_t h, const char* key, const char* path) 
         ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
-esp_err_t book_progress_save(const char* path, const book_progress_t* progress) {
+esp_err_t nvs_progress_save(const char* path, const book_progress_t* progress) {
     if (!path_valid(path) || progress == NULL || progress->px < BOOK_READER_PX_MIN || progress->px > BOOK_READER_PX_MAX ||
         progress->pct > 100) return ESP_ERR_INVALID_ARG;
     uint8_t data[RECORD_CAP] = {'R', 'P', 'B', 2};
@@ -211,7 +211,7 @@ esp_err_t book_progress_save(const char* path, const book_progress_t* progress) 
     return warn_error(err);
 }
 
-esp_err_t book_progress_clear(const char* path) {
+esp_err_t nvs_progress_clear(const char* path) {
     if (!path_valid(path)) return ESP_ERR_INVALID_ARG;
     char key[11];
     make_key(path, key);
@@ -227,7 +227,7 @@ esp_err_t book_progress_clear(const char* path) {
     return warn_error(err);
 }
 
-esp_err_t book_progress_forget(const char* path) {
+esp_err_t nvs_progress_forget(const char* path) {
     if (!path_valid(path)) return ESP_ERR_INVALID_ARG;
     for (book_progress_watch_t* watch = s_watches; watch; watch = watch->next)
         if (!strcmp(watch->path, path)) atomic_store(&watch->invalidated, true);
@@ -260,7 +260,7 @@ esp_err_t book_progress_forget(const char* path) {
     return warn_error(err);
 }
 
-bool book_progress_last_path(char* out, size_t cap) {
+bool nvs_progress_last_path(char* out, size_t cap) {
     if (out == NULL || cap == 0) return false;
     out[0] = '\0';
     nvs_handle_t h;
@@ -275,7 +275,7 @@ bool book_progress_last_path(char* out, size_t cap) {
     return true;
 }
 
-esp_err_t book_progress_set_last_path(const char* path) {
+esp_err_t nvs_progress_set_last_path(const char* path) {
     if (path == NULL || strnlen(path, PATH_CAP) >= PATH_CAP) return ESP_ERR_INVALID_ARG;
     nvs_handle_t h;
     esp_err_t err = nvs_open(NS, NVS_READWRITE, &h);
@@ -286,3 +286,5 @@ esp_err_t book_progress_set_last_path(const char* path) {
     book_progress_notify_changed();
     return warn_error(err);
 }
+
+#include "book_progress_sd.h"

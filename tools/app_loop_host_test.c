@@ -471,7 +471,7 @@ int main(void) {
     reset();media_test=sd_font=saved_sd_font=true;mounted_steps[0]=mounted_steps[2]=true;time_step=4000000;first.on_media_lost=lost;
     add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
     assert(media_lost==2&&builtin_opens==2&&!probes&&font_opens==1);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
     // 已通知页面并释放后台文件后才恢复；卡恢复一次通知页面并重新载入保存字体。
     // Recover only after loss callbacks and worker release; ready notifies once and reloads the saved font.

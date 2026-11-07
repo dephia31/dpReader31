@@ -61,7 +61,7 @@ static bool base_restore(clock_canvas_t *c,const struct tm *date){
 static void base_store(clock_canvas_t *c,const struct tm *date){
     EpdRect p;if(!base_candidate(c,&p))return;
     unsigned i=!s_base_keys[0].valid?0:!s_base_keys[1].valid?1:s_base_keys[0].age<s_base_keys[1].age?0:1;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(c->preview)i=2u+c->style;
 #endif
     base_copy(c,p,i,false);
@@ -366,7 +366,7 @@ void ui_home_clock_trail_draw_region(uint8_t *fb,EpdRect b,const struct tm *date
 void ui_home_clock_phase_draw_region(uint8_t *fb,EpdRect b,const struct tm *date,bool binary,ui_home_clock_style_t style,EpdRect clip,unsigned phase){ui_home_clock_trail_draw_region(fb,b,date,binary,style,clip,phase,0,0);}
 void ui_home_clock_style_draw_region(uint8_t *fb,EpdRect b,const struct tm *date,bool binary,ui_home_clock_style_t style,EpdRect clip){ui_home_clock_phase_draw_region(fb,b,date,binary,style,clip,date?(unsigned)date->tm_sec*10:0);}
 void ui_home_clock_style_draw(uint8_t *fb,EpdRect bounds,const struct tm *date,bool binary,ui_home_clock_style_t style){ui_home_clock_style_draw_region(fb,bounds,date,binary,style,bounds);}
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static const struct tm s_preview_date={.tm_year=126,.tm_mon=0,.tm_mday=1,.tm_wday=4,.tm_hour=10,.tm_min=10,.tm_sec=30};
 bool ui_home_clock_preview_cached(EpdRect bounds,bool binary,ui_home_clock_style_t style) {
     if(!s_base_cache||bounds.width<=0||bounds.height<=0||(unsigned)style>=UI_HOME_CLOCK_COUNT)return false;

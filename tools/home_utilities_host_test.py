@@ -95,5 +95,5 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as d:
     p=Path(d);(p/'test.c').write_text(unit)
-    subprocess.run(['cc','-std=c11','-DKIIKO_LOVE_BOOK=0','-Wall','-Wextra','-Werror','-fsanitize=undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
+    subprocess.run(['cc','-std=c11','-DDPREADER_LOVE_BOOK=0','-Wall','-Wextra','-Werror','-fsanitize=undefined',str(p/'test.c'),'-o',str(p/'test')],check=True)
     subprocess.run([str(p/'test')],check=True)

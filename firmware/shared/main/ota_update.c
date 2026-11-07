@@ -10,7 +10,7 @@
  */
 #include "ota_update.h"
 #include "firmware_edition.h"
-#include "kiiko_board_config.h"
+#include "dpreader_board_config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,10 +35,10 @@
  */
 const __attribute__((section(".rodata_desc"))) esp_app_desc_t esp_app_desc = {
     .magic_word = ESP_APP_DESC_MAGIC_WORD,
-#ifndef KIIKO_FIRMWARE_VERSION
-#define KIIKO_FIRMWARE_VERSION "1.3.4-vn"
+#ifndef DPREADER_FIRMWARE_VERSION
+#define DPREADER_FIRMWARE_VERSION "1.3.5RC6-vn"
 #endif
-    .version = KIIKO_FIRMWARE_VERSION,
+    .version = DPREADER_FIRMWARE_VERSION,
     .project_name = "Kiikoread_Metalio_S31",
     .idf_ver = IDF_VER,
     .secure_version = 0,
@@ -87,7 +87,7 @@ static esp_err_t read_candidate(FILE *file, esp_image_header_t *header, esp_app_
     if (fseek(file, 0, SEEK_SET) != 0 || fread(header, 1, sizeof(*header), file) != sizeof(*header) ||
         fread(&segment, 1, sizeof(segment), file) != sizeof(segment) ||
         fread(desc, 1, sizeof(*desc), file) != sizeof(*desc)) return ESP_ERR_INVALID_SIZE;
-    if (header->magic != ESP_IMAGE_HEADER_MAGIC || header->chip_id != KIIKO_BOARD_IMAGE_CHIP_ID || desc->magic_word != ESP_APP_DESC_MAGIC_WORD ||
+    if (header->magic != ESP_IMAGE_HEADER_MAGIC || header->chip_id != DPREADER_BOARD_IMAGE_CHIP_ID || desc->magic_word != ESP_APP_DESC_MAGIC_WORD ||
         segment.data_len < sizeof(*desc)) return ESP_ERR_INVALID_RESPONSE;
     return ESP_OK;
 }
@@ -130,7 +130,7 @@ esp_err_t pico_ota_inspect(const char *path, pico_ota_info_t *info) {
     esp_err_t err = read_candidate(file, &header, &candidate);
     fclose(file);
     if (err != ESP_OK) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         set_message(info->message, sizeof(info->message), "Gói cập nhật không phải firmware dpReader hợp lệ");
 #else
         set_message(info->message, sizeof(info->message), "Gói cập nhật không phải firmware dpReader hợp lệ");
@@ -150,7 +150,7 @@ esp_err_t pico_ota_inspect(const char *path, pico_ota_info_t *info) {
     bool same_edition = firmware_same_edition(candidate.version,sizeof(candidate.version),
                                                running_desc->version,sizeof(running_desc->version));
     if (!valid_project || !same_edition) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         set_message(info->message, sizeof(info->message), "Gói cập nhật không thuộc dòng máy Metalio 4.7");
 #else
         set_message(info->message, sizeof(info->message), "Gói cập nhật không thuộc firmware dpReader hiện tại");

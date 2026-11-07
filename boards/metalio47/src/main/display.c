@@ -56,7 +56,7 @@
 #include "esp_heap_caps.h"
 #include "display_main_waveform.h"
 #include "display_reader_waveform.h"
-#if KIIKO_S31_TEXT_RIPPLE
+#if DPREADER_S31_TEXT_RIPPLE
 #include "metalio_text_ripple.h"
 #endif
 #include "ui/ui_nav_layout.h"
@@ -832,7 +832,7 @@ static enum EpdDrawError update_display_reader_turn_unlocked(EpdiyHighlevelState
     if(prepared)(void)metalio_tps_prepare();
     if(!s_system_binary&&bands==1&&app_settings_reader_turn_effect()==2&&
         display_reader_fast_text_prepare(hl,area))turn_waveform=display_reader_fast_text_waveform();
-#if KIIKO_S31_TEXT_RIPPLE
+#if DPREADER_S31_TEXT_RIPPLE
     // 用户指定普通也用同一22相；单带同步输出，水波纹才分条带，黑白速读仍为原厂DU20。
     // Ordinary shares the22-phase text sequence in one synchronous band; ripple staggers bands and FastBW retains vendorDU20.
     const bool experimental = !s_system_binary && app_settings_reader_turn_effect()!=2 &&
@@ -861,7 +861,7 @@ static enum EpdDrawError update_display_reader_turn_unlocked(EpdiyHighlevelState
     use_scan_for(&E0470_WAVEFORM, MODE_GL16);
     rails_keepalive();
     if (result == EPD_DRAW_SUCCESS) return result;
-#if KIIKO_S31_TEXT_RIPPLE
+#if DPREADER_S31_TEXT_RIPPLE
     if (experimental) metalio_text_ripple_disable();
 #endif
     if (result == EPD_DRAW_NO_PHASES_AVAILABLE) {
@@ -912,7 +912,7 @@ static void guard_draw_result_unlocked(EpdiyHighlevelState* hl, enum EpdDrawErro
     ESP_LOGW(TAG, "line queue underrun, pclk back to %d MHz, recovery=%d", DISPLAY_PCLK_SAFE_MHZ, recovered);
 }
 
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
 int64_t local_display_elapsed_us;
 #define LATENCY_DISPLAY_BEGIN() const int64_t local_display_start=esp_timer_get_time()
 #define LATENCY_DISPLAY_END() (local_display_elapsed_us+=esp_timer_get_time()-local_display_start)

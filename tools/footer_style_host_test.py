@@ -271,6 +271,6 @@ with tempfile.TemporaryDirectory() as folder:
     src = work / 'footer.c'
     src.write_text('#include <stdio.h>\n#include <stdint.h>\n' + render)
     binary = work / 'footer'
-    subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-DKIIKO_BOARD_METALIO47=1',
+    subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-DDPREADER_BOARD_METALIO47=1',
                     str(src), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

@@ -41,7 +41,7 @@
 #include "kosync_client.h"
 #include "cJSON.h"
 #include "display.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "display_main_waveform.h"
 #endif
 #include "e0470_epaper_waveform.h"
@@ -68,8 +68,10 @@ static const char* TAG = "transfer_page";
 static book_store_root_t s_root;
 static read_pico_transfer_status_t s_status;
 static bool s_start_pending, s_settle, s_any_changed;
-#if KIIKO_BOARD_METALIO47
+static int64_t s_start_deadline_ms, s_start_retry_ms;
+#if DPREADER_BOARD_METALIO47
 static bool s_progress_pending;
+static bool s_free_known, s_space_refresh;
 #endif
 static bool s_media_lost;
 static int s_pressed = -1;
@@ -249,6 +251,7 @@ static esp_err_t s_scan_error;
 
 static void render(app_ctx_t* ctx, uint8_t* fb);
 static void stop_session(void);
+static void record_stopped_session(void);
 static bool stop_upload_if_idle(void);
 
 static void transfer_header(uint8_t *fb, const char *title, const char *subtitle) {
@@ -363,11 +366,7 @@ static void draw_networks(uint8_t* fb) {
     ui_clear_page(fb);
     ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, transfer_content_end()}, 0xe0, fb);
     if (s_forget_confirm) {
-        transfer_header(fb, "Quên mạng", "Chỉ xóa thông tin mạng WiFi, không ảnh hưởng tới sách");
-        char name[33];
-        snprintf(name, sizeof(name), "%s", s_saved_ssid);
-        fit_label(name, UI_PX_BODY, ui_content_width());
-        ui_text(fb, UI_MARGIN, 350, UI_PX_BODY, name, EPD_DRAW_ALIGN_LEFT, false);
+        transfer_header(fb, "Quên các mạng WiFi", "Xóa toàn bộ hồ sơ WiFi đã lưu");
         ui_text(fb, UI_MARGIN, 450, UI_PX_CAPTION, s_network_message, EPD_DRAW_ALIGN_LEFT, false);
         provisioning_button(fb, network_control_rect(11), "Xác nhận quên", 11);
         provisioning_button(fb, network_control_rect(12), "Hủy", 12);
@@ -380,7 +379,10 @@ static void draw_networks(uint8_t* fb) {
     ui_fill_round_rect(fb, current, 22, UI_GRAY_WHITE);
     network_border(fb, current, 22);
     if (s_saved_configured) {
-        char saved[40]; snprintf(saved, sizeof(saved), "%s", s_saved_ssid); fit_label(saved, 29, 375);
+        char saved[40];
+        const char *ssid = s_session_started && s_status.wifi_ssid[0] ? s_status.wifi_ssid : s_saved_ssid;
+        snprintf(saved, sizeof(saved), "%s", ssid);
+        fit_label(saved, 29, 375);
         ui_nav_wifi_icon(fb, 74, 265, 28, UI_GRAY_BLACK);
         ui_text_box(fb,(EpdRect){104,238,375,48},29,saved,EPD_DRAW_ALIGN_LEFT,false);
         const char *state = s_status.network_ready ? "Đã kết nối" :
@@ -482,7 +484,10 @@ static void queue_network_start(read_pico_transfer_mode_t mode) {
     if (s_wifi_settings_only) {
         s_network_connect_pending = true;
         snprintf(s_network_message, sizeof(s_network_message), "Đang kết nối %s…", s_status.wifi_ssid);
-    } else s_start_pending = true;
+    } else {
+        s_start_pending = true;
+        s_start_deadline_ms = s_start_retry_ms = 0;
+    }
 }
 
 static bool enter_networks(void) {
@@ -502,18 +507,9 @@ static bool enter_networks(void) {
     return true;
 }
 
-static bool start_hotspot_service(void) {
-    if (!read_pico_transfer_try_stop_if_idle()) return false;
-    stop_session();
-    s_mode = READ_PICO_TRANSFER_MODE_AP;
-    s_qr_url = false;
-    clear_qr();
-    memset(&s_status, 0, sizeof(s_status));
-    s_status.mode = s_mode;
-    s_start_pending = true;
-    s_view = TRANSFER_HOME;
+static void start_hotspot_service(void) {
+    queue_network_start(READ_PICO_TRANSFER_MODE_AP);
     s_method_message[0] = 0;
-    return true;
 }
 
 // 提示页先呈现，下一轮才同步扫描；输入页不轮询已停服的传书状态。
@@ -534,7 +530,7 @@ static app_redraw_t network_ui_tick(app_ctx_t* ctx) {
         read_pico_transfer_status_t next = {0};
         read_pico_transfer_get_status(&next);
         bool changed = next.state != s_status.state || next.network_ready != s_status.network_ready ||
-                       next.last_error != s_status.last_error;
+                       next.last_error != s_status.last_error || strcmp(next.wifi_ssid, s_status.wifi_ssid) != 0;
         s_status = next;
         if (s_status.network_ready) snprintf(s_network_message, sizeof(s_network_message), "Kết nối thành công");
         else if (s_status.state == READ_PICO_TRANSFER_ERROR) snprintf(s_network_message, sizeof(s_network_message), "Kết nối thất bại, kiểm tra mật khẩu hoặc sóng");
@@ -594,7 +590,7 @@ static app_redraw_t provisioning_action(int id) {
                 s_forget_confirm = false;
                 s_saved_configured = false;
                 s_saved_ssid[0] = 0;
-                snprintf(s_network_message, sizeof(s_network_message), "Đã quên mạng");
+                snprintf(s_network_message, sizeof(s_network_message), "Đã quên các mạng WiFi");
             } else snprintf(s_network_message, sizeof(s_network_message), "Quên mạng thất bại, vui lòng thử lại hoặc hủy");
         }
         return APP_REDRAW_PAGE;
@@ -659,7 +655,8 @@ static app_redraw_t provisioning_action(int id) {
                 s_selected.requires_password ? s_password : "");
             if (err == ESP_OK) { queue_network_start(READ_PICO_TRANSFER_MODE_STA); return APP_REDRAW_PAGE; }
             snprintf(s_network_message, sizeof(s_network_message), "%s", err == ESP_ERR_INVALID_ARG ?
-                     "Mật khẩu phải từ 8–63 ký tự hoặc 64 hex" : "Lưu thất bại, dữ liệu nhập vẫn giữ nguyên, thử lại");
+                     "Mật khẩu phải từ 8–63 ký tự hoặc 64 hex" :
+                     err == ESP_ERR_INVALID_SIZE ? "Đã lưu đủ 6 mạng WiFi" : "Lưu thất bại, dữ liệu nhập vẫn giữ nguyên, thử lại");
         }
     }
     return APP_REDRAW_AREA;
@@ -742,7 +739,7 @@ static app_redraw_t provisioning_gesture(app_ctx_t* ctx, const ui_gesture_event_
 }
 
 static EpdRect status_rect(void) { return (EpdRect){36, 676, 612, 270}; }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 // Only the live text and bar; exclude the card border, capacity and controls.
 static EpdRect progress_rect(void) {
     EpdRect r = status_rect();
@@ -790,6 +787,9 @@ static void draw_status(uint8_t* fb) {
     }
     char capacity[112];
     if (s_media_lost) snprintf(capacity, sizeof(capacity), "Thẻ nhớ đã tháo, bộ nhớ ngừng hoạt động");
+#if DPREADER_BOARD_METALIO47
+    else if (!s_free_known) snprintf(capacity, sizeof(capacity), "Dung lượng trống chưa có");
+#endif
     else snprintf(capacity, sizeof(capacity), "%s · Còn trống %.1f MB%s", s_root.is_flash ? "Bộ nhớ trong" : "Thẻ nhớ",
                   s_free / 1048576.0, s_root.is_flash ? " · Mỗi tệp ≤ 1 MB" : "");
     ui_text(fb, area.x + 28, area.y + 190, 18, capacity, EPD_DRAW_ALIGN_LEFT, false);
@@ -891,13 +891,14 @@ static void render_content(app_ctx_t* ctx, uint8_t* fb) {
     EpdRect back = control_rect(2);
     if (s_pressed == 2) ui_draw_pressed_round_rect(fb, back, UI_BTN_RADIUS);
     ui_draw_button(fb, back,
-                   s_mode == READ_PICO_TRANSFER_MODE_AP && s_status.state == READ_PICO_TRANSFER_ERROR && !s_status.network_ready
-                       ? "Thử lại điểm phát" : "Dừng dịch vụ truyền sách", false);
+                   s_status.state == READ_PICO_TRANSFER_ERROR && !s_status.network_ready
+                       ? (s_mode == READ_PICO_TRANSFER_MODE_AP ? "Thử lại điểm phát" : "Thử lại WiFi")
+                       : "Dừng dịch vụ truyền sách", false);
     transfer_navigation(fb,2);
 }
 static void render(app_ctx_t *ctx,uint8_t *fb) {
     render_content(ctx,fb);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     display_monochrome_content(fb);
 #endif
     transfer_navigation(fb,s_wifi_settings_only?3:2);
@@ -931,8 +932,9 @@ static void on_enter(app_ctx_t* ctx) {
     s_session_started = false;
     s_pressed = -1;
     s_settle = s_any_changed = false;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     s_progress_pending = false;
+    s_free_known = s_space_refresh = false;
 #endif
     s_status.mode = s_mode;
     read_pico_transfer_get_saved_wifi(s_status.wifi_ssid, &s_status.wifi_configured);
@@ -947,22 +949,13 @@ static void on_enter(app_ctx_t* ctx) {
         snprintf(s_usb_message, sizeof(s_usb_message), "Đang tháo thẻ khỏi máy và bật USB…");
     } else if (s_hotspot_requested) {
         s_hotspot_requested = false;
-        if (!start_hotspot_service()) {
-            s_view = TRANSFER_HOME;
-            s_status.state = READ_PICO_TRANSFER_ERROR;
-            snprintf(s_method_message, sizeof(s_method_message), "Đang dừng truyền, vui lòng thử lại sau");
-        }
+        start_hotspot_service();
     } else if (s_wifi_upload_requested) {
         s_wifi_upload_requested = false;
         // 配网页可能留下常驻的仅联网会话；传书前先释放它再启动上传服务。
         // Provisioning may leave a network-only session alive; release it before starting upload.
-        if (s_status.wifi_configured && read_pico_transfer_try_stop_if_idle())
+        if (s_status.wifi_configured)
             queue_network_start(READ_PICO_TRANSFER_MODE_STA);
-        else if (s_status.wifi_configured) {
-            s_view = TRANSFER_HOME;
-            s_status.state = READ_PICO_TRANSFER_ERROR;
-            snprintf(s_method_message, sizeof(s_method_message), "Đang dừng truyền, vui lòng thử lại sau");
-        }
         else if (!enter_networks()) {
             s_view = TRANSFER_NETWORKS;
             s_scan_pending = false;
@@ -986,28 +979,98 @@ static void on_enter(app_ctx_t* ctx) {
 }
 
 static void stop_session(void) {
-    clear_qr();
     // 停服后读最终计数，保留本页跨模式文件变更的记录。
     // Join reception before reading counts and retain file changes across mode switches.
     read_pico_transfer_stop();
+    record_stopped_session();
+}
+
+static void record_stopped_session(void) {
+    clear_qr();
     read_pico_transfer_get_status(&s_status);
     if (s_session_started && s_status.changed_count) s_any_changed = true;
     s_session_started = false;
 }
 
 static bool stop_upload_if_idle(void) {
+    if (s_start_pending && !s_session_started) {
+        s_start_pending = false;
+        return true;
+    }
     if (!read_pico_transfer_try_stop_if_idle()) return false;
-    stop_session();
+    record_stopped_session();
     s_start_pending = false;
     return true;
 }
+
+static esp_err_t start_upload(const char **waiting_for) {
+    // Hold network ownership across teardown and startup. A foreground request
+    // waits between UI ticks if another task still owns the network.
+    *waiting_for = "network owner";
+    TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_NOT_FINISHED);
+#if DPREADER_BOARD_METALIO47
+    read_pico_transfer_prepare_network();
+    if (read_pico_transfer_sleep_blocked()) {
+        *waiting_for = "sleep gate";
+        return ESP_ERR_NOT_FINISHED;
+    }
+#endif
+    *waiting_for = "previous session stop";
+    if (!read_pico_transfer_try_stop_if_idle()) return ESP_ERR_NOT_FINISHED;
+    *waiting_for = "upload startup";
+    record_stopped_session();
+    ttf_font_cache_clear();
+    esp_err_t err = book_store_upload_root(&s_root);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "upload storage unavailable: %s", esp_err_to_name(err));
+        return err;
+    }
+    s_media_lost = false;
+    read_pico_transfer_cfg_t cfg = {
+        .mode = s_mode, .root_dir = s_root.path, .is_flash = s_root.is_flash,
+        .file_limit = book_store_file_limit(&s_root), .free_bytes_cb = free_bytes, .free_bytes_ctx = &s_root,
+        .file_changed_cb = book_progress_forget, .file_deleted_cb = transfer_file_deleted,
+        .file_moved_cb = transfer_file_moved, .wallpaper_set_cb = transfer_set_wallpaper,
+        .signature_get_cb = transfer_signature_get, .signature_set_cb = transfer_signature_set,
+        .sync_cfg_get_cb = transfer_sync_cfg_get, .sync_cfg_set_cb = transfer_sync_cfg_set,
+    };
+    err = read_pico_transfer_start(&cfg);
+    s_session_started = err == ESP_OK;
+    read_pico_transfer_get_status(&s_status);
+#if DPREADER_BOARD_METALIO47
+    s_free_known = s_session_started && s_root.is_flash;
+    s_space_refresh = s_session_started && !s_root.is_flash;
+    if (s_free_known) s_free = book_store_free_bytes(&s_root);
+#else
+    if (s_session_started) s_free = book_store_free_bytes(&s_root);
+#endif
+    return err;
+}
+
+#if DPREADER_BOARD_METALIO47
+static bool poll_upload_space(const read_pico_transfer_status_t *next) {
+    if (!s_session_started || s_root.is_flash || !next->network_ready) return false;
+    read_pico_sd_info_t sd = {0};
+    if (read_pico_sd_get_info(&sd) != ESP_OK || !sd.mounted) return false;
+    // The mounted card's first FAT count can take several seconds. Run it
+    // through the existing SD worker after the network has come up.
+    if (s_space_refresh) {
+        s_space_refresh = false;
+        (void)read_pico_sd_start_space_refresh();
+    }
+    const bool changed = s_free_known != sd.space_valid || (sd.space_valid && s_free != sd.free_bytes);
+    s_free_known = sd.space_valid;
+    s_free = sd.free_bytes;
+    return changed;
+}
+#endif
 
 // 必须先等待 HTTP 退出，再清除旧根；不会让在途请求写到另一存储。
 // Join HTTP before clearing the old root; in-flight requests never move to another storage.
 static void transfer_on_media_lost(app_ctx_t* ctx) {
     (void)ctx;
     if (s_root.is_flash) return;
-    stop_session();
+    if (s_session_started) stop_session();
     s_start_pending = s_scan_pending = false;
     s_view = s_direct_entry ? TRANSFER_HOME : TRANSFER_METHODS;
     clear_password();
@@ -1029,7 +1092,7 @@ static void transfer_on_exit(app_ctx_t* ctx) {
     clear_password();
     s_start_pending = s_scan_pending = s_network_connect_pending = false;
     // Rời trang truyền tệp luôn dừng phiên để giải phóng toàn bộ RAM và tài nguyên WiFi/HTTP
-    stop_session();
+    if (s_session_started) stop_session();
     s_wifi_settings_only = false;
     s_usb_entry = false;
     s_direct_entry = false;
@@ -1075,27 +1138,19 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
     if (s_view == TRANSFER_METHODS) return APP_REDRAW_NONE;
     if (s_view != TRANSFER_HOME) return network_ui_tick(ctx);
     if (s_start_pending) {
-        s_start_pending = false;
-        // 传书模式也应在启动无线电前释放可重建字形，避免内部内存不足。
-        // Release rebuildable glyphs before starting the radio for uploads too.
-        ttf_font_cache_clear();
-        esp_err_t err = book_store_upload_root(&s_root);
-        if (err == ESP_OK) {
-            s_media_lost = false;
-            s_free = book_store_free_bytes(&s_root);
-            read_pico_transfer_cfg_t cfg = {.mode = s_mode, .root_dir = s_root.path, .is_flash = s_root.is_flash,
-                .file_limit = book_store_file_limit(&s_root), .free_bytes_cb = free_bytes, .free_bytes_ctx = &s_root,
-                .file_changed_cb = book_progress_forget, .file_deleted_cb = transfer_file_deleted,
-                .file_moved_cb = transfer_file_moved,
-                .wallpaper_set_cb = transfer_set_wallpaper,
-                .signature_get_cb = transfer_signature_get, .signature_set_cb = transfer_signature_set,
-                .sync_cfg_get_cb = transfer_sync_cfg_get, .sync_cfg_set_cb = transfer_sync_cfg_set,
-                .title_get_cb = NULL, .title_set_cb = NULL};
-            err = read_pico_transfer_start(&cfg);
-            s_session_started = err == ESP_OK;
-            read_pico_transfer_get_status(&s_status);
-            if (err == ESP_OK) s_free = book_store_free_bytes(&s_root);
+        if (ctx->consumed || ctx->now_ms < s_start_retry_ms) return APP_REDRAW_NONE;
+        if (!s_start_deadline_ms) s_start_deadline_ms = ctx->now_ms + 8000;
+        const char *waiting_for;
+        esp_err_t err = start_upload(&waiting_for);
+        if (err == ESP_ERR_NOT_FINISHED && ctx->now_ms < s_start_deadline_ms) {
+            s_start_retry_ms = ctx->now_ms + 250;
+            return APP_REDRAW_NONE;
         }
+        if (err == ESP_ERR_NOT_FINISHED) {
+            ESP_LOGW(TAG, "upload admission timed out: mode=%d stage=%s", s_mode, waiting_for);
+            err = ESP_ERR_TIMEOUT;
+        }
+        s_start_pending = false;
         s_status.mode = s_mode;
         if (err != ESP_OK) { s_status.state = READ_PICO_TRANSFER_ERROR; s_status.last_error = err; }
         if (err == ESP_OK) prepare_qr();
@@ -1103,12 +1158,13 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
         ESP_LOGI(TAG, "start root=%s result=%s", s_root.path, esp_err_to_name(err));
         return APP_REDRAW_PAGE;
     }
+    if (!s_session_started && s_status.state == READ_PICO_TRANSFER_ERROR) return APP_REDRAW_NONE;
     if (ctx->consumed || ctx->now_ms - s_poll_ms < 2000) return APP_REDRAW_NONE;
     s_poll_ms = ctx->now_ms;
     read_pico_transfer_service_poll();
     read_pico_transfer_status_t next = {0};
     read_pico_transfer_get_status(&next);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // At most one small DU difference every two seconds, including new files.
     // Keep a failed scan pending so an unchanged receive snapshot can retry.
     if (next.state == READ_PICO_TRANSFER_UPLOADING) {
@@ -1139,7 +1195,11 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
         next.mode != s_status.mode || strcmp(next.ssid, s_status.ssid) ||
         next.wifi_configured != s_status.wifi_configured || strcmp(next.url, s_status.url) ||
         strcmp(next.wifi_ssid, s_status.wifi_ssid);
-    if (!network_changed && next.state == s_status.state && next.sta_count == s_status.sta_count &&
+    bool space_changed = false;
+#if DPREADER_BOARD_METALIO47
+    space_changed = poll_upload_space(&next);
+#endif
+    if (!network_changed && !space_changed && next.state == s_status.state && next.sta_count == s_status.sta_count &&
         next.cur_bytes == s_status.cur_bytes && next.cur_total == s_status.cur_total &&
         next.done_count == s_status.done_count && next.changed_count == s_status.changed_count && next.last_error == s_status.last_error &&
         !strcmp(next.cur_name, s_status.cur_name)) return APP_REDRAW_NONE;
@@ -1148,12 +1208,22 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
     s_status = next;
     if (network_changed) prepare_qr();
     if (s_settle) {
+#if DPREADER_BOARD_METALIO47
+        if (s_root.is_flash) s_free = book_store_free_bytes(&s_root);
+        else s_space_refresh = true;
+#else
         s_free = book_store_free_bytes(&s_root);
+#endif
         draw_status(ctx->fb);
         s_area = status_rect();
         return APP_REDRAW_AREA;
     }
-    if (network_changed) { s_free = book_store_free_bytes(&s_root); return APP_REDRAW_PAGE; }
+    if (network_changed) {
+#if !DPREADER_BOARD_METALIO47
+        s_free = book_store_free_bytes(&s_root);
+#endif
+        return APP_REDRAW_PAGE;
+    }
     draw_status(ctx->fb);
     s_area = status_rect();
     return APP_REDRAW_AREA;
@@ -1194,16 +1264,13 @@ static app_redraw_t method_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev)
     if (ev->type == UI_GESTURE_TAP && old >= 0 && old == origin && hit_method(ev->x, ev->y) == origin) {
         if (origin == 0) {
             if (s_status.wifi_configured) {
-                if (stop_upload_if_idle()) {
-                    queue_network_start(READ_PICO_TRANSFER_MODE_STA);
-                    s_method_message[0] = 0;
-                    return APP_REDRAW_PAGE;
-                }
+                queue_network_start(READ_PICO_TRANSFER_MODE_STA);
+                s_method_message[0] = 0;
+                return APP_REDRAW_PAGE;
             } else if (enter_networks()) return APP_REDRAW_PAGE;
             snprintf(s_method_message, sizeof(s_method_message), "Đang dừng truyền, vui lòng thử lại sau");
         } else if (origin == 1) {
-            if (start_hotspot_service()) return APP_REDRAW_PAGE;
-            snprintf(s_method_message, sizeof(s_method_message), "Đang dừng truyền, vui lòng thử lại sau");
+            start_hotspot_service();
         }
         return APP_REDRAW_PAGE;
     }
@@ -1256,8 +1323,10 @@ static app_redraw_t on_gesture(app_ctx_t* ctx, const ui_gesture_event_t* ev) {
             return APP_REDRAW_NONE;
         }
         if (origin == 2) {
-            if (s_mode == READ_PICO_TRANSFER_MODE_AP && s_status.state == READ_PICO_TRANSFER_ERROR &&
-                !s_status.network_ready && start_hotspot_service()) return APP_REDRAW_PAGE;
+            if (s_status.state == READ_PICO_TRANSFER_ERROR && !s_status.network_ready) {
+                queue_network_start(s_mode);
+                return APP_REDRAW_PAGE;
+            }
             // 即使没有切页历史也先停服，取消尚未执行的启动请求。
             // Stop even without navigation history and cancel a queued start.
             if (!stop_upload_if_idle()) return APP_REDRAW_NONE;
@@ -1292,7 +1361,7 @@ static app_redraw_t on_key(app_ctx_t *ctx, int key) {
 
 static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
     if (redraw != APP_REDRAW_AREA) return false;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (s_view == TRANSFER_HOME && s_progress_pending) {
         int err = update_display_area_diff_with(ctx->hl,
             display_main_bw_waveform(), MODE_DU, s_area);

@@ -5,7 +5,7 @@
  * User revision: unreadable settings do not block startup; cache conclusive reads only, retain stored credentials and verify a readable existing PIN before changing or disabling it.
  */
 #include "lock_pin.h"
-#include "kiiko_board_config.h"
+#include "dpreader_board_config.h"
 #include <stdint.h>
 #include <string.h>
 #include "esp_random.h"
@@ -29,7 +29,7 @@ static void load(void) {
     s_enabled=false;s_available=false;
     lock_pin_wipe(&s_record,sizeof(s_record));
     nvs_handle_t handle;
-    esp_err_t error=nvs_open(KIIKO_BOARD_LOCK_NAMESPACE,NVS_READONLY,&handle);
+    esp_err_t error=nvs_open(DPREADER_BOARD_LOCK_NAMESPACE,NVS_READONLY,&handle);
     if (error==ESP_ERR_NVS_NOT_FOUND) {s_loaded=true;s_available=true;return;}
     if (error!=ESP_OK) return;
     size_t size=sizeof(s_record);
@@ -68,7 +68,7 @@ esp_err_t lock_pin_replace(const char old_pin[5],const char new_pin[5]) {
         esp_fill_random(next.salt,sizeof(next.salt));
         if (!derive(new_pin,&next,next.digest)) {lock_pin_wipe(&next,sizeof(next));return ESP_FAIL;}
     }
-    nvs_handle_t handle;esp_err_t error=nvs_open(KIIKO_BOARD_LOCK_NAMESPACE,NVS_READWRITE,&handle);
+    nvs_handle_t handle;esp_err_t error=nvs_open(DPREADER_BOARD_LOCK_NAMESPACE,NVS_READWRITE,&handle);
     if (error==ESP_OK) {
         error=new_pin?nvs_set_blob(handle,"credential",&next,sizeof(next)):nvs_erase_key(handle,"credential");
         if (!new_pin&&error==ESP_ERR_NVS_NOT_FOUND) error=ESP_OK;

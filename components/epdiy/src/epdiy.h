@@ -257,7 +257,7 @@ void epd_poweroff();
 
 /** Clear the whole screen by flashing it. */
 void epd_clear();
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// S31手动修复采用现有清屏序列，每相失败即返回。调用方必须持有显示锁。
 /// Checked existing S31 clear profile; fail at the first bad scan. Caller owns display lock.
 enum EpdDrawError epd_clear_checked(void);
@@ -535,7 +535,7 @@ enum EpdDrawError epd_draw_base(
     const EpdWaveform* waveform
 );
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 已验证前导保持后，一次提交[first_phase,末相]，保留原相位号/尾相和内部LUT；area为物理缓冲尺寸。
 /// Submit verified[first_phase,last] once, retaining original phase indices/tails and internal LUT; area describes the physical buffer.
 enum EpdDrawError epd_draw_base_from_phase(EpdRect area,const uint8_t* data,EpdRect crop,

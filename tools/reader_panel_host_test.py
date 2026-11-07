@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Actual S31 panel overlays and body-cache fallback; no physical display or serial access."""
 from pathlib import Path
+import os
 import subprocess,tempfile
 from home_cover_cache_host_test import function
 root=Path(__file__).resolve().parents[1];book=root/'main/apps/app_book.c';source=book.read_text()
@@ -16,6 +17,7 @@ unit=r'''
 #include <stdlib.h>
 #define UI_LOCK_WIDTH 684
 #define UI_LOCK_HEIGHT 1216
+#define READER_STATS_TOP 768
 #define UI_GRAY_WHITE 255
 #define BYTES (684*1216/2)
 #define ESP_LOGI(...) ((void)0)
@@ -31,30 +33,21 @@ static uint8_t front[BYTES],back[BYTES],original[BYTES],cached_body[BYTES];
 static hl_t hl={back};static app_ctx_t ctx={front,&hl,false};
 static int s_view=READING,s_mode,s_du_count,s_presented_view;
 static const char*s_text="book";static size_t s_page=2,s_chapter=3;
-static bool s_clear_confirm,s_reader_fullscreen=true,s_reader_text_frame,s_fonts_reload_pending;
+static bool s_clear_confirm,s_reader_text_frame,s_fonts_reload_pending;
+static int64_t s_reader_clock_minute;
+static int64_t ui_nav_clock_minute(void){return 42;}
 static bool s_reader_cleanup,s_reader_turn_pending,s_water_turn_pending,s_reader_footer_pending;
 static char s_reader_notice[20];static reader_panel_t s_reader_panel;
+#define s_toolbar (s_reader_panel != READER_PANEL_NONE)
 static int images,rotation=3,draws,pushes,errors,prepared,ended,full_draws,outer_draws,stores,cancels,invalidates;
 static uint32_t generation=9;static bool background,draw_lock,failed,cache_ready,cache_oom;
 static int font_top=580,settings_top=580;
 static bool fast_panels;
-static int four_pushes,entry_pushes;static bool erased_underlay;
+static int four_pushes,entry_pushes,gray_diffs;static bool erased_underlay;
 static bool display_reader_fast_panels_enabled(void){return fast_panels;}
-static int s_reader_slider=-1,s_px=40,s_margin=10,s_reader_preview_px=40,s_reader_preview_margin=10,s_reader_preview_line=120,s_reader_preview_para=110,s_reader_preview_tracking=2;
-static bool s_reader_slider_endpoint;
-static unsigned committed;
-enum{UI_GESTURE_PRESS,UI_GESTURE_MOVE,UI_GESTURE_TAP,UI_GESTURE_CANCEL,UI_GESTURE_SWIPE_L,UI_GESTURE_SWIPE_R,UI_GESTURE_SWIPE_U,UI_GESTURE_SWIPE_D,UI_GESTURE_LONG_PRESS};
-typedef struct{int type,x0,y0,x,y;}ui_gesture_event_t;
-static int app_settings_book_line_spacing(void){return 120;}
-static int app_settings_book_paragraph_spacing(void){return 110;}
-static int app_settings_book_tracking(void){return 2;}
+static int s_reader_slider=-1;
 static EpdRect reader_slider_refresh_rect(int slider){(void)slider;return(EpdRect){20,692,644,92};}
-static int reader_slider_at(int x,int y){(void)x;return y==700?0:-1;}
-static void reader_slider_begin(int slider,int x){s_reader_slider=slider;s_reader_slider_endpoint=false;s_reader_preview_px=x;}
-static void reader_slider_move(int x){s_reader_preview_px=x;}
-static app_redraw_t apply_reader_typography(app_ctx_t*c,int t){(void)c;(void)t;++committed;return APP_REDRAW_PAGE;}
-static app_redraw_t apply_reader_layout(app_ctx_t*c,int p,int m,int l,uint8_t pa){(void)c;(void)p;(void)m;(void)l;(void)pa;++committed;return APP_REDRAW_PAGE;}
-static void render(app_ctx_t*c,uint8_t*f){(void)c;(void)f;++full_draws;}
+static void render(app_ctx_t*c,uint8_t*f){(void)c;memcpy(f,original,BYTES);++full_draws;}
 
 static EpdRect area,s_area;
 static size_t fb_bytes(void){return BYTES;}
@@ -78,6 +71,9 @@ static enum EpdDrawError update_display_reader_panel_fast(hl_t*h,EpdRect a){
  assert(h==&hl&&!draw_lock);area=a;++pushes;
  if(!failed)memcpy(back,front,BYTES);return failed?EPD_DRAW_OTHER_ERROR:EPD_DRAW_SUCCESS;
 }
+static enum EpdDrawError update_display_gray_transition(hl_t*h,EpdRect a){
+ ++gray_diffs;return update_display_reader_panel_fast(h,a);
+}
 static void guard_draw_result(hl_t*h,enum EpdDrawError err){assert(h==&hl);errors+=err!=EPD_DRAW_SUCCESS;}
 static enum EpdDrawError update_display_reader_panel_gray4(hl_t*h,EpdRect a,bool erase){erased_underlay=erase;entry_pushes+=erase;++four_pushes;return update_display_reader_panel_fast(h,a);}
 static size_t cached_page;static uint32_t cached_generation;
@@ -97,16 +93,11 @@ static void invalidate_prep(void){++invalidates;}
 '''
 a=source.rindex('static struct {',0,source.index('static void reader_panel_record('));b=source.index('} s_reader_panel_frame;',a)+len('} s_reader_panel_frame;')
 unit+=source[a:b]+'\n'
-for name in ['reader_fast_panel_rect','reader_panel_record','reader_panel_short_ready','reader_panel_fast_present','reader_slider_overlay_ready','reader_slider_feedback_present','reader_slider_value','reader_slider_feedback','reader_slider_commit','draw_reader_cached','pause_reader_prep']:unit+=function(name,book)+'\n'
-start=source.index('    if (s_view == READING &&\n        (s_reader_panel == READER_PANEL_FONT_SETTINGS',source.index('static app_redraw_t gesture_event('))
-at=source.index('{',start)+1;depth=1
-while depth:
- depth+=(source[at]=='{')-(source[at]=='}');at+=1
-unit+='static app_redraw_t slider_gesture(app_ctx_t*ctx,const ui_gesture_event_t*ev){'+source[start:at]+'return APP_REDRAW_NONE;}\n'
+for name in ['reader_fast_panel_rect','reader_panel_record','reader_panel_short_ready','reader_panel_fast_present','reader_slider_overlay_ready','reader_slider_feedback_present','reader_slider_feedback','draw_reader_cached','pause_reader_prep']:unit+=function(name,book)+'\n'
 unit+=r'''
 static void reset(reader_panel_t prior){
- fast_panels=false;four_pushes=entry_pushes=0;erased_underlay=false;
- s_view=READING;s_text="book";s_page=2;s_chapter=3;generation=9;rotation=3;s_reader_fullscreen=true;
+ fast_panels=false;four_pushes=entry_pushes=gray_diffs=0;erased_underlay=false;
+ s_view=READING;s_text="book";s_page=2;s_chapter=3;generation=9;rotation=3;
  images=0;background=false;s_clear_confirm=false;s_reader_notice[0]=0;s_reader_panel=prior;
  s_reader_cleanup=s_reader_turn_pending=s_water_turn_pending=s_reader_footer_pending=false;
  draws=pushes=errors=prepared=ended=0;failed=false;draw_lock=false;s_fonts_reload_pending=false;
@@ -130,11 +121,22 @@ int main(void){
    assert(reader_panel_fast_present(&ctx,APP_REDRAW_PAGE)==same&&pushes==(same?2:1));
   }
  }
+ reset(READER_PANEL_NONE);
+ s_reader_panel=READER_PANEL_TOOLS;
+ assert(reader_panel_fast_present(&ctx,APP_REDRAW_PAGE)&&pushes==1&&area.y==1096);
+ assert(gray_diffs==DPREADER_LOVE_BOOK);
+ s_reader_panel=READER_PANEL_NONE;
+ assert(reader_panel_fast_present(&ctx,APP_REDRAW_PAGE)==DPREADER_LOVE_BOOK);
+#if DPREADER_LOVE_BOOK
+ assert(gray_diffs==2&&pushes==2&&area.y==0);
+ assert(s_reader_text_frame&&s_reader_clock_minute==42&&s_reader_panel_frame.panel==READER_PANEL_NONE);
+ assert(!memcmp(front,original,BYTES)&&!memcmp(back,original,BYTES));
+#endif
  for(int risk=0;risk<28;risk++){
   reset(READER_PANEL_NONE);s_reader_panel=READER_PANEL_TOOLS;app_redraw_t redraw=APP_REDRAW_PAGE;
   switch(risk){
    case 0:ctx.request_app=true;break;case 1:generation++;break;case 2:s_page++;break;case 3:s_chapter++;break;
-   case 4:rotation=1;break;case 5:s_reader_fullscreen=false;break;case 6:s_text="different";break;
+   case 4:rotation=1;break;case 5:s_reader_panel_frame.images=1;break;case 6:s_text="different";break;
    case 7:s_clear_confirm=true;break;case 8:s_reader_notice[0]='x';break;case 9:images=1;break;
    case 10:background=true;break;case 11:s_reader_cleanup=true;break;case 12:s_reader_turn_pending=true;break;
    case 13:s_water_turn_pending=true;break;case 14:s_reader_footer_pending=true;break;case 15:s_reader_panel_frame.valid=false;break;
@@ -171,22 +173,13 @@ int main(void){
   s_reader_panel=READER_PANEL_FONT_SETTINGS;
   assert(reader_panel_fast_present(&ctx,APP_REDRAW_PAGE)==!large&&four_pushes==(large?2:3));
  }
- // 真实滑动手势去重；面板局部绘图/提交不碰正文，不变数值不输出，松手只提交一次。
- // Deduplicate actual gesture feedback; paint/present locally without body work and commit once on release.
- reset(READER_PANEL_FONT_SETTINGS);s_reader_slider=-1;full_draws=0;committed=0;
- ui_gesture_event_t move={UI_GESTURE_PRESS,40,700,40,700};
- assert(slider_gesture(&ctx,&move)==APP_REDRAW_NONE&&s_reader_slider==0&&!draws&&!pushes);
- move.type=UI_GESTURE_MOVE;
- for(int i=0;i<30;++i)assert(slider_gesture(&ctx,&move)==APP_REDRAW_NONE&&!draws&&!pushes);
- move.x=41;assert(slider_gesture(&ctx,&move)==APP_REDRAW_AREA&&draws==1&&!full_draws);
+ // Exercise local slider painting without the removed drag-gesture handler.
+ reset(READER_PANEL_FONT_SETTINGS);s_reader_slider=0;full_draws=0;
+ assert(reader_slider_feedback(&ctx,0)==APP_REDRAW_AREA&&draws==1&&!full_draws);
  assert(reader_slider_feedback_present(&ctx,APP_REDRAW_AREA)&&pushes==1&&!prepared&&!ended);
  assert(!memcmp(front,original,(size_t)font_top*684/2));
- assert(slider_gesture(&ctx,&move)==APP_REDRAW_NONE&&pushes==1&&draws==1);
- move.type=UI_GESTURE_TAP;move.x=42;assert(slider_gesture(&ctx,&move)==APP_REDRAW_PAGE&&committed==1&&s_reader_slider==-1);
+ s_reader_slider=-1;
  assert(!reader_slider_feedback_present(&ctx,APP_REDRAW_AREA));
- move=(ui_gesture_event_t){UI_GESTURE_PRESS,41,700,41,700};
- assert(slider_gesture(&ctx,&move)==APP_REDRAW_AREA);move.type=UI_GESTURE_CANCEL;
- assert(slider_gesture(&ctx,&move)==APP_REDRAW_PAGE&&s_reader_slider==-1&&committed==1);
  // 过期正文/缺卡资源边界继续回退；不能拿新一代正文当旧底页。
  // Stale body/media boundaries retain fallback and never reuse another layout generation.
  reset(READER_PANEL_FONT_SETTINGS);full_draws=0;generation++;s_reader_slider=0;
@@ -219,5 +212,8 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as d:
  p=Path(d)/'test';p.with_suffix('.c').write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-fsanitize=address,undefined',str(p.with_suffix('.c')),'-o',str(p)],check=True)
- subprocess.run([str(p)],check=True)
+ sanitizers = [] if os.environ.get('HOST_TEST_SANITIZERS') == '0' else ['-fsanitize=address,undefined']
+ for love in (0,1):
+  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
+                  *sanitizers,f'-DDPREADER_LOVE_BOOK={love}',str(p.with_suffix('.c')),'-o',str(p)],check=True)
+  subprocess.run([str(p)],check=True)

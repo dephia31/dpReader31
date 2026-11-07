@@ -8,9 +8,9 @@ import tempfile
 import json
 
 ROOT = Path(__file__).resolve().parents[1]
-view=ROOT/'.kiiko-source-view.json'
+view=ROOT/'.dpreader-source-view.json'
 metalio=not view.exists() or json.loads(view.read_text())['board']=='metalio47'
-board_option=['-DKIIKO_BOARD_METALIO47='+str(int(metalio))]
+board_option=['-DDPREADER_BOARD_METALIO47='+str(int(metalio))]
 
 
 def function(path, name):

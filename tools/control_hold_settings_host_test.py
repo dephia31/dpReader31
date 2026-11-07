@@ -12,7 +12,7 @@ unit=r'''
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define APP_CONTROL_HOLD_DEFAULT 255
 #define NVS_NS "metalio_s31"
 #define NVS_READWRITE 1

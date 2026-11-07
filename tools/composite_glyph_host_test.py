@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory() as folder:
     (work / 'assets.c').write_text(assets)
     (work / 'test.c').write_text(HARNESS)
     flags = ['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function',
-             '-DKIIKO_BOARD_METALIO47=1',
+             '-DDPREADER_BOARD_METALIO47=1',
              '-I' + str(work), '-I' + str(ROOT / 'main/font'),
              '-I' + str(ROOT / 'main/book'), '-I' + str(ROOT / 'main'),
              '-I' + str(ROOT / 'tools/ui_gesture_stubs')]

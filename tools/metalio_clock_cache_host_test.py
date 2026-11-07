@@ -17,7 +17,7 @@ unit=r'''
 #include <time.h>
 #define UI_HOME_WIDGET_W 320
 #define UI_HOME_WIDGET_H 350
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 typedef struct {int x,y,width,height;} EpdRect;
 enum EpdRotation {EPD_ROT_LANDSCAPE,EPD_ROT_PORTRAIT,EPD_ROT_INVERTED_LANDSCAPE,EPD_ROT_INVERTED_PORTRAIT};
 static enum EpdRotation rotation=EPD_ROT_INVERTED_PORTRAIT;

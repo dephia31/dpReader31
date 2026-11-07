@@ -10,7 +10,7 @@ root = Path(__file__).resolve().parents[1]
 settings = root / 'main/apps/app_device_settings.c'
 files = root / 'main/apps/app_files.c'
 text = settings.read_text()
-assert '#if KIIKO_BOARD_METALIO47' not in text, 'Run in the Pico-selected host view'
+assert '#if DPREADER_BOARD_METALIO47' not in text, 'Run in the Pico-selected host view'
 enum = text[text.index('typedef enum { SETTINGS_MAIN,'):text.index('static settings_page_t s_page;')]
 unit = r'''
 #include <assert.h>

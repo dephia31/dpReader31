@@ -5,7 +5,7 @@
     "main/display_waveform_smooth.h": "firmware/shared/main/display_waveform_smooth.h",
     "main/sleep.h": "firmware/shared/main/sleep.h",
     "main/boot_state.h": "firmware/shared/main/boot_state.h",
-    "main/kiiko_board_config.h": "firmware/shared/main/kiiko_board_config.h",
+    "main/dpreader_board_config.h": "firmware/shared/main/dpreader_board_config.h",
     "main/anti_fade.h": "firmware/shared/main/anti_fade.h",
     "main/settings.h": "firmware/shared/main/settings.h",
     "main/time_service.h": "firmware/shared/main/time_service.h",

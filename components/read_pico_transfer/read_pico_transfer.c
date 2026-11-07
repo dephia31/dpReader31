@@ -8,9 +8,9 @@
  * Frozen: Typed uploads limit book/image/font formats; Add File accepts any format within the TF root, preserving UTF-8 names and checking capacity first.
  * 为传入升级包等其他文件增加目录上传；分类上传仍保持原有限额和失败清理。
  * Directory uploads also accept upgrade packages; typed uploads retain their limits and failed-part cleanup.
- * 冻结：热点网页或停服设备触屏可配置网络，不自动切模式；凭据只存单个NVS blob，状态不含密码。
- * 冻结：显式对时优先复用已连接的 STA；停服时才短暂连接，用毕释放；凭据只保存在原 NVS blob。
- * Frozen: Explicit time sync reuses connected STA; only a stopped service connects briefly and releases WiFi; credentials stay in the original NVS blob.
+ * Cài đặt trên thiết bị hoặc trang hotspot lưu Wi-Fi vào thẻ trên S31.
+ * Chế độ STA thử lần lượt hồ sơ đã lưu khi kết nối thất bại. Trạng thái công khai chỉ chứa SSID.
+ * Đồng bộ giờ dùng lại STA đang kết nối hoặc mở phiên tạm thời khi Wi-Fi đã dừng.
  * 已连接后仍启动临时 WiFi 会返回状态错误，因此改为按连接状态分流。
  * Starting temporary WiFi while already connected returned invalid state, so sync now routes by connection state.
  */
@@ -26,7 +26,7 @@
 #include <sys/time.h>
 #include <dirent.h>
 #include <unistd.h>
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "../../main/font/font_filename.h"
 // 字体上传单独规范化名称；书籍/图片与目录上传仍使用原来的路径边界。
 // Normalize font names only; book/image/directory uploads retain their original path boundaries.
@@ -190,6 +190,10 @@ static int resolve_mutation_path(const char *root, const char *name,
 static bool sd_relative_valid(const char *relative, bool allow_root) {
     size_t length = strlen(relative);
     if (!length) return allow_root;
+#if DPREADER_BOARD_METALIO47
+    // Tên thư mục 8.3 cố định để FAT không tạo một tên ngắn khác cho kho mật khẩu.
+    if (!strncasecmp(relative, "DPRWIFI", 7) && (!relative[7] || relative[7] == '/')) return false;
+#endif
     if (length > 238 || relative[0] == '/' || relative[length - 1] == '/') return false;
     const char *segment = relative;
     for (const char *p = relative;; ++p) {
@@ -304,7 +308,7 @@ static int commit_file(const char *part, const char *path) {
 typedef int (*receive_cb_t)(void *, char *, size_t);
 typedef void (*progress_cb_t)(size_t);
 enum { TRANSFER_COMMITTED_BACKUP_RETAINED = 299 };
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #ifdef ESP_PLATFORM
 #include "transfer_stream_writer.h"
 #endif
@@ -313,7 +317,7 @@ static int receive_file(const char *path, const char *part, size_t total, char *
                         size_t cap, receive_cb_t recv, void *ctx, progress_cb_t progress) {
     FILE *f = fopen(part, "wb");
     if (!f) return 507;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // 在已有接收缓冲中合并小包，按整块写卡；不再分配第二份 stdio 缓冲。
     // Coalesce small packets in the owned receive buffer; no duplicate stdio allocation.
     (void)setvbuf(f, NULL, _IONBF, 0);
@@ -343,7 +347,7 @@ static int receive_file(const char *path, const char *part, size_t total, char *
     size_t done = 0;
 #endif
     while (done < total) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #ifdef ESP_PLATFORM
         if(writer && atomic_load(&writer->error)){error=507;break;}
 #endif
@@ -361,12 +365,12 @@ static int receive_file(const char *path, const char *part, size_t total, char *
         int got = recv(ctx, buf, n);
 #endif
         if (got <= 0 || (size_t)got > n) { error = 408; break; }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
         if (fwrite(buf, 1, (size_t)got, f) != (size_t)got) { error = 507; break; }
 #endif
         done += (size_t)got;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         pending += (size_t)got;
         if (pending == cap || done == total) {
 #ifdef ESP_PLATFORM
@@ -393,7 +397,7 @@ static int receive_file(const char *path, const char *part, size_t total, char *
 #endif
         if (progress) progress(done);
     }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #ifdef ESP_PLATFORM
     if(writer) {
         int write_error=transfer_writer_finish(writer,write_slot,&write_us,&writes);
@@ -404,7 +408,7 @@ static int receive_file(const char *path, const char *part, size_t total, char *
 #else
 #endif
     if (fclose(f) != 0) error = 507;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #ifdef ESP_PLATFORM
     write_us += esp_timer_get_time() - close_us;
     s_receive_metrics.bytes = (unsigned)done;
@@ -564,7 +568,7 @@ static int list_books(const char *root, const char *query, size_t page, transfer
     return status;
 }
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #ifndef READ_PICO_TRANSFER_HOST_TEST
 #include "read_pico_transfer.h"
 #include "transfer_signature.h"
@@ -657,6 +661,31 @@ static void time_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *
     }
 }
 static transfer_connection_t s_connection;
+static unsigned s_profile_count, s_profile_index, s_profiles_tried;
+#define WIFI_PROFILE_ATTEMPT_MS 4500
+
+static wifi_config_t wifi_sta_config(const transfer_credentials_t *saved) {
+    wifi_config_t wifi = {0};
+    memcpy(wifi.sta.ssid, saved->ssid, strlen(saved->ssid));
+    memcpy(wifi.sta.password, saved->password, strlen(saved->password));
+    wifi.sta.threshold.authmode = saved->password[0] ? WIFI_AUTH_WPA_PSK : WIFI_AUTH_OPEN;
+    wifi.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+    wifi.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
+    wifi.sta.pmf_cfg.capable = true;
+    wifi.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+    return wifi;
+}
+
+static void begin_saved_profile(int64_t now) {
+    connection_begin(&s_connection, now);
+    if (s_profile_count > 1) s_connection.deadline_ms = now + WIFI_PROFILE_ATTEMPT_MS;
+}
+
+static void saved_profile_lost(int64_t now) {
+    if (s_connection.online) begin_saved_profile(now);
+    connection_lost(&s_connection, now);
+}
+
 extern const char upload_start[] asm("_binary_upload_html_start");
 extern const char upload_end[] asm("_binary_upload_html_end");
 
@@ -816,7 +845,36 @@ static void time_network_log(esp_netif_t *netif) {
         ESP_LOGI("time_sync","DNS=" IPSTR,IP2STR(&dns.ip.u_addr.ip4));
     else ESP_LOGW("time_sync","IPv4 DNS result=%s type=%u",esp_err_to_name(err),dns.ip.type);
 }
-static esp_err_t time_connect(void) {
+static esp_err_t time_connect(unsigned profile_count) {
+    if (profile_count > 1) {
+        for (unsigned index = 0; index < profile_count; ++index) {
+            if (time_sync_cancelled()) return ESP_ERR_INVALID_STATE;
+            if (index) {
+                transfer_credentials_t saved;
+                unsigned count;
+                esp_err_t err = wifi_profile_read(index, &saved, &count);
+                if (err == ESP_OK && saved.version == 1) {
+                    wifi_config_t wifi = wifi_sta_config(&saved);
+                    err = esp_wifi_set_config(WIFI_IF_STA, &wifi);
+                    clear_secret(&wifi, sizeof(wifi));
+                } else if (err == ESP_OK) err = ESP_ERR_NOT_FOUND;
+                clear_secret(&saved, sizeof(saved));
+                if (err != ESP_OK) continue;
+            }
+            xEventGroupClearBits(s_time_events, TIME_GOT_IP | TIME_DISCONNECTED);
+            if (esp_wifi_connect() != ESP_OK) continue;
+            int64_t deadline = esp_timer_get_time() + WIFI_PROFILE_ATTEMPT_MS * 1000LL;
+            while (esp_timer_get_time() < deadline) {
+                if (time_sync_cancelled()) return ESP_ERR_INVALID_STATE;
+                EventBits_t bits = xEventGroupWaitBits(s_time_events, TIME_GOT_IP | TIME_DISCONNECTED,
+                    pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+                if (bits & TIME_GOT_IP) return ESP_OK;
+                if (bits & TIME_DISCONNECTED) break;
+            }
+            esp_wifi_disconnect();
+        }
+        return ESP_ERR_TIMEOUT;
+    }
     const int64_t deadline=esp_timer_get_time()+30000000;
     for(unsigned attempt=0;attempt<3;attempt++) {
         if(time_sync_cancelled()) return ESP_ERR_INVALID_STATE;
@@ -854,7 +912,8 @@ static esp_err_t sync_time_impl(uint32_t *utc_seconds) {
     if (route == TRANSFER_TIME_ONLINE) return sync_time_online_impl(utc_seconds);
     if (route != TRANSFER_TIME_TEMPORARY) return ESP_ERR_INVALID_STATE;
     transfer_credentials_t saved = {0};
-    esp_err_t err = load_credentials(&saved);
+    unsigned profile_count;
+    esp_err_t err = wifi_profile_read(0, &saved, &profile_count);
     if (err != ESP_OK || saved.version != 1) {
         clear_secret(&saved, sizeof(saved));
         return err == ESP_OK ? ESP_ERR_NOT_FOUND : err;
@@ -865,14 +924,7 @@ static esp_err_t sync_time_impl(uint32_t *utc_seconds) {
     const char *stage="netif";
     esp_netif_t *netif = NULL;
     esp_event_handler_instance_t wifi_handler = NULL, ip_handler = NULL;
-    wifi_config_t wifi = {0};
-    memcpy(wifi.sta.ssid, saved.ssid, strlen(saved.ssid));
-    memcpy(wifi.sta.password, saved.password, strlen(saved.password));
-    wifi.sta.threshold.authmode = saved.password[0] ? WIFI_AUTH_WPA_PSK : WIFI_AUTH_OPEN;
-    wifi.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
-    wifi.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
-    wifi.sta.pmf_cfg.capable = true;
-    wifi.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+    wifi_config_t wifi = wifi_sta_config(&saved);
     clear_secret(&saved, sizeof(saved));
     s_time_events = xEventGroupCreate();
     if (!s_time_events) { clear_secret(&wifi, sizeof(wifi)); ble_pt_network_release(); return ESP_ERR_NO_MEM; }
@@ -903,7 +955,7 @@ static esp_err_t sync_time_impl(uint32_t *utc_seconds) {
     stage="wifi-profile";
     err=transfer_s31_radio_profile(WIFI_IF_STA, false); if(err!=ESP_OK) goto time_cleanup;
     stage="wifi-connect";
-    err=time_connect(); if(err!=ESP_OK) goto time_cleanup;
+    err=time_connect(profile_count); if(err!=ESP_OK) goto time_cleanup;
     time_network_log(netif);
     stage="ntp";
     err=sync_network_time(utc_seconds);
@@ -1146,7 +1198,7 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         if (id == WIFI_EVENT_AP_STADISCONNECTED && s_status.sta_count) s_status.sta_count--;
         if (s_status.mode == READ_PICO_TRANSFER_MODE_STA && id == WIFI_EVENT_STA_DISCONNECTED) {
             disconnected = true;
-            connection_lost(&s_connection, now);
+            saved_profile_lost(now);
             s_status.network_ready = false; s_status.url[0] = 0;
             if (s_status.state != READ_PICO_TRANSFER_UPLOADING && !s_connection.failed)
                 s_status.state = READ_PICO_TRANSFER_STARTING;
@@ -1176,7 +1228,7 @@ static void ip_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
         portENTER_CRITICAL(&s_lock);
         bool reconnect = !s_stopping && !s_connection.failed;
         if (reconnect) {
-            connection_lost(&s_connection, now);
+            saved_profile_lost(now);
             s_status.network_ready = false; s_status.url[0] = 0;
             if (s_status.state != READ_PICO_TRANSFER_UPLOADING) s_status.state = READ_PICO_TRANSFER_STARTING;
         }
@@ -1195,6 +1247,7 @@ static void ip_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
     bool accepted = !s_stopping && !s_connection.failed;
     if (accepted) {
         s_connection.online = true; s_connection.pending = false;
+        s_profiles_tried = 0;
         s_status.network_ready = true; strcpy(s_status.url, url);
         s_status.last_error = ESP_OK;
         if (s_status.state != READ_PICO_TRANSFER_UPLOADING) s_status.state = READ_PICO_TRANSFER_READY;
@@ -1203,27 +1256,66 @@ static void ip_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
     if (accepted) ESP_LOGI("transfer", "sta ready url=%s", url);
 }
 
+// Thử một hồ sơ mỗi lượt poll. Không giữ bảng mật khẩu trong bộ nhớ.
+static bool advance_saved_profile(int64_t now) {
+    portENTER_CRITICAL(&s_lock);
+    unsigned profile_count = s_profile_count;
+    if (s_profiles_tried + 1 >= profile_count) {
+        portEXIT_CRITICAL(&s_lock);
+        return false;
+    }
+    ++s_profiles_tried;
+    unsigned index = (s_profile_index + 1) % profile_count;
+    s_profile_index = index;
+    portEXIT_CRITICAL(&s_lock);
+    transfer_credentials_t saved;
+    unsigned count;
+    esp_err_t err = wifi_profile_read(index, &saved, &count);
+    if (err != ESP_OK || saved.version != 1 || count != profile_count) {
+        clear_secret(&saved, sizeof(saved));
+        return false;
+    }
+    wifi_config_t wifi = wifi_sta_config(&saved);
+    err = esp_wifi_set_config(WIFI_IF_STA, &wifi);
+    clear_secret(&wifi, sizeof(wifi));
+    if (err == ESP_OK) {
+        publish_credentials(&saved);
+        portENTER_CRITICAL(&s_lock);
+        begin_saved_profile(now);
+        s_connection.next_ms = now + 250;
+        s_status.state = READ_PICO_TRANSFER_STARTING;
+        s_status.last_error = ESP_OK;
+        portEXIT_CRITICAL(&s_lock);
+    }
+    clear_secret(&saved, sizeof(saved));
+    return err == ESP_OK;
+}
+
 void read_pico_transfer_service_poll(void) {
-    if (!s_started || s_cfg.mode != READ_PICO_TRANSFER_MODE_STA) return;
+    TRANSFER_NETWORK_GUARD_OR_RETURN();
+    if (!s_started || s_shutdown_only || s_cfg.mode != READ_PICO_TRANSFER_MODE_STA) return;
     int64_t now = esp_timer_get_time() / 1000;
     portENTER_CRITICAL(&s_lock);
-    int action = s_stopping ? 0 : connection_poll(&s_connection, now);
+    int action = s_stopping || s_upload_active ? 0 : connection_poll(&s_connection, now);
     unsigned attempts = s_connection.attempts;
-    if (action < 0) {
-        s_status.network_ready = false; s_status.url[0] = 0;
-        if (s_status.state != READ_PICO_TRANSFER_UPLOADING) s_status.state = READ_PICO_TRANSFER_ERROR;
-        s_status.last_error = ESP_ERR_TIMEOUT;
-    }
     portEXIT_CRITICAL(&s_lock);
     if (action < 0) {
-        ESP_LOGW("transfer", "sta connection timeout attempts=%u", attempts);
         esp_wifi_disconnect();
+        if (advance_saved_profile(now)) return;
+        ESP_LOGW("transfer", "sta connection timeout attempts=%u", attempts);
+        portENTER_CRITICAL(&s_lock);
+        s_status.network_ready = false;
+        s_status.url[0] = 0;
+        s_status.state = READ_PICO_TRANSFER_ERROR;
+        s_status.last_error = ESP_ERR_TIMEOUT;
+        portEXIT_CRITICAL(&s_lock);
     }
     if (action == 1) {
         esp_err_t err = esp_wifi_connect();
         if (err != ESP_OK) {
             portENTER_CRITICAL(&s_lock);
-            connection_lost(&s_connection, now); s_status.last_error = err;
+            saved_profile_lost(now);
+            s_status.last_error = err;
             portEXIT_CRITICAL(&s_lock);
         }
     }
@@ -1251,7 +1343,7 @@ static esp_err_t respond_error(httpd_req_t *req, int code) {
     return ESP_FAIL;
 }
 
-#ifdef KIIKO_LOCAL_NETWORK_PROBE
+#ifdef DPREADER_LOCAL_NETWORK_PROBE
 #include "transfer_network_probe.h"
 #endif
 
@@ -1309,7 +1401,7 @@ static esp_err_t info_handler(httpd_req_t *req) {
 #endif
 
 
-#ifdef KIIKO_LOCAL_NETWORK_PROBE
+#ifdef DPREADER_LOCAL_NETWORK_PROBE
     transfer_network_probe_info(json);
 #endif
     wifi_ps_type_t ps;
@@ -1728,7 +1820,7 @@ static esp_err_t upload_handler(httpd_req_t *req) {
 static esp_err_t media_upload_handler(httpd_req_t *req, const char *root, unsigned kind, size_t limit) {
     if (!management_request(req)) return wifi_response(req, "403 Forbidden", "{\"error\":\"Vui lòng mở trang quản lý từ địa chỉ hiển thị trên máy\"}");
     if (s_cfg.is_flash) return wifi_response(req, "400 Bad Request", "{\"error\":\"Vui lòng lắp thẻ nhớ rồi thử lại\"}");
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     char query[896], encoded[768], name[121], path[320], part[328], replace[8];
     size_t name_cap=strlen(root)+1<160?160-strlen(root)-1:0;
     if(name_cap>sizeof(name))name_cap=sizeof(name);
@@ -1737,7 +1829,7 @@ static esp_err_t media_upload_handler(httpd_req_t *req, const char *root, unsign
 #endif
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "name", encoded, sizeof(encoded)) != ESP_OK ||
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         !(kind==2?decode_font_name(encoded,name,name_cap):decode_name_limit(encoded,name,sizeof(name),kind))) return respond_error(req,400);
 #else
         !decode_name_limit(encoded, name, sizeof(name), kind)) return respond_error(req, 400);
@@ -1851,6 +1943,7 @@ static esp_err_t files_list_handler(httpd_req_t *req) {
         rewinddir(dir);
         struct dirent *entry;
         while ((entry = readdir(dir))) {
+            if (!relative[0] && !strcasecmp(entry->d_name, "DPRWIFI")) continue;
             if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
             size_t len = strlen(entry->d_name);
             if (!len || len >= sizeof(items[0].name)) continue;
@@ -2282,7 +2375,11 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     // Short syncs explicitly reclaim BLE memory; ordinary persistent WiFi keeps coexistence and stop releases the temporary lease.
     if(!cfg->network_only || cfg->exclusive_radio){
         const esp_err_t reserve=ble_pt_network_acquire();
-        if(reserve!=ESP_OK){release_config();return reserve;}
+        if(reserve!=ESP_OK){
+            ESP_LOGW("transfer", "start BLE handoff: %s", esp_err_to_name(reserve));
+            release_config();
+            return reserve;
+        }
         s_ble_network_reserved=true;
     }
     s_cfg = *cfg;
@@ -2296,11 +2393,14 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     portEXIT_CRITICAL(&s_lock);
     transfer_credentials_t saved = {0};
     wifi_config_t wifi = {0};
-    esp_err_t err = load_credentials(&saved);
+    const char *stage = "credentials";
+    unsigned profile_count;
+    esp_err_t err = wifi_profile_read(0, &saved, &profile_count);
     if (err != ESP_OK && cfg->mode == READ_PICO_TRANSFER_MODE_STA) goto fail;
     publish_credentials(&saved);
     if (cfg->mode == READ_PICO_TRANSFER_MODE_STA && saved.version != 1) { err = ESP_ERR_NOT_FOUND; goto fail; }
     if (!cfg->network_only) {
+        stage = "storage";
         struct stat st;
         if (stat(cfg->root_dir, &st) || !S_ISDIR(st.st_mode)) { err = ESP_ERR_NOT_FOUND; goto fail; }
         unsigned removed = 0, restored = 0;
@@ -2310,6 +2410,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
         }
         if (removed || restored) ESP_LOGI("transfer", "cleanup removed=%u restored=%u", removed, restored);
     }
+    stage = "network interface";
     err = esp_netif_init();
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) goto fail;
     err = esp_event_loop_create_default();
@@ -2317,6 +2418,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
     else if (err != ESP_ERR_INVALID_STATE) goto fail;
     err = transfer_create_netif(cfg->mode == READ_PICO_TRANSFER_MODE_AP, &s_netif);
     if (err != ESP_OK) goto fail;
+    stage = "WiFi driver";
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
     init.nvs_enable = false; // 与原厂S31一致；凭据只由本设备设置区管理。/ Reference S31 RAM-only driver config.
     transfer_s31_bulk_receive_config(&init, !cfg->network_only);
@@ -2338,15 +2440,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
         wifi.ap.max_connection = 1; wifi.ap.authmode = WIFI_AUTH_OPEN;
         portENTER_CRITICAL(&s_lock); strcpy(s_status.ssid, (char *)wifi.ap.ssid); portEXIT_CRITICAL(&s_lock);
     } else {
-        memcpy(wifi.sta.ssid, saved.ssid, strlen(saved.ssid));
-        memcpy(wifi.sta.password, saved.password, strlen(saved.password));
-        // Accept WPA/WPA2/WPA3 personal networks selected by the scanner. The
-        // old WPA2 threshold silently rejected older WPA mixed-mode routers.
-        wifi.sta.threshold.authmode = saved.password[0] ? WIFI_AUTH_WPA_PSK : WIFI_AUTH_OPEN;
-        wifi.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
-        wifi.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
-        wifi.sta.pmf_cfg.capable = true;
-        wifi.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+        wifi = wifi_sta_config(&saved);
     }
     err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event, NULL, &s_events);
     if (err != ESP_OK) goto fail;
@@ -2367,6 +2461,7 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
         if (!s_buffer) { err = ESP_ERR_NO_MEM; goto fail; }
     }
     if (!cfg->network_only) {
+    stage = "HTTP server";
     httpd_config_t http = HTTPD_DEFAULT_CONFIG();
     // 文件元数据和壁纸设置会访问 NVS；HTTP 栈必须在禁用缓存时仍可读取的内部内存。
     // File metadata and wallpaper settings access NVS; the HTTP stack must remain readable while caches are disabled.
@@ -2415,11 +2510,13 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
         err = httpd_register_uri_handler(s_http, &routes[i]); if (err != ESP_OK) goto fail;
     }
     }
+    stage = "WiFi start";
     err = esp_wifi_start(); if (err != ESP_OK) goto fail;
     s_started = true;
-#ifdef KIIKO_LOCAL_NETWORK_PROBE
+#ifdef DPREADER_LOCAL_NETWORK_PROBE
     transfer_network_probe_start();
 #endif
+    stage = "radio profile";
     err = transfer_s31_radio_profile(cfg->mode == READ_PICO_TRANSFER_MODE_AP ? WIFI_IF_AP : WIFI_IF_STA,
                                     !cfg->network_only);
     if (err != ESP_OK) goto fail;
@@ -2431,12 +2528,17 @@ esp_err_t read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg) {
         ESP_LOGI("transfer", "ap ready url=%s", READ_PICO_TRANSFER_URL);
     } else {
         int64_t now = esp_timer_get_time() / 1000;
-        portENTER_CRITICAL(&s_lock); connection_begin(&s_connection, now); portEXIT_CRITICAL(&s_lock);
+        portENTER_CRITICAL(&s_lock);
+        s_profile_count = profile_count;
+        s_profile_index = s_profiles_tried = 0;
+        begin_saved_profile(now);
+        portEXIT_CRITICAL(&s_lock);
         read_pico_transfer_service_poll();
     }
     release_config();
     return ESP_OK;
 fail:
+    ESP_LOGW("transfer", "start failed at %s: %s", stage, esp_err_to_name(err));
     clear_secret(&wifi, sizeof(wifi)); clear_secret(&saved, sizeof(saved));
     read_pico_transfer_stop(); release_config(); set_error(err); return err;
 }

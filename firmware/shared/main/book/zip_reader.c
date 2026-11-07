@@ -15,13 +15,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include <sys/stat.h>
 #else
 #endif
 #include "esp_heap_caps.h"
 #include "miniz.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "metalio_memory.h"
 #else
 #endif
@@ -41,7 +41,7 @@ typedef struct {
 
 struct zip_reader {
     FILE* file;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     bool io_suspended;
     struct stat io_stat;
 #else
@@ -51,7 +51,7 @@ struct zip_reader {
     uint16_t slot_mask;
     uint32_t size, directory;
     uint16_t count;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     uint8_t *prefetch;
     size_t prefetch_size,prefetch_read;
     uint32_t prefetch_offset;
@@ -72,7 +72,7 @@ static uint32_t name_hash(const char* name) {
 static uint16_t u16(const uint8_t* p) { return (uint16_t)(p[0] | ((uint16_t)p[1] << 8)); }
 static uint32_t u32(const uint8_t* p) { return (uint32_t)u16(p) | ((uint32_t)u16(p + 2) << 16); }
 static bool read_at(zip_reader_t* z, uint32_t pos, void* dst, size_t size) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(z->prefetch_ready && pos>=z->prefetch_offset &&
        (size_t)(pos-z->prefetch_offset)<=z->prefetch_size &&
        size<=z->prefetch_size-(size_t)(pos-z->prefetch_offset)) {
@@ -114,7 +114,7 @@ static bool trailing_whitespace(const uint8_t* data, size_t len) {
     return true;
 }
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 // 用户提供的EPUB在EOCD后附加[*AT*]+32位十六进制标记；仅兼容这一有界格式。
 // The supplied EPUB appends [*AT*]+32 hex digits after EOCD; accept only this bounded format.
 // 中央目录/条目范围、压缩方式和CRC仍完整校验，不接受任意尾部二进制内容。
@@ -136,7 +136,7 @@ static bool trailing_metadata(const uint8_t* data,size_t len) {
 #endif
 void zip_close(zip_reader_t* z) {
     if (!z) return;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     zip_prefetch_clear(z);
 #else
 #endif
@@ -145,7 +145,7 @@ void zip_close(zip_reader_t* z) {
     free(z->entries);
     free(z->slots);
     free(z);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 }
 
 esp_err_t zip_suspend_io(zip_reader_t *z) {
@@ -199,7 +199,7 @@ esp_err_t zip_open(const char* path, zip_reader_t** out) {
         if (u32(tail + end) == UINT32_C(0x06054b50)) {
             size_t declared_end = end + 22U + u16(tail + end + 20);
             if (declared_end <= tail_len &&
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
                 trailing_metadata(tail + declared_end, tail_len - declared_end)) break;
 #else
                 trailing_whitespace(tail + declared_end, tail_len - declared_end)) break;
@@ -293,7 +293,7 @@ size_t zip_entry_size(const zip_reader_t* z, int index) {
 
 static esp_err_t extract_impl(zip_reader_t* z, int index, void* dst, size_t cap, bool prefix) {
     if (!z || index < 0 || index >= z->count) return ESP_ERR_INVALID_ARG;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(z->prefetch_ready) {
         struct stat now;
         if(!z->file||fstat(fileno(z->file),&now)||now.st_size!=z->prefetch_stat.st_size||
@@ -336,7 +336,7 @@ static esp_err_t extract_impl(zip_reader_t* z, int index, void* dst, size_t cap,
         uint8_t* input = heap_caps_malloc(input_cap, PSRAM);
         tinfl_decompressor* state = heap_caps_malloc(sizeof(*state), PSRAM);
         if (!input || !state) { free(input); free(state); return ESP_ERR_NO_MEM; }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         const uint8_t *packed=z->prefetch_ready&&z->prefetch_index==index?
             z->prefetch+data_pos-z->prefetch_offset:NULL;
         bool ok = packed || fseek(z->file, (long)data_pos, SEEK_SET) == 0;
@@ -349,7 +349,7 @@ static esp_err_t extract_impl(zip_reader_t* z, int index, void* dst, size_t cap,
             while (ok) {
                 if (consumed == buffered && remaining) {
                     buffered = remaining < input_cap ? remaining : input_cap;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
                     if(packed)memcpy(input,packed+entry->packed-remaining,buffered);
                     else if (fread(input, 1, buffered, z->file) != buffered) { ok = false; break; }
 #else
@@ -388,7 +388,7 @@ static esp_err_t extract_impl(zip_reader_t* z, int index, void* dst, size_t cap,
 
 esp_err_t zip_extract(zip_reader_t *z, int index, void *dst, size_t cap) { return extract_impl(z, index, dst, cap, false); }
 esp_err_t zip_extract_prefix(zip_reader_t *z, int index, void *dst, size_t cap) { return extract_impl(z, index, dst, cap, true); }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 
 void zip_prefetch_clear(zip_reader_t *z) {
     if(!z)return;
@@ -406,7 +406,7 @@ int zip_prefetch_step(zip_reader_t *z,int index) {
         if(e->offset>z->directory||header>z->directory-e->offset||
            e->packed>z->directory-e->offset-header)return -1;
         size_t need=header+e->packed;
-        if(need>KIIKO_BOARD_ZIP_PREFETCH_KB*1024u||!metalio_cache_can_grow(need))return -1;
+        if(need>DPREADER_BOARD_ZIP_PREFETCH_KB*1024u||!metalio_cache_can_grow(need))return -1;
         if(fstat(fileno(z->file),&z->prefetch_stat))return -1;
         z->prefetch=heap_caps_malloc(need,PSRAM);if(!z->prefetch)return -1;
         z->prefetch_size=need;z->prefetch_index=index;z->prefetch_offset=e->offset;

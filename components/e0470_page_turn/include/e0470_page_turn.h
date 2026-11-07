@@ -61,7 +61,7 @@ enum EpdDrawError e0470_page_turn_with_waveform_compact(
     const EpdWaveform* waveform, unsigned bands
 );
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// S31阅读专用：尾部两带同步启动和收尾，每像素相位完整；主页/侧滑保持原条带入口。
 /// S31 reader only: launch/finish the last pair together with every pixel phase intact; main pages/edge-back retain the original entry.
 enum EpdDrawError e0470_reader_ripple_with_waveform(

@@ -9,7 +9,7 @@
 #include <pthread.h>
 #include <sched.h>
 #include "../main/ota_online.c"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define TEST_SLOT_SIZE 0x500000
 #define TEST_SLOT_1 0x510000
 #define TEST_OTA_DATA 0xd000
@@ -40,7 +40,7 @@ static size_t internal_free=131072,internal_block=65536,external_free=1048576,ex
 static size_t failed_allocation;
 static pthread_mutex_t flash_display_mutex;
 static _Thread_local unsigned lock_depth;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static pthread_once_t sdk_lock_once = PTHREAD_ONCE_INIT;
 static void sdk_lock_init(void) {(void)xSemaphoreCreateRecursiveMutex();}
 void spi_flash_op_lock(void) {assert(!pthread_once(&sdk_lock_once,sdk_lock_init));assert(xSemaphoreTakeRecursive((void*)3,portMAX_DELAY));}
@@ -115,7 +115,7 @@ static void *display_thread(void *arg){(void)arg;for(unsigned i=0;i<1000;++i){
 }return NULL;}
 static void *flash_thread(void *arg){(void)arg;for(unsigned i=0;i<1000;++i){assert(flash_write(7,firmware,0)==ESP_OK);assert(!lock_depth);}return NULL;}
 int main(void){
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  assert(!strcmp(PICO_OTA_FEED_URL,"https://wegooo-cell.github.io/read-pico-reader/metalio-s31-update.json"));
  assert(!strcmp(PICO_OTA_FEED_FALLBACK_URL,"https://kiikoread.com/metalio-s31-update.json"));
  bool early=pico_online_display_begin();assert(early&&lock_depth==1);pico_online_display_end(early);
@@ -125,7 +125,7 @@ int main(void){
 #endif
  _Static_assert(sizeof(esp_image_header_t)==24&&sizeof(esp_app_desc_t)==256,"real header sizes");
  fixture();primary_down=true;wifi_ps=WIFI_PS_MIN_MODEM;assert(pico_online_check()==ESP_OK);run();assert(s_status->state==PICO_UPDATE_AVAILABLE&&primary_feeds==2&&fallback_feeds==1);primary_down=false;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  fixture();primary_app_down=true;check_download();assert(s_status->state==PICO_UPDATE_READY&&primary_apps&&fallback_apps&&!boot_calls);primary_app_down=false;
 #endif
  fixture();again=true;check_download();assert(s_status->state==PICO_UPDATE_READY&&written_size==4096&&!memcmp(firmware,written,4096)&&!boot_calls);assert(pico_online_commit()==ESP_OK&&boot_calls==1);

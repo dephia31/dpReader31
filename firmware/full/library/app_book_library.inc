@@ -377,7 +377,7 @@ static void scan_shelf(app_ctx_t* ctx) {
     bool truncated = false, unreadable = root_err != ESP_OK || book_store_roots_degraded(), skipped = false;
     nvs_handle_t favorites = 0;
     nvs_handle_t hidden = 0;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     (void)nvs_open("mt_favs", NVS_READONLY, &favorites);
 #else
     (void)nvs_open("rp_favs", NVS_READONLY, &favorites);

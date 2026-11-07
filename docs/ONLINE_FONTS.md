@@ -1,12 +1,12 @@
-# S31 本地在线字体
+# Phông chữ trực tuyến trên dpReader S31
 
-系统字体与阅读字体的选择页右上角提供“在线字体”，共用五行列表。每行只显示字体名、文件大小与下载按钮。大小是字体文件在 TF 上占用的字节，不代表常驻内存。
+Mục **Phông chữ trực tuyến** ở góc trên bên phải của trang chọn phông hệ thống và phông đọc sách dùng chung danh sách năm mục. Mỗi dòng hiển thị tên, kích thước tệp và nút tải. Kích thước là số byte trên thẻ nhớ.
 
-下载使用已经保存的 WiFi；需要可正常验证 HTTPS 的系统日期。未联网时提示先配网；日期未校准时提示 WiFi 对时。临时连接结束后释放自身网络资源，复用的连接不由下载任务停止。下载期间暂借 BLE 资源，结束后恢复原用户配置。
+Trình tải dùng Wi-Fi đã lưu. Thiết bị cần ngày giờ chính xác để xác thực HTTPS. Nếu chưa có mạng, hãy cấu hình Wi-Fi. Nếu giờ sai, hãy đồng bộ giờ qua Wi-Fi. Tác vụ giải phóng tài nguyên của kết nối tạm khi xong và giữ kết nối được dùng chung. Trong khi tải, tác vụ tạm mượn tài nguyên BLE và khôi phục cấu hình của người dùng sau đó.
 
-字体分块写入 `/sdcard/assets/fonts`，固定版本、大小与 SHA-256 位于 `main/font/online_fonts.json`。下载源仅采用原作者发布文件；HTTPS 重定向也只允许指定 GitHub 文件域名。来源无法访问时可以重试，不会自动降级到 HTTP 或跳过证书验证。
+Phông được ghi theo khối vào `/sdcard/assets/fonts`. Phiên bản cố định, kích thước và SHA-256 nằm trong `main/font/online_fonts.json`. Dùng tệp do tác giả phát hành và chỉ chấp nhận chuyển hướng HTTPS đến các tên miền GitHub đã chỉ định. Có thể thử lại khi nguồn tạm thời không truy cập được.
 
-| 字体 | 固定来源 |
+| Phông chữ | Nguồn cố định |
 | --- | --- |
 | Literata | Google Fonts |
 | Lora | Google Fonts |
@@ -14,10 +14,10 @@
 | Merriweather | Google Fonts |
 | Source Serif 4 | Google Fonts |
 
-五款均包含越南语字符，直接核验固定提交的原始 TTF。旧目录中的字体不会因此从 TF 卡删除。
+Cả năm phông có ký tự tiếng Việt. Công cụ kiểm tra trực tiếp tệp TTF gốc tại commit cố định. Phông cũ trên thẻ tiếp tục sử dụng được.
 
-每款字体随同原始版权声明和完整 OFL 1.1 文本安装为相邻 `.OFL.txt` 文件；列表不额外显示授权按钮。不得把 Moon 或微信读书接口中“能够下载”的字体视作已经获得再分发许可。
+Mỗi phông có tệp `.OFL.txt` đi kèm chứa thông báo bản quyền và toàn văn OFL 1.1. Danh sách không có nút giấy phép riêng. Khả năng tải qua dịch vụ Moon hoặc WeRead chưa xác lập quyền phân phối lại.
 
-已选字体不会因下载成功、失败或取消而改变。成功后返回原字体列表，手动选择；系统字体仍按原流程询问是否同步阅读字体。离页、锁屏或媒体失效先取消并等待后台任务交还句柄。残留的自身临时文件在下一次下载时覆盖或清理；版本化的目标名不覆盖现有用户字体。内建字体资产、异常启动字体回退及 S31 分区/USB/供电逻辑保持原有实现。
+Phông đang chọn giữ nguyên dù tải thành công, lỗi hoặc hủy. Tải xong, quay lại danh sách để chọn phông. Khi chọn phông hệ thống, thiết bị vẫn hỏi có dùng cùng phông cho trình đọc hay không. Khi rời trang, khóa máy hoặc mất thẻ, tác vụ được hủy và trả lại handle trước khi tiếp tục. Tệp tạm của trình tải được dọn hoặc ghi lại vào lần tải sau. Tên theo phiên bản giúp bảo toàn phông của người dùng.
 
-此功能目前只在 Metalio S31 本地构建中启用，不启用该板的固件联网 OTA，不配置发布任务或 GitHub 同步。
+Tài liệu này mô tả tính năng phông chữ trên S31. Cập nhật firmware qua OTA theo [quy trình phát hành dpReader](QUY_TRINH_COMMIT_VA_RELEASE.md).

@@ -1,30 +1,29 @@
-# 双板型构建
+# Bo mạch và cách build dpReader
 
-Metalio S31 源码维护于公开仓库 [Metalio-S31-kiikoread](https://github.com/wegooo-cell/Metalio-S31-kiikoread) 的 `main`。正式二进制继续在统一 Release 归档，官网按机型选择。现有文件许可与第三方权利保持。
+Mã nguồn S31 được duy trì trên nhánh `main` của [dpReader](https://github.com/dephia31/dpReader31). Bản chính thức được lưu trong GitHub Releases và cung cấp qua Web Flash. Các điều khoản giấy phép của từng thành phần tiếp tục áp dụng.
 
-维护同一份 `main/` 阅读器和 UI 源码，通过 `KIIKO_BOARD` 选择设备。`boards/<设备>/` 保存该设备的配置、分区和硬件后端，`cmake/board.cmake` 选择参与编译的驱动。已有 `read_pico_*` 接口名继续作为内部兼容接口使用。
+Kho hiện tại build cho `metalio47`. Cấu hình, phân vùng và mã phần cứng nằm trong `boards/metalio47/`. `cmake/board.cmake` chọn trình điều khiển. Trình đọc và giao diện dùng chung nguồn trong `firmware/shared/`. Các tên API `read_pico_*` là định danh nội bộ có từ trước.
 
-默认构建同时生成Full与Love Book（`--edition all`），SDK配置/构建/产物按edition隔离。详见[双固件交付](FIRMWARE_EDITIONS.md)。
-Normal builds now produce Full and Love Book together (`--edition all`), with isolated configuration/build/package directories. See [firmware editions](FIRMWARE_EDITIONS.md).
+Build mặc định tạo cả Full và Love Book, với cấu hình và thư mục đầu ra riêng cho từng bản. Xem [hai bản firmware](FIRMWARE_EDITIONS.md).
 
-## 支持的设备
+## Định danh phần cứng
 
-| 编译选项 | `pico` | `metalio47` |
+| Thuộc tính | dpReader Metalio 4.7 | Pico để đối chiếu lịch sử |
 | --- | --- | --- |
-| 设备 | 原 kiikoread 墨水屏 | Metalio E-INK4 Plus 4.7 V1.5 |
-| 芯片 / 编译器 | ESP32-S3 / Xtensa | ESP32-S31 / RISC-V |
-| 固件项目名 | `Read_Pico` | `Kiikoread_Metalio_S31` |
-| 触摸 | CST836U | FT6336 |
-| 屏幕供电 | 原 CW32 / SY7636A 路径 | TPS65185 / TCA9555 |
-| 波形 | 原 Pico 校准序列 | 原 GC48 / GL48 / DU20 |
-| 应用分区 | 双 4 MiB | 双 5 MiB |
-| bootloader 地址 | `0x0` | `0x2000` |
-| OTA 数据地址 | `0xd10000` | `0xd000` |
-| 设置命名空间 | `read_pico` | `metalio_s31` |
-| 锁屏 / 启动记录空间 | `pico_lock` / `pico_startup` | `metalio_lock` / `metalio_start` |
-| 联网 OTA | 沿用正式版 | 支持，GitHub Pages 优先、官网备用 |
+| Bo | Metalio E-INK4 Plus 4.7 V1.5 | MindReset Read Pico |
+| Chip và trình biên dịch | ESP32-S31 / RISC-V | ESP32-S3 / Xtensa |
+| Định danh project trong ảnh ứng dụng | `Kiikoread_Metalio_S31` | `Read_Pico` |
+| Cảm ứng | FT6336 | CST836U |
+| Nguồn màn hình | TPS65185 / TCA9555 | CW32 / SY7636A |
+| Waveform | GC48 / GL48 / DU20 gốc | Chuỗi Pico đã hiệu chuẩn |
+| Khe ứng dụng | Hai khe 5 MiB | Hai khe 4 MiB |
+| Địa chỉ bootloader | `0x2000` | `0x0` |
+| Địa chỉ dữ liệu OTA | `0xd000` | `0xd10000` |
+| Không gian tên NVS của cấu hình | `metalio_s31` | `read_pico` |
+| Không gian tên khóa và khởi động | `metalio_lock` / `metalio_start` | `pico_lock` / `pico_startup` |
+| OTA qua mạng | Manifest theo bản Full hoặc Love Book | Theo firmware Pico đã phát hành |
 
-Metalio 仅适用于已适配的 **V1.5 / E0470A14-AF 34Pin** 硬件，不自动推断其他硬件修订。两种设备的原始波形、供电时序、引脚、存储地址及默认配置分别保留；共享功能更新不代表把一块板的底层参数搬到另一块板。
+Bản S31 hỗ trợ phần cứng **V1.5 / E0470A14-AF 34Pin**. Giữ riêng waveform, thứ tự cấp nguồn, chân, phân vùng và cấu hình theo bo. Định danh project trong ảnh ứng dụng là chuỗi tương thích OTA, còn tên sản phẩm là **dpReader**.
 
 两块板共用rc97的凭据读取和紧凑启动记录逻辑：正常可读的已设密码仍验证；读取失败或损坏时不拦启动、可重新读取且禁止覆盖旧凭据。启动记录兼容旧定长格式，空间不足只回收自身旧记录。S31异常启动字体回退、USB交接、前光与睡眠恢复由自身后端保留。
 
@@ -38,7 +37,7 @@ S31实际显示输出与SDK Flash操作共用递归锁，完整扫描和断轨�
 
 书架最终灰阶封面复用既有动态4MiB LRU，不增设整页常驻副本。键包含源像素校验、尺寸、旋转、对比度与4×4点阵相位；仅复制精确对齐的物理行，收藏、边框和文字实时画，未对齐或内存不足直接绘制。阅读前缩减与媒体失效清理沿用既有生命周期。首页分钟到点把状态栏和静态表盘合并为一次真实差分，输出失败不确认已显示。
 
-## S31 JPEG混合解码
+## Giải mã JPEG kết hợp trên S31
 
 S31使用SDK原生JPEG硬解处理兼容的8位基线YCbCr/灰度图，按MCU填充计算输出步长，颜色转灰度后使用面积平均缩小或双线性放大。小封面的大图、超预算、非兼容采样、资源不足或硬解超时回退原流式软件路径。渐进式优先固定版Espressif libjpeg-turbo3.2.0~1完整扫描，按目标尺寸选择1/1～1/8 IDCT缩放，不再固定只取1/8 DC；超预算/失败时仍允许旧预览回退。
 
@@ -46,12 +45,12 @@ S31使用SDK原生JPEG硬解处理兼容的8位基线YCbCr/灰度图，按MCU填
 
 English: Native S31 JPEG decoding handles compatible8-bit baseline YCbCr/gray with MCU-padded stride, luminance conversion and area/bilinear resampling. Keep streaming fallback for large-source thumbnails, unsupported layouts, budget/allocation errors or timeouts. Pinned libjpeg-turbo3.2.0~1 fully decodes progressive scans at a target-appropriate IDCT scale, retaining the old small preview as the final low-memory fallback. Serialize hybrid work, cap its budget at12MiB with2MiB PSRAM reserved, use bounded200ms hardware /2.5s progressive checks, and release temporary buffers/engines on every exit. Keep PNG alpha, display grayscale, vendor waveforms and existing caches; version S31 cover/wallpaper products independently. Host fixtures do not measure native hardware speed. The official libjpeg component requires a build path without spaces; a dedicated/tmp build directory can be exported to the normal workspace afterward.
 
-## S31 Flash缓存保护 / Flash cache protection
+## Bảo vệ cache flash trên S31
 
 S31构建通过`components/metalio_hw/s31_sleep/s31_flash_cache_sdk.cmake`回移Espressif修复[f91ec54912](https://github.com/espressif/esp-idf/commit/f91ec54912c001be169a5aa3976f04077178fee0)：flash等待核与IPC停驻核在cache关闭期间禁用分支预测，恢复后重新启用；panic等待不再启用。否则即便等待代码位于IRAM，推测性外部取指也会在NVS读操作中触发Core1 Cache access error。仅生成SDK源副本并替换S31构建目标，保留原basename以维持IRAM链接规则；SDK锚点变化必须停止并复审，禁止关闭cache错误检测或擦除用户NVS来规避。
 English: S31 builds backport Espressif [f91ec54912](https://github.com/espressif/esp-idf/commit/f91ec54912c001be169a5aa3976f04077178fee0) through the project-local CMake module. Disable branch prediction on flash/IPC parked cores before cache suspension and restore afterward; panic parking never re-enables it. Speculative external fetches can otherwise cause a Core1 cache-access panic during NVS reads despite the wait code being in IRAM. Compile generated SDK copies for S31 only, preserving basenames for SDK IRAM linker rules and the installed SDK. Changed anchors fail the build for review. Do not disable cache-error detection or erase NVS to mask this defect.
 
-## S31关机与锁屏省电
+## Tắt nguồn và tiết kiệm điện khi khóa S31
 
 S31挂载发布不等待全卡FAT空闲计数；文件管理先完成目录首帧，再在空闲时异步查询分区用量。浅睡唤醒先恢复显示与触摸，媒体最多短等500ms，之后由已有恢复服务继续重试。暂停期间不对字体路径做stat或卸载保留槽，恢复后补一次页面；不覆盖用户选择，也不改变异常启动使用内建字体的保护。500ms只限制挂载状态轮询，底层单次卡命令和字体/书籍文件重开仍受其自身I/O超时约束，不代表任何坏卡都能在500ms恢复。
 
@@ -78,7 +77,7 @@ S31同步Pico PR46–49的设置控件、密码白底与标题提示排版。密
 
 English: S31 adopts Pico PR46–49 control/PIN/notice presentation. Optional PIN grace cycles off/5min/1h/8h/24h, defaults off and uses the S31 NVS namespace. Recheck valid current time only after a real power-key light wake in this lock session; timers/shared IRQ/USB/touch cannot grant grace. Expiry, invalid/rollback time, hardware reboot and abnormal-start protection retain authentication. Sample PIN buttons on white memory, present once, and retain artwork while waiting/cancelling without extra full scans.
 
-## S31 AI快捷键
+## Phím tắt AI trên S31
 
 AI/BOOT按键沿用[官方GPIO61输入](https://github.com/CloudZao/Metalio-E-INK4-Plus/blob/main/main/boards/metalio-e-ink4-plus/config.h)，不改下载和唤醒配置。稳定按下500ms打开上方横向液态玻璃菜单，点选“全刷一次、书签开关、前光开关、返回首页、不设功能”后保存短按映射并收起；默认全刷。只改变映射，不当场执行所选动作。菜单已打开时再按AI或点外部关闭，长按后的抬手不触发短按；书签仅当前阅读正文有效，复用既有书签记录与提示。
 
@@ -88,7 +87,7 @@ AI/BOOT按键沿用[官方GPIO61输入](https://github.com/CloudZao/Metalio-E-IN
 
 English: The vendorGPIO61 AI input keeps USB/wakeup configuration. Hold500ms for a glass chooser to persist tap refresh/bookmark/light/home/disabled; selection never executes the action. Default refresh; bookmarks remain reader-body-only. One blur and one bounded grayscale output per normal transition,81648B temporary underlay,exact restore and zero input allocation/painting. Preserve the calibrated grayscale path,modal/transfer/update/USB/PIN guards and sleep-release suppression; no measured300ms claim or portable-backup format change.
 
-## S31覆盖层与电量
+## Lớp phủ và pin trên S31
 
 AI菜单五个圆形图标横向排列，文字在图标下方，选中项以圈内右上小点标记；标题和标签在玻璃处理之后直接绘制黑字，不加独立文字底色。下拉菜单保留左侧2×2开关和右侧前光双滑块，玻璃层提亮并模糊底字；输入继续恢复缓存并局刷。电源菜单仅在滑动条和重启/取消圆钮内部模糊提亮，控件外的页面像素保持原样，再画清晰文字与图标；输入不重复处理背景，缺内存保留原实心回退。
 
@@ -96,7 +95,7 @@ S31百分比直接使用BQ27220 `StateOfCharge(0x2C)` 的0～100值，不使用�
 
 English: Paint crisp black labels after glass. Keep the S312×2 switches and dual light sliders; blur only on entry and retain cached local input. Power glass is confined to the slider and round buttons; all background pixels outside their shapes stay intact. AI labels have no separate backing. S31 percentages use BQ27220 SOC directly with no voltage estimate or Pico correction; failed/invalid SOC remains unknown. Gauge accuracy still depends on battery parameters,learning and aging.
 
-## S31锁屏与侧键
+## Màn hình khóa và phím cạnh trên S31
 
 “双击解锁”位于显示主列表的自动休眠锁屏下一行；新配置默认关闭，旧配置中的明确单击/双击选择不改变。S31继续使用自身单击/双击事件消费与PIN门禁，关机睡眠页统一为先浅睡所选小时后深睡或彻底断电。票根封面与背景仅经一次对比度灰阶映射，保持自然比例和旧封面缓存兼容。用户主动选择导入阅读字体连续三次真正回退内建后，可选择保存进度再重启或返回字体页；未保存成功不能重启，异常启动保护仍独立生效。
 
@@ -112,20 +111,20 @@ English: A debounced locked short release schedules Pico's448×72 hint after650m
 
 透明PNG锁屏书封缓存继续放在`/sdcard/.metalio_s31/locks/seal-layer.bin`，使用SEA2无损行压缩保留原gray/alpha字节和阴影。首次生成在空闲PSRAM大于两图层加1MiB时直接处理并写压缩层，否则沿用有界行流程；所有工作区用后释放，不缓存当前页面底图。旧格式/尺寸/文件变化或损坏触发重建，完整校验先于叠加；FAT不能覆盖重命名时备份原缓存、发布失败回滚。图层不减灰、不改完整刷新波形和S31睡眠/PIN/USB流程。
 
-## 大图片EPUB打开
+## Mở EPUB có ảnh lớn
 
 排版通过书源尺寸接口测量插图，不为每幅图完整提取资源。PNG先探测32字节；JPEG仅在必要时扩大到4KiB、64KiB，SVG包装与更晚的帧头沿用原有有界完整读取回退。ZIP前缀探测按512B/4KiB输入分块，完整提取仍使用32KiB及完整CRC校验；头部仅是尺寸提示，不能作为图片内容验证或完整下载成功的依据。当前章仍按原规则分页、恢复位置，实际显示只解码当前页图片，没有因此承诺任意长任务可打断或其余章节已全面后台化。
 
 English: Layout uses advisory source dimensions instead of extracting every illustration in full. PNG starts with32 bytes; JPEG grows to4KiB/64KiB when needed, retaining bounded full fallback for SVG wrappers and later frames. Prefix input chunks are512B/4KiB; full extraction retains32KiB bulk reads and complete CRC verification. Dimensions do not establish payload integrity. Keep current-chapter pagination/progress and current-page decoding; this does not implement universal cancellation or background preparation of all remaining chapters.
 
-## S31阅读面板响应
+## Phản hồi bảng điều khiển đọc trên S31
 
 同一已显示纯文字页打开工具栏，或从工具栏进入字体/阅读设置与统计时，核对正文、章节、页码、排版代次、方向、全屏状态和前后缓冲一致后，只叠加面板，不重新绘制正文、准备插图或启动预绘。图形面板恢复原厂GL48、16级目标及一次区域定稿，不再把滑轮、开关借用文字22相量化。符合条件的完成绘制/字体重排及局部控件也通过同一完整灰阶面板出口；其余回退原路径。面板的绘制缓存优化仍保留，相位扫描时间恢复完整灰阶。
 面板开合暂停未完成预绘，保留现有四槽里同代次的已完成正文；完整绘制需要时可复用这些正文，再画当前控件。覆盖面板、提示不写入正文缓存，字体/字重/抗锯齿/布局与媒体变化继续走既有完整失效。缓存未命中或内存不足直接绘制，不增加另一套常驻整帧。面板差分不计入整页自动清理次数，手动全刷和正文周期清理继续保留。
 
 English: Overlay tools/primary settings only over verified unchanged text, retaining existing body-cache/prefetch reuse. Graphical panels now use complete vendorGL48 and16-level targets in one regional settle; neither text22-phase quantization nor FastBW may handle sliders/switches. Qualifying final renders/reflows and local controls share this full-gray outlet. No measured latency claim.
 
-### 可选GL37阅读面板实验
+### Thử nghiệm GL37 tùy chọn cho bảng đọc
 
 仅显式加`tools/build_firmware.py --board metalio47 --s31-reader-panel37`启用，普通构建每次强制关闭，包清单记录`experimental_reader_panel37`。按Metalio官方`erase_max=11/sat_cut=5/white_sat_cut=0/hold=3`从本机GL48派生37相，保留16级输入和灰阶尾段，不量化控件；屏蔽所有等值迁移，包括白到白补推。原GC48/GL48/DU20数据与扫描时序不变。
 
@@ -135,7 +134,7 @@ English: Overlay tools/primary settings only over verified unchanged text, retai
 
 English: Explicit `--s31-reader-panel37` alone enables vendor11/5/0/3 GL37 on verified same-body panels/sliders; regular builds force it OFF and manifests record the flag. Preserve sixteen input levels, gray tails,final holds,native tables and scan timing,holding every equal pair. Whole-body reflow,art/other pages and manual/periodic/fault cleaning retain previous owners. One3072B PSRAM LUT plus the vendor trimmer's17408B external static scratch are the added budgets,preserving internal network heap; allocation failure uses native48,while a scan fault retains recovery and disables37 until reboot. Eleven fewer scans do not establish23% total latency improvement or equivalent optical stability; compare on hardware and keep the image local.
 
-### 两个主设置面板四灰快刷
+### Làm mới nhanh bốn mức xám cho hai bảng cài đặt chính
 
 用户在200毫秒提速讨论后最终选择四灰，取代此前讨论的纯黑白。仅显式`--s31-fast-reader-panels`构建启用，清单标记`experimental_fast_reader_panels`；普通构建强制OFF。仅字体设置、阅读设置使用0/5/10/15四级，UI原13/14近白底色映射浅灰10，避免控件消失；实底先覆盖面板矩形，区域外正文/插图和历史帧不量化。不改其他设置子面板、书架、封面、锁屏或正文刷新规则，不把前次图形22相扩大试验重新全局启用。
 
@@ -147,13 +146,13 @@ English: Explicit `--s31-reader-panel37` alone enables vendor11/5/0/3 GL37 on ve
 
 English: The final choice is four grays only on the Font/Reading primary sheets. Explicit `--s31-fast-reader-panels` enables it,regular builds force OFF,and manifests record the flag. UI targets are0/5/10/15,with13/14 fills retained as10; opaque sheets leave outside text/art/history untouched. The isolated16-phase experiment combines vendor shortDU seven-black/eight-white budgets with existing white-origin FOLLOW grays; nonwhite gray transitions whiten first. The longest eight-white/five-black sequence retains three final holds,with equal whites held. This is a local combination,not a vendor-calibrated four-gray table,and does not trim GL48/text22. One1024B external LUT,no extra frame,independent body settings/faults. Guarded overlays may reuse image underlays without decoding; uncovered body/art,reflow/manual/periodic/fault recovery retains previous paths and37/48 fallback. Drop the entry DU20 press pass; cancel without scanning.192ms is nominal scanning,not measured200ms total; compare ink and ghosting on hardware without delayed background cleaning.
 
-## S31图形短灰阶实验撤回
+## Thu hồi thử nghiệm waveform xám ngắn cho giao diện S31
 
 406f7e8的22相图形扩展已撤回：书架亚克力浅灰被13/14→15量化成白色，原16级全刷与四灰页刷目标不一致；简化中灰迁移未经光学校准，用户实机反馈封面发黑、文字残影和设置控件异常。书架/首页封面、下拉、AI、电源、目录和解锁提示恢复原灰阶路径；普通/水波纹16级48相，原快刷仍黑白DU20，固定灰底栏与缓存预算保留。禁止仅把48截成24或改名兼容：原GL表白→10需23个有效驱动及25相跨度，5→10需38个有效驱动。正文22相不改，原厂表/电源/VCOM/扫描/USB/PIN保留，新构建显式关闭旧UI实验缓存。恢复图形正确性会增加扫描时间，后续独立短灰阶须实机标定。
 
 English: Withdraw406f7e8's graphical22-phase extension after optical reports. Nearest-level mapping collapsed13/14 to white and differed from full16-gray redraws; uncalibrated midgray transitions produced dark covers/ghosts/control defects. Restore native UI/art paths and complete gray panel settling, retaining text22-phase,fastDU20,gray navigation,caches and hardware.24 phases are not an automatic compatibility fix: source15→10 has23active pulses over25phases,5→10 has38active pulses. New builds explicitly disable the old UI flag; optical validation remains required.
 
-## S31普通与速读翻页
+## Lật trang thường và đọc nhanh trên S31
 
 阅读设置的“翻页效果”在普通、水波纹、速读黑白间点按切换，原有0/1设置值保持兼容。所有文字路径保留安全192行备行；128行在实机普通阅读出现欠载，已撤回。TPS预唤醒与差分生成重叠，保留厂家等待和驱动顺序。
 
@@ -167,7 +166,7 @@ English: Withdraw406f7e8's graphical22-phase extension after optical reports. Ne
 
 English: S31 retains safe192-row prefill after a real128-row reader underrun, and overlaps TPS pre-wake with difference generation without changing vendor sequencing. The explicit local `--s31-text-ripple` build now shares one four-level22-phase table between Ordinary and Ripple: Ordinary batches one synchronous output; Ripple uses eight bands with a paired tail over28 scans. Preserve every active/tail phase and fuse progress without a follow-up scan. Per the2026-10-22 revision, periodicGC48 follows Off/5/10/15/20/30 turns for every effect, persisting across reload and backups without a ten-turn cap. After reported background flicker, every equal pair including white holds, removing three unchanged-white tail pulses per page; changed old glyphs still erase. This targets background flicker without claiming to fix the uncalibrated midgray transitions. Regular builds disable the experiment; unavailable/boot-disabled paths retain fullGL48/16-level targets. This is not an optically equivalent16-level replacement. FastBW uses the exact nativeDU20 for consecutive text-only turns, thresholding only targets while retaining real old-gray history, with harder edges and user-selected periodicGC48 cleanup. Images/backgrounds,initial entry and manual full remain grayscale. Settings/backup retain S31's three effects and Pico's two. Raw waveforms,power,clock and phase minima remain unchanged. Experimental images require the existing S31 layout; CrossLink needs its separate recovery flow.
 
-## S31二级页与返回
+## Trang con và thao tác quay lại trên S31
 
 2026-10-20用户最新修改：系统二级菜单恢复常驻灰底栏，首页组件/阅读目标、设置、文件目录及配网传输页面均保留。设置/文件内容止于1088，分页和系统键盘上移；设置PIN键盘采用紧凑布局，实际锁屏PIN保持全高。点击当前底栏项回到所属根页，其他项按下切页；升级写入、USB独占与上传等不可中断阶段保留保护。物理三键仍按根页/子页各自语义执行，不因为底栏可见就覆盖返回行为。
 
@@ -179,82 +178,56 @@ S31充电图标固定黑底白色闪电描边。检测复用CX25601N有效充电
 
 S31 charging uses a fixed black well with a white bolt outline. Detection retains valid CX25601N charge stages and supplements missing stages with the vendor BQ27220 signed-current register0x0C above5mA. Explicit disable/OTG clears immediately; unknown communication can retain confirmed state for at most six seconds. Do not infer input from VBUS type or change electrical charge parameters.
 
-## 准备 SDK
+## Chuẩn bị SDK và build
 
-需要 Python 环境、ESP-IDF 6.1 及对应工具链。Pico 使用已有的 ESP32-S3 SDK；Metalio 使用已适配 ESP32-S31 的 SDK，必须包含 `components/soc/esp32s31`。普通只支持 S3 的 SDK 不能编译 S31。
+Cần Python có đủ phụ thuộc ESP-IDF, SDK 6.1 hỗ trợ `esp32s31` và toolchain RISC-V tương ứng. SDK phải có `components/soc/esp32s31`.
 
-将路径填入环境变量，Python 路径应指向已安装 ESP-IDF Python 依赖的虚拟环境入口：
-
-```sh
-export KIIKO_IDF_PICO=/path/to/esp-idf-s3
-export KIIKO_IDF_METALIO47=/path/to/esp-idf-s31
-export IDF_TOOLS_PATH=/path/to/idf-tools
-```
-
-## 一条命令生成两个版本
-
-在源码根目录执行：
+Chạy ở gốc kho. Ví dụ build cả Full và Love Book:
 
 ```sh
-python3 tools/build_firmware.py --board all \
+python3 tools/build_firmware.py --board metalio47 --edition all \
+  --idf-metalio47 /path/to/esp-idf-s31 \
   --python /path/to/idf-python/bin/python \
-  --tools "$IDF_TOOLS_PATH"
+  --tools /path/to/idf-tools
 ```
 
-也可以单独选择：
+Dùng `--edition full` hoặc `--edition love-book` để build một bản. Có thể dùng `DPREADER_IDF_METALIO47` thay cho `--idf-metalio47`. `--output` chọn thư mục đầu ra. `--managed-metalio47` nhận thư mục cache phụ thuộc khớp lockfile để build ngoại tuyến. `--dry-run` hiển thị kế hoạch và `--list` hiển thị cấu hình được hỗ trợ.
 
-```sh
-python3 tools/build_firmware.py --board pico --python /path/to/idf-python/bin/python
-python3 tools/build_firmware.py --board metalio47 --python /path/to/idf-python/bin/python
-```
+Theo mặc định, mỗi bản lưu cây nguồn được dựng, cấu hình, log và gói ở `build/editions/<edition>/`. Gói USB có dạng `dpReader-metalio47-<phiên-bản>-USB.zip`. Chỉnh sửa nguồn trong `firmware/`, `components/` và `boards/metalio47/`. Cây nguồn dưới `build/` được tạo lại bởi công cụ.
 
-`--idf-pico`、`--idf-metalio47` 可代替 SDK 环境变量；`--output` 修改输出目录。离线构建可用 `--managed-pico`、`--managed-metalio47` 指定与各自锁文件匹配的 `managed_components` 缓存。`--dry-run` 显示计划，`--board all --list` 显示支持的设备。工具仅编译和打包，不打开串口。
+Tạo lại biểu tượng cho bo bằng `python3 tools/gen_ui_icons.py --board metalio47`. Giữ thứ tự enum biểu tượng và biểu tượng đèn trước của Metalio. Công cụ chỉ thay header sinh cho bo được chọn.
 
-构建器从同一维护源码生成独立的临时设备视图，分开保存配置、依赖、CMake 缓存、日志及产物：
+## Chọn bo qua CMake
 
-```text
-build/boards/
-  pico/{source,build,sdkconfig,build.log}
-  metalio47/{source,build,sdkconfig,build.log}
-  packages/pico/
-  packages/metalio47/
-  packages/kiikoread-pico-<版本>-USB.zip
-  packages/kiikoread-metalio47-<版本>-USB.zip
-```
+Công cụ build truyền `-DDPREADER_BOARD=metalio47`, `IDF_TARGET=esp32s31`, sdkconfig và lockfile phù hợp vào ESP-IDF. Trình biên dịch C chọn nhánh phần cứng. Bo không hỗ trợ hoặc target sai làm bước cấu hình thất bại. CI của kho này dùng bo Metalio 4.7.
 
-日常修改应改维护源码 `main/`、`components/` 或相应 `boards/<设备>/src/`，不要修改生成的 `build/boards/<设备>/source/`。共用功能不再分别维护两套应用目录；仅硬件、驱动和有明确平台差异的行为选择分支。
+## Đóng gói và xác minh
 
-图标由同一个生成器维护：`python3 tools/gen_ui_icons.py --board all` 更新两块板的生成头文件；也可只指定一种设备。保留原图标枚举顺序和 Metalio 的前光图标，生成器不会覆盖共享的图标选择头。
+Trước khi đóng gói, công cụ đối chiếu chip, project, phiên bản, phân vùng, dung lượng hai khe OTA, chip bootloader và địa chỉ nạp do SDK cung cấp. Gói USB đầy đủ gồm bốn ảnh, SHA-256, manifest, `flash_args`, `flash-command.txt` và `verification.json`. Lệnh nạp S31 dùng `--no-stub`. Ảnh chỉ chứa ứng dụng dùng cho máy cùng bo đã có nền phân vùng phù hợp. Ảnh ứng dụng nằm tại `0x10000`. Firmware từ chối ảnh sai chip hoặc project.
 
-## CMake 选择层
+Theo [quy trình phát hành](QUY_TRINH_COMMIT_VA_RELEASE.md), bản RC cục bộ dùng số phiên bản riêng, xuất vào `Test Build/` và giữ ngoài các kênh công khai. Build và kiểm thử máy tính xác nhận gói. Cảm ứng, hiển thị, thẻ nhớ và mức tiêu thụ điện cần kiểm tra trên thiết bị.
 
-构建器将 `-DKIIKO_BOARD=pico|metalio47`、对应 `IDF_TARGET`、sdkconfig 和依赖锁文件交给各自的 ESP-IDF。生产源码中的条件分支由真实 C 编译器处理。请用上面的构建器隔离依赖锁和 SDK 缓存；不要在维护源码根目录轮换两个 SDK 并共用根 sdkconfig。板型和目标冲突、未知板型会在配置阶段报错。已有 CI 的默认板型仍为 Pico。
+## Kiểm thử hồi quy
 
-## 交付与验证
+Ưu tiên của dpReader từ 07/11/2026 là tốc độ lật trang và phản hồi đều. Trên S31, vòng nhận chạm, nút và BLE cùng việc dựng trang được xử lý trước các tác vụ bảo trì. Ghi tiến độ theo mốc 8 trang đợi 1,2 giây kể từ lần thao tác hoặc kết thúc quét gần nhất. Thống kê, đọc pin, ghi báo lỗi và khởi động tác vụ mạng tự động cũng nhường khoảng thao tác. Thoát sách và khóa máy tiếp tục lưu đồng bộ. Mất nguồn đột ngột trong một chuỗi lật liên tục có thể mất các trang sau lần lưu gần nhất.
 
-打包前校验应用内部芯片 ID、项目名、版本、分区表及两个 OTA 槽的容量，同时校验 bootloader 的芯片 ID 和 SDK 给出的烧录地址。完整 USB 包包含四个镜像、SHA-256、manifest、`flash_args`、`flash-command.txt` 及 `verification.json`；S31 命令保留 `--no-stub`。应用 Bin 只适用于已有正确底包的同板型升级，不能写到地址 0。固件内的升级校验也拒绝另一芯片/项目的应用。
-
-本次整合为本地测试，沿用当前正式版本号区分板型，未覆盖官网、Release 或历史固定版本下载。Metalio 代码当前保留本地/私有发布边界。两套完整构建和主机回归不等同于已在两块实机完成触摸、显示、TF 卡及低功耗验证。
-
-本地同版本测试请使用对应 USB 包；设备的正常 TF/OTA 检查仍会拒绝与当前版本号相同的镜像。
-
-## 回归命令
+Cache chữ và vẽ trước trang kế tiếp tiếp tục phục vụ lật trang. Mở bảng công cụ chỉ hủy phần vẽ trước chưa hoàn thành. Lượt làm mới toàn trang theo cài đặt người đọc và phục hồi lỗi màn hình được ghi rõ trong log. Không dùng kết quả kiểm thử host để suy ra thời gian quét hoặc độ ổn định quang học trên thiết bị.
 
 ```sh
 python3 tools/board_selection_host_test.py
-python3 tools/board_selection_host_test.py --build-root build/boards
-
-python3 tools/board_source_view.py --board pico --tests --output build/host/pico
 python3 tools/board_source_view.py --board metalio47 --tests --output build/host/metalio47
+cd build/host/metalio47
+bash tools/run_metalio_host_test.sh
+bash tools/run_metalio_ota_host_test.sh
 ```
 
-在相应生成的主机测试视图中运行现有测试。Pico 包括 `run_water_turn_host_test.sh`、`run_display_host_test.sh`、`reader_spacing_host_test.py`、`test_book_toc.py`、`lock_pin_host_test.py`；Metalio 还必须运行 `run_metalio_host_test.sh` 和 `run_metalio_ota_host_test.sh`，其专用夹具随测试视图自动选择。
+Cây kiểm thử tự chọn fixture S31. Xem workflow `.github/workflows/build.yml` để chạy các nhóm hồi quy bổ sung.
 
 子页布局按1216px可用高度定位：文件目录列表扩展，目录设置/移动按钮与分页贴底，系统输入键盘底部留26px；绘制、点击和局部刷新共用几何。字体列表与书架样式预览使用完整子页视口，传输底部按钮随视口下移。Pico保留原布局。
 
 Child layouts use the1216px viewport: extend file lists, bottom-anchor directory/move actions and paging, and leave26px below system keyboards. Painting,hits and local refresh share geometry. Font lists and shelf-style previews use the child viewport; transfer footer controls move with it. Pico retains its existing layout.
 
-## S31传输与深睡恢复
+## Truyền tệp và khôi phục sau ngủ sâu trên S31
 
 大于等于四个接收块的上传可使用两槽顺序写卡：HTTP只填空槽，单个后台任务按原顺序写入；每次最多增加一块接收块大小的PSRAM及4096字节PSRAM任务栈（仅SD路径；内部flash文件仍同步写入），资源不足沿用单缓冲。任何接收/写入失败先等待已提交任务完成，再关闭、清理或替换文件。只在整个文件落盘关闭成功后确认提交。TCP接收窗口65535字节、接收邮箱64项，静态RX默认6/动态RX64/BA12；PSRAM传书独占会话按S31 SDK建议对照16槽静态RX/BA窗口（最大16槽），普通联网与临时对时保持原6槽。乱序队列最多12包并启用SACK，省电所有权保留；USB MSC块16KiB、TF四线20MHz，始终电脑/固件独占挂载。
 
@@ -270,9 +243,9 @@ KoSync自动开/关书同步只提交不可变的路径与进度快照，主循�
 English: Automatic open/close sync queues immutable path/progress snapshots for a short-lived worker without blocking navigation. Coalesce pending jobs by kind; compare remote progress before an exit upload to avoid overwriting a newer remote position. Apply pulls on the UI thread only for the same book and unchanged position; discard after movement. Serialize syncs and exclude OTA, sleep and media recovery. Bound allocation retries and release resources on completion. Manual sync retains its explicit entry points.
 
 
-## 板级能力与跨平台入口
+## Khả năng phần cứng và API dùng chung
 
-`boards/<设备>/kiiko_board_config.h` 集中维护身份、NVS 命名空间、硬件能力和缓存预算；`main/kiiko_board_config.h` 是兼容入口。沿用 Moku 的板级门面 `components/kiiko_board`，其初始化不得重新拉起已由 BSP 初始化的外设。`board.cmake` 读取对应 `board.json`，芯片冲突立即报错，不强制改写旧构建目录。
+`boards/<设备>/dpreader_board_config.h` 集中维护身份、NVS 命名空间、硬件能力和缓存预算；`main/dpreader_board_config.h` 是兼容入口。沿用 Moku 的板级门面 `components/dpreader_board`，其初始化不得重新拉起已由 BSP 初始化的外设。`board.cmake` 读取对应 `board.json`，芯片冲突立即报错，不强制改写旧构建目录。
 
 S31 稳定 ID 为 `metalio47`，兼容 Moku 的 `metalio_s31` 构建别名。Windows 加载对应 ESP-IDF 后可运行 `tools/build_board.ps1 -Board metalio_s31`，该入口共用 Python 构建器，分别生成源码视图、配置和依赖锁。`all` 需要分别配置两块板的 SDK 环境变量，参见上面的 Python 参数。
 
@@ -284,7 +257,7 @@ S31 SDMMC沿用Metalio官方内部DMA中转：固定4096字节内部对齐缓冲
 
 显式本地`--s31-transfer-startup-test`仅用于无人值守对照，启动仍保留PIN/恢复门禁，随后进入已保存网络的传书页。正常构建强制关闭并在manifest/verification记录该开关；此测试包不得交付。
 
-### Metalio 字体恢复与文件名
+### Khôi phục phông chữ và tên tệp trên Metalio
 
 用户2026-10-29修订：异常启动仍先用内建字体；手动选择实际加载并保存成功后，仅本次启动重新允许TF字体，定时重试/页面切换/锁屏恢复不得再强制回内建。失败的选择不解除门禁；下一次启动重新检查，开书/封面隔离不变。可选glyf/gvar表映射改为所有槽共享2MiB并遵守公共PSRAM/连续块预留；较大的表继续流式读取。公共TTF打开入口在OOM时回收可重建字形及表映射，只重试一次，不关闭字库或改写保存路径。最大字形缓存1MiB（压力时320KiB）、四页缓存约1.59MiB与12KiB预绘任务仍各自有界；这些是预算上限，不是实机测量值。减少表映射会增加部分大字库的SD读取，避免用缓存挤掉必须装载的字体。
 English: Abnormal boots still begin with built-in fonts. A successful explicit load/save re-admits SD fonts for that boot, including periodic retry, navigation and lock restoration; failed choices do not relax the gate, and the next boot checks anew. Book/cover quarantine remains unchanged. All optional glyf/gvar maps share2MiB and obey common PSRAM/contiguous reserves; larger tables stream. The public TTF loader reclaims rebuildable glyph/table caches on OOM and retries once without closing loaded faces or changing saved paths. Glyph cache remains capped at1MiB (320KiB under pressure), four page rasters at about1.59MiB, and prefetch stack at12KiB; these are code budgets rather than measured usage. Smaller map budgets trade additional SD reads for room to load required fonts.
@@ -327,13 +300,17 @@ RTC retains at most four pending reports across compatible resets. A longer card
 
 Crash reports retain phase11 at the outer rail-restore boundary. Diagnostic builds additionally mark15 immediately before the P14 write,16 after it,17 before P5, and18 after it. These four markers only write retained memory, without logging or delays between the two original I2C operations. Their last value narrows a reset to a boundary; it does not measure a voltage rail or prove a particular component failed. BLE shutdown and wake-source details are written to the normal diagnostic log.
 
-### File manager bulk deletion
+### Duyệt sách và xóa tệp trên thiết bị
 
-“Xóa tất cả” is available inside a folder and asks confirmation of a captured directory path. It deletes direct regular files without the UI listing limit, including hidden regular files, and retains subdirectories and their contents. Each successful removal invokes the same metadata cleanup as single-file deletion. Errors report partial completion; the folder remains available for retry. The operation does not run when opening or cancelling the confirmation.
+Trình mở sách liệt kê thư mục và tệp TXT/EPUB, đồng thời ẩn thư mục hồ sơ Wi-Fi, tệp cấu hình và log hệ thống. Full vẫn có các mục Hình ảnh và Phông chữ riêng. Dùng mục Nâng cấp trong Cài đặt để cài firmware từ thẻ.
+
+“Xóa tất cả” yêu cầu xác nhận đường dẫn và chỉ xóa các tệp trực tiếp khớp bộ lọc hiện tại, kể cả ở ngoài giới hạn hiển thị. Thao tác giữ lại thư mục con và tệp ẩn, dọn dữ liệu đọc tương ứng với mỗi tệp đã xóa và báo số tệp đã xóa nếu có lỗi.
 
 ### Reader settings SD profile
 
 Settings → Sao lưu & Khôi phục cấu hình backs up system settings, reading settings, WiFi/sync profiles and reading history in one operation. Version 22 adds a checked reader block to the same backup file, validated before committing settings; older backup formats remain readable. Font and background bytes stay on the SD card; reopen the book after restoring layout.
+
+Metalio 4.7 lưu tối đa sáu mạng Wi-Fi trong `DPRWIFI/WIFI.BIN` trên thẻ. Khi một tác vụ yêu cầu Wi-Fi, máy đọc từng hồ sơ theo thứ tự mới lưu trước và thử mạng tiếp theo khi kết nối thất bại. Lưu lại cùng SSID cập nhật hồ sơ đó. Máy cần thẻ ghi được để thêm mạng. Lệnh “Quên mạng” xóa tất cả hồ sơ. Để sao lưu toàn bộ danh sách, chép riêng tệp này. Bản sao lưu cấu hình hiện có lưu một hồ sơ Wi-Fi. Mật khẩu trong tệp trên thẻ ở dạng không mã hóa.
 
 ### Home utilities
 
@@ -364,3 +341,7 @@ pass `--no-test-export` to `tools/build_firmware.py`. This still creates interna
 artifacts under the build output. Newly delivered test firmware must use the next
 unused RC and an embedded matching version; this flag does not authorize reusing
 a delivered RC for different bytes.
+
+## Tiến độ khi NVS đầy
+
+Từ 1.3.5RC9, lỗi NVS thiếu chỗ chuyển tiến độ sang `/sdcard/.dpreader-progress/progress.bin`. Snapshot có checksum và bản `.old` phục hồi. Cuốn sách gần nhất, thứ tự đọc, danh sách và dấu xóa dùng cùng nơi lưu. Giữ thư mục này khi chép hoặc sao lưu thẻ. NVS cũ tiếp tục cung cấp các cuốn chưa có bản ghi trên thẻ. Giới hạn snapshot là 4096 đường dẫn, gồm dấu xóa. Ghi không thành công tiếp tục trả lỗi cho cơ chế thử lại. Footer không hiển thị trạng thái lưu.

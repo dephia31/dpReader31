@@ -110,8 +110,8 @@ if(CONFIG_TINYUSB_MTP_ENABLED)
          "mtp/tinyusb_mtp_write.c")
 endif() # CONFIG_TINYUSB_MTP_ENABLED
 
-kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" ${srcs})
-idf_component_register(SRCS ${kiiko_selected_sources}
+dpreader_board_sources(dpreader_selected_sources "${CMAKE_CURRENT_LIST_DIR}" ${srcs})
+idf_component_register(SRCS ${dpreader_selected_sources}
                        INCLUDE_DIRS "include"
                        PRIV_INCLUDE_DIRS "include_private"
                        PRIV_REQUIRES ${priv_req}

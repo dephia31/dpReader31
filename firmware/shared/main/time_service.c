@@ -16,7 +16,7 @@
 
 #define CLOCK_VALID_MIN 1704067200ULL
 #define CLOCK_VALID_MAX 4102444799ULL
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define CLOCK_ONLINE_INTERVAL 86400ULL
 #define CLOCK_RETRY_US (86400LL * 1000000)
 static uint64_t s_last_attempt;
@@ -43,18 +43,18 @@ void app_time_service_poll(bool idle) {
     if (!idle) return;
     if (!s_loaded) {
         nvs_handle_t handle;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if (nvs_open("mt_clock", NVS_READONLY, &handle) == ESP_OK) {
 #else
         if (nvs_open("kiiko_clock", NVS_READONLY, &handle) == ESP_OK) {
 #endif
             if (nvs_get_u64(handle, "last_ntp", &s_last_sync) != ESP_OK) s_last_sync = 0;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
             if (nvs_get_u64(handle, "last_try", &s_last_attempt) != ESP_OK) s_last_attempt = 0;
 #endif
             nvs_close(handle);
         }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if (s_last_attempt < CLOCK_VALID_MIN || s_last_attempt > CLOCK_VALID_MAX) s_last_attempt = 0;
 #endif
         if (s_last_sync < CLOCK_VALID_MIN || s_last_sync > CLOCK_VALID_MAX) s_last_sync = 0;
@@ -67,7 +67,7 @@ void app_time_service_poll(bool idle) {
         s_last_sync = received;
         (void)app_sync_time_to_pmu();
         nvs_handle_t handle;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if (nvs_open("mt_clock", NVS_READWRITE, &handle) == ESP_OK) {
 #else
         if (nvs_open("kiiko_clock", NVS_READWRITE, &handle) == ESP_OK) {
@@ -78,7 +78,7 @@ void app_time_service_poll(bool idle) {
     }
     const int64_t monotonic = esp_timer_get_time();
     if (atomic_load(&s_running) || monotonic < s_next_attempt_us) return;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     time_t checked_at = time(NULL);
     uint64_t last = s_last_sync > s_last_attempt ? s_last_sync : s_last_attempt;
     if (last && checked_at >= (time_t)last && (uint64_t)checked_at - last < CLOCK_ONLINE_INTERVAL) return;
@@ -97,7 +97,7 @@ void app_time_service_poll(bool idle) {
     read_pico_transfer_get_status(&status);
     bool online = status.state == READ_PICO_TRANSFER_READY &&
                   status.mode == READ_PICO_TRANSFER_MODE_STA && status.network_ready;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // Automatic calibration borrows an existing connection; never wakes WiFi.
     if(!online)return;
 #else

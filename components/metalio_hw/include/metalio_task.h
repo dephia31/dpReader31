@@ -2,7 +2,7 @@
  * PSRAM stacks only for audited CPU/SD workers, never cache-off/flash/ISR paths.
  */
 #pragma once
-#if defined(ESP_PLATFORM) && defined(KIIKO_BOARD_METALIO47) && KIIKO_BOARD_METALIO47
+#if defined(ESP_PLATFORM) && defined(DPREADER_BOARD_METALIO47) && DPREADER_BOARD_METALIO47
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 BaseType_t metalio_task_create(TaskFunction_t entry,const char *name,uint32_t stack_bytes,

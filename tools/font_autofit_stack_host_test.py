@@ -22,9 +22,9 @@ with tempfile.TemporaryDirectory() as d:
  base=Path(d);results={}
  for reference in (True,False):
   work=base/('reference' if reference else 'fixed');work.mkdir();(work/'test.c').write_text(unit)
-  flags=[*FLAGS,*(['-DKIIKO_AUTOFIT_STACK_REFERENCE=1'] if reference else [])]
-  subprocess.run(['cc',*flags,'-fstack-usage','-c',str(COMP/'kiiko_autofit.c'),'-o',str(work/'autofit.o')],check=True,cwd=work)
-  subprocess.run(['cc',*flags,str(work/'test.c'),*[str(COMP/'vendor/src'/s) for s in SOURCES if s!='../../kiiko_autofit.c'],str(work/'autofit.o'),'-lm','-o',str(work/'test')],check=True)
+  flags=[*FLAGS,*(['-DDPREADER_AUTOFIT_STACK_REFERENCE=1'] if reference else [])]
+  subprocess.run(['cc',*flags,'-fstack-usage','-c',str(COMP/'dpreader_autofit.c'),'-o',str(work/'autofit.o')],check=True,cwd=work)
+  subprocess.run(['cc',*flags,str(work/'test.c'),*[str(COMP/'vendor/src'/s) for s in SOURCES if s!='../../dpreader_autofit.c'],str(work/'autofit.o'),'-lm','-o',str(work/'test')],check=True)
   frames=[]
   for p in work.glob('*.su'):
    for line in p.read_text().splitlines():

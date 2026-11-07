@@ -54,7 +54,7 @@ static bool ui_wallpaper_prepare_avatar(const char *path,uint8_t *out,int side){
 }
 static void run(void){if(!setjmp(task_exit))task_fn(NULL);}
 int main(void){
-#if !KIIKO_BOARD_METALIO47
+#if !DPREADER_BOARD_METALIO47
  media_ready_for_jobs=false;ui_avatar_request("/sdcard/pictures/a.png",60);assert(!jobs&&!decodes);media_ready_for_jobs=true;
 #endif
 uint8_t pixels[82*82];
@@ -76,6 +76,6 @@ uint8_t pixels[82*82];
 }
 '''
 with tempfile.TemporaryDirectory(prefix='kiiko-avatar-') as folder:
- c=Path(folder)/'test.c';binary=Path(folder)/'test';c.write_text(('#define KIIKO_BOARD_METALIO47 1\n' if 'read_pico_sd_io_ready()' not in source else '')+unit)
+ c=Path(folder)/'test.c';binary=Path(folder)/'test';c.write_text(('#define DPREADER_BOARD_METALIO47 1\n' if 'read_pico_sd_io_ready()' not in source else '')+unit)
  subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',str(c),'-o',str(binary)],check=True)
  subprocess.run([str(binary)],check=True)

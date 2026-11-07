@@ -20,7 +20,7 @@
 #include <sys/stat.h>
 
 #ifndef BOOK_SEAL_CACHE_PARENT
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define BOOK_SEAL_CACHE_PARENT "/sdcard/.metalio_s31"
 #else
 #define BOOK_SEAL_CACHE_PARENT "/sdcard/.readpico"
@@ -97,7 +97,7 @@ static uint8_t pixel(const uint8_t *fb,int x,int y) {
     return (epd_get_pixel(px,py,epd_width(),epd_height(),fb)>>4)*17u;
 }
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 // 将接近满值的透明度归为不透明，并还原预乘灰度，避免16灰抖动放大少量底图渗透。
 // Snap near-full alpha to opaque and unpremultiply gray so16-level dithering cannot amplify slight backdrop leakage.
 // 仅透明书封使用；alpha<250的真实半透明和原始缓存字节保持。
@@ -331,7 +331,7 @@ static bool seal_draw_rows(FILE *f,uint8_t *fb,unsigned w,unsigned h,uint8_t *wo
             unsigned value=((*target>>shift)&15)*17u;
             if(sa)value=ui_image_dither_gray((value*(255-sa/5)+127)/255,xx,yy);
             if(a) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
                 value=seal_art_gray(art[x*2],a,value);
 #else
                 value=art[x*2]+(value*(255-a)+127)/255;
@@ -370,7 +370,7 @@ static bool seal_draw(uint8_t *fb,const char *path,unsigned w,unsigned h,bool *s
                 int xx=ox+x+(pass?0:4),yy=oy+y+(pass?0:6);
                 if(xx>=684||yy>=1216)continue;
                 unsigned bg=pixel(fb,xx,yy);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
                 unsigned value=pass?seal_art_gray(row[x*2],a,bg):(bg*(255-a/5)+127)/255;
 #else
                 unsigned value=pass?row[x*2]+(bg*(255-a)+127)/255:(bg*(255-a/5)+127)/255;
@@ -415,7 +415,7 @@ bool book_lock_bookmark_draw(uint8_t *fb,const char *path) {
         for(unsigned y=0;y<h;++y)for(unsigned x=0;x<w;++x){
             size_t at=(size_t)y*w+x;unsigned a=alpha[at];if(!a)continue;
             int xx=ox+x,yy=oy+y;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
             unsigned value=seal_art_gray(layers[at],a,pixel(fb,xx,yy));
 #else
             unsigned value=layers[at]+(pixel(fb,xx,yy)*(255-a)+127)/255;

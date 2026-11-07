@@ -33,7 +33,7 @@
 
 #define LOG_BUF_SIZE (32 * 1024)
 
-#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#if DPREADER_BOARD_METALIO47 && defined(ESP_PLATFORM)
 #include "esp_attr.h"
 #include "esp_private/cache_utils.h"
 // PSRAM在app_main前初始化；cache关闭时不捕获/读取外部环形缓冲。

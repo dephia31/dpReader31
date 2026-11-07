@@ -26,7 +26,7 @@
 #include "esp_cpu.h"
 #include "epd_pipeline.h"
 
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
 static bool s_pipeline_enabled;
 void epd_pipeline_enable(bool enabled) { __atomic_store_n(&s_pipeline_enabled,enabled,__ATOMIC_RELAXED); }
 bool epd_pipeline_enabled(void) { return __atomic_load_n(&s_pipeline_enabled,__ATOMIC_RELAXED); }
@@ -754,7 +754,7 @@ EpdRect epd_difference_image(
     );
 }
 
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
 // 整帧PSRAM比较包含列/行脏图和前导直方图；不扫描、不保存设置。/ Full-PSRAM oracle includes dirty maps and leading histograms, without scans/settings writes.
 void epd_pipeline_test(void) {
     extern bool epd_pie_pixels_enabled(void);
