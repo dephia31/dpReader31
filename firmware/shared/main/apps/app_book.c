@@ -42,6 +42,7 @@
  * User approval 2026-10-23: chapter page jumping in reading statistics, stepwise drafts and numeric confirmation, with a short-lived return anchor.
  * 用户2026-10-29取消全屏：移除重复书名/返回/收藏栏，保留状态栏和紧凑底部页脚；页脚开关独立生效，章名在上，页码/进度条/百分比同一行。
  * User revision 2026-10-29 removes full screen: status bar only above the text, a compact bottom footer, independent footer toggles, chapter above a shared page/bar/percentage row.
+ * Ngày 2026-11-07, người dùng chuyển chân trang vào Cài đặt đọc và cho ẩn thanh trạng thái để tăng vùng dàn trang.
  * 用户2026-10-29修订：章名下移4px；进度条固定位置/总宽，已读粗黑、未读细浅。
  * User revision 2026-10-29: lower chapter by4px; fixed track frame with thick black read and thin pale unread segments.
  * 用户修订：阅读进度条无外伸刻度并使用圆角；继续阅读区显示最近书籍封面。
@@ -255,6 +256,7 @@ typedef enum {
     READER_PANEL_FONT_SETTINGS,
     READER_PANEL_LAYOUT_SETTINGS,
     READER_PANEL_CUSTOM_SETTINGS,
+    READER_PANEL_STATUS_FOOTER,
     READER_PANEL_FOOTER_SETTINGS,
     READER_PANEL_WEIGHT_SETTINGS,
     READER_PANEL_RULE_SETTINGS,
@@ -674,19 +676,24 @@ static size_t fb_bytes(void) { return (size_t)epd_width() * epd_height() / 2; }
 #define READER_FOOTER_HEIGHT 94
 #define READER_FOOTER_TOP (UI_LOCK_HEIGHT - READER_FOOTER_BOTTOM_GAP - READER_FOOTER_HEIGHT)
 static int s_footer_layout_override = -1;
+static int s_status_layout_override = -1;
+static int reader_content_top(void) {
+    const bool enabled = s_status_layout_override < 0 ? app_settings_book_status_enabled() : s_status_layout_override != 0;
+    return enabled ? 72 : 0;
+}
 static int reader_content_bottom(void) {
     bool enabled = s_footer_layout_override < 0 ? app_settings_book_footer_enabled() : s_footer_layout_override != 0;
     return enabled ? READER_FOOTER_TOP : UI_LOCK_HEIGHT - READER_FOOTER_BOTTOM_GAP;
 }
 static EpdRect reader_area(void) {
-    const int top = 72;
+    const int top = reader_content_top();
     // 正文排版不占进度线；文字翻页合并差分时仅驱动实际变化的进度像素。
     // Keep text layout outside the progress strip; a fused text turn drives only changed progress pixels.
     const int bottom = reader_content_bottom();
     return (EpdRect){0, top, UI_LOCK_WIDTH, bottom - top};
 }
 static EpdRect body_rect_for_tracking(int tracking_index) {
-    int top = 80;
+    const int top = reader_content_top() + 8;
     int margin = s_margin;
     // 正文与页脚不重叠。/ Keep the body clear of the footer.
     int bottom = reader_content_bottom() - 2;
@@ -2386,12 +2393,7 @@ static EpdRect reader_font_card(int index) {
 #define s_font_card reader_font_card(0)
 #define s_weight_card reader_font_card(1)
 #define s_layout_card reader_font_card(2)
-#define s_footer_card reader_font_card(3)
-static EpdRect reader_custom_card_rect(void) {
-    int footer = reader_ui_extra(16);
-    return (EpdRect){36, 1054 - footer, 612, 72 + footer};
-}
-#define s_custom_card reader_custom_card_rect()
+#define s_custom_card reader_font_card(3)
 static void draw_reading_switch(uint8_t *fb, EpdRect track, bool on);
 
 static int background_compare(const void *a, const void *b) {
@@ -2606,12 +2608,7 @@ static void draw_font_settings(uint8_t* fb) {
     char weight_value[20];reader_weight_value(weight_value,sizeof(weight_value),app_settings_book_weight_fine());
     draw_font_pair(fb, s_weight_card, "Độ đậm chữ", weight_value);
     draw_font_pair(fb, s_layout_card, "Bố cục dàn trang", "Căn lề · Giãn dòng");
-    draw_font_pair(fb, s_footer_card, "Thanh chân trang", reader_progress_style_name(app_settings_book_progress_style()));
-    EpdRect custom = s_custom_card;
-    ui_fill_round_rect(fb, custom, 20, UI_GRAY_WHITE); ui_draw_control_frame(fb, custom, 20, 0x70);
-    ui_text_box(fb, (EpdRect){custom.x+21, custom.y+8, custom.width-60, 26}, 23, "Tùy chỉnh", EPD_DRAW_ALIGN_LEFT, false);
-    ui_text_box(fb, (EpdRect){custom.x+21, custom.y+34, custom.width-60, 26}, 21, "Phông nhúng · Dẫn dòng · Khử răng cưa", EPD_DRAW_ALIGN_LEFT, false);
-    ui_draw_icon(fb, custom.x+custom.width-24, custom.y+custom.height/2, 27, UI_ICON_CHEVRON_RIGHT, 0x38);
+    draw_font_pair(fb, s_custom_card, "Tùy chỉnh", "Hiển thị nâng cao");
     ui_fill_round_rect(fb, (EpdRect){36, 1141, 612, 58}, 20, UI_GRAY_BLACK);
     reader_panel_text_vc(fb, 342, 1170, 28, "Xong", EPD_DRAW_ALIGN_CENTER, true);
     ttf_set_antialias(prior_aa);
@@ -2654,16 +2651,48 @@ static void draw_custom_settings(uint8_t *fb) {
     reader_panel_text_vc(fb, 342, 1149, 23, "Về Cài đặt phông", EPD_DRAW_ALIGN_CENTER, true);
 }
 
-static EpdRect footer_toggle_rect(void) { return (EpdRect){36, 1050, 612, 56}; }
+static int footer_settings_top(void) { return app_settings_book_footer_enabled() ? 500 : 890; }
+static EpdRect footer_toggle_rect(void) { return (EpdRect){36, footer_settings_top() + 100, 612, 66}; }
+static EpdRect footer_option_rect(int index) { return (EpdRect){36, 680 + index * 110, 612, 94}; }
+static EpdRect reader_bars_back_rect(void) { return (EpdRect){36, 1113, 612, 72}; }
+static EpdRect reader_bars_status_rect(void) { return (EpdRect){36, 862, 612, 82}; }
+static EpdRect reader_bars_footer_rect(void) { return (EpdRect){36, 964, 612, 100}; }
+enum { READER_BARS_TOP = 760 };
+
+static void draw_reader_bar_switch(uint8_t *fb, EpdRect row, const char *title, bool on) {
+    ui_fill_round_rect(fb, row, 20, UI_GRAY_WHITE);
+    ui_draw_control_frame(fb, row, 20, 0x70);
+    ui_text_box(fb, (EpdRect){row.x + 21, row.y + 8, row.width - 126, row.height - 16},
+                24, title, EPD_DRAW_ALIGN_LEFT, false);
+    draw_reading_switch(fb, (EpdRect){row.x + row.width - 89, row.y + (row.height - 39) / 2, 69, 39}, on);
+}
+
+static void draw_reader_bars_back(uint8_t *fb) {
+    EpdRect back = reader_bars_back_rect();
+    ui_fill_round_rect(fb, back, 20, UI_GRAY_BLACK);
+    reader_panel_text_vc(fb, 342, 1149, 23, "Quay lại", EPD_DRAW_ALIGN_CENTER, true);
+}
+
+static void draw_status_footer_settings(uint8_t *fb) {
+    draw_sheet(fb, READER_BARS_TOP, "Status & Footer");
+    draw_sheet_back(fb, READER_BARS_TOP);
+    draw_reader_bar_switch(fb, reader_bars_status_rect(), "Thanh trạng thái", app_settings_book_status_enabled());
+    draw_font_pair(fb, reader_bars_footer_rect(), "Footer",
+                   app_settings_book_footer_enabled() ? "Hiện chân trang" : "Ẩn chân trang");
+    draw_reader_bars_back(fb);
+}
 
 static void draw_footer_settings(uint8_t *fb) {
-    const int top = 500;
+    const int top = footer_settings_top();
     draw_sheet(fb, top, "Thanh chân trang");
     draw_sheet_back(fb, top);
-    reader_panel_text_vc(fb, 342, 580, 21, "Tùy chỉnh kiểu dáng và nội dung hiển thị chân trang", EPD_DRAW_ALIGN_CENTER, false);
+    const bool enabled = app_settings_book_footer_enabled();
+    draw_reader_bar_switch(fb, footer_toggle_rect(), "Hiện chân trang", enabled);
+    draw_reader_bars_back(fb);
+    if (!enabled) return;
 
     // 1. Thanh tiến độ
-    EpdRect card0 = {36, 620, 612, 94};
+    EpdRect card0 = footer_option_rect(0);
     ui_fill_round_rect(fb, card0, 20, UI_GRAY_WHITE); ui_draw_control_frame(fb, card0, 20, 0x70);
     ui_text_box(fb, (EpdRect){card0.x+21, card0.y+12, 280, 32}, 24, "Thanh tiến độ", EPD_DRAW_ALIGN_LEFT, false);
     ui_text_box(fb, (EpdRect){card0.x+21, card0.y+50, 280, 30}, 21, "Độ dày thanh vạch", EPD_DRAW_ALIGN_LEFT, false);
@@ -2673,7 +2702,7 @@ static void draw_footer_settings(uint8_t *fb) {
 
     // 2. Số trang / chương (trái)
     bool page_on = app_settings_book_footer_page();
-    EpdRect card1 = {36, 730, 612, 94};
+    EpdRect card1 = footer_option_rect(1);
     ui_fill_round_rect(fb, card1, 20, UI_GRAY_WHITE); ui_draw_control_frame(fb, card1, 20, 0x70);
     ui_text_box(fb, (EpdRect){card1.x+21, card1.y+12, card1.width-120, 32}, 24, "Số trang / chương (trái)", EPD_DRAW_ALIGN_LEFT, false);
     ui_text_box(fb, (EpdRect){card1.x+21, card1.y+50, card1.width-120, 30}, 21, "Hiển thị số trang hiện tại trong chương", EPD_DRAW_ALIGN_LEFT, false);
@@ -2681,7 +2710,7 @@ static void draw_footer_settings(uint8_t *fb) {
 
     // 3. Tên chương (nằm trên thanh tiến độ)
     bool chap_on = app_settings_book_footer_chapter();
-    EpdRect card2 = {36, 840, 612, 94};
+    EpdRect card2 = footer_option_rect(2);
     ui_fill_round_rect(fb, card2, 20, UI_GRAY_WHITE); ui_draw_control_frame(fb, card2, 20, 0x70);
     ui_text_box(fb, (EpdRect){card2.x+21, card2.y+12, card2.width-120, 32}, 24, "Tên chương", EPD_DRAW_ALIGN_LEFT, false);
     ui_text_box(fb, (EpdRect){card2.x+21, card2.y+50, card2.width-120, 30}, 21, "Nằm phía trên thanh tiến độ", EPD_DRAW_ALIGN_LEFT, false);
@@ -2689,21 +2718,12 @@ static void draw_footer_settings(uint8_t *fb) {
 
     // 4. % tiến độ sách (phải)
     bool pct_on = app_settings_book_footer_pct();
-    EpdRect card3 = {36, 950, 612, 94};
+    EpdRect card3 = footer_option_rect(3);
     ui_fill_round_rect(fb, card3, 20, UI_GRAY_WHITE); ui_draw_control_frame(fb, card3, 20, 0x70);
     ui_text_box(fb, (EpdRect){card3.x+21, card3.y+12, card3.width-120, 32}, 24, "% tiến độ sách (phải)", EPD_DRAW_ALIGN_LEFT, false);
     ui_text_box(fb, (EpdRect){card3.x+21, card3.y+50, card3.width-120, 30}, 21, "Hiển thị phần trăm đọc toàn cuốn sách", EPD_DRAW_ALIGN_LEFT, false);
     draw_reading_switch(fb, (EpdRect){card3.x+card3.width-89, card3.y+card3.height/2-19, 69, 39}, pct_on);
 
-    EpdRect toggle = footer_toggle_rect();
-    ui_draw_control_frame(fb, toggle, 20, 0x70);
-    ui_text_box(fb, (EpdRect){57, 1056, 490, 44}, 24, "Hiện chân trang", EPD_DRAW_ALIGN_LEFT, false);
-    draw_reading_switch(fb, (EpdRect){559, 1058, 69, 39}, app_settings_book_footer_enabled());
-
-    // Nút quay lại
-    EpdRect back = {36, 1113, 612, 72};
-    ui_fill_round_rect(fb, back, 20, UI_GRAY_BLACK);
-    reader_panel_text_vc(fb, 342, 1149, 23, "Về Cài đặt phông", EPD_DRAW_ALIGN_CENTER, true);
 }
 
 static EpdRect reader_weight_rect(int index) { return (EpdRect){index?542:56,909,86,86}; }
@@ -2908,6 +2928,7 @@ static void draw_reading_settings(uint8_t* fb) {
     draw_reading_card(fb, 4, "Điều khiển phím", "Tùy chỉnh 3 phím", false);
     draw_reading_toggle(fb, 2, "Ẩn ảnh minh họa trong sách", "Bỏ qua ảnh minh họa trong bài, giữ nguyên tệp sách", app_settings_reader_hide_images());
     draw_reading_toggle(fb, 3, "Chữ dọc (Phải sang trái)", NULL, app_settings_book_vertical());
+    draw_reading_card(fb, 7, "Status & Footer", "Đầu và chân trang", false);
     ui_fill_round_rect(fb, (EpdRect){36, 1141, 612, 58}, 20, UI_GRAY_BLACK);
     reader_panel_text_vc(fb, 342, 1170, 26, "Xong", EPD_DRAW_ALIGN_CENTER, true);
 }
@@ -3409,6 +3430,7 @@ static void draw_reader_panel(uint8_t* fb) {
     else if (s_reader_panel == READER_PANEL_WEIGHT_SETTINGS) draw_weight_settings(fb);
     else if (s_reader_panel == READER_PANEL_LAYOUT_SETTINGS) draw_layout_settings(fb);
     else if (s_reader_panel == READER_PANEL_CUSTOM_SETTINGS) draw_custom_settings(fb);
+    else if (s_reader_panel == READER_PANEL_STATUS_FOOTER) draw_status_footer_settings(fb);
     else if (s_reader_panel == READER_PANEL_FOOTER_SETTINGS) draw_footer_settings(fb);
     else if (s_reader_panel == READER_PANEL_RULE_SETTINGS) draw_rule_settings(fb);
     else if (s_reader_panel == READER_PANEL_BACKGROUND) draw_background_directory(fb);
@@ -3998,7 +4020,7 @@ static void draw_reader_footer(uint8_t *fb, size_t page) {
 }
 static void draw_reader_outer(uint8_t *fb,size_t page) {
     ui_text_set_system_scale(false);
-    ui_nav_status(fb);
+    if (app_settings_book_status_enabled()) ui_nav_status(fb);
     EpdRect body=body_rect();
     if (page == 0 && s_chapter_heading_title[0] &&
         (s_chapter_lead_height || s_chapter_lead_width)) {
@@ -4335,7 +4357,7 @@ static void render(app_ctx_t* ctx, uint8_t* fb) {
 }
 static EpdRect reader_status_area(void) { return (EpdRect){0,0,UI_LOCK_WIDTH,80}; }
 static bool reader_status_visible(void) {
-    return s_view==READING && s_text;
+    return s_view==READING && s_text && app_settings_book_status_enabled();
 }
 static void reader_status_paint(uint8_t *fb) {
     EpdRect area=reader_status_area();
@@ -4446,7 +4468,7 @@ static bool reader_panel_fast_present(app_ctx_t *ctx,app_redraw_t redraw) {
     display_page_prepare_end(prepared);
     reader_panel_record(err);s_reader_text_frame=tools_closing&&err==EPD_DRAW_SUCCESS&&!s_toolbar;
     s_du_count=0;s_mode=MODE_GL16;
-    if(tools_closing&&err==EPD_DRAW_SUCCESS)s_reader_clock_minute=ui_nav_clock_minute();
+    if(tools_closing&&err==EPD_DRAW_SUCCESS&&reader_status_visible())s_reader_clock_minute=ui_nav_clock_minute();
     if(err==EPD_DRAW_SUCCESS)s_presented_view=READING;
     guard_draw_result(ctx->hl,err);
     ESP_LOGI(TAG,"reader panel overlay=%d top=%d draw=%lld display=%lld ms",s_reader_panel,top,
@@ -4551,7 +4573,7 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
     const bool reader_prepared=reader_prepare?display_page_prepare_begin():false;
 #endif
     int64_t start = esp_timer_get_time();
-    const int64_t frame_minute=ui_nav_clock_minute();
+    const int64_t frame_minute=reader_status_visible()?ui_nav_clock_minute():-1;
     if (redraw == APP_REDRAW_PAGE || redraw == APP_REDRAW_FULL) render(ctx, ctx->fb);
     bool prep = kick_prep();
     int64_t drawn = esp_timer_get_time();
@@ -6123,30 +6145,34 @@ static app_redraw_t apply_reader_layout(app_ctx_t* ctx, int next_px, int next_ma
     return APP_REDRAW_PAGE;
 }
 
-static app_redraw_t toggle_reader_footer(void) {
+static app_redraw_t toggle_reader_bar(bool status) {
     if (!s_text) return APP_REDRAW_NONE;
-    size_t offset = book_layout_page_start_offset(s_page);
-    bool enabled = !app_settings_book_footer_enabled();
+    const size_t offset = reader_page_offset(s_page);
+    const bool enabled = status ? !app_settings_book_status_enabled() : !app_settings_book_footer_enabled();
+    int *layout_override = status ? &s_status_layout_override : &s_footer_layout_override;
 
     lock_draw();
     invalidate_prep();
-    s_footer_layout_override = enabled;
+    *layout_override = enabled;
     refresh_chapter_lead();
     bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
-    s_footer_layout_override = -1;
-    if (ok) ok = app_settings_set_book_footer_enabled(enabled);
+    *layout_override = -1;
+    if (ok) ok = status ? app_settings_set_book_status_enabled(enabled) : app_settings_set_book_footer_enabled(enabled);
     if (!ok) {
         refresh_chapter_lead();
         (void)book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
     }
     s_page = book_layout_page_for_offset(offset);
+    s_jump_page = s_page;
+    s_jump_offset = offset;
     unlock_draw();
 
     if (ok) {
-        s_reader_footer_pending = false;
+        s_reader_footer_pending = s_reader_clock_pending = false;
+        release_page_images();
         save_progress();
     } else {
-        copy_text(s_reader_notice, sizeof(s_reader_notice), "Không đổi được chân trang");
+        copy_text(s_reader_notice, sizeof(s_reader_notice), status ? "Không đổi được thanh trạng thái" : "Không đổi được chân trang");
         s_reader_notice_until = esp_timer_get_time() / 1000 + 1800;
     }
     return APP_REDRAW_FULL;
@@ -6691,6 +6717,8 @@ static app_redraw_t reading_settings_action(app_ctx_t *ctx, uint16_t x, uint16_t
         s_reader_panel = READER_PANEL_TURN_SETTINGS;
     } else if (ui_rect_hit(reading_setting_rect(4), x, y)) {
         s_reader_panel = READER_PANEL_KEY_SETTINGS;
+    } else if (ui_rect_hit(reading_setting_rect(7), x, y)) {
+        s_reader_panel = READER_PANEL_STATUS_FOOTER;
     } else {
         const int options[] = {0, 2, 3};
         for (unsigned i = 0; i < sizeof(options) / sizeof(options[0]); ++i)
@@ -7000,7 +7028,6 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
         EpdRect font = s_font_card;
         EpdRect weight = s_weight_card;
         EpdRect layout = s_layout_card;
-        EpdRect footer_btn = s_footer_card;
         EpdRect custom_btn = s_custom_card;
         if (ui_rect_hit((EpdRect){36, 1141, 612, 58}, x, y)) {
             s_reader_panel = READER_PANEL_NONE;
@@ -7026,10 +7053,6 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
         if (ui_rect_hit(layout, x, y)) {
             s_reader_slider = -1;
             s_reader_panel = READER_PANEL_LAYOUT_SETTINGS;
-            return APP_REDRAW_PAGE;
-        }
-        if (ui_rect_hit(footer_btn, x, y)) {
-            s_reader_panel = READER_PANEL_FOOTER_SETTINGS;
             return APP_REDRAW_PAGE;
         }
         if (ui_rect_hit(custom_btn, x, y)) {
@@ -7085,41 +7108,51 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
         if (y < top) { s_reader_panel = READER_PANEL_NONE; return APP_REDRAW_PAGE; }
         return APP_REDRAW_NONE;
     }
-    if (s_reader_panel == READER_PANEL_FOOTER_SETTINGS) {
-        const int top = 500;
-        EpdRect back_icon = {36, top + 29, 56, 56};
-        EpdRect back_button = {36, 1113, 612, 72};
-        if (ui_rect_hit(back_icon, x, y) || ui_rect_hit(back_button, x, y)) {
-            s_reader_panel = READER_PANEL_FONT_SETTINGS;
+    if (s_reader_panel == READER_PANEL_STATUS_FOOTER) {
+        if (ui_rect_hit((EpdRect){36, READER_BARS_TOP + 29, 56, 56}, x, y) ||
+            ui_rect_hit(reader_bars_back_rect(), x, y)) {
+            s_reader_panel = READER_PANEL_REFRESH_SETTINGS;
             return APP_REDRAW_PAGE;
         }
-        if (ui_rect_hit(footer_toggle_rect(), x, y)) return toggle_reader_footer();
-        EpdRect card0 = {36, 620, 612, 94};
-        if (ui_rect_hit(card0, x, y)) {
+        if (ui_rect_hit(reader_bars_status_rect(), x, y)) return toggle_reader_bar(true);
+        if (ui_rect_hit(reader_bars_footer_rect(), x, y)) {
+            s_reader_panel = READER_PANEL_FOOTER_SETTINGS;
+            return APP_REDRAW_PAGE;
+        }
+        if (y < READER_BARS_TOP) { s_reader_panel = READER_PANEL_NONE; return APP_REDRAW_PAGE; }
+        return APP_REDRAW_NONE;
+    }
+    if (s_reader_panel == READER_PANEL_FOOTER_SETTINGS) {
+        const int top = footer_settings_top();
+        if (ui_rect_hit((EpdRect){36, top + 29, 56, 56}, x, y) ||
+            ui_rect_hit(reader_bars_back_rect(), x, y)) {
+            s_reader_panel = READER_PANEL_STATUS_FOOTER;
+            return APP_REDRAW_PAGE;
+        }
+        if (y < top) { s_reader_panel = READER_PANEL_NONE; return APP_REDRAW_PAGE; }
+        if (ui_rect_hit(footer_toggle_rect(), x, y)) return toggle_reader_bar(false);
+        if (!app_settings_book_footer_enabled()) return APP_REDRAW_NONE;
+        if (ui_rect_hit(footer_option_rect(0), x, y)) {
             reader_choice_open(READ_PICK_FOOTER);return APP_REDRAW_PAGE;
         }
-        EpdRect card1 = {36, 730, 612, 94};
-        if (ui_rect_hit(card1, x, y)) {
+        if (ui_rect_hit(footer_option_rect(1), x, y)) {
             app_settings_set_book_footer_page(!app_settings_book_footer_page());
             s_reader_footer_pending = app_settings_book_footer_enabled();
             invalidate_prep();
             return APP_REDRAW_PAGE;
         }
-        EpdRect card2 = {36, 840, 612, 94};
-        if (ui_rect_hit(card2, x, y)) {
+        if (ui_rect_hit(footer_option_rect(2), x, y)) {
             app_settings_set_book_footer_chapter(!app_settings_book_footer_chapter());
             s_reader_footer_pending = app_settings_book_footer_enabled();
             invalidate_prep();
             return APP_REDRAW_PAGE;
         }
-        EpdRect card3 = {36, 950, 612, 94};
-        if (ui_rect_hit(card3, x, y)) {
+        if (ui_rect_hit(footer_option_rect(3), x, y)) {
             app_settings_set_book_footer_pct(!app_settings_book_footer_pct());
             s_reader_footer_pending = app_settings_book_footer_enabled();
             invalidate_prep();
             return APP_REDRAW_PAGE;
         }
-        if (y < top) { s_reader_panel = READER_PANEL_NONE; return APP_REDRAW_PAGE; }
         return APP_REDRAW_NONE;
     }
     if (s_reader_panel == READER_PANEL_RULE_SETTINGS) {

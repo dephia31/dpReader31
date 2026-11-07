@@ -85,7 +85,9 @@ static void *read_pico_pmu_get(void){return NULL;}
 static int pmu_battery_percent(void *p){(void)p;return 80;}
 static const char *app_settings_status_signature(void){return "dpReader";}
 static void ui_text_fixed_vc(uint8_t *f,int x,int y,int px,const char *s,int a,bool inv){ui_text(f,x,y,px,s,a,inv);}
-static void book_ticket_draw_background(uint8_t *f,const uint8_t *p,unsigned w,unsigned h,bool packed){(void)p;(void)w;(void)h;(void)packed;ui_fill_rect_fast((EpdRect){0,0,684,1216},176,f);}
+static unsigned cached_backgrounds,fallback_backgrounds;
+static void book_ticket_draw_background(uint8_t *f,const uint8_t *p,unsigned w,unsigned h,bool packed){assert(p&&w&&h);(void)packed;++cached_backgrounds;ui_fill_rect_fast((EpdRect){0,0,684,1216},176,f);}
+static void draw_simple_border(uint8_t *f){++fallback_backgrounds;ui_fill_rect_fast((EpdRect){0,0,684,1216},17,f);}
 static void book_ticket_draw_paper(uint8_t *f){EpdRect paper={48,58,588,1100};ui_fill_rect_fast(paper,255,f);home_frame(f,paper,0);}
 static void header(uint8_t*f,const char*s){ui_nav_status(f);ui_text(f,122,91,46,s,EPD_DRAW_ALIGN_LEFT,false);}
 static app_redraw_t utility_run(app_ctx_t*c,unsigned action){(void)c;++route_calls;last_action=action;return APP_REDRAW_NONE;}
@@ -122,6 +124,9 @@ int main(void){
  full_mode=true;title_draws=0;outlines=circles=rules=0;render_simple_root(&fb);
  assert(circles==0&&outlines==2&&simple_resume_rect().height==1100&&simple_resume_rect().y==58);
  assert(simple_cover_rect().x+simple_cover_rect().width/2==342&&simple_cover_rect().height==566);
+ assert(fallback_backgrounds==1&&!cached_backgrounds);
+ uint8_t cached=0;book.cover=&cached;book.cover_width=book.cover_height=1;
+ render_simple_root(&fb);assert(fallback_backgrounds==1&&cached_backgrounds==1);
  full_mode=false;
  puts("PAGE\tadd-books");labels=border=false;unsigned before_menu=outlines;render_add_books(&fb);assert(!route_calls&&outlines==before_menu+2);
  for(unsigned i=0;i<2;++i){

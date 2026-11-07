@@ -17,6 +17,7 @@
  * User revision: fast Home retains only a 1-bit cover, releases gray after conversion, and drops stale formats on mode/contrast changes.
  * 用户2026-11-05修订：完全简洁首页保留灰阶封面用于打开的书壳及锁屏同款背景，其他首页不变。
  * User revision 2026-11-05: fully simple Home retains gray art for the open book and lock-style background; other Home modes keep their policy.
+ * I Love Book uses a dark diamond pattern and a dpReader cover while cover art is unavailable.
  * 用户修订：首页原比例点阵独立落卡，复用灰阶缩略图；普通/水波纹复用灰阶缓存，始终预留内存。
  * User revision: persist proportional Home monochrome separately and reuse gray thumbnail files; ordinary/water reuse gray caches with a memory reserve.
  * 中文：首页使用真实续读、完整缓存书摘、可选书夹/时钟与月阅读记录；绘图不读卡。
@@ -61,6 +62,7 @@
 #include "book_file_path.h"
 #include "book_title.h"
 #include "book_ticket.h"
+#include "assets/startup_logo.h"
 #include "book_excerpt.h"
 #include "ui_home_widget.h"
 #include "ui_home_clock.h"
@@ -653,8 +655,38 @@ static void draw_cover(uint8_t *fb,const home_book_t *item,EpdRect bounds) {
 }
 // 双线性采样完整封面；坐标为0..65535，不新增位图缓存。
 // Bilinear sample of the complete cover at 0..65535 coordinates, without another bitmap cache.
+static uint8_t home_diamond_gray(int x, int y) {
+    const int row = (y + 17) / 34;
+    const int dx = abs((x + 17 * (1 + (row & 1))) % 34 - 17);
+    const int dy = abs(y - row * 34);
+    if (dx + dy <= 1) return 0x33;
+    return dx + dy == 13 ? 0x22 : 0x11;
+}
+
+extern const uint8_t home_logo_4bpp[] asm("_binary_startup_logo_4bpp_bin_start");
+
+static uint8_t open_book_placeholder(unsigned u, unsigned v) {
+    enum {
+        COVER_WIDTH = 270, COVER_HEIGHT = 463,
+        LOGO_WIDTH = 139,
+        LOGO_HEIGHT = LOGO_WIDTH * DPREADER_STARTUP_LOGO_HEIGHT / DPREADER_STARTUP_LOGO_WIDTH,
+        LOGO_LEFT = 141 - LOGO_WIDTH / 2, LOGO_TOP = 218 - LOGO_HEIGHT / 2,
+    };
+    const int x = u * (COVER_WIDTH - 1) / 65535;
+    const int y = v * (COVER_HEIGHT - 1) / 65535;
+    const uint8_t background = home_diamond_gray(x, y);
+    if (x < LOGO_LEFT || x >= LOGO_LEFT + LOGO_WIDTH ||
+        y < LOGO_TOP || y >= LOGO_TOP + LOGO_HEIGHT) return background;
+
+    const unsigned sx = (x - LOGO_LEFT) * DPREADER_STARTUP_LOGO_WIDTH / LOGO_WIDTH;
+    const unsigned sy = (y - LOGO_TOP) * DPREADER_STARTUP_LOGO_HEIGHT / LOGO_HEIGHT;
+    const uint8_t packed = home_logo_4bpp[(sy * DPREADER_STARTUP_LOGO_WIDTH + sx) / 2];
+    const unsigned gray = sx & 1 ? packed & 15 : packed >> 4;
+    return (0xbb * (15 - gray) + background * gray) / 15;
+}
+
 static uint8_t open_book_sample(const home_book_t *book,unsigned u,unsigned v) {
-    if(!book->cover||!book->cover_width||!book->cover_height)return 0xd0;
+    if(!book->cover||!book->cover_width||!book->cover_height)return open_book_placeholder(u, v);
     unsigned w=book->cover_width,h=book->cover_height;
     uint32_t sx=u*(w-1),sy=v*(h-1);
     unsigned x=sx>>16,y=sy>>16,fx=(sx>>8)&255,fy=(sy>>8)&255;

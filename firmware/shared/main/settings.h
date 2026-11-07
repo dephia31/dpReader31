@@ -328,6 +328,8 @@ void app_settings_set_book_progress_style(uint8_t style);
 /// Footer display components: page count/chapter (left), chapter title (above bar), book progress % (right).
 bool app_settings_book_footer_enabled(void);
 bool app_settings_set_book_footer_enabled(bool on);
+bool app_settings_book_status_enabled(void);
+bool app_settings_set_book_status_enabled(bool on);
 bool app_settings_book_footer_page(void);
 void app_settings_set_book_footer_page(bool on);
 bool app_settings_book_footer_chapter(void);
