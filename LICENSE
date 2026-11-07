@@ -1,3 +1,43 @@
+dpReader — Phạm vi giấy phép / License scope
+Cập nhật chính sách dự án / Project policy updated: 2026-11-07
+
+CHÍNH SÁCH PHI THƯƠNG MẠI CỦA DPREADER
+
+Phần sáng tạo thuộc quyền của dự án và đã được đánh dấu
+LicenseRef-Kiikoread-Personal-Study-1.0 chỉ được sử dụng theo giấy phép
+học tập cá nhân tại licenses/kiikoread-Personal-Study-1.0.txt.
+
+Dự án không cấp phép thương mại thông qua việc công khai kho mã, mở issue,
+gửi PR, ghi nguồn, đổi tên fork hoặc chia sẻ miễn phí file firmware.
+Không chấp thuận dùng phần nội dung này làm nền cho dịch vụ build,
+tùy biến, nạp, bảo trì hay phân phối firmware có mục đích thương mại,
+trừ khi có thỏa thuận riêng bằng văn bản của người có quyền cấp phép.
+
+Gọi khoản thu là “donate”, “ủng hộ”, phí công hoặc phí máy chủ không tự
+tạo ngoại lệ. Khoản thu, quyền lợi trả phí, quảng cáo hoặc dịch vụ trả phí
+gắn với việc cung cấp, tùy biến hay vận hành phần nội dung được bảo hộ
+phải được xét theo mục đích và hoạt động thực tế. Xem docs/LICENSING.md.
+
+Chính sách này áp dụng trong phạm vi quyền sở hữu và giấy phép tương ứng.
+Không thu hồi quyền đã cấp, không áp điều kiện mới lên mã Apache-2.0,
+MIT, ISC, LGPL, OFL hoặc phần của tác giả khác. Nội dung không được đánh
+dấu theo giấy phép hạn chế tiếp tục tuân theo giấy phép hiện có của nó.
+Không được mô tả toàn bộ kho mã hoặc mọi bản firmware lịch sử là độc quyền
+phi thương mại.
+
+The project grants no commercial authorization merely by making this
+repository public, receiving an issue or PR, accepting attribution, or allowing
+a renamed fork or free firmware download. Commercial use of material explicitly
+covered by LicenseRef-Kiikoread-Personal-Study-1.0 requires a separate written
+agreement from the relevant rights holder. Donation-funded customization,
+build, flashing, maintenance and distribution services have no automatic
+exception. Existing grants and third-party licenses remain in force.
+
+Văn bản giấy phép 1.0 và định danh cũ được giữ nguyên để tra cứu các tệp đã
+phát hành. Phần dưới ghi nhận phạm vi lịch sử của chính sách ngày 2026-10-15.
+The original 1.0 license and identifier are retained for released-file
+compatibility. The historical scope statement follows.
+
 kiikoread — 许可适用范围 / License scope
 Policy date / 声明日期: 2026-10-15
 

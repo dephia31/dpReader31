@@ -38,6 +38,9 @@ tools/buzzer_score_wav
 
 # Per-machine task handoff ledger; protocol lives in docs/HANDOFF.md
 /docs/HANDOFF.local.md
+# Ghi chú riêng theo máy và bản nháp tài liệu.
+/docs/**/*.local.md
+/docs/**/*.draft.md
 
 # 内部计划、审查与验收记录；不随产品交付。
 # Internal plans, reviews and acceptance records are not product deliverables.

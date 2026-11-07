@@ -299,6 +299,8 @@ python3 -m esptool --chip esp32s31 merge-bin \
 ---
 
 ## 📄 Giấy phép (License)
-dpReader phát triển từ dự án mã nguồn mở `Metalio-S31-kiikoread` (Apache-2.0 / Personal Study License). Phiên bản **dpReader** được tùy biến và tối ưu hóa dành cho cộng đồng người dùng máy đọc sách E-ink tại Việt Nam.
+dpReader sử dụng nhiều giấy phép theo từng thành phần. **Phần sáng tạo được đánh dấu giấy phép học tập cá nhân không được dùng thương mại khi chưa có thỏa thuận riêng bằng văn bản**, bao gồm dịch vụ tùy biến/build/nạp firmware có thu phí hoặc nhận donate gắn với dịch vụ. Mã Apache-2.0, MIT, LGPL và các thành phần khác giữ giấy phép hiện có.
+
+Đọc [phạm vi giấy phép](LICENSE), [quy định sử dụng và donate](docs/LICENSING.md) và [thông báo bên thứ ba](THIRD_PARTY_NOTICES.md).
 
 Thiết kế tác vụ nền và giới hạn tiết kiệm năng lượng khi đọc: [READING_POWER.md](docs/READING_POWER.md).
