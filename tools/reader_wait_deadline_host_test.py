@@ -27,6 +27,7 @@ static struct{bool active;}s_indent_hold;
 static struct{bool valid;}s_chapter_jump_undo;
 static size_t s_page=4,s_chapter=0,pages=20,chapters=2;
 static int64_t s_stats_activity_ms;
+static unsigned s_unsaved;
 static uint32_t s_stats_pending_ms;
 static bool book_notes_active(void){return notes;}
 static bool app_settings_kosync_auto(void){return auto_sync;}
@@ -64,6 +65,7 @@ int main(void){app_ctx_t ctx={10000};
  lock_available=false;assert(!reader_next_tick_ms(&ctx));lock_available=true;
  s_page=18;assert(!reader_next_tick_ms(&ctx));s_chapter_warm_done=true;assert(reader_next_tick_ms(&ctx));s_page=4;
  s_stats_pending_ms=29999;assert(reader_next_tick_ms(&ctx)==10001);
+ s_unsaved=8;assert(!reader_next_tick_ms(&ctx));s_unsaved=0;
  puts("PASS actual reader admission/planner: pending taps/holds/open/layout/frame/cache/worker failures keep short waits; ready cache only, zero-wait input, minute/stat deadlines, elapsed render time and200ms ceiling");
 }
 '''

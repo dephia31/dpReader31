@@ -13,7 +13,7 @@ void epd_apply_line_mask_c(uint8_t*, const uint8_t*, int);
 void epd_pie_mask_blocks(uint8_t*, const uint8_t*, unsigned blocks);
 uint32_t epd_pie_interlace_blocks(const uint8_t*, const uint8_t*, uint8_t*, uint8_t*, unsigned blocks);
 
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
 // 仅本地验证构建允许切换/测试；产品没有USB入口或基准任务。
 // Only local verification builds expose toggles/tests; products have no USB bench.
 void epd_pie_pixels_enable(bool enabled);

@@ -1,7 +1,7 @@
 #pragma once
 
 /* 显式启用的本地 USB 测时入口；普通构建不含命令读取。/ Explicit local USB bench; no command reader in product builds. */
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
 #include <fcntl.h>
 #include "hal/usb_serial_jtag_ll.h"
 #include <unistd.h>
@@ -10,7 +10,7 @@
 #include <string.h>
 #include "esp_heap_caps.h"
 #include "esp_system.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 void epd_pie_pixels_enable(bool enabled);
 bool epd_pie_pixels_enabled(void);
 void epd_pie_pixels_bench(void);
@@ -42,11 +42,11 @@ static app_redraw_t local_latency_poll(app_ctx_t *ctx,const app_desc_t *current)
                 app_index_of(current),app_settings_main_refresh_mode(),app_settings_auto_lock_minutes(),app_settings_home_component(),
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),(unsigned)uxTaskGetStackHighWaterMark(NULL));
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
             ESP_LOGI("latency","CONTEXT recovery=%d radio=%d font=%s",pico_boot_recovery(),read_pico_transfer_radio_busy(),ttf_font_path());
 #endif
         }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         else if(!strcmp(line,"perf pie test"))epd_pie_pixels_bench();
         else if(!strcmp(line,"perf pipeline test"))epd_pipeline_test();
         else if(!strcmp(line,"perf restart")){ESP_LOGI("latency","INTENTIONAL_RESTART");esp_restart();}

@@ -5,7 +5,7 @@
 #include "ui_keyboard.h"
 #include <ui_kit.h>
 #include "read_pico_search.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "metalio_hw.h"
 #endif
 #include <stdlib.h>
@@ -96,7 +96,7 @@ static void key_paint(uint8_t *fb, EpdRect r, const char *text, int px, bool dar
             epd_draw_line(cx - 2, cy - 5 + d, cx + 8, cy + 5 + d, UI_GRAY_BLACK, fb);
             epd_draw_line(cx - 2, cy + 5 + d, cx + 8, cy - 5 + d, UI_GRAY_BLACK, fb);
         }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     } else if (!strcmp(text, "⇧")) {
         const int cx = r.x + r.width / 2, cy = r.y + r.height / 2 + (pressed ? 2 : 0);
         const int points[][2] = {{0,-16},{-18,1},{-7,1},{-7,15},{7,15},{7,1},{18,1},{0,-16}};
@@ -158,7 +158,7 @@ void ui_keyboard_draw(uint8_t *fb, int top) {
         key_paint(fb, rect(536, 336, 56, 68, top), "Xóa", 21, false, true);
         key_paint(fb, rect(600, 336, 56, 68, top), "⌫", 28, false, true);
     } else {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         key_paint(fb, rect(24, 336, 80, 68, top), "⇧", 30, s_upper, true);
 #else
         key_paint(fb, rect(24, 336, 80, 68, top), s_upper ? "A" : "a", 30, s_upper, true);
@@ -249,7 +249,7 @@ bool ui_keyboard_press(int x, int y, int top, int64_t now_ms) {
     ui_keyboard_draw(NULL, top); s_probe = false;
     if (!s_key_clip.width) return false;
     s_pressed_area = s_key_clip; s_pressed = true;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     (void)metalio_haptic_click();
 #endif
     feedback_dirty(s_pressed_area);
@@ -279,7 +279,7 @@ ui_keyboard_result_t ui_keyboard_hold_tick(bool held, int x, int y, int64_t now_
     ui_keyboard_result_t result = ui_keyboard_tap(s_delete_area.x + s_delete_area.width / 2,
         s_delete_area.y + s_delete_area.height / 2, s_delete_top, now_ms);
     if (result == UI_KEYBOARD_NONE) ui_keyboard_hold_cancel();
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     else (void)metalio_haptic_click();
 #endif
     return result;

@@ -36,6 +36,7 @@ static bool ble_pt_running(void){return bluetooth;}
 static const uint8_t *s_status_framebuffer;
 static int s_power_signature=-1000;
 static unsigned header_clears,bolts,bolt_wells;
+static char center_label[96];
 static uint8_t fb[684*1216/2],preview[sizeof(fb)];
 static int epd_width(void){return 1216;}static int epd_height(void){return 684;}
 static const pmu_snapshot_t *read_pico_pmu_get(void){return &state;}
@@ -44,7 +45,10 @@ static bool pmu_battery_charging(const pmu_snapshot_t *p){assert(p==&state);retu
 static void read_pico_transfer_get_status(read_pico_transfer_status_t *s){s->network_ready=network;s->mode=1;s->state=network?1:0;}
 
 static const char *app_settings_status_signature(void){return "S31";}
-static void ui_text_fixed_vc(uint8_t *p,int x,int y,int px,const char *s,int align,bool b){(void)p;(void)x;(void)px;(void)s;(void)align;(void)b;assert(y==40);}
+static void ui_text_fixed_vc(uint8_t *p,int x,int y,int px,const char *s,int align,bool b){
+ (void)p;(void)align;(void)b;assert(y==40&&px>0);
+ if(x==342)snprintf(center_label,sizeof(center_label),"%s",s);
+}
 static int ui_text_fixed_width_px(int px,const char *s){return px*(int)strlen(s)/2;}
 static void ui_draw_icon(uint8_t *p,int x,int y,int size,int icon,uint8_t gray){(void)p;(void)x;(void)size;assert(y==40);if(icon==UI_ICON_ZAP){assert(gray==0xf0&&bolt_wells>0);++bolts;}}
 static void ui_nav_wifi_icon(uint8_t *p,int x,int y,int size,uint8_t gray){ui_draw_icon(p,x,y,size,UI_ICON_WIFI,gray);}

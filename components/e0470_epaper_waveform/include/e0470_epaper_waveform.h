@@ -44,7 +44,7 @@ extern "C" {
 #define E0470_FULL_GL16_FRAMES 48
 extern const EpdWaveform E0470_FULL_WAVEFORM;
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 旧 API 兼容名；S31 本地版沿用参考表，不启用 Pico 的 8 灰阶表。
 /// Legacy compatibility name: S31 uses the reference tables without Pico 8-gray calibration.
 #define E0470_GRAY8_GC16_FRAMES 48
@@ -60,7 +60,7 @@ extern const EpdWaveform E0470_FULL_WAVEFORM;
 #endif
 extern const EpdWaveform E0470_GRAY8_WAVEFORM;
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 用户授权采用 Metalio b400605 官方裁剪；原始 48 相表仍完整保留。
 /// User-authorized Metalio b400605 trim; the original 48-phase tables remain intact.
 /// 厂家 2.0.76 起默认关闭裁剪；置 1 才在开机裁成 GC36/GL37。
@@ -78,7 +78,7 @@ extern const EpdWaveform E0470_GRAY8_WAVEFORM;
 #define E0470_TRIM_SAT_CUT 5
 #define E0470_TRIM_WHITE_SAT_CUT 0
 #define E0470_TRIM_HOLD 3
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #if E0470_WAVEFORM_TRIM
 #define E0470_GC16_FRAMES 36
 #define E0470_GL16_FRAMES 37
@@ -91,7 +91,7 @@ extern const EpdWaveform E0470_GRAY8_WAVEFORM;
 #define E0470_GL16_FRAMES 37
 #endif
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// S31驱动相周期下限12ms；实际仍按完整面板扫描时长。
 /// S31 minimum phase12ms; actual cadence includes the full physical scan.
 #define E0470_WAVEFORM_FRAME_US 12000
@@ -131,7 +131,7 @@ const EpdWaveformPhases* e0470_waveform_phases(const EpdWaveform* waveform, int 
 /// / 2-bit action for (from→to) at `phase`: 0 hold, 1 darken, 2 erase.
 int e0470_phase_action(const EpdWaveformPhases* phases, int phase, int to, int from);
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 给"白→白"等值迁移补一相擦白（不增加相数），全像素推屏时白底才会被重新驱动；
 /// 否则白底只靠电荷保持，强光照射后逐渐变灰。返回补入的相序号，-1 表示没找到白相。
 /// / Add one erase pulse to the unchanged-white transition without adding phases, so a

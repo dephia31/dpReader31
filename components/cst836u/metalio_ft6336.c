@@ -52,6 +52,12 @@ static void feed(void *arg) {
         bool was_down=h->sample.touched;
         if (err==ESP_OK) {
             if (t.touched && !was_down) { h->press=t; h->pending_press=true; }
+            if (!t.touched && was_down && h->sample.count == 1) {
+                // Giữ điểm di chuyển cuối cả khi giao diện đang bận quét màn hình.
+                t.x = h->sample.x;
+                t.y = h->sample.y;
+                t.release_position_valid = true;
+            }
             h->sample=t;
         }
         h->error=err;
@@ -62,6 +68,8 @@ static void feed(void *arg) {
             unsigned rx=((t.raw[3]&15)<<8)|t.raw[4], ry=((t.raw[5]&15)<<8)|t.raw[6];
             ESP_LOGI("metalio_touch","press raw=(%u,%u) screen=(%u,%u)",rx,ry,t.x,t.y);
         }
+        if (normal && err==ESP_OK && !t.touched && was_down)
+            ESP_LOGI("metalio_touch","release screen=(%u,%u)",t.x,t.y);
         // 原厂irq+feed：空闲等GPIO5下降沿，按住/INT低/读取失败才10ms续采。
         // Vendor irq+feed: wait for GPIO5 while idle; poll at 10ms for contact, low IRQ or read retry.
         bool retry=normal && (t.touched || err!=ESP_OK || !h->irq_ready ||

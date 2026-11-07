@@ -6,7 +6,7 @@ from pathlib import Path
 import os,re,struct,subprocess,tempfile,zlib
 from home_cover_cache_host_test import function
 r=Path(__file__).resolve().parents[1]
-board=os.environ.get("KIIKO_TEST_BOARD","pico")
+board=os.environ.get("DPREADER_TEST_BOARD","pico")
 assert board in ("pico","metalio47")
 c=r/'main/book/book_cover.c'
 u=r'''
@@ -154,7 +154,7 @@ int main(int argc,char **argv){
   assert(book_lock_bookmark_draw(fb,argv[5])&&!memcmp(fb,white,BYTES));
   budget=0;memcpy(fb,original,BYTES);assert(book_lock_bookmark_draw(fb,argv[5])&&!memcmp(fb,white,BYTES));
   budget=8u*1024u*1024u;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
   assert(!background_dependent);
 #endif
   printf("SAMPLE: near-opaque=%u background-dependent=%u; memory/stream/warm-cache pixels identical\n",near_opaque,background_dependent);
@@ -171,7 +171,7 @@ int main(int argc,char **argv){
  unsigned leaked=0;
  for(unsigned y=300;y<440;++y)for(unsigned x=400;x<600;++x)leaked+=pixel(fb,x,y)!=pixel(original,x,y);
  for(unsigned y=700;y<850;++y)for(unsigned x=400;x<600;++x)leaked+=pixel(fb,x,y)!=pixel(original,x,y);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  assert(!leaked);
 #else
  assert(leaked>0);
@@ -290,10 +290,10 @@ with tempfile.TemporaryDirectory() as d:
  near=b''.join(b'\0'+b''.join(bytes((255,255,255,0)) if x<16 and y<16 else bytes((96,96,96,252)) if y<16 else bytes((255,255,255,128)) if x<16 else bytes((192,192,192,250)) for x in range(32)) for y in range(32))
  (d/'near.png').write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',32,32,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(near))+chunk(b'IEND',b''))
  vendor=r/'managed_components/espressif__libpng/libpng'
- if not vendor.exists():vendor=Path(os.environ.get('KIIKO_LIBPNG_PATH','/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng'))
+ if not vendor.exists():vendor=Path(os.environ.get('DPREADER_LIBPNG_PATH','/private/tmp/kiikoread-rc90-lock-build-20261011/managed_components/espressif__libpng/libpng'))
  (d/'pnglibconf.h').write_bytes((vendor/'scripts/pnglibconf.h.prebuilt').read_bytes())
  names='png pngerror pngget pngmem pngpread pngread pngrio pngrtran pngrutil pngset pngtrans pngwrite pngwio pngwtran pngwutil'.split()
- subprocess.run(['cc','-std=gnu11','-O2','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-misleading-indentation','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47='+str(int(board=='metalio47')),'-DPNG_ARM_NEON_OPT=0','-DPNG_INTEL_SSE_OPT=0','-DCACHE_ROOT="'+str(d/'cache')+'"','-I'+str(d),'-I'+str(vendor),str(d/'test.c')]+[str(vendor/(n+'.c')) for n in names]+['-lz','-lm','-o',str(d/'test')],check=True)
+ subprocess.run(['cc','-std=gnu11','-O2','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-misleading-indentation','-fsanitize=address,undefined','-DDPREADER_BOARD_METALIO47='+str(int(board=='metalio47')),'-DPNG_ARM_NEON_OPT=0','-DPNG_INTEL_SSE_OPT=0','-DCACHE_ROOT="'+str(d/'cache')+'"','-I'+str(d),'-I'+str(vendor),str(d/'test.c')]+[str(vendor/(n+'.c')) for n in names]+['-lz','-lm','-o',str(d/'test')],check=True)
  args=[str(d/'test'),str(d),str(d/'fixture.png'),str(d/'white.png')]
  if os.environ.get('BOOKMARK_SAMPLE') and os.environ.get('BOOKMARK_BACKGROUND'):args += [os.environ['BOOKMARK_BACKGROUND'],os.environ['BOOKMARK_SAMPLE']]
  subprocess.run(args,check=True)

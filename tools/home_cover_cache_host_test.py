@@ -96,7 +96,7 @@ ready:
     unit += function('book_cover_crop', ROOT/'main/book/book_cover.c')+'\n'
     for name in ('book_at','clear_cover_cache'):
         unit += function(name, home)+'\n'
-    unit += '#if KIIKO_LOVE_BOOK\n'
+    unit += '#if DPREADER_LOVE_BOOK\n'
     for name in ('love_cover_drop','app_home_trim_cover_history','love_cover_bind','love_cover_restore','love_cover_make_room'):
         unit += function(name, home)+'\n'
     unit += '#endif\n'
@@ -104,7 +104,7 @@ ready:
         unit += function(name, home)+'\n'
     unit += r'''
 static void book(int slot,int id){home_book_t *b=book_at(slot);memset(b,0,sizeof(*b));if(id<0)return;snprintf(b->path,sizeof(b->path),"/book%d.epub",id);snprintf(b->title,sizeof(b->title),"title%d",id);strcpy(b->author,"author");}
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 int main(void){
     full_mode=true;
     for(int id=0;id<5;++id){book(0,id);restore_cover_cache();assert(!s_current.cover);assert(load_cover(&s_current,0));}
@@ -163,6 +163,6 @@ int main(void){
         c.write_text(unit)
         for edition in (0,1):
             subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
-                            f'-DKIIKO_LOVE_BOOK={edition}','-I'+str(ROOT/'main/ui'),'-I'+str(ROOT/'main/book'),
+                            f'-DDPREADER_LOVE_BOOK={edition}','-I'+str(ROOT/'main/ui'),'-I'+str(ROOT/'main/book'),
                             str(c),str(ROOT/'main/ui/ui_image_dither.c'),'-o',str(exe)],check=True)
             subprocess.run([str(exe)],check=True)

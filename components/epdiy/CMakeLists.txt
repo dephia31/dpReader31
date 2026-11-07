@@ -34,9 +34,9 @@ if(DEFINED IDF_VERSION_MAJOR AND IDF_VERSION_MAJOR GREATER_EQUAL 6)
     list(APPEND epdiy_private_requires esp_hal_dma esp_hal_rmt esp_hal_lcd esp_hal_i2s)
 endif()
 
-kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" ${app_sources})
+dpreader_board_sources(dpreader_selected_sources "${CMAKE_CURRENT_LIST_DIR}" ${app_sources})
 idf_component_register(
-    SRCS ${kiiko_selected_sources}
+    SRCS ${dpreader_selected_sources}
     INCLUDE_DIRS "src/" "include"
     REQUIRES ${epdiy_requires}
     PRIV_REQUIRES ${epdiy_private_requires}
@@ -46,9 +46,9 @@ idf_component_register(
 component_compile_options(-Wno-error=format= -Wno-format)
 option(METALIO_PIE_PIXELS "Experimental Core1 PIE pixels; local validation only" OFF)
 if(METALIO_PIE_PIXELS)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_S31_PIE_PIXELS=1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DPREADER_S31_PIE_PIXELS=1)
 endif()
 if(METALIO_LOCAL_LATENCY)
     target_sources(${COMPONENT_LIB} PRIVATE "src/pie_pixels_bench.c")
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE KIIKO_LOCAL_LATENCY=1)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DPREADER_LOCAL_LATENCY=1)
 endif()

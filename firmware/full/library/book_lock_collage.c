@@ -36,7 +36,7 @@
 #include "ui_kit.h"
 #include "settings.h"
 #include "nvs.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "metalio_cover_cache.h"
 #endif
 #ifdef ESP_PLATFORM
@@ -49,7 +49,7 @@
 #define LOCK_RESERVE (1024u * 1024u)
 #define LOCK_IMAGE_PIXELS (128u * 1024u)
 #define LOCK_FRAME_BYTES (684u * 1216u / 2u)
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #ifndef BOOK_LOCK_CACHE_PARENT
 #define BOOK_LOCK_CACHE_PARENT "/sdcard/.metalio_s31"
 #endif
@@ -262,7 +262,7 @@ static lock_library_t *library_load(void) {
     lock_library_t *library=lock_alloc(sizeof(*library));if(!library)return NULL;
     library->cache_complete=true;library->font_path=ttf_font_path();
     library->font_stat_valid=!stat(library->font_path,&library->font_stat);library->font_weight=ttf_get_weight();
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     (void)nvs_open("mt_shelf",NVS_READONLY,&library->hidden);
 #else
     (void)nvs_open("rp_shelf",NVS_READONLY,&library->hidden);
@@ -331,7 +331,7 @@ static void cover_dimensions_set(lock_book_t *book, const lock_cache_t *h) {
     book->width = h->width; book->height = h->height;
     book->source_w = h->source_w; book->source_h = h->source_h;
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static metalio_cover_key_t cover_ram_key(const lock_book_t *book) {
     return (metalio_cover_key_t){.field = {
         hash_text(UINT64_C(14695981039346656037), book->path), book->key,
@@ -358,7 +358,7 @@ static void cover_ram_store(const lock_book_t *book, const uint8_t *gray) {
 }
 #endif
 static bool cover_dimensions_read(lock_book_t *book) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (cover_ram_dimensions(book)) return true;
 #endif
     char path[112]; image_cache_path(book, path);
@@ -374,7 +374,7 @@ static bool cover_dimensions_read(lock_book_t *book) {
     return ok;
 }
 static uint8_t *cover_read(lock_book_t *book) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (cover_ram_dimensions(book)) {
         size_t bytes = (size_t)book->width * book->height;
         uint8_t *cached = lock_alloc(bytes);
@@ -397,7 +397,7 @@ static uint8_t *cover_read(lock_book_t *book) {
         }
         if (gray) {
             cover_dimensions_set(book, &header);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
             cover_ram_store(book, gray);
 #endif
         }
@@ -477,7 +477,7 @@ static uint8_t *cover_load_bounded(lock_book_t *book, bool *complete, size_t lim
             .key = book->key, .width = book->width, .height = book->height,
             .source_w = sw, .source_h = sh, .bytes = book->width * book->height};
         cache_write(path, header, gray);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         cover_ram_store(book, gray);
 #endif
     }

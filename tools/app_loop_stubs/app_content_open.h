@@ -13,7 +13,7 @@ bool app_book_resume_context(char *path, size_t capacity, bool *fullscreen);
 void app_book_cover_mode_changed(void);
 void app_home_cover_mode_changed(void);
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 bool app_book_volume_key(app_ctx_t *ctx, int direction, app_redraw_t *redraw);
 bool app_book_ai_bookmark(void);
 #endif

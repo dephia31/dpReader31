@@ -33,10 +33,10 @@ def select_source(text, board):
         active = lambda: all(value for kind, value in stack if kind == 'board')
         if directive:
             op, condition = directive.groups()
-            if op == 'if' and condition.strip() == 'KIIKO_BOARD_METALIO47 && !KIIKO_LOVE_BOOK':
+            if op == 'if' and condition.strip() == 'DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK':
                 # The S31 view has already selected the board. Keep the edition guard.
-                line = line.replace('KIIKO_BOARD_METALIO47 && !KIIKO_LOVE_BOOK', '!KIIKO_LOVE_BOOK', 1)
-            if op == 'if' and condition.strip() == 'KIIKO_BOARD_METALIO47':
+                line = line.replace('DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK', '!DPREADER_LOVE_BOOK', 1)
+            if op == 'if' and condition.strip() == 'DPREADER_BOARD_METALIO47':
                 stack.append(('board', board == 'metalio47'))
                 continue
             if op in ('if', 'ifdef', 'ifndef'):
@@ -68,7 +68,7 @@ def materialize(root, destination, board, tests=False):
             'main', 'components', 'boards', 'cmake', 'tools', 'docs'):
         raise ValueError('Do not generate build views inside maintained source directories')
     destination.mkdir(parents=True, exist_ok=True)
-    marker = destination / '.kiiko-source-view.json'
+    marker = destination / '.dpreader-source-view.json'
     previous = json.loads(marker.read_text()) if marker.exists() else {}
     if previous and (previous['source'] != str(root) or previous['board'] != board):
         raise ValueError('Use separate source views for different boards/source trees')

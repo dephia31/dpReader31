@@ -175,5 +175,5 @@ int main(void){
 with tempfile.TemporaryDirectory() as folder:
     c,b=Path(folder)/'test.c',Path(folder)/'test'
     c.write_text(unit)
-    subprocess.run(['cc','-std=gnu11','-DKIIKO_LOVE_BOOK=0','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(b)],check=True)
+    subprocess.run(['cc','-std=gnu11','-DDPREADER_LOVE_BOOK=0','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(c),'-o',str(b)],check=True)
     subprocess.run([str(b)],check=True)

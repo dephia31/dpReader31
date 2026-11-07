@@ -68,6 +68,8 @@ static reader_cached_images_t s_cached_images;
 static bool s_page_images_complete;
 static size_t s_page,s_chapter=3,s_image_count;
 static char **s_images;
+static html_link_t *s_links;
+static size_t s_link_count;
 // 缩放交互由reader_image_zoom_host_test单独覆盖；本套保持未缩放边界。
 // Zoom interaction has its own production-function suite; keep this cache/reflow suite unzoomed.
 #define READER_IMAGE_ZOOM_MIN 100
@@ -212,6 +214,8 @@ static size_t book_layout_page_for_offset(size_t off){return off>=4?1:0;}
 static void release_page_images(void);
 static void book_chapter_label_offer(const char *path,uint32_t chapter,const char *title){(void)path;(void)chapter;(void)title;}
 static void book_notes_bind(const char *path,uint32_t chapter,const char *text,size_t len){(void)path;(void)chapter;(void)text;(void)len;}
+static esp_err_t reader_footnote_load(const char *href,char **text,size_t *length){(void)href;(void)text;(void)length;return ESP_FAIL;}
+static void book_notes_bind_links(const html_link_t *links,size_t count,esp_err_t (*load)(const char*,char**,size_t*)){(void)links;(void)count;(void)load;}
 static size_t book_chapter_count(void){return 8;}
 static bool notes_chapter_title(size_t chapter,char *out,size_t cap){return book_chapter_title(chapter,out,cap)==ESP_OK;}
 static void book_notes_catalog(size_t count,bool (*title)(size_t,char*,size_t)){assert(count==8&&title);}

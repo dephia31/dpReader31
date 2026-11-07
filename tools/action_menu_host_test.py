@@ -139,7 +139,7 @@ int main(void){app_ctx_t c={0};
 }
 '''
 bindings=common+r"""
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define APP_CONTROL_HOLD_DEFAULT 255
 #define UI_KEY_1 1
 #define UI_KEY_2 2

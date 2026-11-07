@@ -107,5 +107,5 @@ with tempfile.TemporaryDirectory() as temp:
     for name in ['esp_heap_caps.h','esp_log.h','sdkconfig.h']:(path/name).write_text('#include "shim.h"\n')
     (path/'test.c').write_text(unit)
     binary=path/'test'
-    subprocess.run(['cc','-std=c11','-DESP_PLATFORM=1','-DKIIKO_BOARD_METALIO47=1','-Wall','-Wextra','-Werror','-fsanitize=undefined','-I'+str(path),'-I'+str(ROOT/'components/metalio_hw/include'),str(path/'test.c'),str(ROOT/'components/metalio_hw/metalio_task.c'),'-o',str(binary)],check=True)
+    subprocess.run(['cc','-std=c11','-DESP_PLATFORM=1','-DDPREADER_BOARD_METALIO47=1','-Wall','-Wextra','-Werror','-fsanitize=undefined','-I'+str(path),'-I'+str(ROOT/'components/metalio_hw/include'),str(path/'test.c'),str(ROOT/'components/metalio_hw/metalio_task.c'),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

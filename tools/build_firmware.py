@@ -230,7 +230,7 @@ def export(build, output, board, edition="full"):
     command.extend(['write-flash', '@flash_args'])
     (output / 'flash-command.txt').write_text(shlex.join(command) + '\n')
     # FreeType's binary-distribution acknowledgement travels with every bundle.
-    ft_license = ROOT / 'components/kiiko_freetype/vendor/docs/FTL.TXT'
+    ft_license = ROOT / 'components/dpreader_freetype/vendor/docs/FTL.TXT'
     if ft_license.is_file():
         shutil.copyfile(ft_license, output / 'FREETYPE_LICENSE.txt')
         (output / 'FREETYPE_NOTICE.txt').write_text(
@@ -308,7 +308,7 @@ def export_test_bundle(source, destination):
 def build_one(board, args):
     info = metadata(board, args.edition)
     sdk_argument = getattr(args, 'idf_' + board)
-    sdk = Path(sdk_argument or os.environ.get('KIIKO_IDF_' + board.upper(), '') or os.environ.get('IDF_PATH', '')).resolve()
+    sdk = Path(sdk_argument or os.environ.get('DPREADER_IDF_' + board.upper(), '') or os.environ.get('IDF_PATH', '')).resolve()
     if not (sdk / 'tools/idf.py').is_file() or not (sdk / 'components/soc' / info['idf_target']).is_dir():
         raise ValueError(f"{board} requires an ESP-IDF SDK supporting {info['idf_target']}: {sdk}")
     work = args.output.resolve() / board
@@ -316,7 +316,7 @@ def build_one(board, args):
     # 虚拟环境解释器常为符号链接；保留入口路径，不能解析成系统Python。
     # Venv executables are often symlinks; retain that entry path instead of resolving to system Python.
     python = args.python.absolute()
-    version_marker = work / '.kiiko-built-version'
+    version_marker = work / '.dpreader-built-version'
     reconfigure_needed = not (build / 'build.ninja').exists() or not version_marker.exists() or version_marker.read_text().strip() != info['version']
     if reconfigure_needed:
         for obj in build.glob('**/esp_app_desc.c.obj'):
@@ -328,8 +328,8 @@ def build_one(board, args):
             if f.exists():
                 f.unlink()
     command = [str(python), str(sdk / 'tools/idf.py'), '-B', str(build),
-               '-DIDF_TARGET=' + info['idf_target'], '-DKIIKO_BOARD=' + board,
-               '-DKIIKO_EDITION=' + args.edition,
+               '-DIDF_TARGET=' + info['idf_target'], '-DDPREADER_BOARD=' + board,
+               '-DDPREADER_EDITION=' + args.edition,
                '-DSDKCONFIG=' + str(work / 'sdkconfig'),
                '-DSDKCONFIG_DEFAULTS=' + str(source / 'boards' / board / info['sdkconfig']),
                '-DCCACHE_ENABLE=OFF', '-DMETALIO_LOCAL_LATENCY=OFF',
@@ -376,11 +376,11 @@ def build_one(board, args):
     if cache:
         shutil.copytree(cache, source / 'managed_components', dirs_exist_ok=True)
     env = dict(os.environ)
-    env.update(IDF_PATH=str(sdk), IDF_TARGET=info['idf_target'], KIIKO_BOARD=board,
-               KIIKO_PROJECT_VER=info['version'], IDF_PYTHON_ENV_PATH=str(python.parent.parent),
+    env.update(IDF_PATH=str(sdk), IDF_TARGET=info['idf_target'], DPREADER_BOARD=board,
+               DPREADER_PROJECT_VER=info['version'], IDF_PYTHON_ENV_PATH=str(python.parent.parent),
                IDF_PYTHON_CHECK_CONSTRAINTS='no', IDF_SKIP_CHECK_SUBMODULES='1',
                IDF_CCACHE_ENABLE='0', IDF_VER='v6.1', ESP_IDF_VERSION='6.1.0')
-    for key in ('PICO_PROJECT_VER', 'METALIO_PROJECT_VER', 'KIIKO_LOCAL_LATENCY', 'METALIO_LOCAL_LATENCY'):
+    for key in ('PICO_PROJECT_VER', 'METALIO_PROJECT_VER', 'DPREADER_LOCAL_LATENCY', 'METALIO_LOCAL_LATENCY'):
         env.pop(key, None)
     extra = [str(python.parent)]
     if args.tools:
@@ -399,7 +399,7 @@ def build_one(board, args):
     if 'RC' in info['version'] and not getattr(args, 'no_test_export', False):
         destination = ROOT / 'Test Build' / info['version']
         export_test_bundle(args.output.resolve() / 'packages' / board, destination)
-    (work / '.kiiko-built-version').write_text(info['version'] + '\n')
+    (work / '.dpreader-built-version').write_text(info['version'] + '\n')
     print(json.dumps(result, ensure_ascii=False))
     return result
 

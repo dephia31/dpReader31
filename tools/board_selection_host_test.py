@@ -27,13 +27,13 @@ def reject(call):
 
 def source_and_cmake_tests():
     nested = '''#if OTHER
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 s31
 #else
 s3
 #endif
 #endif
-// #if KIIKO_BOARD_METALIO47
+// #if DPREADER_BOARD_METALIO47
 const char *s = "#endif";
 '''
     assert 's31\n' in select_source(nested, 'metalio47')
@@ -42,7 +42,7 @@ const char *s = "#endif";
         assert '#if OTHER' in select_source(nested, 'pico')
     reject(lambda: select_source(nested, 'unknown'))
     if 'pico' in BOARDS:
-        reject(lambda: select_source('#if KIIKO_BOARD_METALIO47\n', 'pico'))
+        reject(lambda: select_source('#if DPREADER_BOARD_METALIO47\n', 'pico'))
     with tempfile.TemporaryDirectory(prefix='kiiko-board-test-') as directory:
         temp = Path(directory)
         cc = shutil.which('cc')
@@ -51,23 +51,23 @@ const char *s = "#endif";
             info = metadata(board)
             # Real C header must agree with packaging metadata for each compiler flag.
             source = temp / 'identity.c'
-            source.write_text('#include <stdio.h>\n#include "kiiko_board_config.h"\n'
-                              'int main(void){printf("%s|%s|%u|%s", KIIKO_BOARD_ID,'
-                              'KIIKO_BOARD_PROJECT,KIIKO_BOARD_IMAGE_CHIP_ID,'
-                              'KIIKO_BOARD_SETTINGS_NAMESPACE);}\n')
+            source.write_text('#include <stdio.h>\n#include "dpreader_board_config.h"\n'
+                              'int main(void){printf("%s|%s|%u|%s", DPREADER_BOARD_ID,'
+                              'DPREADER_BOARD_PROJECT,DPREADER_BOARD_IMAGE_CHIP_ID,'
+                              'DPREADER_BOARD_SETTINGS_NAMESPACE);}\n')
             binary = temp / board
             subprocess.run([cc, '-I', str(ROOT / 'main'),
-                            '-DKIIKO_BOARD_METALIO47=' + str(int(board == 'metalio47')),
+                            '-DDPREADER_BOARD_METALIO47=' + str(int(board == 'metalio47')),
                             str(source), '-o', str(binary)], check=True)
             assert subprocess.check_output([str(binary)], text=True) == '|'.join(map(str,
                 [board, info['project'], info['image_chip_id'], info['settings_namespace']]))
             # IDF requirement discovery includes helpers in separate component scopes.
             script = temp / 'board.cmake'
-            script.write_text(f'''set(KIIKO_BOARD "{board}")
+            script.write_text(f'''set(DPREADER_BOARD "{board}")
 function(component_scope component source)
   include("{ROOT}/cmake/board.cmake")
-  kiiko_board_sources(chosen "{ROOT}/${{component}}" "${{source}}")
-  if(NOT KIIKO_SOURCE_ROOT OR NOT chosen)
+  dpreader_board_sources(chosen "{ROOT}/${{component}}" "${{source}}")
+  if(NOT DPREADER_SOURCE_ROOT OR NOT chosen)
     message(FATAL_ERROR "Board scope lost")
   endif()
   if(component STREQUAL "main" AND NOT chosen MATCHES "/boards/{board}/src/main/app_main.c$")
@@ -83,12 +83,12 @@ component_scope("main" "app_main.c")
             if len(BOARDS) >= 2:
                 wrong_target = metadata('metalio47' if board == 'pico' else 'pico')['idf_target']
                 result = subprocess.run(['cmake', '-S', str(ROOT), '-B', str(temp / (board + '-wrong-target')),
-                                         '-DKIIKO_BOARD=' + board, '-DIDF_TARGET=' + wrong_target],
+                                         '-DDPREADER_BOARD=' + board, '-DIDF_TARGET=' + wrong_target],
                                         capture_output=True, text=True)
                 assert result.returncode and f"{board} requires {info['idf_target']}" in result.stderr
-        script.write_text(f'set(KIIKO_BOARD invalid)\ninclude("{ROOT}/cmake/board.cmake")\n')
+        script.write_text(f'set(DPREADER_BOARD invalid)\ninclude("{ROOT}/cmake/board.cmake")\n')
         result = subprocess.run(['cmake', '-P', str(script)], capture_output=True, text=True)
-        assert result.returncode and ('Unknown KIIKO_BOARD' in result.stderr or 'isolated exclusively for' in result.stderr)
+        assert result.returncode and ('Unknown DPREADER_BOARD' in result.stderr or 'isolated exclusively for' in result.stderr)
 
 
 def source_view_tests():
@@ -100,7 +100,7 @@ def source_view_tests():
             preset.mkdir(parents=True)
             (preset / 'dependencies.lock').write_text(board)
         source = root / 'main' / 'example.c'
-        original = '#if KIIKO_BOARD_METALIO47\nint s31;\n#else\nint s3;\n#endif\n'
+        original = '#if DPREADER_BOARD_METALIO47\nint s31;\n#else\nint s3;\n#endif\n'
         source.write_text(original)
         # Use the first available board from BOARDS.
         test_board = BOARDS[0]
@@ -188,7 +188,7 @@ def real_build_tests(work):
         assert has_metalio == (board == 'metalio47')
         for entry in commands:
             if '/main/apps/app_book.c' in entry['file']:
-                assert f'-DKIIKO_BOARD_METALIO47={int(board == "metalio47")}' in entry['command']
+                assert f'-DDPREADER_BOARD_METALIO47={int(board == "metalio47")}' in entry['command']
         with tempfile.TemporaryDirectory(prefix='kiiko-package-test-') as directory:
             package = Path(directory) / board
             result = export(build, package, board)

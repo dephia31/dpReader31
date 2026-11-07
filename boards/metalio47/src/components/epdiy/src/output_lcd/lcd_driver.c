@@ -248,7 +248,7 @@ static IRAM_ATTR void lcd_finish_frame_from_isr(void) {
 void epd_lcd_abort_frame(void) {
     lcd_finish_frame_from_isr();
 }
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
 bool epd_lcd_frame_active(void) { return !lcd.frame_finishing&&lcd.frame_t0_us>0; }
 void epd_lcd_dump_dma(void) {
     ESP_LOGE(TAG,"DMA_DIAG eof=%u fed=%u lines=%d work_max=%lld dt_max=%lld frame_us=%lld finishing=%d",

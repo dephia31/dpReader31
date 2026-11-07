@@ -46,6 +46,7 @@ static bool check_clean_action;
 static unsigned clean_action_fulls;
 typedef struct { int x, y, count, error; } sample_t;
 static sample_t samples[32];
+static int release_position_step=-1;
 static int sample_count, step, ticks, enters, exits, touch_calls, keys[3], events[16];
 static int menus, highlights, restores, fulls, mode, tick_consumed[32];
 static int long_keys;
@@ -234,7 +235,7 @@ bool ui_click_feedback_cancel_at(int x,int y) {return x>120||y!=1141;}
 int cst836u_read(void* h, cst836u_touch_t* t) {
     (void)h;
     sample_t s = samples[step];
-    *t = (cst836u_touch_t){ .touched=s.count>0, .count=s.count, .x=s.x, .y=s.y };
+    *t = (cst836u_touch_t){ .touched=s.count>0, .count=s.count, .x=s.x, .y=s.y, .release_position_valid=step==release_position_step };
     t->points[0].active=s.count>0;
     return s.error;
 }
@@ -375,6 +376,7 @@ static void reset(void) {
     home_enters=home_renders=0;rendered_leaf=-1;last_menu_leaf=-1;menu_background=NULL;
     full_tick=lock_due=font_due=shake_activity=false;time_offset=0;time_step=10000;du_areas=gl_areas=0;
     memset(samples,0,sizeof(samples));memset(keys,0,sizeof(keys));memset(events,0,sizeof(events));memset(tick_consumed,0,sizeof(tick_consumed));
+    release_position_step=-1;
     sample_count=step=ticks=enters=exits=touch_calls=menus=highlights=restores=fulls=mode=0;
     request_on_touch=request_on_tick=menu_on_tick=menu_on_touch=cancel_clobber=false;response=APP_REDRAW_NONE;
     first=(app_desc_t){.title="first",.render=render,.on_enter=enter,.on_exit=leave,.on_touch=touch,.on_tick=tick,.on_key=key};
@@ -478,6 +480,10 @@ int main(void) {
     reset();response=APP_REDRAW_AREA;add(100,400,1,0);run();assert(touch_calls==1&&tick_consumed[0]);
     reset();first.on_gesture=gesture;response=APP_REDRAW_AREA;add(100,400,1,0);add(0,0,0,0);run();
     assert(!touch_calls&&events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_TAP]==1&&tick_consumed[0]);
+    // The touch feed kept the last coordinate while the display blocked intermediate UI reads.
+    reset();first.on_gesture=gesture;release_position_step=1;
+    add(342,1160,1,0);add(342,1070,0,0);run();
+    assert(events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_SWIPE_U]==1&&!events[UI_GESTURE_TAP]);
     reset();first.on_gesture=gesture;add(100,400,1,0);add(0,0,0,9);add(100,400,1,0);add(0,0,0,0);run();
     assert(events[UI_GESTURE_PRESS]==1&&events[UI_GESTURE_CANCEL]==1&&!events[UI_GESTURE_TAP]);
     reset();request_on_touch=true;menu_on_touch=true;add(100,400,1,0);run();assert(enters==2&&exits==1&&ticks==0&&!menus);
@@ -953,6 +959,8 @@ int main(void) {
 /* 中文：硬件 BLE 与联网任务替身。/ English: Hardware BLE and online worker shims. */
 void ble_pt_sync(bool enabled) { (void)enabled; }
 void ble_pt_poll(void) {}
+bool ble_pt_running(void) { return false; }
+bool ble_pt_stop_failed(void) { return false; }
 bool pico_online_busy(void) { return online_busy; }
 
 uint8_t app_settings_auto_lock_minutes(void){return idle_minutes;}

@@ -12,7 +12,7 @@ root = Path(__file__).resolve().parents[1]
 if 'display_reader_panel37_waveform(void)' not in (root / 'main/display_main_waveform.c').read_text():
     print('SKIP: this board does not use the S31 GL37 panel experiment')
     raise SystemExit(0)
-oracle = os.environ.get('KIIKO_METALIO_OFFICIAL_TRIM')
+oracle = os.environ.get('DPREADER_METALIO_OFFICIAL_TRIM')
 unit = r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -47,7 +47,7 @@ int main(int argc,char **argv){
     memcpy(live_gl,gl->luts,sizeof(live_gl));memcpy(live_gc,gc->luts,sizeof(live_gc));
     memcpy(live_du,du->luts,sizeof(live_du));
     const EpdWaveform *wave=display_reader_panel37_waveform();
-#if KIIKO_S31_READER_PANEL37
+#if DPREADER_S31_READER_PANEL37
     if(oom){
         assert(!wave&&allocations==1);
         for(int n=0;n<10;++n)assert(!display_reader_panel37_waveform());
@@ -114,7 +114,7 @@ with tempfile.TemporaryDirectory(prefix='s31-panel37-') as temporary:
         sources += [str(vendor / 'my_waveform_trim.c')]
     for enabled in (1, 0):
         exe = folder / ('panel37-' + str(enabled))
-        subprocess.run(flags + ['-DKIIKO_S31_READER_PANEL37=' + str(enabled), *sources, '-o', str(exe)],
+        subprocess.run(flags + ['-DDPREADER_S31_READER_PANEL37=' + str(enabled), *sources, '-o', str(exe)],
                        cwd=root, check=True)
         dump = folder / 'panel37.lut'
         for fail in (0, 1):

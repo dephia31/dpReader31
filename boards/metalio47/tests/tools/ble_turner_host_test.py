@@ -86,11 +86,13 @@ static void *bond_find(const char *addr){assert(addr);return NULL;}
 static atomic_flag s_lifecycle=ATOMIC_FLAG_INIT;
 static atomic_uint s_network_users;
 static atomic_bool s_sleep_suspended;
-static char s_sleep_peer[18],s_conn_addr[18],s_reconnect_addr[18];
+static char s_sleep_peer[18],s_conn_addr[18],s_reconnect_addr[18],s_pending_addr[18];
 static atomic_bool s_running;
 static atomic_bool s_host_ready,s_host_exited=true,s_stop_active,s_stop_done,s_recent_requested;
-static int s_stop_result;static bool s_stop_timeout_logged,s_network_peer_pending;
-static uint32_t s_stop_budget_ms=2000,s_reconnect_at;static int64_t s_host_started_ms;
+enum { STEP_IDLE };
+static int s_step;
+static atomic_int s_stop_result;static bool s_stop_timeout_logged,s_network_peer_pending;
+static uint32_t s_stop_budget_ms=2000,s_reconnect_at,s_scan_cancel_ms;static int64_t s_host_started_ms;
 static unsigned s_reconnect_failures,s_bond_count;static char s_network_peer[18];
 static bool metalio_radio_reserved(void){return atomic_load(&s_network_users)||atomic_load(&s_sleep_suspended);}
 

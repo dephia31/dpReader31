@@ -64,7 +64,7 @@ static uint32_t local_day(void) {
 static void stats_load(ticket_stats_t *out) {
     memset(out, 0, sizeof(*out));
     nvs_handle_t h;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (nvs_open("mt_ticket", NVS_READONLY, &h) != ESP_OK) return;
 #else
     if (nvs_open("rp_ticket", NVS_READONLY, &h) != ESP_OK) return;
@@ -84,7 +84,7 @@ esp_err_t book_ticket_record(uint32_t seconds, uint32_t turns) {
     stats.total_turns += turns;
     if (day) { stats.today_seconds += seconds; stats.today_turns += turns; }
     nvs_handle_t h;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     esp_err_t err = nvs_open("mt_ticket", NVS_READWRITE, &h);
 #else
     esp_err_t err = nvs_open("rp_ticket", NVS_READWRITE, &h);
@@ -122,7 +122,7 @@ bool book_ticket_recent_days(uint32_t seconds[30]) {
     uint32_t today = local_day();
     if (!today) return false;
     nvs_handle_t h;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (nvs_open("mt_ticket", NVS_READONLY, &h) != ESP_OK) return true;
 #else
     if (nvs_open("rp_ticket", NVS_READONLY, &h) != ESP_OK) return true;
@@ -148,7 +148,7 @@ bool book_ticket_month_days(int year, int month, uint32_t seconds[31]) {
     struct tm date = {0}; gmtime_r(&timestamp, &date);
     if (date.tm_year+1900 != year || date.tm_mon+1 != month) return false;
     nvs_handle_t h;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (nvs_open("mt_ticket", NVS_READONLY, &h) != ESP_OK) return true;
 #else
     if (nvs_open("rp_ticket", NVS_READONLY, &h) != ESP_OK) return true;

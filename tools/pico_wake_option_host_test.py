@@ -28,7 +28,7 @@ for name in ('app_settings_wake_presses','app_settings_set_wake_presses'):
     unit+=function(name,settings)+'\n'
 unit+=r'''
 #include "ui_nav_layout.h"
-#define KIIKO_BOARD_METALIO47 0
+#define DPREADER_BOARD_METALIO47 0
 typedef struct {int x,y,width,height;}EpdRect;
 enum {SETTINGS_MAIN,SETTINGS_POWER_SLEEP,SETTINGS_AUTO_LOCK,SETTINGS_SYSTEM_FONT,
  SETTINGS_SYSTEM_CONTRAST,SETTINGS_MAIN_REFRESH,SETTINGS_FRONTLIGHT,APP_REDRAW_PAGE,APP_REDRAW_NONE};

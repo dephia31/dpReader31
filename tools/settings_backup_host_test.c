@@ -769,7 +769,7 @@ int main(void) {
     loaded_full_pages=s_reader_full_pages;test_full_storage=true;
     const uint8_t periods[]={0,5,10,15,20,30};
     for(unsigned i=0;i<sizeof(periods);++i){
-#if !KIIKO_BOARD_METALIO47
+#if !DPREADER_BOARD_METALIO47
         if(periods[i]==20)continue;
 #endif
         app_settings_set_reader_full_pages(periods[i]);assert(loaded_full_pages==periods[i]);
@@ -778,7 +778,7 @@ int main(void) {
         assert(app_settings_backup_restore()==ESP_OK&&s_reader_full_pages==periods[i]);
     }
     uint8_t prior=s_reader_full_pages;app_settings_set_reader_full_pages(25);assert(s_reader_full_pages==prior);
-#if !KIIKO_BOARD_METALIO47
+#if !DPREADER_BOARD_METALIO47
     app_settings_set_reader_full_pages(20);assert(s_reader_full_pages==prior);
 #endif
     puts("settings backup host test passed (200% sizes, retired shelf migration, collage persistence/restore without wallpaper)");

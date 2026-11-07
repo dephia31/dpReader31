@@ -40,7 +40,7 @@ int main(void){
  e0470_waveform_init();
  for(unsigned i=0;i<B;++i)back[i]=saved[i]=(uint8_t)(i*29+3);
  const EpdWaveform *panel=display_reader_panel_gray4_waveform(false);
-#if KIIKO_S31_FAST_READER_PANELS
+#if DPREADER_S31_FAST_READER_PANELS
  assert(display_reader_fast_panels_enabled()&&panel&&panel!=metalio_text_ripple_waveform());
  const EpdWaveform *entry=display_reader_panel_gray4_waveform(true);
  assert(entry&&entry!=panel);
@@ -102,7 +102,7 @@ int main(void){
  assert(!display_reader_panel_gray4_prepare(front,(EpdRect){0,0,0,40}));
  assert(!display_reader_panel_gray4_prepare(front,(EpdRect){INT32_MAX,INT32_MAX,INT32_MAX,INT32_MAX}));
  assert(tone(13)==10&&tone(14)==10&&tone(15)==15);
-#if KIIKO_S31_FAST_READER_PANELS
+#if DPREADER_S31_FAST_READER_PANELS
  metalio_text_ripple_disable();assert(display_reader_panel_gray4_waveform(false)==panel&&display_reader_panel_gray4_waveform(true)==entry);
 #endif
  puts("PASS: real panel4-tone quantizer,192rotation/crop cases,near-white fills retained,body/history isolation,idempotence,text FastBW unchanged;128old/target pairs:unchanged16 feedback,26 entry uniformly resets all midgray targets including5-to5/10-to10/white-origin with18 native white pushes;three final holds/equal-white hold/defaultOFF;body fault independent");
@@ -112,7 +112,7 @@ with tempfile.TemporaryDirectory(prefix='reader-four-gray-') as temporary:
     folder=Path(temporary);test=folder/'test.c';test.write_text(unit)
     (folder/'esp_log.h').write_text('#define ESP_LOGI(...) ((void)0)\n')
     flags=['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
-           '-DKIIKO_S31_TEXT_RIPPLE=1','-I'+str(folder),'-Imain','-Itools/waveform_host_stubs',
+           '-DDPREADER_S31_TEXT_RIPPLE=1','-I'+str(folder),'-Imain','-Itools/waveform_host_stubs',
            '-Icomponents/epdiy/include','-Icomponents/epdiy/src','-Icomponents/e0470_epaper_waveform/include',
            '-Icomponents/e0470_epaper_waveform/metalio']
     sources=[str(test),'main/display_reader_waveform.c','main/metalio_text_ripple.c',
@@ -120,5 +120,5 @@ with tempfile.TemporaryDirectory(prefix='reader-four-gray-') as temporary:
              'components/e0470_epaper_waveform/e0470_waveform_trim.c']
     for enabled in (0,1):
         exe=folder/('panel-'+str(enabled))
-        subprocess.run(flags+['-DKIIKO_S31_FAST_READER_PANELS='+str(enabled),*sources,'-o',str(exe)],cwd=root,check=True)
+        subprocess.run(flags+['-DDPREADER_S31_FAST_READER_PANELS='+str(enabled),*sources,'-o',str(exe)],cwd=root,check=True)
         subprocess.run([str(exe)],check=True)

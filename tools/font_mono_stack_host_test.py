@@ -8,7 +8,7 @@ with tempfile.TemporaryDirectory() as directory:
  base=Path(directory);results={}
  for pool in (16384,2048):
   work=base/str(pool);work.mkdir();(work/'test.c').write_text(UNIT)
-  flags=[*FLAGS,f'-DKIIKO_MONO_RENDER_POOL_SIZE={pool}']
+  flags=[*FLAGS,f'-DDPREADER_MONO_RENDER_POOL_SIZE={pool}']
   subprocess.run(['cc',*flags,'-fstack-usage','-c',str(COMP/'vendor/src/raster/raster.c'),'-o',str(work/'raster.o')],cwd=work,check=True)
   subprocess.run(['cc',*flags,str(work/'test.c'),str(ROOT/'main/font/ttf_mono.c'),*[str(COMP/'vendor/src'/s) for s in SOURCES if s!='raster/raster.c'],str(work/'raster.o'),'-lm','-o',str(work/'test')],cwd=work,check=True)
   out=subprocess.check_output([str(work/'test'),str(font)],text=True)

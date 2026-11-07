@@ -22,7 +22,7 @@ static void *heap_caps_malloc(size_t n,int caps){(void)caps;return malloc(n);}
 static int book_sync_export(const char*p,uint16_t ch,uint32_t off,char*buf,size_t cap,double*r,bool*exact){(void)p;(void)ch;(void)off;(void)buf;(void)cap;(void)exact;*r=.123456;return 0;}
 #define CPU_STATE_RAM
 #define BOOK_STORE_PATH_MAX 288
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define portMUX_INITIALIZER_UNLOCKED 0
 #define ESP_OK 0
 #define ESP_ERR_INVALID_STATE 1

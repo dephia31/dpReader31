@@ -8,19 +8,19 @@
 #if defined(CONFIG_IDF_TARGET_ESP32S31)
 #include "esp_cpu.h"
 #include "pie_pixels.h"
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
 static bool s_pie_enabled;
 void epd_pie_pixels_enable(bool enabled) { __atomic_store_n(&s_pie_enabled,enabled,__ATOMIC_RELAXED); }
 bool epd_pie_pixels_enabled(void) { return __atomic_load_n(&s_pie_enabled,__ATOMIC_RELAXED); }
 #else
-#ifdef KIIKO_S31_PIE_PIXELS
+#ifdef DPREADER_S31_PIE_PIXELS
 static const bool s_pie_enabled=true;
 #else
 static const bool s_pie_enabled=false;
 #endif
 #endif
 static inline bool pie_core1(void) {
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
     return epd_pie_pixels_enabled()&&esp_cpu_get_core_id()==1;
 #else
     return s_pie_enabled&&esp_cpu_get_core_id()==1;

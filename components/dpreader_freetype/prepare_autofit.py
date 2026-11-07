@@ -12,7 +12,7 @@ def generate(destination):
   if count!=1:raise RuntimeError('Upstream autofit header changed: '+name)
  text='/* Generated project adaptation: smaller inline scratch; original allocation fallback retained. */\n'+text
  destination=Path(destination);destination.mkdir(parents=True,exist_ok=True)
- target=destination/'kiiko_afhints.h'
+ target=destination/'dpreader_afhints.h'
  if not target.exists() or target.read_text()!=text:target.write_text(text)
  return destination
 if __name__=='__main__':generate(sys.argv[1])

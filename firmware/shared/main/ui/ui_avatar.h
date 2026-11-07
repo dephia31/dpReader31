@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 static inline void ui_avatar_invalidate(void) {}
 static inline bool ui_avatar_quiesce(unsigned timeout_ms) { (void)timeout_ms; return true; }
 #else

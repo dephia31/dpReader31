@@ -63,8 +63,10 @@ build/book-tests/transfer
 gcc "${flags[@]}" -Imanaged_components/espressif__cjson/cJSON tools/transfer_wifi_host_test.c managed_components/espressif__cjson/cJSON/cJSON.c -lm -o build/book-tests/transfer-wifi
 build/book-tests/transfer-wifi
 python3 tools/test_transfer_wifi_forget.py
-gcc "${flags[@]}" -Itools/transfer_ui_stubs -Icomponents/read_pico_transfer/include -Icomponents/read_pico_search/include -Imain/ui \
-    tools/transfer_ui_host_test.c main/ui/ui_text_edit.c main/ui/ui_text_input.c main/ui/ui_keyboard.c main/ui/ui_ime.c components/read_pico_search/read_pico_search.c -o build/book-tests/transfer-ui
+gcc "${flags[@]}" -DDPREADER_BOARD_METALIO47=1 -Itools/transfer_ui_stubs -Icomponents/read_pico_transfer/include -Icomponents/read_pico_search/include -Imain/ui \
+    -Imanaged_components/espressif__cjson/cJSON tools/transfer_ui_host_test.c main/ui/ui_text_edit.c main/ui/ui_text_input.c \
+    main/ui/ui_keyboard.c main/ui/ui_ime.c components/read_pico_search/read_pico_search.c \
+    managed_components/espressif__cjson/cJSON/cJSON.c -lm -o build/book-tests/transfer-ui
 python3 tools/test_usb_storage.py
 build/book-tests/transfer-ui
 bash tools/run_app_loop_host_tests.sh

@@ -1,5 +1,5 @@
-#if defined(KIIKO_LOCAL_LATENCY) || KIIKO_BOARD_METALIO47
-#if KIIKO_BOARD_METALIO47
+#if defined(DPREADER_LOCAL_LATENCY) || DPREADER_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "metalio_hw.h"
 #endif
 #include "esp_timer.h"
@@ -8,6 +8,7 @@
 /*
  * SPDX-FileCopyrightText: 2026 mindreset
  * User revision 2026-11-04: Home downward swipes open Quick Settings in all three modes; simple Home upward swipes open the pop menu, including contacts on Continue Reading. Root taps commit on release without a pressed-state display wait.
+ * User revision: on Love Book Home, leftward swipes including diagonals open Pop menu.
  * User revision 2026-11-04: an upward swipe on simple Home opens Open Book / File Transfer / OPDS; taps outside or a downward swipe dismiss the menu.
  * User revision 2026-11-02: optional simple UI uses Home/Settings and a bounded book-file picker, bypassing the shelf and recent-cover work.
  * SPDX-License-Identifier: Apache-2.0
@@ -48,7 +49,7 @@
 #include "boot_state.h"
 #include "app_registry.h"
 #include "book_cover.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "metalio_cover_cache.h"
 #else
 #endif
@@ -106,7 +107,7 @@ typedef struct {
     uint16_t width,height;
 } home_cover_cache_t;
 static EXT_RAM_BSS_ATTR home_cover_cache_t s_cover_cache[7];
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 #define LOVE_COVER_SLOTS 4
 #define LOVE_COVER_RESERVE (2u * 1024u * 1024u)
 #endif
@@ -152,7 +153,7 @@ static bool s_folder_fast;
 static uint32_t s_folder_key;
 static char s_excerpt[BOOK_EXCERPT_CAP];
 static bool s_excerpt_is_chapter;
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
 static EXT_RAM_BSS_ATTR uint8_t s_avatar[60*60];
 static bool s_avatar_ready,s_avatar_pending;
 static char s_avatar_path[288];
@@ -176,7 +177,7 @@ static bool s_home_force_full_once;
 static uint32_t s_cached_progress_revision=UINT32_MAX;
 static uint8_t *s_clock_base_cache;
 static bool s_clock_base_attempted;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static int64_t s_component_warm_after_ms;
 #endif
 void app_home_release_clock_cache(void) {
@@ -335,7 +336,7 @@ static void clear_cover_cache(void) {
     for (int i = 0; i < 6; ++i) s_recent[i].cover = NULL;
 }
 
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 static void love_cover_drop(home_cover_cache_t *cover) {
     free(cover->pixels);
     memset(cover, 0, sizeof(*cover));
@@ -395,7 +396,7 @@ void app_home_cover_mode_changed(void) {
     s_cover_next = 0;
 }
 static void restore_cover_cache(void) {
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     love_cover_restore();
     app_home_trim_cover_history();
 #else
@@ -460,7 +461,7 @@ static bool load_cover(home_book_t *item,int slot) {
     }
     book_cover_result_t result={0};int state=book_cover_jobs_take(s_cover_generation,slot,&result);
     if(!state){s_cover_waiting=true;return false;}if(state<0)return false;
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
     love_cover_make_room();
 #endif
     home_cover_cache_t *cached=&s_cover_cache[slot];free(cached->pixels);
@@ -563,13 +564,13 @@ static EpdRect component_clock_bounds(void){return s_view==HOME_COMPONENT?(EpdRe
 static EpdRect component_clock_graphics(void){return s_view==HOME_COMPONENT?component_clock_bounds():(EpdRect){24,640,320,326};}
 static bool visible_motion_clock(void){
     return(s_view==HOME_TIME&&ui_home_clock_has_motion(clock_style(app_settings_home_component())))
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         ;
 #else
         ||(s_view==HOME_COMPONENT&&ui_home_clock_has_motion(clock_style(s_component_browse)));
 #endif
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static void component_prepare_neighbor(app_ctx_t *ctx) {
     if(s_view!=HOME_COMPONENT||s_component_pending||!s_clock_base_cache||ctx->consumed||
        (ctx->touch&&ctx->touch->touched)||ctx->now_ms<s_component_warm_after_ms)return;
@@ -752,7 +753,7 @@ static bool prepare_folder(void) {
     free(s_folder);s_folder=out;s_folder_fast=fast;s_folder_key=folder_key();return true;
 }
 static void avatar_prepare_state(void) {
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
     if(app_settings_simple_ui()){s_avatar_ready=s_avatar_pending=false;return;}
     const char *path=app_settings_avatar_path();
     if(pico_boot_recovery()||!path[0]){ui_avatar_request("",60);s_avatar_ready=s_avatar_pending=false;s_avatar_path[0]=0;return;}
@@ -850,7 +851,7 @@ static void render_utilities_editor(uint8_t *fb) {
         ui_draw_button(fb,utility_save_button(),"Lưu tiện ích",true);
     } else {
         for(unsigned row=0;row<6;++row) {
-            unsigned action=s_utility_page*6+row;if(KIIKO_LOVE_BOOK&&action>=APP_HOME_UTIL_LIBRARY)++action;if(action>=APP_HOME_UTIL_COUNT)break;
+            unsigned action=s_utility_page*6+row;if(DPREADER_LOVE_BOOK&&action>=APP_HOME_UTIL_LIBRARY)++action;if(action>=APP_HOME_UTIL_COUNT)break;
             ui_draw_button(fb,(EpdRect){36,230+(int)row*116,612,98},utility_names[action],s_utility_draft[s_utility_slot]==action);
         }
         ui_draw_button(fb,(EpdRect){36,960,286,80},"Trang trước",false);
@@ -868,7 +869,7 @@ static app_redraw_t utility_run(app_ctx_t *ctx,unsigned action) {
             if(ok){ui_nav_request(ctx,1);return APP_REDRAW_NONE;}
         }
         snprintf(s_utility_notice,sizeof(s_utility_notice),"Chưa có sách để đọc tiếp hoặc đồng bộ");break;
-    case APP_HOME_UTIL_LIBRARY:ui_nav_request(ctx,KIIKO_LOVE_BOOK?2:1);return APP_REDRAW_NONE;
+    case APP_HOME_UTIL_LIBRARY:ui_nav_request(ctx,DPREADER_LOVE_BOOK?2:1);return APP_REDRAW_NONE;
     case APP_HOME_UTIL_OPDS:app_book_request_opds();ui_nav_request(ctx,1);return APP_REDRAW_NONE;
     case APP_HOME_UTIL_SETTINGS:ui_nav_request(ctx,3);return APP_REDRAW_NONE;
     case APP_HOME_UTIL_OTA:app_device_settings_request_ota();ui_nav_request(ctx,3);return APP_REDRAW_NONE;
@@ -941,7 +942,7 @@ static void render_add_books(uint8_t *fb);
 static app_redraw_t simple_add_action(app_ctx_t *ctx,int x,int y);
 static void render_pop_menu(uint8_t *fb);
 static app_redraw_t simple_pop_menu_action(app_ctx_t *ctx,int x,int y);
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
 static void render_root(uint8_t *fb);
 #else
 #define render_root(fb) render_simple_root(fb)
@@ -984,7 +985,7 @@ static void render_component_controls(uint8_t *fb) {
 static void render_components_body(uint8_t *fb) {
     if(s_component_browse==APP_HOME_FOLDER)ui_home_folder_draw(fb,s_folder,s_folder_fast,(EpdRect){132,282,420,459});
     else {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         ui_home_clock_preview_draw(fb,(EpdRect){141,294,420,460},app_settings_main_fast_refresh(),clock_style(s_component_browse));
 #else
         clock_draw_region(fb,(EpdRect){141,294,420,460},&s_date,app_settings_main_fast_refresh(),clock_style(s_component_browse),(EpdRect){141,294,420,460},s_widget_phase);
@@ -1050,7 +1051,7 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
         else render_component_controls(ctx->fb);
         if(s_press_pending)ui_draw_selected_round_rect(ctx->fb,s_pressed,s_pressed.width==64?32:38);
         enum EpdDrawError result=present_clock_area(ctx,s_area);guard_draw_result(ctx->hl,result);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         s_component_warm_after_ms=esp_timer_get_time()/1000+600;
 #endif
         if(result==EPD_DRAW_SUCCESS){s_component_pending=false;s_component_dirty=(EpdRect){0};if(visible_motion_clock()){s_widget_shown=s_date;s_widget_stamp=date_stamp(&s_date);s_widget_phase_shown=s_widget_phase;s_motion_ms=ctx->now_ms;}}
@@ -1107,7 +1108,7 @@ static bool present(app_ctx_t *ctx,app_redraw_t redraw) {
     else if(redraw==APP_REDRAW_FULL||s_home_force_full_once) {s_home_force_full_once=false;result=update_display_full(ctx->hl);}
     else result=update_display_fast_page(ctx->hl);
     guard_draw_result(ctx->hl,result);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(s_view==HOME_COMPONENT)s_component_warm_after_ms=esp_timer_get_time()/1000+600;
 #endif
     if(redraw!=APP_REDRAW_AREA&&result==EPD_DRAW_SUCCESS){s_clock_minute=minute;
@@ -1140,7 +1141,7 @@ static void on_enter(app_ctx_t *ctx) {
     s_cover_generation=book_cover_jobs_begin();
     const uint32_t progress_revision=book_progress_revision();
     s_clock_base_attempted=false;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // Complete previews include font-rendered numerals; discard after returning from font/settings pages.
     ui_home_clock_preview_invalidate();
 #endif
@@ -1160,7 +1161,7 @@ static void on_enter(app_ctx_t *ctx) {
         scan_books();
         if(same||error!=ESP_ERR_NOT_FINISHED)remember_scan_state(&sd);
     }
-    if(KIIKO_LOVE_BOOK||!same||changed)restore_cover_cache();
+    if(DPREADER_LOVE_BOOK||!same||changed)restore_cover_cache();
     rp_boot_mark("scan");
     s_cached_progress_revision=progress_revision;
     s_cover_next=0;
@@ -1171,14 +1172,14 @@ static void on_enter(app_ctx_t *ctx) {
     ESP_LOGI("home","home enter local elapsed_ms=%lld",(long long)((esp_timer_get_time()-home_started)/1000));
 }
 static void on_media_lost(app_ctx_t *ctx) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     metalio_cover_cache_clear();
 #else
 #endif
     app_home_release_clock_cache();
     (void)ctx;clear_cover_cache();memset(&s_current,0,sizeof(s_current));memset(s_recent,0,sizeof(s_recent));
     s_books_cache_valid=false;s_excerpt[0]=0;
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
     s_avatar_ready=s_avatar_pending=false;
 #endif
 }
@@ -1200,7 +1201,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
             free(s_folder);s_folder=NULL;return APP_REDRAW_PAGE;
         }remember_scan_state(&info);
     }
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
     if(s_view==HOME_ROOT&&s_avatar_pending) {
         ui_avatar_state_t state=ui_avatar_poll(s_avatar_path,60,s_avatar);
         s_avatar_pending=state==UI_AVATAR_PENDING;
@@ -1252,7 +1253,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     // 只为正在预览的书夹准备封面；切到时钟即停止隐藏文件处理。
     // Prepare covers only for the visible folder preview; switching to a clock stops hidden media work.
     if(s_view==HOME_COMPONENT&&!folder_preview){
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         component_prepare_neighbor(ctx);
 #endif
         return APP_REDRAW_NONE;
@@ -1316,6 +1317,13 @@ static EpdRect control(int x,int y) {
     return(EpdRect){0};
 }
 static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
+    if(s_view==HOME_ROOT && (
+        (app_settings_simple_ui() && ev->type==UI_GESTURE_SWIPE_U) ||
+        (DPREADER_LOVE_BOOK && ev->swipe_leftward))) {
+        s_press_pending=false;
+        s_view=HOME_POP_MENU;
+        return APP_REDRAW_PAGE;
+    }
     if(s_view==HOME_ROOT && ev->type==UI_GESTURE_SWIPE_D) {
         s_press_pending=false;
         ctx->user_activity=true;
@@ -1331,11 +1339,6 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         int tab=ui_nav_hit(ev->x0,ev->y0);
         if(tab>=0){ui_nav_request(ctx,tab);return APP_REDRAW_NONE;}
     }
-    if(app_settings_simple_ui() && s_view==HOME_ROOT && ev->type==UI_GESTURE_SWIPE_U) {
-        s_press_pending=false;
-        s_view=HOME_POP_MENU;
-        return APP_REDRAW_PAGE;
-    }
     if(s_view==HOME_POP_MENU) {
         s_press_pending=false;
         if(ev->type==UI_GESTURE_TAP)return simple_pop_menu_action(ctx,ev->x0,ev->y0);
@@ -1344,7 +1347,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
     }
     if(ev->type==UI_GESTURE_PRESS) {
         s_pressed=control(ev->x0,ev->y0);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         s_component_warm_after_ms=ctx->now_ms+600;
         // 箭头不先推屏，松手后的新样式承担本次反馈，避免连续两次扫描。
         // Let the released arrow's new style provide feedback in one output, without a preceding press scan.
@@ -1357,7 +1360,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
     bool restore=s_press_pending;
     if(ev->type==UI_GESTURE_MOVE) {if(s_press_pending&&!hit(continue_card_pressed()?continue_card_hit_rect():s_pressed,ev->x,ev->y)){s_press_pending=false;s_area=control_feedback_area(s_pressed);return APP_REDRAW_AREA;}return APP_REDRAW_NONE;}
     s_press_pending=false;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     s_component_warm_after_ms=ctx->now_ms+600;
 #endif
     if(s_view==HOME_COMPONENT&&ev->y0>=250&&ev->y0<970){
@@ -1366,12 +1369,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         if(ev->type==UI_GESTURE_TAP&&hit((EpdRect){584,472,64,64},ev->x0,ev->y0))direction=1;
         if(direction){
             unsigned index=component_index(s_component_browse);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
             bool was_current=s_component_browse==app_settings_home_component(),had_error=s_save_error;
 #endif
             s_component_browse=s_components[(index+HOME_COMPONENT_OPTIONS+direction)%HOME_COMPONENT_OPTIONS];
             s_save_error=false;s_widget_pending=false;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
             // 只有“使用此样式/返回首页”改变或清理保存错误时才包含底部按钮。
             // Include the apply button only when its label changes or a save error must be cleared.
             bool controls=had_error||was_current!=(s_component_browse==app_settings_home_component());
@@ -1394,9 +1397,9 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
             if(hit(utility_border_button(),x,y)){s_utility_border_draft=!s_utility_border_draft;return APP_REDRAW_PAGE;}
             if(hit(utility_save_button(),x,y)){s_save_error=(app_settings_simple_ui()?app_settings_set_simple_utilities_config(s_utility_draft+2,s_utility_labels_draft,s_utility_border_draft):app_settings_set_home_utilities_config(s_utility_draft,s_utility_labels_draft,s_utility_border_draft))!=ESP_OK;if(!s_save_error)s_view=HOME_ROOT;return APP_REDRAW_PAGE;}
         }else {
-            for(unsigned i=0;i<6;++i)if(hit((EpdRect){36,230+(int)i*116,612,98},x,y)&&s_utility_page*6+i<APP_HOME_UTIL_COUNT-KIIKO_LOVE_BOOK){s_utility_draft[s_utility_slot]=s_utility_page*6+i+(KIIKO_LOVE_BOOK&&s_utility_page*6+i>=APP_HOME_UTIL_LIBRARY);s_view=HOME_UTILITIES;return APP_REDRAW_PAGE;}
+            for(unsigned i=0;i<6;++i)if(hit((EpdRect){36,230+(int)i*116,612,98},x,y)&&s_utility_page*6+i<APP_HOME_UTIL_COUNT-DPREADER_LOVE_BOOK){s_utility_draft[s_utility_slot]=s_utility_page*6+i+(DPREADER_LOVE_BOOK&&s_utility_page*6+i>=APP_HOME_UTIL_LIBRARY);s_view=HOME_UTILITIES;return APP_REDRAW_PAGE;}
             if(hit((EpdRect){36,960,286,80},x,y)&&s_utility_page){--s_utility_page;return APP_REDRAW_PAGE;}
-            if(hit((EpdRect){362,960,286,80},x,y)&&(s_utility_page+1)*6<APP_HOME_UTIL_COUNT-KIIKO_LOVE_BOOK){++s_utility_page;return APP_REDRAW_PAGE;}
+            if(hit((EpdRect){362,960,286,80},x,y)&&(s_utility_page+1)*6<APP_HOME_UTIL_COUNT-DPREADER_LOVE_BOOK){++s_utility_page;return APP_REDRAW_PAGE;}
         }
         return APP_REDRAW_NONE;
     }
@@ -1448,7 +1451,7 @@ static app_redraw_t on_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev) {
         if(hit(continue_card_hit_rect(),x,y)) {
             home_book_t *b=featured();
             if(b->path[0] && app_book_request_open_from_home(b->path)){
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
                 (void)metalio_haptic_click();
 #endif
                 ui_nav_request(ctx,1);return APP_REDRAW_NONE;
@@ -1467,7 +1470,7 @@ static bool main_page_visible(app_ctx_t *ctx) {(void)ctx;return s_view==HOME_ROO
 static EpdRect area_hint(app_ctx_t *ctx) {(void)ctx;return s_area;}
 static void home_exit(app_ctx_t *ctx){(void)ctx;book_cover_jobs_cancel(s_cover_generation);s_cover_generation=0;}
 #include "firmware/love_book/ui/home.inc"
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
 #include "firmware/full/ui/home.inc"
 #endif
 

@@ -8,7 +8,7 @@
 #include "ui_kit.h"
 #include "ui_menu.h"
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
 static int center_x(int button) { return (button * 2 + 1) * UI_LOCK_WIDTH / 8; }
 
@@ -22,7 +22,7 @@ void ui_quick_menu_cancel_input(ui_quick_menu_t *menu) {
     menu->swallow = true;
 }
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
 int ui_quick_menu_pressed(const ui_quick_menu_t *menu) {
     return menu->open && menu->tracking && !menu->moved ? menu->hit : -1;
@@ -36,7 +36,7 @@ static void dismiss(ui_quick_menu_t *menu, ui_quick_action_t *action) {
 }
 
 static int hit_test(int x, int y) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     for (int i=0;i<2;i++) {
         int sx=UI_QUICK_SLIDER_X(i!=0);
         if(x>=sx && x<sx+UI_QUICK_SLIDER_WIDTH && y>=UI_QUICK_SLIDER_Y0 && y<=UI_QUICK_SLIDER_Y1)
@@ -45,7 +45,7 @@ static int hit_test(int x, int y) {
 #else
 #endif
     for (int i = 0; i < UI_QUICK_BUTTON_COUNT; ++i) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         const int dx = x - UI_QUICK_CENTER_X(i), dy = y - UI_QUICK_CENTER_Y(i);
 #else
         const int dx = x - center_x(i), dy = y - UI_QUICK_CIRCLE_Y;
@@ -53,7 +53,7 @@ static int hit_test(int x, int y) {
         if (dx * dx + dy * dy <= UI_QUICK_HIT_RADIUS * UI_QUICK_HIT_RADIUS) return i;
     }
     return -1;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 }
 static int slider_position(int y) {
     if(y<UI_QUICK_SLIDER_Y0) y=UI_QUICK_SLIDER_Y0;
@@ -93,7 +93,7 @@ bool ui_quick_menu_feed(ui_quick_menu_t *menu, const app_ctx_t *ctx, bool allowe
         menu->x0 = x; menu->y0 = y;
         menu->started_ms = ctx->now_ms;
         menu->hit = hit_test(x, y);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if(menu->open && menu->hit>=UI_QUICK_BUTTON_COUNT) {
             menu->slider_position=slider_position(y);
             menu->slider_value=((menu->hit==UI_QUICK_BUTTON_COUNT?ui_quick_brightness_value(menu->slider_position):(unsigned)menu->slider_position)*100+UI_QUICK_SLIDER_RANGE/2)/UI_QUICK_SLIDER_RANGE;
@@ -104,7 +104,7 @@ bool ui_quick_menu_feed(ui_quick_menu_t *menu, const app_ctx_t *ctx, bool allowe
 #endif
     }
     if (!menu->tracking) return menu->open;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // 滑块一旦捕获，整段拖动归它所有，越界或上滑不能切页。
     // Captured sliders own the complete drag, including movement outside the track.
     if(menu->open && menu->hit>=UI_QUICK_BUTTON_COUNT) {
@@ -142,7 +142,7 @@ bool ui_quick_menu_feed(ui_quick_menu_t *menu, const app_ctx_t *ctx, bool allowe
         if (menu->open && !menu->moved) {
             if (menu->hit >= 0 && hit_test(x, y) == menu->hit) {
                 static const ui_quick_action_t actions[] = {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
                     UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_KOSYNC, UI_QUICK_FULL, UI_QUICK_FRONTLIGHT,
 #else
                     UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_FULL, UI_QUICK_LOCK,
@@ -157,7 +157,7 @@ bool ui_quick_menu_feed(ui_quick_menu_t *menu, const app_ctx_t *ctx, bool allowe
     }
     return true;
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 
 // Only a stationary held circle can show press feedback; sliders own their entire drag.
 int ui_quick_menu_pressed(const ui_quick_menu_t *menu) {

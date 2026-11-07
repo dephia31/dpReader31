@@ -12,7 +12,7 @@ unit=r'''
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define TTF_FONT_SLOTS 4
 #define TTF_MAP_MAX (5u*1024u*1024u)
 #define TTF_MAP_RESERVE (2560u*1024u)

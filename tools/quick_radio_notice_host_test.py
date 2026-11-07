@@ -15,7 +15,7 @@ unit=r'''
 typedef struct{int x,y,width,height;}EpdRect;
 typedef int esp_err_t;
 #define ESP_OK 0
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define READ_PICO_TRANSFER_MODE_STA 1
 #define ESP_ERR_NOT_FOUND 1
 #define ESP_ERR_INVALID_STATE 2
@@ -36,6 +36,9 @@ static int read_pico_transfer_get_saved_wifi(char *ssid,bool *out){ssid[0]=0;*ou
 static bool read_pico_transfer_try_stop_if_idle(void){++stops;return stop_allowed;}
 static int read_pico_transfer_start(const read_pico_transfer_cfg_t *cfg){assert(cfg->mode==READ_PICO_TRANSFER_MODE_STA&&cfg->network_only);++starts;return start_error;}
 static bool app_settings_ble_turner(void){return enabled;}
+static bool running,stop_failed;
+static bool ble_pt_running(void){return running;}
+static bool ble_pt_stop_failed(void){return stop_failed;}
 static bool ble_pt_connected(void){return connected;}
 static bool ble_pt_connecting(void){return connecting;}
 static void read_pico_transfer_get_status(read_pico_transfer_status_t *s){*s=network;}
@@ -66,7 +69,9 @@ int main(void){
  quick_notice_begin(2,ESP_OK);enabled=true;expect("Đã bật Bluetooth · Chờ kết nối");
  connecting=true;expect("Bluetooth đang kết nối…");
  connected=true;expect("Bluetooth đã kết nối");
- enabled=false;expect("Đã tắt Bluetooth");
+ enabled=false;running=true;expect("Đang tắt Bluetooth…");
+ stop_failed=true;expect("Bluetooth chưa dừng được");stop_failed=false;
+ running=false;expect("Đã tắt Bluetooth");
  quick_notice_begin(2,9);expect("Không thể bật/tắt Bluetooth");
  assert(fills==frames&&frames==texts);s_quick_notice_kind=0;assert(!quick_notice_poll(&fb).height);
  puts("PASS actual quick radio notifications: on/off/connecting/connected/errors, no redraw while unchanged, black frame within existing saved384px underlay");

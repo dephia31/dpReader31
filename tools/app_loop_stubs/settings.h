@@ -11,7 +11,7 @@ uint8_t app_settings_auto_lock_minutes(void);
 
 uint8_t app_settings_system_contrast(void);
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 typedef enum {APP_AI_REFRESH,APP_AI_BOOKMARK,APP_AI_FRONTLIGHT,APP_AI_HOME,APP_AI_NONE,APP_AI_KOSYNC,APP_AI_PREV_PAGE,APP_AI_NEXT_PAGE,APP_AI_PREV_CHAPTER,APP_AI_NEXT_CHAPTER,APP_AI_TOOLS,APP_AI_ACTION_MENU,APP_AI_ACTION_COUNT}app_ai_action_t;
 #define APP_AI_MENU_COUNT 10
 app_ai_action_t app_settings_ai_short(void);

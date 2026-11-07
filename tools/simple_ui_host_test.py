@@ -54,7 +54,7 @@ typedef struct {int unused;} read_pico_sd_info_t;
 static int read_pico_sd_get_info(read_pico_sd_info_t *p){(void)p;return media?0:ESP_ERR_NOT_FINISHED;}
 static void read_pico_sd_start_probe(void){++probes;}
 static void *heap_caps_calloc(size_t n,size_t z,int caps){assert(caps==3);allocated=n*z;return alloc_fail?NULL:calloc(n,z);}
-static bool book_file_path_supported(const char *p){const char *e=strrchr(p,'.');return e&&(!strcasecmp(e,".txt")||!strcasecmp(e,".epub"));}
+#include "book_file_path.h"
 static char selected[288];
 static bool app_book_request_open_from_home(const char *p){snprintf(selected,sizeof(selected),"%s",p);++opened;return !open_fail;}
 #define ui_nav_status(...) ((void)0)
@@ -81,7 +81,7 @@ static int fake_stat(const char *p,struct stat *s){memset(s,0,sizeof(*s));
  s->st_size=2048;
  s->st_mode=(!strcmp(name,"Books")||!strcmp(name,"sdcard")||!strcmp(name,"books")||!strcmp(name,"folder"))?S_IFDIR:S_IFREG;return 0;
 }
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
 static int deletes, forgotten, cleared, changes;
 static int fake_unlink(const char *path) { assert(!strcmp(path, "/sdcard/Books/Việt.EPUB")); ++deletes; return 0; }
 static int book_progress_forget(const char *path) { assert(strstr(path,"Việt.EPUB")); ++forgotten; return 0; }
@@ -151,6 +151,12 @@ int main(void){
  media=false;ready(&ctx);assert(tick(&ctx)==APP_REDRAW_NONE&&s_pending);
  media=true;tick(&ctx);assert(!s_pending&&!strcmp(s_directory,"/sdcard/Books"));leave(&ctx);
  books_missing=true;enter(&ctx);tick(&ctx);assert(!strcmp(s_directory,"/sdcard"));
+ entries[0]="dprwifi";entries[1]="dpReader-settings.backup";entries[2]="dpreader_log.txt";
+ entries[3]=".dpreader-progress";entries[4]="folder";entries[5]="Việt.EPUB";total=6;
+ scan_page();assert(s_count==2&&s_items[0].directory&&!strcmp(s_items[0].name,"folder"));
+ assert(!strcmp(s_items[1].name,"Việt.EPUB")&&!card_path("/sdcard//DPRWIFI"));
+ entries[0]=".hidden.epub";entries[1]="ignored.png";entries[2]="folder";entries[3]="Việt.EPUB";
+ for(unsigned i=4;i<20;++i)entries[i]="book.txt";total=20;
  tap(&ctx,300,260);assert(!s_pending&&!ctx.request_app);
  books_missing=false;tap(&ctx,100,260);tick(&ctx);assert(!strcmp(s_directory,"/sdcard/Books"));
  total=20;reload(false);tick(&ctx);
@@ -162,7 +168,7 @@ int main(void){
  assert(!card_path("/sdcard/../other")&&!card_path("/sdcard/books/./bad")&&!card_path("/sdcard2"));
  for(unsigned i=0;i<3;++i){EpdRect r=tool_button(i);assert(r.y+r.height<=PICK_TOP&&r.x+r.width<=648);}
  assert(PICK_TOP+PICK_ROWS*PICK_ROW_H<=984);
-#if KIIKO_LOVE_BOOK
+#if DPREADER_LOVE_BOOK
  unsigned book_y=PICK_TOP+PICK_ROW_H+20;
  tap(&ctx,590,book_y);assert(s_delete_path[0]&&!deletes);
  tap(&ctx,100,730);assert(!s_delete_path[0]&&!deletes);
@@ -180,7 +186,8 @@ int main(void){
 with tempfile.TemporaryDirectory() as tmp:
  path=Path(tmp)/'test.c';path.write_text(unit)
  for edition in (0,1):
-  subprocess.run(['cc','-std=gnu11',f'-DKIIKO_LOVE_BOOK={edition}','-fsanitize=undefined','-g',str(path),'-o',str(Path(tmp)/'test')],check=True)
+  subprocess.run(['cc','-std=gnu11',f'-DDPREADER_LOVE_BOOK={edition}','-fsanitize=undefined','-g',
+                  '-I'+str(ROOT/'main/book'),str(path),'-o',str(Path(tmp)/'test')],check=True)
   subprocess.run([str(Path(tmp)/'test')],check=True)
 
 # Full settings implementation with the S31 device-bound backup fixture.

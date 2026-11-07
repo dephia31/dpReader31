@@ -123,6 +123,7 @@ static int impl_result,impl_calls,cancel_reads;
 static bool cancel_time_sync(bool automatic_only){++cancel_reads;return !s_time_active||(!automatic_only||s_time_automatic);}
 static esp_err_t sync_time_impl(uint32_t *utc){assert(s_time_active&&s_config_busy);++impl_calls;*utc=wall;return impl_result;}
 static esp_err_t sync_time_online_impl(uint32_t *utc){return sync_time_impl(utc);}
+static void read_pico_transfer_prepare_network(void){}
 static bool read_pico_transfer_sleep_blocked(void){return false;}
 '''+function('sync_time_run',root/'components/read_pico_transfer/read_pico_transfer.c')+r'''
 int main(void){uint32_t utc;
@@ -159,7 +160,7 @@ int main(void){uint32_t utc=0;
  puts("PASS: actual SNTP helper has one init/deinit, valid UTC only,100ms cancellation checkpoints and12s bounded timeout; failed init never tears down an unowned singleton");
 }
 '''
-with tempfile.TemporaryDirectory(prefix='kiiko-clock-test-') as folder:
+with tempfile.TemporaryDirectory(prefix='dpreader-clock-test-') as folder:
  for name,unit in [('restore',restore),('scheduler',scheduler),('lease',lease),('ntp',ntp)]:
   c=Path(folder)/(name+'.c');binary=Path(folder)/name;c.write_text(unit)
   subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined',str(c),'-o',str(binary)],check=True)

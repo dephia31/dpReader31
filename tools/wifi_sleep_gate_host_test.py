@@ -80,6 +80,25 @@ static void vTaskDelete(void*p){(void)p;}
 '''
 worker=function('worker',r/'boards/metalio47/src/main/ota_online.c').replace('s_status->','ota_status.')
 u+=worker+'\n'
+sleep=r/'boards/metalio47/src/main/sleep.c'
+u+=r'''
+enum {APP_SLEEP_OFF,APP_SLEEP_DEEP,ESP_ERR_NOT_FINISHED,ESP_ERR_INVALID_ARG};
+typedef int app_sleep_mode_t;
+static void *s_lock_sleep_touch;
+static bool s_download_active;
+static bool pico_online_busy(void){return false;}
+static bool book_cover_jobs_quiesce(int n){return n==2000;}
+static bool ui_avatar_quiesce(int n){return n==2000;}
+static bool metalio_usb_blocks_sleep(void){return false;}
+static bool usb_storage_active(void){return false;}
+static void download_trace(const char *name,bool first){(void)name;(void)first;}
+static int metalio_request_download(void){return ESP_OK;}
+static void app_cancel_download(void){assert(0);}
+'''
+for name in ('app_enter_host_sleep','app_enter_download'):
+ code=function(name,sleep)
+ u+=code[:code.index('    esp_err_t err', code.index('if (!read_pico_transfer_pause_for_sleep()'))]
+ u+='    return ESP_OK;\n}\n'
 u+=r'''
 static void reset(void){s_sleep_blocked=s_sleep_resume_requested=s_shutdown_only=false;s_started=s_wifi=true;s_status.state=READ_PICO_TRANSFER_READY;s_cfg=(read_pico_transfer_cfg_t){"/books",true,1};s_netif=(void*)1;s_http=s_events=s_ip_events=NULL;s_upload_active=s_stopping=false;now=s_sleep_resume_retry=0;owner=depth=0;task=1;stop_error=deinit_error=http_error=start_error=stop_calls=deinit_calls=http_calls=starts=0;cancel_ok=true;}
 int main(void){
@@ -93,6 +112,15 @@ int main(void){
  reset();stop_error=ESP_FAIL;assert(!read_pico_transfer_pause_for_sleep()&&s_started&&s_wifi&&s_netif&&s_sleep_blocked&&!deinit_calls);stop_error=0;assert(read_pico_transfer_pause_for_sleep()&&!s_wifi);
  reset();deinit_error=ESP_FAIL;assert(!read_pico_transfer_pause_for_sleep()&&!s_started&&s_wifi&&s_netif&&s_sleep_blocked);deinit_error=0;assert(read_pico_transfer_pause_for_sleep()&&!s_wifi&&!s_netif);
  reset();s_http=(void*)2;http_error=ESP_FAIL;assert(!read_pico_transfer_pause_for_sleep()&&s_http&&s_wifi&&!stop_calls);http_error=0;assert(read_pico_transfer_pause_for_sleep()&&!s_http&&!s_wifi);
+ reset();stop_error=ESP_FAIL;
+ assert(app_enter_download()==ESP_ERR_NOT_FINISHED&&s_sleep_blocked&&s_sleep_resume_requested);
+ stop_error=ESP_OK;read_pico_transfer_resume_service();assert(!s_sleep_blocked&&!s_wifi);
+ reset();stop_error=ESP_FAIL;
+ assert(app_enter_host_sleep(APP_SLEEP_DEEP)==ESP_ERR_NOT_FINISHED&&s_sleep_blocked&&s_sleep_resume_requested);
+ stop_error=ESP_OK;read_pico_transfer_resume_service();assert(!s_sleep_blocked&&!s_wifi);
+ reset();stop_error=ESP_FAIL;s_lock_sleep_touch=(void*)1;
+ assert(app_enter_host_sleep(APP_SLEEP_OFF)==ESP_ERR_NOT_FINISHED&&s_sleep_blocked&&!s_sleep_resume_requested);
+ s_lock_sleep_touch=NULL;
  reset();assert(read_pico_transfer_pause_for_sleep());read_pico_transfer_resume_after_sleep();read_pico_transfer_stop();read_pico_transfer_resume_service();assert(!starts&&!s_sleep_blocked); // close OPDS before restore cancels ownership
  reset();assert(read_pico_transfer_pause_for_sleep());read_pico_transfer_resume_after_sleep();read_pico_transfer_resume_service();assert(!starts&&!s_sleep_blocked);
  int admitted=admissions;now+=60000000;read_pico_transfer_resume_service();assert(!starts&&admissions==admitted); // no reconnect or repeated background work
@@ -106,7 +134,7 @@ int main(void){
  puts("PASS actual OTA check/download workers retain ownership against concurrent Sleep/restore requests");
  puts("PASS WiFi Sleep: OTA owner/upload exclusion, unlock without reconnect, HTTP/stop/deinit failures retry without false OFF, no reconnect polling and newer-session protection");}
 '''
-sleep=r/'boards/metalio47/src/main/sleep.c';assert 'if(pico_online_busy())' in function('enter_lock_and_sleep',sleep)
+assert 'if(pico_online_busy())' in function('enter_lock_and_sleep',sleep)
 ota_start=function('start',r/'boards/metalio47/src/main/ota_online.c');assert ota_start.index('s_status->busy = true')<ota_start.index('xTaskCreate(worker')
 loop=(r/'main/app/app_loop.c').read_text();assert 'if(radio_ready)read_pico_transfer_resume_service();' in loop
 for n in ['read_pico_transfer_start','read_pico_transfer_scan_wifi','sync_time_run','read_pico_transfer_preempt_for_network']:assert 'read_pico_transfer_sleep_blocked()' in function(n,src)

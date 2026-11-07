@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory(prefix='s31-text-ripple-') as folder:
         '(void)snprintf(buf,sizeof(buf),fmt,__VA_ARGS__); } while(0)\n')
     command = ['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function',
                '-Wno-unknown-attributes','-g','-fsanitize=address,undefined',
-               '-DKIIKO_BOARD_METALIO47=1','-I'+str(temp),
+               '-DDPREADER_BOARD_METALIO47=1','-I'+str(temp),
                '-I'+str(root/'components/epdiy/src'),'-I'+str(root/'components/epdiy/include'),
                '-I'+str(root/'components/e0470_epaper_waveform/include'),
                '-I'+str(root/'components/e0470_epaper_waveform/metalio'),
@@ -27,5 +27,5 @@ with tempfile.TemporaryDirectory(prefix='s31-text-ripple-') as folder:
                str(root/'components/e0470_epaper_waveform/e0470_waveform_trim.c')]
     for enabled in (0,1):
         binary=temp/f'ripple-{enabled}'
-        subprocess.run(command+[f'-DKIIKO_S31_TEXT_RIPPLE={enabled}','-o',str(binary)],check=True)
+        subprocess.run(command+[f'-DDPREADER_S31_TEXT_RIPPLE={enabled}','-o',str(binary)],check=True)
         subprocess.run([str(binary)],check=True)

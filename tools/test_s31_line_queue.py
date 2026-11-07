@@ -26,7 +26,7 @@ int main(void){
 }
 '''
 with tempfile.TemporaryDirectory() as d:
- p=Path(d);(p/'esp_attr.h').write_text('#define IRAM_ATTR\n');(p/'sdkconfig.h').write_text('#define KIIKO_BOARD_METALIO47 1\n#define CONFIG_IDF_TARGET_ESP32S31 1\n')
+ p=Path(d);(p/'esp_attr.h').write_text('#define IRAM_ATTR\n');(p/'sdkconfig.h').write_text('#define DPREADER_BOARD_METALIO47 1\n#define CONFIG_IDF_TARGET_ESP32S31 1\n')
  (p/'esp_heap_caps.h').write_text('#include <stddef.h>\n#define MALLOC_CAP_INTERNAL 1\n#define MALLOC_CAP_8BIT 2\nvoid*heap_caps_calloc(size_t,size_t,unsigned);\nvoid*heap_caps_aligned_alloc(size_t,size_t,unsigned);\nvoid heap_caps_free(void*);\n')
  (p/'test.c').write_text(unit)
  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-DCONFIG_IDF_TARGET_ESP32S31=1','-fsanitize=address,undefined','-I'+str(p),'-I'+str(r/'components/epdiy/src/output_common'),str(p/'test.c'),str(r/'components/epdiy/src/output_common/line_queue.c'),'-o',str(p/'test')],check=True)

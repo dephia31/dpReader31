@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory() as folder:
     plans=[json.loads(line) for line in output.splitlines()]
     assert len(plans)==2
     for plan,edition in zip(plans,('full','love-book')):
-        command=plan['command'];assert '-DKIIKO_EDITION='+edition in command
+        command=plan['command'];assert '-DDPREADER_EDITION='+edition in command
         assert '/'+edition+'/metalio47/build' in command[command.index('-B')+1]
 for edition, info in (('full',full),('love-book',love)):
     image=bytearray(288);image[0]=0xe9
@@ -55,7 +55,7 @@ int main(void) {
         settings_unit+=function(name,ROOT/'main/settings.c')+'\n'
     settings_unit+='int main(void){assert(app_settings_simple_ui());assert(app_settings_simple_full_ui());assert(app_settings_set_ui_mode(0)==ESP_ERR_NOT_SUPPORTED);assert(app_settings_set_ui_mode(2)==ESP_OK);assert(app_settings_set_simple_ui(false)==ESP_ERR_NOT_SUPPORTED);s_lock_style=2;assert(app_settings_lock_style()==0&&s_lock_style==2);s_simple_utilities[0]=APP_HOME_UTIL_LIBRARY;assert(app_settings_simple_utility(2)==APP_HOME_UTIL_FILES);}'
     (p/'settings.c').write_text(settings_unit)
-    subprocess.run(['cc','-std=c11','-DKIIKO_LOVE_BOOK=1','-DKIIKO_BOARD_METALIO47=1','-I'+str(p),'-I'+str(ROOT/'main'),str(p/'settings.c'),'-o',str(p/'settings')],check=True)
+    subprocess.run(['cc','-std=c11','-DDPREADER_LOVE_BOOK=1','-DDPREADER_BOARD_METALIO47=1','-I'+str(p),'-I'+str(ROOT/'main'),str(p/'settings.c'),'-o',str(p/'settings')],check=True)
     subprocess.run([str(p/'settings')],check=True)
     wake_unit = r'''
 #include <assert.h>
@@ -78,6 +78,7 @@ static void read_pico_pmu_latch_power_wakeup(void){}
 static void lock_wait_for_unlock(void *arg){(void)arg;++waits;}
 static void app_lock_resume_frame(void *arg){(void)arg;++restored;}
 static void ble_pt_resume_after_sleep(void){}
+static void read_pico_transfer_resume_after_sleep(void){}
 '''
     wake_unit += function('app_lock_boot_gate',ROOT/'boards/metalio47/src/main/sleep.c') + r'''
 int main(void){
@@ -93,7 +94,7 @@ int main(void){
 }
 '''
     (p/'wake.c').write_text(wake_unit)
-    subprocess.run(['cc','-std=c11','-DKIIKO_LOVE_BOOK=1','-I'+str(p),'-I'+str(ROOT/'main'),str(p/'wake.c'),'-o',str(p/'wake')],check=True)
+    subprocess.run(['cc','-std=c11','-DDPREADER_LOVE_BOOK=1','-I'+str(p),'-I'+str(ROOT/'main'),str(p/'wake.c'),'-o',str(p/'wake')],check=True)
     subprocess.run([str(p/'wake')],check=True)
 # Exercise production version parsing and its stable/RC order for both suffixes.
 with tempfile.TemporaryDirectory() as folder:

@@ -13,7 +13,8 @@ unit=r'''
 #include <stdbool.h>
 typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {int request_app;bool user_activity,request_quick_menu;} app_ctx_t;
-typedef struct {int type,x0,y0;} ui_gesture_event_t;
+typedef struct {int type,x0,y0;bool swipe_leftward;} ui_gesture_event_t;
+#define DPREADER_LOVE_BOOK 0
 typedef int app_redraw_t;
 enum {APP_REDRAW_NONE,APP_REDRAW_PAGE,HOME_ROOT,HOME_POP_MENU,HOME_OTHER,UI_GESTURE_PRESS,UI_GESTURE_TAP,UI_GESTURE_SWIPE_U,UI_GESTURE_SWIPE_D,READING,READER_PANEL_TOOLS,READER_PANEL_NONE,APP_HOME_UTIL_TRANSFER,APP_HOME_UTIL_OPDS,APP_HOME_UTIL_SETTINGS};
 static int s_view,last_action,routes,s_reader_panel,s_pressed_control;
@@ -36,24 +37,24 @@ int main(void){
  app_ctx_t c={0};
  for(int mode=0;mode<3;++mode){simple=mode!=0;full_mode=mode==2;
   s_view=HOME_ROOT;s_press_pending=true;
-  ui_gesture_event_t press={UI_GESTURE_PRESS,300,600};
+  ui_gesture_event_t press={UI_GESTURE_PRESS,300,600,false};
   assert(on_gesture(&c,&press)==APP_REDRAW_NONE&&!s_press_pending);
-  if(mode){ui_gesture_event_t up={UI_GESTURE_SWIPE_U,300,600};assert(on_gesture(&c,&up)==APP_REDRAW_PAGE&&s_view==HOME_POP_MENU);}
+  if(mode){ui_gesture_event_t up={UI_GESTURE_SWIPE_U,300,600,false};assert(on_gesture(&c,&up)==APP_REDRAW_PAGE&&s_view==HOME_POP_MENU);}
   s_view=HOME_ROOT;c.request_app=0;
-  ui_gesture_event_t tab={UI_GESTURE_TAP,600,1150};
+  ui_gesture_event_t tab={UI_GESTURE_TAP,600,1150,false};
   assert(on_gesture(&c,&tab)==APP_REDRAW_NONE&&c.request_app==(mode==2?0:3));
   for(int y=100;y<=1150;y+=350){s_view=HOME_ROOT;s_press_pending=true;
-   ui_gesture_event_t down={UI_GESTURE_SWIPE_D,300,y};c.request_quick_menu=false;
+   ui_gesture_event_t down={UI_GESTURE_SWIPE_D,300,y,false};c.request_quick_menu=false;
    assert(on_gesture(&c,&down)==APP_REDRAW_NONE&&c.request_quick_menu&&!s_press_pending);
   }
  }
- full_mode=false;ui_gesture_event_t e={UI_GESTURE_SWIPE_U,300,600};
+ full_mode=false;ui_gesture_event_t e={UI_GESTURE_SWIPE_U,300,600,false};
  simple=true;s_view=HOME_ROOT;s_press_pending=true;assert(on_gesture(&c,&e)==APP_REDRAW_PAGE&&s_view==HOME_POP_MENU&&!s_press_pending);
- for(int i=0;i<4;++i){s_view=HOME_POP_MENU;c.request_app=0;routes=0;EpdRect r=simple_import_rect(i);e=(ui_gesture_event_t){UI_GESTURE_TAP,r.x+1,r.y+1};assert(on_gesture(&c,&e)==APP_REDRAW_NONE);assert(i?routes==1&&last_action==(i==1?APP_HOME_UTIL_TRANSFER:i==2?APP_HOME_UTIL_OPDS:APP_HOME_UTIL_SETTINGS):c.request_app==5&&!routes);}
- e=(ui_gesture_event_t){UI_GESTURE_TAP,0,0};assert(on_gesture(&c,&e)==APP_REDRAW_PAGE&&s_view==HOME_ROOT);
+ for(int i=0;i<4;++i){s_view=HOME_POP_MENU;c.request_app=0;routes=0;EpdRect r=simple_import_rect(i);e=(ui_gesture_event_t){UI_GESTURE_TAP,r.x+1,r.y+1,false};assert(on_gesture(&c,&e)==APP_REDRAW_NONE);assert(i?routes==1&&last_action==(i==1?APP_HOME_UTIL_TRANSFER:i==2?APP_HOME_UTIL_OPDS:APP_HOME_UTIL_SETTINGS):c.request_app==5&&!routes);}
+ e=(ui_gesture_event_t){UI_GESTURE_TAP,0,0,false};assert(on_gesture(&c,&e)==APP_REDRAW_PAGE&&s_view==HOME_ROOT);
  simple=false;e.type=UI_GESTURE_SWIPE_U;assert(on_gesture(&c,&e)==APP_REDRAW_NONE&&s_view==HOME_ROOT);
  simple=true;s_view=HOME_OTHER;assert(on_gesture(&c,&e)==APP_REDRAW_NONE&&s_view==HOME_OTHER);
- s_view=READING;s_reader_panel=READER_PANEL_TOOLS;s_reader_tap.pending=true;s_pressed_control=4;e=(ui_gesture_event_t){UI_GESTURE_TAP,300,600};assert(reader(&e)==APP_REDRAW_PAGE&&s_reader_panel==READER_PANEL_NONE&&!s_reader_tap.pending&&s_pressed_control==-1);
+ s_view=READING;s_reader_panel=READER_PANEL_TOOLS;s_reader_tap.pending=true;s_pressed_control=4;e=(ui_gesture_event_t){UI_GESTURE_TAP,300,600,false};assert(reader(&e)==APP_REDRAW_PAGE&&s_reader_panel==READER_PANEL_NONE&&!s_reader_tap.pending&&s_pressed_control==-1);
  s_reader_panel=READER_PANEL_TOOLS;e.y0=1096;assert(reader(&e)==APP_REDRAW_NONE&&s_reader_panel==READER_PANEL_TOOLS);
 }
 '''

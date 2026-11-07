@@ -32,7 +32,7 @@ extern "C" {
 /// / CST836U INT on TXD0 / GPIO43. Open-drain, active-low, 10k pull-up on the FPC.
 #define READ_PICO_TP_INT_GPIO CONFIG_READ_PICO_TP_INT_GPIO
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define READ_PICO_PRODUCT_NAME "dpReader"
 #define READ_PICO_DEVICE_NAME "dpReader"
 /// RC90兼容轴映射常数，尚未对本S31实测校准；拿起检测使用相邻原始样本差。
@@ -98,7 +98,7 @@ esp_err_t read_pico_sd_detect(bool* present);
 /// / Convenience detection returns false on I/O failure; mounting and removal use checked detect.
 bool read_pico_sd_present(void);
 bool read_pico_rails_on(void);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
 /// 刷新结束后释放 MODE/XOE/VCOM_EN，保留高压轨与原电压；已经中性时不访问 I2C，失败返回 false 供重试。
 /// Release MODE/XOE/VCOM_EN after output, retaining HV rails and voltage settings; neutral state does no I2C, false requests a retry.
@@ -123,7 +123,7 @@ esp_err_t read_pico_tp_rst(bool high);
 /// call before light sleep and after wake.
 void read_pico_clear_ioe_int(void);
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// Restore the S31 LCD after a light-sleep bus hold.
 void read_pico_epd_restore_lcd(void);
 #else
@@ -137,7 +137,7 @@ esp_err_t read_pico_ioe_wake(void);
 #ifdef __cplusplus
 }
 #endif
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 
 // 每轮扫描后释放S31直连XOE/MODE，不改变TPS电压或USB。/ Release direct S31 XOE/MODE after output; no TPS-voltage or USB change.
 bool read_pico_epd_release_drive(void);

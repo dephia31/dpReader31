@@ -5,7 +5,7 @@
  * 冻结：TXT 保留源字节偏移，EPUB 采用累计 spine HTML 字节；兼容纯文本加载，不写文件。
  * Frozen: TXT retains source offsets; EPUB uses cumulative spine HTML bytes; retain plain-text loading and never write files.
  */
-#if KIIKO_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#if DPREADER_BOARD_METALIO47 && defined(ESP_PLATFORM)
 #include "esp_attr.h"
 // 仅普通任务访问的CPU数据；锁和ISR数据保留内部RAM。/ Task-only CPU data; locks and ISR data stay internal.
 #define CPU_STATE_RAM EXT_RAM_BSS_ATTR
@@ -17,13 +17,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include <sys/stat.h>
 #else
 #endif
 static book_txt_t s_book;
 static book_epub_t *s_epub;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static CPU_STATE_RAM char s_io_path[512];
 static bool s_io_suspended;
 static struct stat s_io_stat;
@@ -31,7 +31,7 @@ static struct stat s_io_stat;
 #endif
 esp_err_t book_open(const char *path) {
     book_close();
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (!path || !*path || strlen(path) >= sizeof(s_io_path)) return ESP_ERR_INVALID_ARG;
     snprintf(s_io_path, sizeof(s_io_path), "%s", path);
 #else
@@ -45,7 +45,7 @@ esp_err_t book_open(const char *path) {
     return err;
 }
 void book_close(void) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     s_io_suspended = false; s_io_path[0] = 0;
 #else
 #endif
@@ -116,7 +116,7 @@ uint32_t book_chapter_byte_offset(size_t i) {
     return s_epub ? book_epub_chapter_byte_offset(s_epub, i) : i < s_book.count ? s_book.entries[i].offset : 0;
 }
 book_kind_t book_kind(void) { return s_epub ? BOOK_KIND_EPUB : BOOK_KIND_TXT; }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 int book_chapter_prefetch_step(size_t chapter) {
     return s_epub?book_epub_prefetch_step(s_epub,chapter):-1;
 }
@@ -129,7 +129,7 @@ esp_err_t book_chapter_image(size_t chapter, const char *src, uint8_t **data, si
 esp_err_t book_chapter_image_dimensions(size_t chapter, const char *src, unsigned *width, unsigned *height) {
     return s_epub ? book_epub_image_dimensions(s_epub, chapter, src, width, height) : ESP_ERR_NOT_SUPPORTED;
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 
 esp_err_t book_suspend_io(void) {
     if (s_epub) return book_epub_suspend_io(s_epub);

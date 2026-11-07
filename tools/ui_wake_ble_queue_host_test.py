@@ -24,7 +24,7 @@ void ble_pt_crumb(uint8_t n){(void)n;}
 static int64_t esp_timer_get_time(void){return 1000000;}
 static void metalio_ui_wake_post(unsigned bits){assert(bits==4);++wakes;}
 '''
-for n in ['key_push','raw_push','ble_pt_pop_key','ble_pt_pop_raw']:u+=function(n,src)+'\n'
+for n in ['key_push','raw_push','ble_pt_pop_key','ble_pt_pop_raw','ble_pt_discard_input']:u+=function(n,src)+'\n'
 u+=r'''
 int main(void){
  for(int i=0;i<15;i++){ble_pt_event_t e={0};e.usage=i;key_push(&e);}assert(wakes==15);
@@ -33,6 +33,10 @@ int main(void){
  ble_pt_frame_t frame={.len=1,.bytes={1}};for(int i=0;i<8;i++){raw_push(true,&frame);raw_push(false,&frame);}assert(wakes==31);
  raw_push(true,&frame);assert(wakes==31);
  ble_pt_raw_t raw;for(int i=0;i<16;i++){assert(ble_pt_pop_raw(&raw)&&raw.pressed==(i%2==0)&&raw.frame.bytes[0]==1);}assert(!ble_pt_pop_raw(&raw));
+ e.usage=42;key_push(&e);raw_push(true,&frame);unsigned serial=s_input_serial;
+ ble_pt_discard_input();assert(!ble_pt_pop_key(&e)&&!ble_pt_pop_raw(&raw)&&s_input_serial==serial);
+ e.usage=43;key_push(&e);raw_push(true,&frame);
+ assert(ble_pt_pop_key(&e)&&e.usage==43&&ble_pt_pop_raw(&raw)&&raw.pressed);
  puts("PASS actual BLE wake producers:15 ordered keys,8 complete press/release pairs, bounded-full queues do not post phantom payloads");}
 '''
 with tempfile.TemporaryDirectory() as d:

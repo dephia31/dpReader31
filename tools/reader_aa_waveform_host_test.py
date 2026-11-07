@@ -71,7 +71,7 @@ int main(int argc,char **argv){
 '''
 with tempfile.TemporaryDirectory() as d:
  p=Path(d);(p/'test.c').write_text(unit)
- cmd=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-DKIIKO_BOARD_METALIO47=1']
+ cmd=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-DDPREADER_BOARD_METALIO47=1']
  for include in ['main','tools/waveform_host_stubs','tools/shelf_waveform_host_stubs','components/epdiy/include','components/epdiy/src','components/e0470_epaper_waveform/include','components/e0470_epaper_waveform/waveforms','components/e0470_epaper_waveform/metalio']:cmd+=['-I'+str(R/include)]
  cmd += [str(p/'test.c'),str(R/'boards/metalio47/src/components/e0470_epaper_waveform/e0470_epaper_waveform.c'),str(R/'components/e0470_epaper_waveform/e0470_waveform_trim.c'),'-o',str(p/'test')]
  subprocess.run(cmd,check=True)

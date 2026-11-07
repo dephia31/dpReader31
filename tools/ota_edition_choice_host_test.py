@@ -15,7 +15,7 @@ unit = r'''
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #include "firmware_edition.h"
 #include "ota_online.h"
 #define MALLOC_CAP_SPIRAM 1

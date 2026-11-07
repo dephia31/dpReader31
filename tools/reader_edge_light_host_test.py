@@ -11,7 +11,7 @@ u=r'''
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define UI_CONTENT_TOP 180
 #define READER_FOOTER_TOP 1140
 #define UI_LOCK_WIDTH 684

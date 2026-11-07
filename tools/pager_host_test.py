@@ -30,7 +30,7 @@ typedef struct {int type;uint16_t x0,y0,x,y;} ui_gesture_event_t;
 static uint8_t pixels[684*1216];
 static char drawn_label[96];
 static int active_top=1006;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static unsigned haptics;
 static int metalio_haptic_click(void){++haptics;return 0;}
 #endif
@@ -56,7 +56,7 @@ static unsigned ink_in(EpdRect r){unsigned n=0;for(int y=r.y;y<r.y+r.height;++y)
 static void check_outside(void){for(int y=0;y<1216;++y)if(y<active_top||y>=active_top+50)for(int x=0;x<684;++x)assert(pixels[y*684+x]==240);}
 static ui_gesture_event_t event(int type,int action){active_top=file_pager_top();EpdRect r=ui_pager_rect_at(action,active_top);int x=r.x+r.width/2,y=r.y+r.height/2;return(ui_gesture_event_t){type,x,y,x,y};}
 static void tap(app_ctx_t *ctx,int action,int expected){
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  unsigned pulses=haptics;
 #endif
  app_redraw_t redraw=-1;ui_gesture_event_t e=event(UI_GESTURE_PRESS,action);
@@ -64,7 +64,7 @@ static void tap(app_ctx_t *ctx,int action,int expected){
  int prior=s_page;e.type=UI_GESTURE_TAP;
  assert(file_pager_event(ctx,&e,&redraw)&&s_page==expected&&s_pager_pressed<0);
  assert(redraw==(prior==expected?APP_REDRAW_AREA:APP_REDRAW_PAGE));
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
  assert(haptics==pulses+1);
 #endif
 }
@@ -121,7 +121,7 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as folder:
     path=Path(folder)/'test.c';path.write_text(unit);exe=path.with_suffix('')
-    subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(root/'main'),str(path),'-o',str(exe),'-DKIIKO_BOARD_METALIO47='+str(int(json.loads((root/'.kiiko-source-view.json').read_text())['board']=='metalio47'))],check=True)
+    subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(root/'main'),str(path),'-o',str(exe),'-DDPREADER_BOARD_METALIO47='+str(int(json.loads((root/'.dpreader-source-view.json').read_text())['board']=='metalio47'))],check=True)
     subprocess.run([str(exe)],check=True)
 
 file_source=files.read_text()

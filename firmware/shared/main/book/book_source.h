@@ -59,7 +59,7 @@ uint32_t book_chapter_byte_offset(size_t i);
 book_kind_t book_kind(void);
 
 esp_err_t book_chapter_image_dimensions(size_t chapter, const char *src, unsigned *width, unsigned *height);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 
 /// 浅睡仅暂停只读文件，不释放排版和章节索引。/ Pause read handles without discarding layout/indexes.
 esp_err_t book_suspend_io(void);

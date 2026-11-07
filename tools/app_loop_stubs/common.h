@@ -12,7 +12,7 @@ typedef void* cst836u_handle_t;
 typedef void* sc7a20h_handle_t;
 #define CST836U_MAX_POINTS 2
 typedef struct { bool active; uint16_t x,y; } cst836u_point_t;
-typedef struct { bool touched; uint8_t count; uint16_t x,y; cst836u_point_t points[2]; uint8_t raw[15]; } cst836u_touch_t;
+typedef struct { bool touched; uint8_t count; uint16_t x,y; cst836u_point_t points[2]; uint8_t raw[15]; bool release_position_valid; } cst836u_touch_t;
 typedef struct { int unused; } cst836u_info_t;
 int cst836u_read(void*, cst836u_touch_t*);
 int cst836u_get_info(void*, cst836u_info_t*);

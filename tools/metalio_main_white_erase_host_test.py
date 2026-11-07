@@ -129,7 +129,7 @@ int main(void){
 with tempfile.TemporaryDirectory() as folder:
     d=Path(folder);c=d/'wave.c';c.write_text(unit);exe=d/'wave'
     command=['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-g','-fsanitize=address,undefined',
-       '-DKIIKO_BOARD_METALIO47=1','-I'+str(ROOT/'main'),'-I'+str(ROOT/'tools/shelf_waveform_host_stubs'),
+       '-DDPREADER_BOARD_METALIO47=1','-I'+str(ROOT/'main'),'-I'+str(ROOT/'tools/shelf_waveform_host_stubs'),
        '-I'+str(ROOT/'tools/waveform_host_stubs'),'-I'+str(ROOT/'components/epdiy/include'),
        '-I'+str(ROOT/'components/epdiy/src'),'-I'+str(ROOT/'components/e0470_epaper_waveform/include'),
        '-I'+str(ROOT/'components/e0470_epaper_waveform/metalio'),str(c),
@@ -147,8 +147,8 @@ with tempfile.TemporaryDirectory() as folder:
     (d/'esp_heap_caps.h').write_text((ROOT/'tools/water_turn_stubs/esp_heap_caps.h').read_text()+
         '\nstatic inline void *heap_caps_malloc(size_t n,int caps){(void)caps;return malloc(n);}\n')
     command=['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unknown-attributes',
-       '-g','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47=1','-DKIIKO_S31_TEXT_RIPPLE=0',
-       '-DKIIKO_TEST_MAIN_SWITCH_ERASE=1','-I'+str(d),'-I'+str(ROOT/'components/epdiy/src'),
+       '-g','-fsanitize=address,undefined','-DDPREADER_BOARD_METALIO47=1','-DDPREADER_S31_TEXT_RIPPLE=0',
+       '-DDPREADER_TEST_MAIN_SWITCH_ERASE=1','-I'+str(d),'-I'+str(ROOT/'components/epdiy/src'),
        '-I'+str(ROOT/'components/epdiy/include'),'-I'+str(ROOT/'components/e0470_epaper_waveform/include'),
        '-I'+str(ROOT/'components/e0470_epaper_waveform/metalio'),'-I'+str(ROOT/'components/e0470_page_turn/include'),
        '-I'+str(ROOT/'main'),'-I'+str(ROOT/'boards/metalio47/src/main'),'-I'+str(ROOT/'tools/water_turn_stubs'),

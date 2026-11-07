@@ -376,7 +376,8 @@ static esp_err_t opds_acquire_network(bool *started_by_us, char *msg, size_t msg
     }
     *started_by_us = true;
     if(s_network_observer)s_network_observer(s_network_context);
-    int64_t deadline = esp_timer_get_time() + 12000000LL;
+    // Allow the STA service to finish trying the saved profiles.
+    int64_t deadline = esp_timer_get_time() + 30000000LL;
     while (esp_timer_get_time() < deadline) {
         read_pico_transfer_service_poll();
         read_pico_transfer_get_status(&st);

@@ -238,7 +238,7 @@ const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode draw_mode) {
 // 书架显式本地实验：官方11/5/0/3逐迁移裁剪，封面与外围同为37相，保留16灰尾段。
 // Explicit shelf experiment: vendor11/5/0/3 transition trimming makes art/chrome37 phases, retaining16 gray tails.
 const EpdWaveform* display_main_shelf37_waveform(bool art) {
-#if KIIKO_S31_SHELF37
+#if DPREADER_S31_SHELF37
     static EpdWaveformPhases phases[2];
     static const EpdWaveformPhases *ranges[2][1]={{&phases[0]},{&phases[1]}};
     static const EpdWaveformMode modes[2]={{MODE_GL16,1,ranges[0]},{MODE_GL16,1,ranges[1]}};
@@ -328,7 +328,7 @@ const EpdWaveform* display_main_page_bw_waveform(void) {
 // 仅面板实验借用官方11/5/0/3裁剪，保留灰阶尾和三相保持；原48相数组不动。
 // Panel experiments alone use vendor11/5/0/3 trimming, retaining gray tails/three holds and untouched48-phase arrays.
 const EpdWaveform* display_reader_panel37_waveform(void) {
-#if KIIKO_S31_READER_PANEL37
+#if DPREADER_S31_READER_PANEL37
     static bool attempted;
     static EpdWaveformPhases phases;
     static const EpdWaveformPhases *ranges[]={&phases};

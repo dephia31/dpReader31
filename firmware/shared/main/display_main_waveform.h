@@ -17,7 +17,7 @@ const EpdWaveform* display_main_bw_waveform(void);
 /// Ordinary gray-edge interleaving keeps endpoints/phase counts/pulse counts; OOM falls back to original soft grays.
 const EpdWaveform* display_main_normal_waveform(void);
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include <stdbool.h>
 /// 仅主页切换及阅读图文出口显式调用：变化为白的像素增加两拍，保留原序列与释放尾段。
 /// Explicit root-switch/reader-image outlets add two white drives on changed white targets, retaining original actions and release phases.
@@ -44,7 +44,7 @@ const EpdWaveform* display_main_shelf_soft_waveform(void);
 /// Shelf art keeps calibrated grays while white space drives only white; ordinary transitions only, preserving vendor manual full refresh.
 #endif
 const EpdWaveform* display_main_shelf_waveform(enum EpdDrawMode mode);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 
 /// 整页输出保留15→15补白；固定底栏及局部控件继续使用原等值保持表。
 /// Page profiles retain white-to-white maintenance; frozen navigation and local controls use equal-held profiles.
@@ -53,7 +53,7 @@ const EpdWaveform* display_main_page_bw_waveform(void);
 #else
 #endif
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
 /// 设置滚动使用已有八相灰阶差分，只向目标推动；不二值化字缘，不申请额外波形内存。
 /// Settings scrolling uses existing eight-phase directional gray differences, without thresholding glyph edges or allocating another waveform.

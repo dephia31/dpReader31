@@ -17,7 +17,7 @@
 #include "e0470_epaper_waveform.h"
 #include <stddef.h>
 
-#if KIIKO_S31_TEXT_RIPPLE
+#if DPREADER_S31_TEXT_RIPPLE
 #include <string.h>
 #include "esp_log.h"
 

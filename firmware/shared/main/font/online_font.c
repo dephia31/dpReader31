@@ -98,7 +98,7 @@ done:
     free(url);free(next);return client;
 }
 static esp_err_t ensure_network(bool *owned){
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     read_pico_transfer_prepare_network();
 #endif
     if(!read_pico_transfer_network_shareable())return ESP_ERR_INVALID_STATE;

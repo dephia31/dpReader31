@@ -5,7 +5,7 @@ dpReader Love Book
 ├── Home · I Love Book
 │   ├── Đọc tiếp → sách và vị trí đọc gần nhất
 │   ├── Bìa sách, trích đoạn hoặc tên chương
-│   └── Vuốt lên → Mở sách · Truyền file · OPDS · Cài đặt
+│   └── Vuốt lên hoặc vuốt sang trái (kể cả vuốt chéo) → Mở sách · Truyền file · OPDS · Cài đặt
 ├── Mở sách
 │   ├── Thư mục mặc định Books
 │   ├── Duyệt thư mục · lên thư mục cha · tải lại · chuyển trang

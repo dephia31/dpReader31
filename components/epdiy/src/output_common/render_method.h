@@ -3,7 +3,7 @@
 #include "sdkconfig.h"
 
 // 本 fork 只保留 ESP32-S3 的 LCD/CAM 外设输出路径。
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32S31)
 #error "this epdiy fork only supports ESP32-S3 (LCD render path)"
 #endif

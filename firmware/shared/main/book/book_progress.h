@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * 按书籍路径保存 NVS 进度，不依赖 UI 或 SD。
- * Per-path NVS reading progress, independent of UI and SD.
+ * Per-path NVS progress with checked SD snapshots when NVS has insufficient space.
  *
  * 冻结：文件大小不同不恢复；失败返回调用方并告警，不擦除其他记录。
  * 为无 RTC 的最近阅读排序，v2 使用持久序号；v1 保留续读但排序置零。

@@ -9,6 +9,7 @@
 
 typedef struct { unsigned nodes; uint64_t bytes; } file_tree_info_t;
 typedef void (*file_tree_deleted_cb_t)(const char *path, bool directory, void *ctx);
+typedef bool (*file_tree_filter_cb_t)(const char *path, void *ctx);
 
 bool file_tree_same_or_below(const char *path, const char *directory);
 esp_err_t file_tree_inspect(const char *path, file_tree_info_t *info);
@@ -16,6 +17,6 @@ esp_err_t file_tree_copy(const char *source, const char *target, uint64_t free_b
 esp_err_t file_tree_move(const char *source, const char *target);
 esp_err_t file_tree_delete(const char *path, file_tree_deleted_cb_t callback, void *ctx);
 
-// Delete all direct files, including entries beyond the UI page limit; retain folders.
-esp_err_t file_tree_delete_files(const char *directory, file_tree_deleted_cb_t callback,
+// Delete matching direct files, including entries beyond the UI page limit; retain folders.
+esp_err_t file_tree_delete_files(const char *directory, file_tree_filter_cb_t filter, file_tree_deleted_cb_t callback,
                                 void *ctx, unsigned *deleted, unsigned *failed);

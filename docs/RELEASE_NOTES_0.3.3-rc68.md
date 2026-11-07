@@ -1,37 +1,35 @@
-# 小纸 Pico 0.3.3-rc68 更新说明
+# Ghi chú lịch sử Read Pico 0.3.3-rc68
 
-发布日期：2026 年 10 月 5 日
-适用设备：MindReset Read Pico RDP-G01-W（ESP32-S3，16 MB Flash）
+Phát hành ngày 05/10/2026 cho MindReset Read Pico RDP-G01-W (ESP32-S3, flash 16 MB).
 
-本版将 rc59–rc68 的本地修改并入在线刷机固件。设备里的书籍、阅读记录和设置不随固件附带；网页正常刷写保留现有 NVS 设置、内部书籍分区与 TF 卡内容。
+Bản này đưa các thay đổi cục bộ từ rc59 đến rc68 vào gói nạp qua web. Gói firmware không chứa sách, lịch sử đọc hay cấu hình cá nhân. Quy trình nạp qua web thông thường giữ NVS, phân vùng sách nội bộ và thẻ TF.
 
-## 书架与阅读
+## Kệ sách và trình đọc
 
-- `books` 内的多级文件夹可扫描并加入书架。新书沿用统一的阅读字号和排版设置；按最近阅读排序会在重启后保持。
-- 书籍可收藏，收藏书排在各书架样式的前面。封面和书脊上的收藏标记统一为黑色；遇到深色背景，标记轮廓增加白边，不再覆盖白色方块。
-- 「封面与书脊」样式在设置里明确标为**测试版、非正式版本**，每页可显示 13 本；常规样式每页显示 9 本。
-- 改进阅读正文两侧对齐、首行缩进与页面上下留白。新设备默认使用中档行距；阅读线的样式与位置可在二级菜单调整。
-- 全屏阅读保留底部细线进度；阅读设置支持手动全刷，以及每 5、10、15、30 页或不强制全刷。
-- 书签保存后的选中态更清楚；书架管理页修正返回、筛选和多选操作。
+- Quét thư mục nhiều cấp dưới `books`. Sách mới dùng cỡ chữ và dàn trang chung. Thứ tự đọc gần đây được giữ sau khi khởi động lại.
+- Sách yêu thích đứng đầu ở mọi kiểu kệ. Dấu yêu thích có màu đen và thêm viền trắng trên nền tối.
+- Kiểu **Bìa và gáy sách** được ghi rõ là thử nghiệm, hiển thị 13 sách mỗi trang. Kiểu thông thường hiển thị 9 sách.
+- Cải thiện căn đều, thụt đầu dòng và lề dọc. Thiết bị mới dùng giãn dòng trung bình. Kiểu và vị trí dòng dẫn đọc chỉnh trong menu con.
+- Chế độ toàn màn hình giữ thanh tiến độ mảnh ở đáy. Cài đặt đọc cho phép làm mới thủ công, tự động sau 5, 10, 15 hoặc 30 trang, hoặc tắt làm mới bắt buộc.
+- Làm rõ trạng thái dấu trang đã lưu. Sửa quay lại, lọc và chọn nhiều mục trong quản lý kệ.
 
-## EPUB 与图片
+## EPUB, ảnh và giao diện
 
-- 部分 EPUB 的 ZIP 与目录兼容处理继续完善；损坏的目录缓存重建前会释放临时表，避免重复占用内存。
-- 打开书籍时先释放可重建的封面和旧页面预渲染缓冲，再按需重新分配；WiFi 在线时也会释放字形缓存，为正文解析留出内存。书架打开失败时显示原因，便于进一步定位。
-- 壁纸锁屏的图片按原比例居中裁切铺满屏幕，预览与锁屏使用同一裁切位置；横图和方图也会按解码器上限缩放。
-- 设置页卡片边框与分隔线、首页及书架横线加深，以提高墨水屏上的可读性。
+- Cải thiện tương thích ZIP và mục lục EPUB. Giải phóng bảng tạm trước khi dựng lại cache mục lục hỏng.
+- Trước khi mở sách, thu hồi cache bìa và các trang dựng trước có thể tái tạo. Khi Wi-Fi bật, thu hồi cả cache glyph để chừa bộ nhớ phân tích sách. Hiển thị lý do nếu mở sách thất bại.
+- Ảnh nền khóa giữ tỷ lệ và cắt giữa để phủ màn hình. Xem trước dùng cùng vị trí cắt. Ảnh ngang và vuông được thu nhỏ theo giới hạn trình giải mã.
+- Tăng độ đậm của đường viền, đường phân cách trong cài đặt, Home và kệ sách.
 
-## 传输、设置与备份
+## Truyền tệp, cài đặt và sao lưu
 
-- 热点和同 WiFi 传书调整服务启动顺序、无线缓冲与写入缓冲，改善服务创建失败和传输不稳定；热点仍限制单设备接入。
-- 设置页资料卡头像裁切与圆角遮罩对齐，状态栏签名和电量位置调整；设备名称、头像、签名等可自定义。
-- TF 卡 `Pico-settings.backup` 保存系统与阅读字体、字号、排版、显示、锁屏、网络配置、设备资料，以及书籍进度、阅读时长、书签、收藏和自定义书名。旧版备份可恢复。备份中的 WiFi 密码为明文，请妥善保管 TF 卡；图片、字体和书籍本体不会复制进备份。
-- 首次使用新版双固件槽时，电脑网页刷机会同时写入引导程序、分区表、应用镜像和 OTA 初始化数据。之后可将应用镜像作为 `Pico-update.bin` 放在 TF 卡根目录，在文件管理中安装本地升级；异常的首次启动可以回退到前一槽。
+- Điều chỉnh thứ tự khởi động dịch vụ, bộ đệm Wi-Fi và bộ đệm ghi để cải thiện truyền sách qua điểm phát hoặc Wi-Fi dùng chung. Điểm phát vẫn giới hạn một thiết bị.
+- Căn vùng cắt avatar với mặt nạ bo góc. Điều chỉnh chữ ký và chỉ báo pin. Có thể tùy chỉnh tên, avatar và chữ ký.
+- `Pico-settings.backup` trên thẻ TF lưu phông hệ thống và phông đọc, cỡ chữ, dàn trang, hiển thị, khóa, mạng, hồ sơ, tiến độ, thời lượng đọc, dấu trang, sách yêu thích và tên tùy chỉnh. Có thể khôi phục bản sao lưu cũ. Mật khẩu Wi-Fi ở dạng văn bản rõ. Gói không chứa ảnh, phông hoặc sách.
+- Khi chuyển sang bố cục hai khe, lần nạp đầu qua web ghi bootloader, bảng phân vùng, ứng dụng và dữ liệu OTA ban đầu. Các lần sau có thể đặt ảnh ứng dụng tên `Pico-update.bin` ở gốc thẻ TF và cập nhật trong trình quản lý tệp. Lần khởi động đầu gặp lỗi có thể quay về khe trước.
 
-## 验证与范围
+## Xác minh của đợt phát hành
 
-- ESP-IDF v6.1 产品配置编译通过；完整书籍、设置备份、传输与界面宿主测试通过。
-- 一份用户提供的 EPUB 在宿主测试中读取了 22 个章节、225,309 字节正文。**WiFi 连线下在实体设备打开该书仍需刷入后复测**；本版改善内存余量与错误提示，不把该项标成已完成实机验证。
-- 「封面与书脊」仍为测试样式。壁纸裁切、收藏标记深色封面显示、WiFi 在线开书与传书稳定性需要实机继续反馈。
+- Build cấu hình sản phẩm với ESP-IDF v6.1 và kiểm thử máy tính cho sách, sao lưu, truyền tệp và giao diện đều qua.
+- Một EPUB do người dùng gửi đã được đọc trên máy tính với 22 chương và 225.309 byte văn bản. Mở sách đó khi bật Wi-Fi, cắt ảnh nền, dấu yêu thích trên bìa tối và độ ổn định truyền tệp còn cần thử trên thiết bị.
 
-完整逐版记录见 [CHANGELOG](CHANGELOG.md)。第三方代码与字体许可见仓库根目录的 [第三方许可说明](../THIRD_PARTY_NOTICES.md)。
+Xem [changelog](CHANGELOG.md) và [thông báo giấy phép bên thứ ba](../THIRD_PARTY_NOTICES.md).

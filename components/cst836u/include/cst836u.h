@@ -26,7 +26,7 @@ extern "C" {
 
 typedef struct cst836u_dev_t* cst836u_handle_t;
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #define CST836U_ADDR_DEFAULT 0x38
 #else
 #define CST836U_ADDR_DEFAULT 0x15
@@ -57,6 +57,7 @@ typedef struct {
     uint16_t y;
     cst836u_point_t points[CST836U_MAX_POINTS];
     uint8_t raw[CST836U_RAW_LEN];
+    bool release_position_valid; ///< x/y giữ điểm chạm cuối do driver ghi khi nhấc tay.
 } cst836u_touch_t;
 
 typedef struct {
@@ -90,7 +91,7 @@ esp_err_t cst836u_init(i2c_master_bus_handle_t bus_handle, const cst836u_config_
                        cst836u_handle_t* handle);
 esp_err_t cst836u_deinit(cst836u_handle_t handle);
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// 等待新采样或原有调度截止；UI单一消费者，未注册则按超时等待。/ Wait for a new sample or scheduler deadline; one UI consumer, timed fallback before registration.
 void cst836u_wait_sample(cst836u_handle_t h, uint32_t timeout_ms);
 #endif

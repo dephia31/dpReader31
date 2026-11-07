@@ -23,7 +23,7 @@
 // S31 C 查表需要更长的准备窗口；Pico 上层档位不应覆盖它。
 // S31 C lookup needs its own prefill margin, independent of Pico profiles.
 static int s_prefill_lines = 192;
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
 #include "esp_private/spi_flash_os.h"
 #include "esp_rom_sys.h"
 static int s_cache_probe_remaining,s_cache_probe_completed;
@@ -143,7 +143,7 @@ void lcd_do_update(RenderContext_t* ctx) {
         // start both feeder tasks；开扫由 feeder 预填够行后触发
         xTaskNotifyGive(ctx->feed_tasks[!xPortGetCoreID()]);
         xTaskNotifyGive(ctx->feed_tasks[xPortGetCoreID()]);
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
         // 只有整帧行已在内部队列时，主调用者才递归测试缓存停顿；不饿住生成任务。/ The owning caller tests a recursive cache stall only after all rows are in internal queues, without starving producers.
         extern bool epd_lcd_frame_active(void);
         if(__atomic_load_n(&s_cache_probe_remaining,__ATOMIC_RELAXED)>0&&
@@ -175,7 +175,7 @@ void lcd_do_update(RenderContext_t* ctx) {
         }
 
         if (ctx->error) {
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
             extern void epd_lcd_dump_dma(void);
             epd_lcd_dump_dma();
 #endif

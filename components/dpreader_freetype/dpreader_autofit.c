@@ -4,9 +4,9 @@
  * Original FreeType files and hinting algorithms remain unmodified.
  */
 #define FT_MAKE_OPTION_SINGLE_OBJECT
-#ifdef KIIKO_AUTOFIT_STACK_REFERENCE
+#ifdef DPREADER_AUTOFIT_STACK_REFERENCE
 #include "vendor/src/autofit/afhints.h"
 #else
-#include "kiiko_afhints.h"
+#include "dpreader_afhints.h"
 #endif
 #include "vendor/src/autofit/autofit.c"

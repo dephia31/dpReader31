@@ -133,7 +133,7 @@ with tempfile.TemporaryDirectory(prefix='s31-txt16-') as folder:
     manifest=t/'manifest';manifest.write_text(''.join(rows))
     c=t/'test.c';c.write_text(unit);exe=t/'test'
     subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-fsanitize=address,undefined',
-                    '-DKIIKO_BOARD_METALIO47=1','-I'+str(t),'-I'+str(r/'main/book'),'-I'+str(r/'main'),
+                    '-DDPREADER_BOARD_METALIO47=1','-I'+str(t),'-I'+str(r/'main/book'),'-I'+str(r/'main'),
                     '-I'+str(r/'tools/book_epub_stubs'),str(c),str(r/'main/book/gbk.c'),'-o',str(exe)],check=True)
     subprocess.run([str(exe),str(manifest)],check=True)
     assert all(hashlib.sha256(p.read_bytes()).hexdigest()==h for p,h in hashes.items())

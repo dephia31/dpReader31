@@ -19,7 +19,7 @@
 #include "ttf_font.h"
 #include "ui_kit.h"
 #include "ui_nav.h"
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #include "esp_timer.h"
 #include "read_pico_sd.h"
 #endif
@@ -29,7 +29,7 @@ static bool s_reading;
 static char s_rejected[TTF_FONT_PATH_MAX];
 static time_t s_rejected_mtime;
 static off_t s_rejected_size;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static int64_t s_rejected_retry_us;
 static int64_t s_stable_check_us;
 static unsigned s_rejected_attempts;
@@ -41,7 +41,7 @@ static bool font_file(const char *path, struct stat *st) {
 // 异常启动默认内建；用户本次启动成功重选后重新放行TF字体，其余保护不变。
 // Built-in by default after an abnormal boot; a successful explicit choice this boot re-admits TF faces.
 static bool font_allowed(void) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     return pico_boot_font_allowed();
 #else
     return !pico_boot_recovery();
@@ -50,7 +50,7 @@ static bool font_allowed(void) {
 
 static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
     if (!font_allowed()) return TTF_FONT_BUILTIN;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(!read_pico_sd_io_ready())return ttf_font_path();
 #endif
     const char* chosen = app_settings_system_font_path();
@@ -60,7 +60,7 @@ static const char* system_path(char fallback[TTF_FONT_PATH_MAX]) {
 }
 
 static bool activate(const char* path) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // 有意暂停TF时不stat/卸载旧槽；挂载恢复后沿原选择重试。
     // Do not stat/unload retained faces while media is intentionally paused; retry the saved choice after mount.
     if(!ttf_font_path_is_builtin(path)&&!read_pico_sd_io_ready())return false;
@@ -71,7 +71,7 @@ static bool activate(const char* path) {
     bool valid = builtin || font_file(path, &st);
     bool rejected = !builtin && !strcmp(s_rejected, path) &&
         s_rejected_mtime == st.st_mtime && s_rejected_size == st.st_size;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // 手动加载成功即可解除旧拒绝；临时I/O或内存失败有界退避，不永久封锁同一文件。
     // A successful manual load clears old rejection; transient I/O/OOM failures back off without permanently blocking the file.
     if (valid && ttf_font_ready() && !strcmp(ttf_font_path(), path)) {
@@ -83,20 +83,20 @@ static bool activate(const char* path) {
 #endif
     if (!valid || rejected) path = TTF_FONT_BUILTIN;
     if (ttf_font_ready() && !strcmp(ttf_font_path(), path)) return false;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     esp_err_t err=ttf_font_open(path);
     if (err == ESP_OK) {
 #else
     if (ttf_font_open(path) == ESP_OK) {
 #endif
         if (!ttf_font_path_is_builtin(path)) s_rejected[0] = 0;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if (!ttf_font_path_is_builtin(path)) s_rejected_attempts=0;
 #endif
         return true;
     }
     if (!ttf_font_path_is_builtin(path)) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if (strcmp(s_rejected,path) || s_rejected_mtime!=st.st_mtime || s_rejected_size!=st.st_size)
             s_rejected_attempts=0;
         static const unsigned retry_ms[]={1000,3000,10000,30000};
@@ -109,7 +109,7 @@ static bool activate(const char* path) {
         s_rejected_mtime = st.st_mtime;
         s_rejected_size = st.st_size;
     }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if (ttf_font_ready() && ttf_font_is_builtin()) return !had_builtin;
 #else
     if (ttf_font_ready() && ttf_font_is_builtin()) return false;
@@ -147,7 +147,7 @@ bool app_font_activate_reading(void) {
 }
 
 bool app_font_retry_active(void) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     const char *wanted=s_reading?app_settings_font_path():app_settings_system_font_path();
     int64_t now=esp_timer_get_time();
     bool stable=font_allowed()&&read_pico_sd_io_ready()&&ttf_font_ready()&&
@@ -159,7 +159,7 @@ bool app_font_retry_active(void) {
 #endif
     return s_reading ? app_font_activate_reading() : app_font_activate_system();
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 bool app_font_recover_media(void) {
     s_stable_check_us=0;
     s_rejected[0] = 0;
@@ -177,16 +177,16 @@ void app_font_begin_lock(app_lock_font_t *saved) {
 }
 
 void app_font_end_lock(const app_lock_font_t *saved) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     s_stable_check_us=0;
 #endif
     if (!saved) return;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 #else
     (void)activate(saved->path);
 #endif
     s_reading = saved->reading;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     const char *restore=saved->path;
     // 暂时退回内建不能覆盖阅读意图；锁屏前未加载成功的TF字体在解锁时再尝试。
     // A temporary built-in fallback does not replace reader intent; retry the selected TF face on unlock.

@@ -20,7 +20,7 @@ unit=r'''
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#define KIIKO_BOARD_METALIO47 1
+#define DPREADER_BOARD_METALIO47 1
 #define ESP_PLATFORM 1
 #define MALLOC_CAP_SPIRAM 1
 #define MALLOC_CAP_8BIT 2

@@ -17,7 +17,7 @@
 #include <limits.h>
 #define READ_BLOCK (64 * 1024)
 #define PART_TARGET (48 * 1024)
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 // 旧索引可能把UTF16当GBK；只重建TXT目录缓存，不改变文件与阅读进度。
 // Old indexes may have guessed GBK for UTF16; rebuild only TXT indexes, retaining files/progress.
 #define TXT_CACHE_VERSION 2u
@@ -37,7 +37,7 @@ typedef struct {
     size_t pos, used; ///< 缓冲游标 / Buffer cursors
     uint32_t offset; ///< 原文件游标 / Source cursor
     bool gbk; ///< 编码 / Encoding
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     uint8_t utf16; ///< UTF16字节序 / UTF16 byte order
 #endif
 } reader_t;
@@ -61,7 +61,7 @@ static size_t encode(uint32_t cp, char out[4]) {
     if (cp < 0x10000) { out[0] = 0xe0 | (cp >> 12); out[1] = 0x80 | ((cp >> 6) & 63); out[2] = 0x80 | (cp & 63); return 3; }
     out[0] = 0xf0 | (cp >> 18); out[1] = 0x80 | ((cp >> 12) & 63); out[2] = 0x80 | ((cp >> 6) & 63); out[3] = 0x80 | (cp & 63); return 4;
 }
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 static uint16_t utf16_unit(const unsigned char *s, bool be) {
     return be?((uint16_t)s[0]<<8)|s[1]:((uint16_t)s[1]<<8)|s[0];
 }
@@ -104,7 +104,7 @@ static bool next(reader_t *r, uint32_t *cp) {
     size_t n = r->used - r->pos;
     if (!n) return false;
     const unsigned char *s = r->bytes + r->pos; size_t k = 1;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     if(r->utf16)k=utf16_one(s,n,r->utf16==2,cp);
     else
 #endif
@@ -118,7 +118,7 @@ static bool next(reader_t *r, uint32_t *cp) {
 }
 static esp_err_t reset(reader_t *r, book_txt_t *b, uint32_t offset) {
     memset(r, 0, sizeof(*r)); r->file = b->file; r->gbk = b->gbk; r->offset = offset;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     r->utf16=b->utf16;
 #endif
     clearerr(b->file);
@@ -202,7 +202,7 @@ static bool txt_cache_load(const char* source, book_txt_t* b) {
         payload.count > 0 && payload.count <= BOOK_CHAPTER_MAX && payload.gbk <= 1 &&
         fread(b->entries, sizeof(b->entries[0]), payload.count, cache) == payload.count &&
         fgetc(cache) == EOF;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     ok=ok&&payload.reserved[0]<=2&&(!payload.reserved[0]||(!payload.gbk&&(payload.bom==0||payload.bom==2)));
 #endif
     fclose(cache);
@@ -211,14 +211,14 @@ static bool txt_cache_load(const char* source, book_txt_t* b) {
         const book_entry_t* entry = &b->entries[i];
         ok = entry->offset >= previous && entry->offset < payload.total &&
             memchr(entry->title, 0, sizeof(entry->title)) != NULL;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         if(payload.reserved[0]&&entry->offset%2)ok=false;
 #endif
         previous = entry->offset;
     }
     if (!ok) return false;
     b->bom = payload.bom; b->gbk = payload.gbk != 0; b->count = payload.count;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     b->utf16=payload.reserved[0];
 #endif
     return true;
@@ -232,7 +232,7 @@ static void txt_cache_save(const char* source, const book_txt_t* b) {
     txt_cache_payload_t payload = {
         .total = b->total, .bom = b->bom, .count = (uint32_t)b->count, .gbk = b->gbk,
     };
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     payload.reserved[0]=b->utf16;
 #endif
     bool ok = fwrite(&payload, 1, sizeof(payload), cache) == sizeof(payload) &&
@@ -241,7 +241,7 @@ static void txt_cache_save(const char* source, const book_txt_t* b) {
 }
 
 esp_err_t book_txt_open(book_txt_t *b, const char *path) {
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     b->utf16=0;b->gbk=false;b->bom=0;
 #endif
     b->file = fopen(path, "rb"); if (!b->file) return ESP_ERR_NOT_FOUND;
@@ -258,12 +258,12 @@ esp_err_t book_txt_open(book_txt_t *b, const char *path) {
     if (!err) {
         size_t n = fread(r->bytes, 1, READ_BLOCK + 3, b->file);
         if (ferror(b->file)) err = ESP_FAIL;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         else if(n>=2&&r->bytes[0]==0xff&&r->bytes[1]==0xfe){b->utf16=1;b->bom=2;}
         else if(n>=2&&r->bytes[0]==0xfe&&r->bytes[1]==0xff){b->utf16=2;b->bom=2;}
 #endif
         else if (n >= 3 && !memcmp(r->bytes, "\xef\xbb\xbf", 3)) b->bom = 3;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
         else if((b->utf16=utf16_probe(r->bytes,n))!=0){}
 #endif
         else {

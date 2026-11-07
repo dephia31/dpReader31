@@ -44,7 +44,7 @@ bool book_cover_load_list_gray(const char *path, const char *title, const char *
                                uint8_t out[BOOK_COVER_W * BOOK_COVER_H], bool allow_decode,
                                bool *pending, unsigned *width, unsigned *height);
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 // S31 shared fast thumbnails and bounded idle disk-to-RAM prefetch.
 bool book_cover_fast_cache_get(const char *path,const char *title,const char *author,unsigned style,
                                unsigned width,unsigned height,unsigned contrast,unsigned phase,
@@ -75,7 +75,7 @@ void book_cover_store_generated(const char *path,const char *title,const char *a
 /// Persist asynchronous pixels only under their original source identity, never a replaced book's key.
 void book_cover_fast_cache_write_checked(const char *path,const char *title,const char *author,book_fast_cover_key_t key,const uint8_t *pixels,bool edge,int64_t size,int64_t modified);
 
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 /// RAM 专用命中；前台未命中时不打开 TF 缓存文件。/ RAM-only lookup; no TF open on foreground misses.
 bool book_cover_peek_gray(const char *path,const char *title,const char *author,bool list,
                          uint8_t *out,unsigned *width,unsigned *height);

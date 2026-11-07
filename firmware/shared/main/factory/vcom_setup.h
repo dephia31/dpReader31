@@ -18,7 +18,7 @@ extern "C" {
 
 /// PMU 未标定 VCOM 时拦住开机，写进 PMU 后才返回。/ Gate boot when VCOM is unset; returns only after it is written to the PMU.
 void vcom_setup_run(EpdiyHighlevelState* hl, uint8_t* fb, cst836u_handle_t tp);
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
 
 /// 读取 NVS 里保存的 VCOM（mV，900..2000、10 的倍数）；未设置时返回厂家默认 1200。
 /// Load the VCOM saved in NVS (mV, 900..2000, step 10); the vendor default 1200 when unset.

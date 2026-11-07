@@ -10,6 +10,19 @@
 #include <assert.h>
 #include "../components/read_pico_transfer/transfer_signature.h"
 int metalio_haptic_click(void){return ESP_OK;}
+bool read_pico_transfer_network_begin(void) {
+    if (test_foreign_network_owner) return false;
+    ++test_network_depth;
+    return true;
+}
+void read_pico_transfer_network_end(void) {
+    assert(test_network_depth > 0);
+    --test_network_depth;
+}
+void kosync_md5_string(const char *input, char out_hex[33]) {
+    (void)input;
+    strcpy(out_hex, "00000000000000000000000000000000");
+}
 static bool test_usb_active;
 static esp_err_t test_usb_stop_error;
 esp_err_t usb_storage_start(void) { test_usb_active = true; return ESP_OK; }
@@ -125,6 +138,71 @@ static void wifi_recovery_regression(app_ctx_t* ctx) {
     s_forget_confirm = false;
     test_status = (read_pico_transfer_status_t){0};
 }
+
+static void upload_admission_regression(app_ctx_t *ctx) {
+    on_enter(ctx);
+    const int stops = test_stop_count;
+    const unsigned starts = test_upload_starts;
+    test_foreign_network_owner = test_wifi_running = true;
+    tap(ctx, method_control_rect(0));
+    assert(s_start_pending && s_mode == READ_PICO_TRANSFER_MODE_STA);
+    assert(on_tick(ctx) == APP_REDRAW_NONE && s_start_pending);
+    assert(test_stop_count == stops && test_upload_starts == starts);
+    tap(ctx, control_rect(2));
+    assert(s_view == TRANSFER_METHODS && !s_start_pending && test_wifi_running);
+    assert(test_stop_count == stops);
+
+    tap(ctx, method_control_rect(0));
+    assert(on_tick(ctx) == APP_REDRAW_NONE);
+    ctx->now_ms += 8000;
+    assert(on_tick(ctx) == APP_REDRAW_PAGE && !s_start_pending);
+    assert(s_status.last_error == ESP_ERR_TIMEOUT && test_wifi_running);
+    assert(test_stop_count == stops && test_upload_starts == starts);
+
+    tap(ctx, control_rect(2));
+    test_foreign_network_owner = false;
+#if DPREADER_BOARD_METALIO47
+    test_sleep_blocked = true;
+    assert(on_tick(ctx) == APP_REDRAW_NONE && s_start_pending);
+    assert(test_stop_count == stops && test_upload_starts == starts);
+    test_sleep_blocked = false;
+    ctx->now_ms += 250;
+#endif
+    test_busy = true;
+    assert(on_tick(ctx) == APP_REDRAW_NONE && s_start_pending);
+    assert(test_stop_count == stops && test_upload_starts == starts);
+    test_busy = false;
+    test_sd_upload = true;
+    const unsigned space_reads = test_space_reads;
+    ctx->now_ms += 250;
+    assert(on_tick(ctx) == APP_REDRAW_PAGE && s_session_started);
+    assert(test_stop_count == stops + 1 && test_upload_starts == starts + 1 && test_network_depth == 0);
+#if DPREADER_BOARD_METALIO47
+    assert(!s_free_known && test_space_reads == space_reads && test_sd_space_refreshes == 0);
+    test_status = (read_pico_transfer_status_t){
+        .mode = READ_PICO_TRANSFER_MODE_STA, .state = READ_PICO_TRANSFER_READY, .network_ready = true,
+    };
+    ctx->now_ms += 2000;
+    assert(on_tick(ctx) == APP_REDRAW_PAGE && test_sd_space_refreshes == 1 && !s_free_known);
+    test_sd_space_valid = true;
+    ctx->now_ms += 2000;
+    assert(on_tick(ctx) == APP_REDRAW_AREA && s_free_known && s_free == 123456789);
+    assert(test_space_reads == space_reads && test_sd_space_refreshes == 1);
+    test_sd_space_valid = false;
+#else
+    (void)space_reads;
+#endif
+    test_sd_upload = false;
+    stop_session();
+    test_status = (read_pico_transfer_status_t){0};
+    on_enter(ctx);
+    tap(ctx, method_control_rect(1));
+    assert(s_start_pending && s_mode == READ_PICO_TRANSFER_MODE_AP);
+    assert(on_tick(ctx) == APP_REDRAW_PAGE && s_session_started);
+    assert(test_upload_starts == starts + 2 && test_network_depth == 0);
+    stop_session();
+    ctx->now_ms = 0;
+}
 static void password_caret_regression(app_ctx_t *ctx) {
     clear_password();ui_keyboard_begin(&s_password_input,true);
     assert(s_password_input.cursor==0);
@@ -174,6 +252,7 @@ int main(void) {
     assert(test_qr_encodes == 0);
     qr_regression(&ctx);
     test_configured = true;
+    upload_admission_regression(&ctx);
     on_enter(&ctx);
     tap(&ctx, method_control_rect(0));
     assert(s_view == TRANSFER_HOME && s_start_pending && !s_scan_pending);
@@ -290,7 +369,7 @@ int main(void) {
     assert(s_view == TRANSFER_HOME && s_start_pending && s_mode == READ_PICO_TRANSFER_MODE_STA);
     int stops_before = test_stop_count;
     tap(&ctx, control_rect(2));
-    assert(test_stop_count == stops_before + 1 && !s_start_pending);
+    assert(test_stop_count == stops_before && !s_start_pending);
     assert(s_view == TRANSFER_METHODS && !ctx.request_return && ctx.request_app == NULL);
     on_enter(&ctx);
     tap(&ctx, method_control_rect(1));
@@ -302,7 +381,7 @@ int main(void) {
     tap(&ctx, (EpdRect){540, UI_NAV_TOP + 16, 20, 20});
     assert(test_stop_count == stops_before && test_nav_index == -1);
     test_busy = false;
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     // Small live progress is bounded to the two-second poll, with failed scans retried.
     s_status.state=READ_PICO_TRANSFER_READY;test_status.state=READ_PICO_TRANSFER_UPLOADING;
     strcpy(test_status.cur_name,"font-one.ttf");

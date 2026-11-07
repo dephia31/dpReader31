@@ -11,7 +11,7 @@ unit=r'''
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include "kiiko_board_config.h"
+#include "dpreader_board_config.h"
 typedef int esp_err_t;typedef unsigned nvs_handle_t;
 #define ESP_OK 0
 #define ESP_ERR_NVS_NOT_FOUND 1
@@ -35,7 +35,7 @@ unit+=r'''
 static void reset(void){count=calls=opened=closed=erased=committed=failed_at=0;missing=false;}
 int main(void){
  reset();assert(app_factory_reset()==0&&opened==closed);unsigned operations=calls,n=count;
- assert(!strcmp(names[0],KIIKO_BOARD_SETTINGS_NAMESPACE)&&!strcmp(names[1],KIIKO_BOARD_STARTUP_NAMESPACE)&&!strcmp(names[n-1],KIIKO_BOARD_LOCK_NAMESPACE));
+ assert(!strcmp(names[0],DPREADER_BOARD_SETTINGS_NAMESPACE)&&!strcmp(names[1],DPREADER_BOARD_STARTUP_NAMESPACE)&&!strcmp(names[n-1],DPREADER_BOARD_LOCK_NAMESPACE));
  assert(erased==n&&committed==n);
  for(unsigned failure=1;failure<=operations;++failure){reset();failed_at=failure;assert(app_factory_reset()==-9&&opened==closed);assert(calls==failure);failed_at=0;assert(app_factory_reset()==0&&opened==closed);}
  reset();missing=true;assert(app_factory_reset()==0&&!opened&&!erased&&!committed);
@@ -45,5 +45,5 @@ int main(void){
 with tempfile.TemporaryDirectory() as folder:
     p=Path(folder);(p/'test.c').write_text(unit)
     for board in (0,1):
-        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-DKIIKO_BOARD_METALIO47='+str(board),'-I'+str(ROOT/'main'),str(p/'test.c'),'-o',str(p/'test')],check=True)
+        subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-DDPREADER_BOARD_METALIO47='+str(board),'-I'+str(ROOT/'main'),str(p/'test.c'),'-o',str(p/'test')],check=True)
         subprocess.run([str(p/'test')],check=True)

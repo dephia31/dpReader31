@@ -198,7 +198,7 @@ esp_err_t file_tree_move(const char *source, const char *target) {
 }
 
 /* Delete direct regular children only. Never recurse into folders or follow links. */
-esp_err_t file_tree_delete_files(const char *directory, file_tree_deleted_cb_t callback,
+esp_err_t file_tree_delete_files(const char *directory, file_tree_filter_cb_t filter, file_tree_deleted_cb_t callback,
                                 void *ctx, unsigned *deleted, unsigned *failed) {
     if (!directory || !*directory || !deleted || !failed) return ESP_ERR_INVALID_ARG;
     *deleted = *failed = 0;
@@ -216,6 +216,7 @@ esp_err_t file_tree_delete_files(const char *directory, file_tree_deleted_cb_t c
         if (snprintf(path,TREE_PATH_MAX,"%s/%s",directory,entry->d_name) >= (int)TREE_PATH_MAX) {
             ++*failed; result = ESP_FAIL; continue;
         }
+        if (filter && !filter(path, ctx)) continue;
         struct stat st;
 #ifdef ESP_PLATFORM
         int status = stat(path,&st); /* SD FAT has no symbolic links. */

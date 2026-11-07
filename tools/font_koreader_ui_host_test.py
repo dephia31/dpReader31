@@ -49,5 +49,5 @@ with tempfile.TemporaryDirectory() as directory:
  assets='#include <stdint.h>\nconst uint8_t builtin[] __asm__("_binary_builtin_ttf_start")={'+','.join(map(str,raw))+'};\n'
  assets+='__asm__(".globl _binary_builtin_ttf_end\\n.set _binary_builtin_ttf_end, _binary_builtin_ttf_start + '+str(len(raw))+'");\n'
  (p/'assets.c').write_text(assets + assets_bitter);(p/'test.c').write_text(UNIT)
- subprocess.run(['cc',*FLAGS,'-std=gnu11','-DKIIKO_BOARD_METALIO47=1','-I'+str(p),'-I'+str(ROOT/'tools/ui_gesture_stubs'),str(p/'test.c'),str(p/'assets.c'),str(ROOT/'main/font/ui_hanzi.c'),str(ROOT/'main/font/ttf_mono.c'),*[str(COMP/'vendor/src'/s) for s in SOURCES],'-lm','-o',str(p/'test')],check=True)
+ subprocess.run(['cc',*FLAGS,'-std=gnu11','-DDPREADER_BOARD_METALIO47=1','-I'+str(p),'-I'+str(ROOT/'tools/ui_gesture_stubs'),str(p/'test.c'),str(p/'assets.c'),str(ROOT/'main/font/ui_hanzi.c'),str(ROOT/'main/font/ttf_mono.c'),*[str(COMP/'vendor/src'/s) for s in SOURCES],'-lm','-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)

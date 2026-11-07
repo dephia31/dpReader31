@@ -30,7 +30,7 @@
 #include "book_store.h"
 #include "esp_system.h"
 #include "esp_heap_caps.h"
-#include "kiiko_board_config.h"
+#include "dpreader_board_config.h"
 #include "read_pico_sd.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -86,15 +86,15 @@ extern const uint8_t lock_4bpp_bin_end[] asm("_binary_lock_4bpp_bin_end");
 // no Pico PMU, so the calibrated value lives in local NVS only.
 static void resolve_vcom_at_boot(void) {
     const int saved_mv = vcom_setup_load_mv();
-#ifdef KIIKO_BOARD_VCOM_TRIAL_MV
+#ifdef DPREADER_BOARD_VCOM_TRIAL_MV
     // User-requested reversible trial: apply the reference without changing NVS.
-    const int mv = KIIKO_BOARD_VCOM_TRIAL_MV;
+    const int mv = DPREADER_BOARD_VCOM_TRIAL_MV;
     ESP_LOGI(TAG,"VCOM trial=%dmV; saved/default=%dmV retained for rollback",mv,saved_mv);
 #else
     const int mv = saved_mv;
 #endif
     epd_set_vcom((uint16_t)mv);
-    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=%dmV (default %dmV)", mv, KIIKO_BOARD_VCOM_DEFAULT_MV);
+    ESP_LOGI(TAG,"Metalio V1.5 runtime VCOM=%dmV (default %dmV)", mv, DPREADER_BOARD_VCOM_DEFAULT_MV);
 }
 
 // 开机按住音量键进 VCOM 校准页；V1.5 音量键在 FCA9555 P1.0/P1.1，低有效。
@@ -294,7 +294,7 @@ void app_main(void) {
     if (app_settings_autorestore_status() >= APP_RESTORE_NEED_MEDIA) first = app_at(3);
 #endif
     rp_boot_mark("resume");
-#ifdef KIIKO_LOCAL_TRANSFER_START
+#ifdef DPREADER_LOCAL_TRANSFER_START
     // Explicit unattended local tests only; preserve PIN and recovery gates.
     if (!lock_pin_enabled() && first == app_home_page()) {
         extern const app_desc_t app_transfer;

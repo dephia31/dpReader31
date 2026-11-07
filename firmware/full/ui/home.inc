@@ -4,7 +4,7 @@
 /* 中文：Full首页界面。/ English: Full Home interface. */
 static void render_root(uint8_t *fb) {
     if(app_settings_simple_ui()){render_simple_root(fb);return;}
-#ifdef KIIKO_LOCAL_LATENCY
+#ifdef DPREADER_LOCAL_LATENCY
     int64_t probe_home=esp_timer_get_time();
 #define HOME_STAGE(name) do { int64_t probe_now=esp_timer_get_time();ESP_LOGI("latency","HOME stage=%s us=%lld",name,(long long)(probe_now-probe_home));probe_home=probe_now; } while(0)
 #else
@@ -17,7 +17,7 @@ static void render_root(uint8_t *fb) {
     if(s_avatar_ready)ui_wallpaper_draw_avatar(fb,s_avatar,(EpdRect){588,88,60,60},30);
     else {epd_fill_circle(618,118,30,0x30,fb);label(fb,618,118,30,"K",EPD_DRAW_ALIGN_CENTER,0xff);}
     HOME_STAGE("header");
-#if KIIKO_BOARD_METALIO47
+#if DPREADER_BOARD_METALIO47
     const uint8_t card_gray=0xff;
 #else
     const uint8_t card_gray=app_settings_main_fast_refresh()?0xff:0xee;

@@ -93,7 +93,7 @@ int main(void){
 
 def run(board, directory, negative=False):
     path=ROOT/f'boards/{board}/src/components/epdiy/src/render.c'
-    if (ROOT/'.kiiko-source-view.json').exists():path=ROOT/'components/epdiy/src/render.c'
+    if (ROOT/'.dpreader-source-view.json').exists():path=ROOT/'components/epdiy/src/render.c'
     source = path.read_text()
     start = source.index('__attribute__((optimize("O3"))) static inline int _interlace_line_unaligned(')
     end = source.index('\nEpdRect epd_difference_image(\n', start)
@@ -120,7 +120,7 @@ if __name__=='__main__':
     args=parser.parse_args()
     with tempfile.TemporaryDirectory() as temp:
         directory=Path(temp);(directory/'esp_attr.h').write_text('#define IRAM_ATTR\n')
-        marker=ROOT/'.kiiko-source-view.json'
+        marker=ROOT/'.dpreader-source-view.json'
         boards=[json.loads(marker.read_text())['board']] if marker.exists() else [b for b in ('pico','metalio47') if (ROOT/f'boards/{b}/src/components/epdiy/src/render.c').is_file()]
         assert boards, 'No maintained board render source'
         for board in boards:

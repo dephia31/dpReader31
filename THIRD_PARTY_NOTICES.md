@@ -1,13 +1,12 @@
-# Third-party notices / 第三方许可
+# Thông báo giấy phép bên thứ ba của dpReader
 
-S31 JPEG混合解码使用Espressif `esp_driver_jpeg`（Apache-2.0）及固定版本
-`espressif/libjpeg-turbo 3.2.0~1`（上游IJG/BSD-3-Clause，Espressif包装Apache-2.0）。
+Giải mã JPEG kết hợp trên S31 dùng `esp_driver_jpeg` của Espressif (Apache-2.0) và `espressif/libjpeg-turbo 3.2.0~1` (IJG/BSD-3-Clause cho mã gốc, Apache-2.0 cho phần đóng gói Espressif).
 This software is based in part on the work of the Independent JPEG Group.
 S31 hybrid JPEG decoding links the Espressif hardware driver and the pinned
 libjpeg-turbo component. Upstream and packaging licenses remain unchanged;
 the distributed component's LICENSE and upstream LICENSE.md govern those files.
 
-本仓库的[个人学习许可政策](LICENSE)只涉及明确标注的新增原创内容；以下第三方许可、既有授权和历史版本均不因此改变。新限制不得用于撤销第三方授予的权利。
+[Chính sách giấy phép học tập cá nhân](LICENSE) áp dụng cho phần sáng tạo mới có đánh dấu rõ. Giấy phép bên thứ ba, quyền đã cấp và các bản lịch sử tiếp tục áp dụng.
 The [personal-study license policy](LICENSE) covers only explicitly marked new original material. It does not change the following third-party licenses, existing grants or historical releases, or revoke rights granted by third parties.
 
 This is an independent reader firmware for MindReset's Read Pico board. It is
@@ -15,10 +14,9 @@ based on the [MindReset demo firmware](https://github.com/MindReset/read_pico_fi
 which is licensed under Apache-2.0. The original copyright and license notices
 remain in the source. This project is not an official MindReset release.
 
-本项目是基于 MindReset Read Pico 官方示例固件开发的独立阅读固件，并非 MindReset
-官方发布。原项目的版权声明和 Apache-2.0 许可均予保留。
+dpReader là firmware độc lập phát triển từ firmware mẫu MindReset Read Pico. Thông báo bản quyền và giấy phép Apache-2.0 gốc được giữ trong mã nguồn.
 
-| Material / 组件 | License / 许可 | Notice / 声明 |
+| Thành phần | Giấy phép | Thông báo |
 | --- | --- | --- |
 | MindReset Read Pico firmware and board components | Apache-2.0 | [Original Apache-2.0 license](licenses/Apache-2.0.txt); source file headers |
 | [MokuMMk/MokuReader](https://github.com/MokuMMk/MokuReader/commit/1d7951ec303c320a154282f4e6a579f687d0dc4f) — power and PIN liquid-glass rendering adapted into `main/ui/ui_glass.c` and `ui_pinpad.c` | Apache-2.0 (upstream file notices retained) | Gaussian blur, bezel refraction and highlights; local adaptations bound/release PSRAM workspaces and pack control snapshots |
@@ -38,15 +36,9 @@ License terms apply to their respective material. The repository's
 [license-scope statement](LICENSE) and new personal-study license do not
 replace these component licenses or restrict their independently granted rights.
 
-各组件继续适用各自的许可，不能把整个固件简称为其中某一个组件的许可。
+Giấy phép áp dụng riêng cho từng thành phần.
 
-阅读翻页适配参考 CrossMux `1512e8e049f2b1a4efc7c004a5b1a93cbc5e3f9f`
-及其 FreeInk SDK `96de1be6ce08eb732909e6e8149af8f892b9a2c5`。
-`components/e0470_epaper_waveform/e0470_epaper_waveform.c` 中文字翻页表的组装移植自
-FreeInk `libs/display/EpdiyLcd/src/e0470/e0470_epaper_waveform.c`，保留原有
-`Copyright 2026 mindreset` / Apache-2.0 文件头；FreeInk `Copyright (c) 2026 FreeInk`
-及 CrossMux MIT 全文分别保留在上述 LICENSE-FreeInk-SDK.txt 和 LICENSE-CrossMux.txt。
-仅普通文字翻页启用此表，原始波形数据表、驱动扫描时序与其他界面保持原样。
+Phần lật trang chữ tham khảo CrossMux `1512e8e049f2b1a4efc7c004a5b1a93cbc5e3f9f` và FreeInk SDK `96de1be6ce08eb732909e6e8149af8f892b9a2c5`. Cách ghép bảng trong `components/e0470_epaper_waveform/e0470_epaper_waveform.c` chuyển từ `libs/display/EpdiyLcd/src/e0470/e0470_epaper_waveform.c`. Giữ đầu tệp `Copyright 2026 mindreset` / Apache-2.0 và toàn văn thông báo MIT của FreeInk và CrossMux trong các tệp dẫn ở bảng trên. Chỉ lật trang chữ thông thường dùng bảng này. Waveform gốc và thời gian quét giữ riêng theo bo.
 The text-turn assembly is adapted from the pinned FreeInk source above,
 retaining its mindreset Apache-2.0 file notice and the complete FreeInk/CrossMux
 MIT notices linked above. Only ordinary text turns select it; vendor LUTs,
@@ -56,8 +48,8 @@ The firmware bundles only the embedded Noto Sans SC subset and common-Han bitmap
 their own fonts on a TF card. The repository and flashing site do not provide
 additional font packages.
 
-BLE 蓝牙翻页器的报告解析与按键映射参考 CrossMux 的 BleKeyboardHost，保留组件头部来源说明与 CrossMux MIT 许可。JPEGDEC 使用 BitBank Apache-2.0，具体适配与修正见 `components/jpegdec/FORK.md`。
+Phân tích báo cáo và ánh xạ phím cho bộ lật trang BLE tham khảo BleKeyboardHost của CrossMux. Đầu tệp component giữ nguồn và giấy phép MIT của CrossMux. JPEGDEC dùng giấy phép Apache-2.0 của BitBank. Xem các sửa đổi trong `components/jpegdec/FORK.md`.
 
 ## FreeType monochrome TrueType engine
 
-This software uses the FreeType library, copyright © the FreeType Project (www.freetype.org). FreeType2.14.3 is included under the FreeType License in `components/kiiko_freetype/vendor/docs/FTL.TXT`; upstream sources remain unmodified. Source archive identity and selected modules are recorded in `components/kiiko_freetype/UPSTREAM.md`. The embedded Bitter Regular reader font is licensed under SIL OFL-1.1; see `main/assets/OFL-Bitter.txt`. It is instantiated at weight 400 from Google Fonts `ofl/bitter/Bitter[wght].ttf` (https://github.com/google/fonts/tree/main/ofl/bitter).
+This software uses the FreeType library, copyright © the FreeType Project (www.freetype.org). FreeType2.14.3 is included under the FreeType License in `components/dpreader_freetype/vendor/docs/FTL.TXT`; upstream sources remain unmodified. Source archive identity and selected modules are recorded in `components/dpreader_freetype/UPSTREAM.md`. The embedded Bitter Regular reader font is licensed under SIL OFL-1.1; see `main/assets/OFL-Bitter.txt`. It is instantiated at weight 400 from Google Fonts `ofl/bitter/Bitter[wght].ttf` (https://github.com/google/fonts/tree/main/ofl/bitter).

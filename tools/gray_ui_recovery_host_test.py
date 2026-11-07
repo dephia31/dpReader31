@@ -69,5 +69,5 @@ int main(void){
 with tempfile.TemporaryDirectory(prefix='s31-gray-repair-') as folder:
  t=Path(folder);c=t/'ui.c';c.write_text(u)
  subprocess.run(['python3','tools/metalio_clear_test_fragment.py'],cwd=r,check=True)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections','-Wl,-dead_strip','-DKIIKO_BOARD_METALIO47=1','-Ibuild/book-tests','-Itools/display_host_stubs','-Icomponents/continuous_du/include','-Icomponents/e0470_page_turn/include','-Imain','-Imain/app',str(c),'main/display.c','-o',str(t/'ui')],cwd=r,check=True)
+ subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-g','-fsanitize=address,undefined','-ffunction-sections','-fdata-sections','-Wl,-dead_strip','-DDPREADER_BOARD_METALIO47=1','-Ibuild/book-tests','-Itools/display_host_stubs','-Icomponents/continuous_du/include','-Icomponents/e0470_page_turn/include','-Imain','-Imain/app',str(c),'main/display.c','-o',str(t/'ui')],cwd=r,check=True)
  subprocess.run([str(t/'ui')],cwd=r,check=True)

@@ -49,10 +49,10 @@ static int64_t s_reader_clock_minute,s_reader_clock_painted_minute,s_du_ms;
 static const char *s_text="text";
 static EpdRect s_area={0,0,684,1216},s_du_area;
 static bool s_reader_display_ready;
-static bool prefetch_returned,s_save_failed,save_failure;static unsigned s_unsaved,save_calls;
+static bool prefetch_returned;
+static int64_t s_last_turn_ms;
 static void reader_prefetch_end(bool started){assert(!started);prefetch_returned=true;}
 static int calls,selected,fail,rendered,prepares,images,tick;static unsigned s_turns;
-static void save_progress(void){assert(prefetch_returned&&calls>0);++save_calls;if(save_failure)s_save_failed=true;else s_unsaved=0;}
 static bool background,immersive;
 static EpdRect last_water_area;
 static EpdRect last_gray_area;
@@ -109,7 +109,7 @@ for name in ('reader_content_bottom','reader_area','progress_rect'):
  unit+=function(name,root/'main/apps/app_book.c')+'\n'
 unit+=function('present',root/'main/apps/app_book.c')
 unit+=r'''
-static void reset(void){s_reader_display_ready=false;prefetch_returned=s_save_failed=save_failure=false;s_unsaved=save_calls=0;
+static void reset(void){s_reader_display_ready=false;prefetch_returned=false;s_last_turn_ms=0;
  calls=selected=rendered=prepares=fail=images=tick=0;background=test_panel_short=hide_images=immersive=false;s_view=s_presented_view=READING;
  s_reader_image_frame=s_reader_image_exit_pending=false;
  s_reader_panel=READER_PANEL_NONE;s_mode=MODE_GL16;
@@ -190,11 +190,8 @@ int main(void){
  s_reader_clock_painted_minute=321;
  present(&ctx,APP_REDRAW_AREA);assert(calls==1&&selected==13&&s_reader_clock_minute==321&&!s_reader_clock_pending);
  reset();ctx.request_app=true;present(&ctx,APP_REDRAW_AREA);assert(calls==0);ctx.request_app=false;
- reset();s_unsaved=8;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1&&!s_unsaved&&s_reader_display_ready);
- reset();s_unsaved=7;present(&ctx,APP_REDRAW_AREA);assert(!save_calls&&s_unsaved==7);
- reset();s_unsaved=8;save_failure=true;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1&&s_save_failed&&s_unsaved==8);
- calls=0;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1);
- reset();s_unsaved=8;fail=1;present(&ctx,APP_REDRAW_AREA);assert(save_calls==1&&!s_reader_text_frame&&!s_reader_display_ready);
+ reset();present(&ctx,APP_REDRAW_AREA);assert(prefetch_returned&&s_last_turn_ms==1000&&s_reader_display_ready);
+ reset();fail=1;present(&ctx,APP_REDRAW_AREA);assert(!s_reader_text_frame&&!s_reader_display_ready);
  puts("PASS: S31 text/ripple and single platform image/exit outputs with fused progress; full GC48 cleanup priority, failed-frame history, panels, clock and cancellation guards");
 }
 '''
@@ -204,5 +201,5 @@ with tempfile.TemporaryDirectory(prefix='kiikoread-reader-release-') as folder:
  c=Path(folder)/'test.c';c.write_text(unit)
  for enabled in (0,1):
   binary=Path(folder)/f'test-{enabled}'
-  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-variable','-g',*sanitizers,f'-DKIIKO_S31_TEXT_RIPPLE={enabled}',str(c),'-o',str(binary)],check=True)
+  subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-variable','-g',*sanitizers,f'-DDPREADER_S31_TEXT_RIPPLE={enabled}',str(c),'-o',str(binary)],check=True)
   subprocess.run([str(binary)],check=True)

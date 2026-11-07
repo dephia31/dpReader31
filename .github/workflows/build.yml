@@ -32,9 +32,9 @@ jobs:
       - name: Select Clang for sanitizer host regressions
         shell: bash
         run: |
-          mkdir -p "$RUNNER_TEMP/kiiko-host-cc"
-          ln -s "$(command -v clang)" "$RUNNER_TEMP/kiiko-host-cc/cc"
-          echo "$RUNNER_TEMP/kiiko-host-cc" >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/dpreader-host-cc"
+          ln -s "$(command -v clang)" "$RUNNER_TEMP/dpreader-host-cc/cc"
+          echo "$RUNNER_TEMP/dpreader-host-cc" >> "$GITHUB_PATH"
       - name: Materialize S31 production sources
         run: python3 tools/board_source_view.py --board metalio47 --tests --output build/sleep-host
       - name: Sleep, wake, lock, media recovery and power policy
@@ -51,7 +51,7 @@ jobs:
           python3 tools/metalio_power_choice_host_test.py
           python3 tools/sleep_only_settings_host_test.py
           mkdir -p build/book-tests
-          cc -std=c11 -D_DEFAULT_SOURCE -DKIIKO_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=address,undefined -Itools/settings_backup_stubs -Imain tools/boot_state_host_test.c -o build/book-tests/boot-state
+          cc -std=c11 -D_DEFAULT_SOURCE -DDPREADER_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=address,undefined -Itools/settings_backup_stubs -Imain tools/boot_state_host_test.c -o build/book-tests/boot-state
           build/book-tests/boot-state
   notes-host-tests:
     runs-on: ubuntu-latest
@@ -86,9 +86,9 @@ jobs:
           python3 tools/files_bulk_ui_host_test.py
           python3 tools/settings_dialog_geometry_host_test.py
           mkdir -p build/book-tests/settings-card
-          cc -std=gnu11 -DKIIKO_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=undefined -Itools/settings_backup_stubs -Icomponents/read_pico_transfer/include tools/reader_settings_backup_host_test.c -o build/book-tests/reader-settings-backup
+          cc -std=gnu11 -DDPREADER_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=undefined -Itools/settings_backup_stubs -Icomponents/read_pico_transfer/include tools/reader_settings_backup_host_test.c -o build/book-tests/reader-settings-backup
           build/book-tests/reader-settings-backup
-          cc -std=gnu11 -DKIIKO_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=undefined -Itools/settings_backup_stubs -Icomponents/read_pico_transfer/include tools/home_utilities_settings_host_test.c -o build/book-tests/home-utilities-settings
+          cc -std=gnu11 -DDPREADER_BOARD_METALIO47=1 -Wall -Wextra -Werror -fsanitize=undefined -Itools/settings_backup_stubs -Icomponents/read_pico_transfer/include tools/home_utilities_settings_host_test.c -o build/book-tests/home-utilities-settings
           build/book-tests/home-utilities-settings
           python3 tools/home_utilities_host_test.py
           python3 tools/home_utility_icons_host_test.py
@@ -101,7 +101,7 @@ jobs:
           python3 tools/book_dictionary_speed_host_test.py
           python3 tools/run_book_notes_tests.py
           python3 tools/koreader_notes_roundtrip_test.py
-          KIIKO_BOARD=metalio47 python3 tools/ui_icon_generator_host_test.py
+          DPREADER_BOARD=metalio47 python3 tools/ui_icon_generator_host_test.py
 
   display-host-tests:
     env:
@@ -112,9 +112,9 @@ jobs:
       - name: Select Clang for sanitizer host regressions
         shell: bash
         run: |
-          mkdir -p "$RUNNER_TEMP/kiiko-host-cc"
-          ln -s "$(command -v clang)" "$RUNNER_TEMP/kiiko-host-cc/cc"
-          echo "$RUNNER_TEMP/kiiko-host-cc" >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/dpreader-host-cc"
+          ln -s "$(command -v clang)" "$RUNNER_TEMP/dpreader-host-cc/cc"
+          echo "$RUNNER_TEMP/dpreader-host-cc" >> "$GITHUB_PATH"
       - name: Board selection and Metalio47 host-test view
         shell: bash
         run: |
@@ -220,9 +220,9 @@ jobs:
       - name: Select Clang for sanitizer host regressions
         shell: bash
         run: |
-          mkdir -p "$RUNNER_TEMP/kiiko-host-cc"
-          ln -s "$(command -v clang)" "$RUNNER_TEMP/kiiko-host-cc/cc"
-          echo "$RUNNER_TEMP/kiiko-host-cc" >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/dpreader-host-cc"
+          ln -s "$(command -v clang)" "$RUNNER_TEMP/dpreader-host-cc/cc"
+          echo "$RUNNER_TEMP/dpreader-host-cc" >> "$GITHUB_PATH"
       - name: Materialize and test reader/UI/settings for this board
         shell: bash
         run: |

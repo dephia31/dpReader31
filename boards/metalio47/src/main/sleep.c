@@ -654,10 +654,14 @@ esp_err_t app_enter_host_sleep(app_sleep_mode_t mode) {
     if (!(book_cover_jobs_quiesce(2000) && ui_avatar_quiesce(2000))) return ESP_ERR_NOT_FINISHED;
     if (mode != APP_SLEEP_OFF && mode != APP_SLEEP_DEEP) return ESP_ERR_INVALID_ARG;
     if (mode == APP_SLEEP_DEEP && metalio_usb_blocks_sleep()) return ESP_ERR_INVALID_STATE;
-    if (pico_online_busy() || !read_pico_transfer_pause_for_sleep()) return ESP_ERR_NOT_FINISHED;
     // 锁屏调用方已经持有无线暂停；失败时不能擅自恢复其会话。
     // An active lock owns the radio pause; failed deep admission must not release that ownership.
     bool restore_radios=s_lock_sleep_touch==NULL;
+    if (pico_online_busy()) return ESP_ERR_NOT_FINISHED;
+    if (!read_pico_transfer_pause_for_sleep()) {
+        if (restore_radios) read_pico_transfer_resume_after_sleep();
+        return ESP_ERR_NOT_FINISHED;
+    }
     esp_err_t err = ble_pt_suspend_for_sleep();
     if (err != ESP_OK) { if(restore_radios) { ble_pt_resume_after_sleep(); read_pico_transfer_resume_after_sleep(); } return err; }
     if(mode==APP_SLEEP_OFF) {
@@ -779,7 +783,10 @@ esp_err_t app_enter_download(void) {
         return retry;
     }
     if (!(book_cover_jobs_quiesce(2000) && ui_avatar_quiesce(2000))) return ESP_ERR_NOT_FINISHED;
-    if (!read_pico_transfer_pause_for_sleep()) return ESP_ERR_NOT_FINISHED;
+    if (!read_pico_transfer_pause_for_sleep()) {
+        read_pico_transfer_resume_after_sleep();
+        return ESP_ERR_NOT_FINISHED;
+    }
     esp_err_t err=ble_pt_suspend_for_sleep();
     if (err!=ESP_OK) { ble_pt_resume_after_sleep(); read_pico_transfer_resume_after_sleep(); return err; }
     download_trace("before_prepare",true);
@@ -808,7 +815,7 @@ static void lock_wait_for_unlock(sc7a20h_handle_t acc) {
     while(app_light_sleep_wait_timed(NULL,0)==APP_WAKE_TIMEOUT)vTaskDelay(pdMS_TO_TICKS(100));
 }
 
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
 bool lock_pin_grace_active(void) {
     if(!lock_pin_enabled() || !lock_pin_available() || !app_settings_pin_grace_minutes())return false;
     const time_t now=time(NULL);
@@ -914,7 +921,7 @@ void enter_lock_and_sleep(
     epd_poweroff();
     s_lock_sleep_touch=touch;
     lock_hint_begin(hl);
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
     if(lock_pin_enabled()) {
         time_t now=time(NULL);
         app_settings_record_pin_lock(now>=1704067200 && now<=4102444799LL?(uint32_t)now:0);
@@ -960,10 +967,11 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
         }
         lock_hint_end();
         (void)app_lock_resume_frame(NULL);
+        read_pico_transfer_resume_after_sleep();
         ble_pt_resume_after_sleep();
         return;
     }
-#if !KIIKO_LOVE_BOOK
+#if !DPREADER_LOVE_BOOK
     // 卡挂载有界等待仅为了字体/锁屏图；没有卡仍必须验证。
     // Bound mount waiting for the face/art only; absent media still requires authentication.
     read_pico_sd_info_t info;
@@ -985,6 +993,7 @@ void app_lock_boot_gate(EpdiyHighlevelState *hl, cst836u_handle_t touch, sc7a20h
     lock_hint_end();
     (void)app_lock_resume_frame(NULL);
     app_font_end_lock(&saved);
+    read_pico_transfer_resume_after_sleep();
     ble_pt_resume_after_sleep();
 #endif
 

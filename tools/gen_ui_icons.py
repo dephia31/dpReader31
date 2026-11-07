@@ -35,10 +35,10 @@ ANIMATE_DIR = ROOT / "tools/icons/animateicons"
 
 def icon_source(name: str) -> Path:
     return (ANIMATE_DIR if name.startswith(("pager-", "animate-")) else SOURCE_DIR) / f"{name}.svg"
-view_marker = ROOT / '.kiiko-source-view.json'
-DEFAULT_BOARD = os.environ.get('KIIKO_BOARD') or (json.loads(view_marker.read_text())['board'] if view_marker.exists() else 'pico')
+view_marker = ROOT / '.dpreader-source-view.json'
+DEFAULT_BOARD = os.environ.get('DPREADER_BOARD') or (json.loads(view_marker.read_text())['board'] if view_marker.exists() else 'pico')
 if DEFAULT_BOARD not in ('pico', 'metalio47'):
-    raise ValueError('Unknown KIIKO_BOARD: ' + DEFAULT_BOARD)
+    raise ValueError('Unknown DPREADER_BOARD: ' + DEFAULT_BOARD)
 HEADER = ROOT / 'boards' / DEFAULT_BOARD / 'src/main/assets/ui_icons.h'
 PREVIEW = ROOT / f'docs/local/ui-icons-{DEFAULT_BOARD}-preview.png'
 
