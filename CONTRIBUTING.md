@@ -2,6 +2,8 @@
 
 Bạn có thể đóng góp firmware, mã hỗ trợ bo mạch, trình điều khiển, công cụ và tài liệu. Có thể viết issue và pull request bằng tiếng Việt, tiếng Anh, tiếng Trung giản thể hoặc tiếng Nhật. Mỗi PR nên tập trung vào một vấn đề. Hãy thảo luận trước trong issue nếu đề xuất thay đổi lớn về hành vi hoặc phần cứng.
 
+Xem [quy định sử dụng, thương mại và donate](docs/LICENSING.md). Việc chấp nhận PR không cấp phép thương mại cho người đóng góp hoặc dịch vụ của họ.
+
 ## Giấy phép đóng góp
 
 - Đọc [LICENSE](LICENSE) trước khi đóng góp. Giữ giấy phép, thông báo bản quyền và mã SPDX của các tệp hiện có và tài liệu bên thứ ba. Việc sửa một tệp không tự động biến tệp đó thành nội dung cấm sử dụng thương mại.
