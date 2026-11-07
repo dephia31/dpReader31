@@ -17,7 +17,7 @@ unit = r'''
 typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {int unused;} app_ctx_t;
 typedef enum {APP_REDRAW_NONE,APP_REDRAW_PAGE} app_redraw_t;
-enum {READER_PANEL_NONE,READER_PANEL_REFRESH_SETTINGS,READER_PANEL_TURN_SETTINGS,READER_PANEL_KEY_SETTINGS};
+enum {READER_PANEL_NONE,READER_PANEL_REFRESH_SETTINGS,READER_PANEL_TURN_SETTINGS,READER_PANEL_KEY_SETTINGS,READER_PANEL_STATUS_FOOTER};
 enum {READ_PICK_REFRESH,READ_PICK_EFFECT};
 static int picker=-1;
 static void reader_choice_open(int kind){picker=kind;}
@@ -49,6 +49,9 @@ int main(void){
     reading_settings_action(&ctx,120,850);assert(s_reader_panel==READER_PANEL_TURN_SETTINGS);
     s_reader_panel=READER_PANEL_REFRESH_SETTINGS;
     reading_settings_action(&ctx,120,970);assert(s_reader_panel==READER_PANEL_KEY_SETTINGS);
+    EpdRect bars=reading_setting_rect(7);
+    assert(reading_settings_action(&ctx,bars.x+1,bars.y+1)==APP_REDRAW_PAGE);
+    assert(s_reader_panel==READER_PANEL_STATUS_FOOTER);
     for(int i=0;i<4;++i){if(i==1)continue;EpdRect a=reading_toggle_rect(i);assert(reading_settings_action(&ctx,a.x+a.width-5,a.y+a.height-5)==APP_REDRAW_PAGE&&toggles[i]==1);}
     s_reader_panel=READER_PANEL_REFRESH_SETTINGS;int before=invalidates;
     assert(reading_settings_action(&ctx,342,760)==APP_REDRAW_NONE);

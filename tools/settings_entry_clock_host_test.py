@@ -57,7 +57,7 @@ unit+=r'''
 static int s_view=READING;
 static char *s_text="book";
 static char s_reader_notice[64];
-static bool s_reader_fullscreen,immersive,s_reader_clock_pending,wallpaper;
+static bool status_hidden,s_reader_clock_pending,wallpaper;
 static int64_t s_reader_clock_minute=-1,s_reader_clock_painted_minute=-1,minute=100;
 enum {READER_PANEL_NONE,READER_PANEL_BACKGROUND_PREVIEW};
 static int s_reader_panel;
@@ -65,7 +65,7 @@ static uint8_t fb[684*1216],next_fb[684*1216];
 static bool locked;
 static unsigned status_paints,background_paints,display_calls,failed;
 static int64_t ui_nav_clock_minute(void){return minute;}
-static bool app_settings_reader_immersive(void){return immersive;}
+static bool app_settings_book_status_enabled(void){return !status_hidden;}
 static const char *app_settings_book_background_path(void){return wallpaper?"/sdcard/pictures/bg.jpg":"";}
 static void lock_draw(void){assert(!locked);locked=true;}
 static void unlock_draw(void){assert(locked);locked=false;}
@@ -146,8 +146,8 @@ int main(void){
  assert(reader_clock_tick(&ctx)==APP_REDRAW_NONE&&display_calls==1);
  ++minute;touch_t touch={true};ctx.touch=&touch;
  assert(reader_clock_tick(&ctx)==APP_REDRAW_NONE);ctx.touch=NULL;
- s_reader_fullscreen=immersive=true;assert(reader_clock_tick(&ctx)==APP_REDRAW_NONE);
- immersive=false;wallpaper=true;
+ status_hidden=true;assert(reader_clock_tick(&ctx)==APP_REDRAW_NONE);
+ status_hidden=false;wallpaper=true;
  assert(reader_clock_tick(&ctx)==APP_REDRAW_AREA&&background_paints==1&&fb[0]==29);
  failed=1;assert(clock_present(&ctx,APP_REDRAW_AREA)&&s_reader_clock_minute==100);
  assert(reader_clock_tick(&ctx)==APP_REDRAW_AREA);failed=0;
@@ -168,7 +168,7 @@ int main(void){
  info.free_bytes=info.filesystem_bytes+1;assert(!storage_space_valid(&info));
  info.space_valid=false;storage_usage(&info,total,sizeof(total),usage,sizeof(usage));assert(strstr(usage,"暂不可用")&&!strstr(usage,"256.00 GB"));
  info.space_valid=true;info.free_bytes=0;assert(storage_space_valid(&info));
- puts("PASS: visible-only settings glyph work, missing-chevron fonts, 11 scales, status-minute locality/immersive touch deferral/background/error retry/time correction, fresh prefetch, large partition/small-file/invalid-space display");
+ puts("PASS: visible-only settings glyph work, missing-chevron fonts, 11 scales, status-minute locality/hidden status touch deferral/background/error retry/time correction, fresh prefetch, large partition/small-file/invalid-space display");
 }
 '''
 # Render may not decode/read NVS, and clock prefix may not prepare/cache whole pages.

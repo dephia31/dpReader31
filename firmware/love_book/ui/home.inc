@@ -79,13 +79,29 @@ static void draw_simple_ticket_status(uint8_t *fb) {
     ui_text_fixed_vc(fb, 612, 109, px, battery, EPD_DRAW_ALIGN_RIGHT, false);
 }
 
+static void draw_simple_border(uint8_t *fb) {
+    const EpdRect paper = simple_resume_rect();
+    const int notch = 18;
+    // The ticket covers the center, including all but its notched top and bottom edges.
+    for (int y = 0; y < UI_LOCK_HEIGHT; ++y) {
+        const bool solid_paper_row = y >= paper.y + notch && y < paper.y + paper.height - notch;
+        for (int x = 0; x < UI_LOCK_WIDTH; ++x) {
+            if (solid_paper_row && x == paper.x) x += paper.width;
+            epd_draw_pixel(x, y, home_diamond_gray(x, y), fb);
+        }
+    }
+}
+
 static void render_simple_root(uint8_t *fb) {
     char greeting[96];
     snprintf(greeting,sizeof(greeting),"Xin Chào, %s",app_settings_device_name());
     const bool full=app_settings_simple_full_ui();
     home_book_t *b=featured();
     if(full) {
-        book_ticket_draw_background(fb,b->cover,b->cover_width,b->cover_height,b->cover_fast);
+        if (b->cover && b->cover_width && b->cover_height)
+            book_ticket_draw_background(fb,b->cover,b->cover_width,b->cover_height,b->cover_fast);
+        else
+            draw_simple_border(fb);
         book_ticket_draw_shadow(fb);
         book_ticket_draw_paper(fb);
         draw_simple_ticket_status(fb);

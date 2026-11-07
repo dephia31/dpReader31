@@ -278,6 +278,7 @@ static uint8_t s_book_align;
 // 默认细条；0 现在是“隐藏”，不能当默认值。/ Default to the thin bar; 0 now means hidden.
 static uint8_t s_book_progress_style = APP_BOOK_PROGRESS_STYLE_THIN;
 static bool s_book_footer_enabled = true;
+static bool s_book_status_hidden;
 static bool s_book_footer_page = true;
 static bool s_book_footer_chapter = true;
 static bool s_book_footer_pct = true;
@@ -686,6 +687,9 @@ void app_settings_init(void) {
     uint8_t footer_enabled;
     if (nvs_get_u8(h, "rd_footer_on", &footer_enabled) == ESP_OK && footer_enabled <= 1)
         s_book_footer_enabled = footer_enabled != 0;
+    uint8_t status_hidden;
+    if (nvs_get_u8(h, "rd_status_off", &status_hidden) == ESP_OK && status_hidden <= 1)
+        s_book_status_hidden = status_hidden != 0;
     if (nvs_get_u8(h, NVS_KEY_BOOK_FOOTER_PAGE, &ft_page) == ESP_OK) s_book_footer_page = ft_page == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_FOOTER_CHAPTER, &ft_chap) == ESP_OK) s_book_footer_chapter = ft_chap == 1;
     if (nvs_get_u8(h, NVS_KEY_BOOK_FOOTER_PCT, &ft_pct) == ESP_OK) s_book_footer_pct = ft_pct == 1;
@@ -2722,4 +2726,9 @@ bool app_settings_set_reader_edge_warmth(bool on){return reader_edge_setting(&s_
 bool app_settings_book_footer_enabled(void) { return s_book_footer_enabled; }
 bool app_settings_set_book_footer_enabled(bool on) {
     return reader_edge_setting(&s_book_footer_enabled, "rd_footer_on", on);
+}
+
+bool app_settings_book_status_enabled(void) { return !s_book_status_hidden; }
+bool app_settings_set_book_status_enabled(bool on) {
+    return reader_edge_setting(&s_book_status_hidden, "rd_status_off", !on);
 }

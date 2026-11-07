@@ -1,3 +1,9 @@
+## dpReader 1.3.6-vn / 1.3.6-love-vn · 2026-11-07
+
+- Chuyển tùy chỉnh chân trang sang Cài đặt đọc → Status & Footer. Có thể ẩn thanh trạng thái hoặc chân trang để dành chỗ cho nội dung sách.
+
+- I Love Book dùng nền đen họa tiết ô trám khi chưa có ảnh bìa. Bìa tạm hiển thị logo dpReader xám sáng.
+
 ## dpReader 1.3.5-vn / 1.3.5-love-vn · 2026-11-07
 
 - Full và Love Book dùng chung hộp thông báo mở/đóng sách giữa màn hình, thu gọn còn 320 × 76 px.
