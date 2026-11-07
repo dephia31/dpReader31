@@ -6,10 +6,10 @@
 
 <p align="center">
   <a href="https://dephia31.github.io/dpReader31/"><img src="https://img.shields.io/badge/Web%20Flasher-C%E1%BA%ADp%20nh%E1%BA%ADt%20tr%E1%BB%B1c%20tuy%E1%BA%BFn%201--Click-success?style=for-the-badge&logo=googlechrome" alt="Web Flasher Trực Tuyến"></a>
-  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.3.6--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.3.5--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
 </p>
 
-**dpReader** (`v1.3.6-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
+**dpReader** (`v1.3.5-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
 
 > ⚡ **Nạp Firmware Trực Tuyến 1-Click (Không cần cài phần mềm):**  
 > Truy cập ngay **[Web Flasher chính thức](https://dephia31.github.io/dpReader31/)** trên trình duyệt Google Chrome hoặc Microsoft Edge để nạp firmware trực tiếp qua cáp USB-C. Tự động nhận diện phiên bản mới nhất, tự xóa `otadata` và tự khởi động lại máy sau khi nạp!
@@ -299,8 +299,6 @@ python3 -m esptool --chip esp32s31 merge-bin \
 ---
 
 ## 📄 Giấy phép (License)
-dpReader sử dụng nhiều giấy phép theo từng thành phần. **Phần sáng tạo được đánh dấu giấy phép học tập cá nhân không được dùng thương mại khi chưa có thỏa thuận riêng bằng văn bản**, bao gồm dịch vụ tùy biến/build/nạp firmware có thu phí hoặc nhận donate gắn với dịch vụ. Mã Apache-2.0, MIT, LGPL và các thành phần khác giữ giấy phép hiện có.
-
-Đọc [phạm vi giấy phép](LICENSE), [quy định sử dụng và donate](docs/LICENSING.md) và [thông báo bên thứ ba](THIRD_PARTY_NOTICES.md).
+dpReader phát triển từ dự án mã nguồn mở `Metalio-S31-kiikoread` (Apache-2.0 / Personal Study License). Phiên bản **dpReader** được tùy biến và tối ưu hóa dành cho cộng đồng người dùng máy đọc sách E-ink tại Việt Nam.
 
 Thiết kế tác vụ nền và giới hạn tiết kiệm năng lượng khi đọc: [READING_POWER.md](docs/READING_POWER.md).

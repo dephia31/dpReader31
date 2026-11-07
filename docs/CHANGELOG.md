@@ -1,4 +1,6 @@
-## dpReader 1.3.6-vn / 1.3.6-love-vn · 2026-11-07
+## dpReader 1.3.6-vn / 1.3.6-love-vn · 2026-11-07 (Tạm thu hồi / Withdrawn)
+
+- Bản 1.3.6 tạm thời được gỡ bỏ khỏi Web Flash và kênh OTA; phiên bản ổn định chính thức phục vụ người dùng được khôi phục về dpReader 1.3.5.
 
 - Chuyển tùy chỉnh chân trang sang Cài đặt đọc → Status & Footer. Có thể ẩn thanh trạng thái hoặc chân trang để dành chỗ cho nội dung sách.
 
