@@ -14,6 +14,7 @@ unit=r'''
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include "book_file_path.h"
 typedef int app_redraw_t;typedef int esp_err_t;
 typedef struct{int x,y,width,height;}EpdRect;
@@ -80,5 +81,5 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory() as folder:
  p=Path(folder);(p/'test.c').write_text(unit)
- subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-sign-compare','-fsanitize=undefined','-I'+str(root/'main/book'),str(p/'test.c'),'-o',str(p/'test')],check=True)
+ subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-sign-compare','-fsanitize=undefined','-I'+str(root/'main/book'),str(p/'test.c'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
