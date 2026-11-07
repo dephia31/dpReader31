@@ -405,31 +405,68 @@ void metalio_poweroff(void) {
         (void)metalio_io_set(11,false); vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
+static void recover_i2c_lines(void) {
+    gpio_hold_dis(GPIO_NUM_0);
+    gpio_hold_dis(GPIO_NUM_1);
+    const gpio_config_t in_cfg={.pin_bit_mask=(1ULL<<0)|(1ULL<<1),.mode=GPIO_MODE_INPUT,.pull_up_en=GPIO_PULLUP_ENABLE};
+    (void)gpio_config(&in_cfg);
+    esp_rom_delay_us(10);
+    if (gpio_get_level(GPIO_NUM_0)==0) {
+        gpio_set_level(GPIO_NUM_0,1);
+        gpio_set_level(GPIO_NUM_1,1);
+        const gpio_config_t od_cfg={.pin_bit_mask=(1ULL<<0)|(1ULL<<1),.mode=GPIO_MODE_INPUT_OUTPUT_OD,.pull_up_en=GPIO_PULLUP_ENABLE};
+        (void)gpio_config(&od_cfg);
+        for (unsigned i=0;i<9 && gpio_get_level(GPIO_NUM_0)==0;++i) {
+            gpio_set_level(GPIO_NUM_1,0); esp_rom_delay_us(5);
+            gpio_set_level(GPIO_NUM_1,1); esp_rom_delay_us(5);
+        }
+        gpio_set_level(GPIO_NUM_0,0); esp_rom_delay_us(5);
+        gpio_set_level(GPIO_NUM_1,1); esp_rom_delay_us(5);
+        gpio_set_level(GPIO_NUM_0,1); esp_rom_delay_us(5);
+        (void)gpio_config(&in_cfg);
+    }
+}
 esp_err_t metalio_hw_init(void) {
-    if (bus) return ESP_OK;
+    static bool hw_ready;
+    if (hw_ready) return ESP_OK;
     const int held[]={4,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,35,37,40};
     for(unsigned i=0;i<sizeof(held)/sizeof(held[0]);i++) gpio_hold_dis(held[i]);
-    mutex=xSemaphoreCreateMutex(); if (!mutex) return ESP_ERR_NO_MEM;
-    haptic_mutex=xSemaphoreCreateMutex(); if(!haptic_mutex) return ESP_ERR_NO_MEM;
+    if (!mutex) mutex=xSemaphoreCreateMutex();
+    if (!mutex) return ESP_ERR_NO_MEM;
+    if (!haptic_mutex) haptic_mutex=xSemaphoreCreateMutex();
+    if (!haptic_mutex) return ESP_ERR_NO_MEM;
     metalio_ana_sw(true);
     gpio_config_t cfg;
     cfg=(gpio_config_t){.pin_bit_mask=(1ULL<<2)|(1ULL<<5)|(1ULL<<61),.mode=GPIO_MODE_INPUT,.pull_up_en=GPIO_PULLUP_ENABLE};
     ESP_ERROR_CHECK(gpio_config(&cfg));
-    i2c_master_bus_config_t ic={.i2c_port=1,.sda_io_num=GPIO_NUM_0,.scl_io_num=GPIO_NUM_1,
-        .clk_source=I2C_CLK_SRC_DEFAULT,.glitch_ignore_cnt=7,.flags.enable_internal_pullup=true};
-    esp_err_t err=i2c_new_master_bus(&ic,&bus); if (err!=ESP_OK) return err;
+    esp_err_t err=ESP_OK;
+    if (!bus) {
+        recover_i2c_lines();
+        i2c_master_bus_config_t ic={.i2c_port=1,.sda_io_num=GPIO_NUM_0,.scl_io_num=GPIO_NUM_1,
+            .clk_source=I2C_CLK_SRC_DEFAULT,.glitch_ignore_cnt=7,.flags.enable_internal_pullup=true};
+        err=i2c_new_master_bus(&ic,&bus); if (err!=ESP_OK) return err;
+    }
     // 扩展口是按键采样热路径，按设备上限400kHz；电源芯片仍在device_speed_hz里保持100kHz。
     // The expander sits on the key-sampling hot path, so run it at its400kHz ceiling; power parts stay100kHz.
-    fca9555_config_t fc=FCA9555_CONFIG_DEFAULT(); fc.i2c_addr=0x20; fc.int_gpio=GPIO_NUM_2; fc.scl_speed_hz=METALIO_I2C_FAST_HZ;
-    err=fca9555_init(bus,&fc,&ioe); if (err!=ESP_OK) return err;
+    if (!ioe) {
+        fca9555_config_t fc=FCA9555_CONFIG_DEFAULT(); fc.i2c_addr=0x20; fc.int_gpio=GPIO_NUM_2; fc.scl_speed_hz=METALIO_I2C_FAST_HZ;
+        err=fca9555_init(bus,&fc,&ioe); if (err!=ESP_OK) return err;
+    }
     // 写锁存后改方向；电源/音量感应脚保持输入。/ Write latches before direction; never drive key inputs.
-    err=fca9555_set_output(ioe,0,outputs[0]);
-    if (err==ESP_OK) err=fca9555_set_output(ioe,1,outputs[1]);
-    if (err==ESP_OK) err=fca9555_set_inversion(ioe,0,0);
-    if (err==ESP_OK) err=fca9555_set_inversion(ioe,1,0);
-    if (err==ESP_OK) err=fca9555_set_config(ioe,0,0xc0);
-    if (err==ESP_OK) err=fca9555_set_config(ioe,1,0xe3);
+    for (unsigned attempt=0;attempt<4;++attempt) {
+        err=fca9555_set_output(ioe,0,outputs[0]);
+        if (err==ESP_OK) err=fca9555_set_output(ioe,1,outputs[1]);
+        if (err==ESP_OK) err=fca9555_set_inversion(ioe,0,0);
+        if (err==ESP_OK) err=fca9555_set_inversion(ioe,1,0);
+        if (err==ESP_OK) err=fca9555_set_config(ioe,0,0xc0);
+        if (err==ESP_OK) err=fca9555_set_config(ioe,1,0xe3);
+        if (err==ESP_OK) break;
+        ESP_LOGW(TAG,"TCA9555 init retry %u: %s",attempt+1,esp_err_to_name(err));
+        (void)i2c_master_bus_reset(bus);
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
     if (err!=ESP_OK) return err;
+    hw_ready=true;
     // 深睡启动尽早采样真实P17，后续挂卡/字体耗时不能用共享IRQ代替按键。
     // Sample real P17 early on deep boots; later media/font delays cannot turn a shared IRQ into a press.
     if(esp_reset_reason()==ESP_RST_DEEPSLEEP)boot_power_key=metalio_confirm_power_key();

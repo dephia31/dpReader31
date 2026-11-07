@@ -1156,6 +1156,9 @@ void app_loop_run(const app_loop_config_t* config) {
     // First frame must be full GC16: fb still holds the splash; DU cannot cover it.
     app_present(&ctx, current, APP_REDRAW_FULL);
     rp_boot_mark("frame");
+#if DPREADER_BOARD_METALIO47
+    crash_report_poll(!usb_storage_active() && !pico_online_busy() && current != &app_transfer);
+#endif
     pico_boot_ready();
     ESP_LOGI(TAG, "UI ready on %s", current->title);
     // 上次崩溃的现场（异常类型与触发地址）：有的话打一遍，串口和屏幕各有一份。

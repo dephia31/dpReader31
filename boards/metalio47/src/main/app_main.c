@@ -258,6 +258,7 @@ void app_main(void) {
     pico_ota_confirm_running();
 
     app_lock_boot_gate(&hl, hw.touch, hw.sensor);
+    crash_report_poll(false);
     rp_boot_mark("lock");
     const app_desc_t *first = app_home_page();
     pico_resume_t resume = {0};
@@ -293,6 +294,7 @@ void app_main(void) {
 #if CONFIG_DPREADER_AUTO_RESTORE
     if (app_settings_autorestore_status() >= APP_RESTORE_NEED_MEDIA) first = app_at(3);
 #endif
+    crash_report_poll(false);
     rp_boot_mark("resume");
 #ifdef DPREADER_LOCAL_TRANSFER_START
     // Explicit unattended local tests only; preserve PIN and recovery gates.

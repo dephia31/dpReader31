@@ -40,6 +40,10 @@ typedef struct {
     report_t pending[REPORT_SLOTS];
     // Keep the original RTC report layout so older queued events can still be exported.
     report_stamp_t stamps[REPORT_SLOTS];
+    struct {
+        uint32_t check;
+        char text[CRASH_NOTE_DETAIL_SIZE];
+    } panic_details[REPORT_SLOTS];
 } retained_t;
 static RTC_NOINIT_ATTR retained_t s_retained;
 static int64_t s_retry_at;
@@ -93,9 +97,18 @@ void crash_report_boot(void) {
     report_set_stamp(r, report_clock());
     snprintf(r->version,sizeof(r->version),"%s",version);
     snprintf(r->previous_version,sizeof(r->previous_version),"%s",s_retained.version);
-    /* A retained flash pointer is only interpreted for a panic in this same image. */
-    if(reason==ESP_RST_PANIC && !strcmp(version,s_retained.version) && crash_note_valid())
+    size_t slot = (size_t)(r - s_retained.pending);
+    s_retained.panic_details[slot].check = 0;
+    s_retained.panic_details[slot].text[0] = 0;
+    if(reason==ESP_RST_PANIC && !strcmp(version,s_retained.version) && crash_note_valid()) {
         snprintf(r->panic,sizeof(r->panic),"%s",crash_note_text());
+        const char *detail = crash_note_detail();
+        if (detail) {
+            snprintf(s_retained.panic_details[slot].text, CRASH_NOTE_DETAIL_SIZE,
+                     "%.*s", CRASH_NOTE_DETAIL_SIZE - 1, detail);
+            s_retained.panic_details[slot].check = s_retained.session ^ id ^ UINT32_C(0x504e4332);
+        }
+    }
     metalio_sleep_previous_summary(r->sleep,sizeof(r->sleep));
     const unsigned n=rp_crash_log_count();
     for(unsigned i=0;i<n && i<RP_CRASH_LOG_LINES;++i) {
@@ -137,10 +150,17 @@ static bool report_write(const report_t *r) {
     if(!f)return false;
     bool ok=fprintf(f,"dpReader crash_log\nfirmware=%s\nprevious_firmware=%s\nreset_reason=%lu (%s)\n"
         "recorded_at=%s (UTC+07:00, boot or first export)\nevent=%08lx:%08lx\nprevious_uptime_s=%lu\nconsecutive_short_boots=%lu\n"
-        "older_events_not_retained=%lu\n%s\n%s\nprevious_boot_breadcrumbs (newest first):\n",
+        "older_events_not_retained=%lu\n%s\n%s\n",
         r->version,r->previous_version,(unsigned long)r->reason,report_reason(r->reason),date,
         (unsigned long)s_retained.session,(unsigned long)r->id,(unsigned long)r->previous_uptime_s,
         (unsigned long)r->loop,(unsigned long)s_retained.dropped,r->panic,r->sleep)>=0;
+    size_t slot = (size_t)(r - s_retained.pending);
+    if (ok && r->panic[0] && s_retained.panic_details[slot].text[0] &&
+        s_retained.panic_details[slot].check == (s_retained.session ^ r->id ^ UINT32_C(0x504e4332))) {
+        ok = fprintf(f, "panic_detail=%.*s\n", CRASH_NOTE_DETAIL_SIZE - 1,
+                     s_retained.panic_details[slot].text) >= 0;
+    }
+    if (ok) ok = fprintf(f, "previous_boot_breadcrumbs (newest first):\n") >= 0;
     for(unsigned i=0;ok && i<RP_CRASH_LOG_LINES;++i)
         if(r->crumbs[i][0])ok=fprintf(f,"%s\n",r->crumbs[i])>=0;
     if(fflush(f)!=0)ok=false;

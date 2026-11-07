@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.3.5-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "sha256": "483c458e3d7bf1f4324e77b6e5bac2e2c58511c378ae38e1adb4af0fc2a607df",
+  "size": 4658480,
+  "notes": "Cải thiện lật trang, cảm ứng và Wi-Fi; lưu tiến độ dự phòng trên thẻ; nhớ tối đa 6 mạng Wi-Fi.",
+  "previous_version": "1.3.4-love-vn"
+}

@@ -246,6 +246,8 @@ esp_err_t log_export_to_sd(char *out_path, size_t out_path_size, char *err_msg, 
     if (crash_note_valid()) {
         const char *panic_line = crash_note_text();
         fprintf(f, "Last Panic: %s\n", panic_line ? panic_line : "Unknown");
+        const char *detail = crash_note_detail();
+        if (detail) fprintf(f, "Panic Detail: %.*s\n", CRASH_NOTE_DETAIL_SIZE - 1, detail);
     } else {
         fprintf(f, "Last Panic: None (System clean)\n");
     }

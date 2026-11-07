@@ -1,10 +1,14 @@
+## dpReader 1.3.7-vn / 1.3.7-love-vn · 2026-11-07
+
+- Báo cáo crash Full và Love Book lưu thêm địa chỉ gọi (`ra`) và thông điệp lỗi gốc của ESP-IDF vào bộ nhớ RTC để phân tích chính xác lần khởi động lại.
+- Khởi tạo I2C và mở rộng GPIO TCA9555 trên Metalio S31 có cơ chế khôi phục xung nhịp và thử lại khi bus bận sau reset, khắc phục triệt để lỗi crash khởi động sớm.
+- Cập nhật tiến trình kiểm tra báo cáo lỗi ngay sau màn khóa và khung hình đầu tiên, đảm bảo ghi nhận đầy đủ sự kiện và thời gian hoạt động.
+- Chuyển tùy chỉnh chân trang sang Cài đặt đọc → Status & Footer. Có thể ẩn thanh trạng thái hoặc chân trang để dành chỗ cho nội dung sách.
+- I Love Book dùng nền đen họa tiết ô trám khi chưa có ảnh bìa. Bìa tạm hiển thị logo dpReader xám sáng.
+
 ## dpReader 1.3.6-vn / 1.3.6-love-vn · 2026-11-07 (Tạm thu hồi / Withdrawn)
 
-- Bản 1.3.6 tạm thời được gỡ bỏ khỏi Web Flash và kênh OTA; phiên bản ổn định chính thức phục vụ người dùng được khôi phục về dpReader 1.3.5.
-
-- Chuyển tùy chỉnh chân trang sang Cài đặt đọc → Status & Footer. Có thể ẩn thanh trạng thái hoặc chân trang để dành chỗ cho nội dung sách.
-
-- I Love Book dùng nền đen họa tiết ô trám khi chưa có ảnh bìa. Bìa tạm hiển thị logo dpReader xám sáng.
+- Bản 1.3.6 tạm thời được gỡ bỏ khỏi Web Flash và kênh OTA; toàn bộ tính năng và cải tiến của 1.3.6 được tích hợp và phát hành trong dpReader 1.3.7.
 
 ## dpReader 1.3.5-vn / 1.3.5-love-vn · 2026-11-07
 

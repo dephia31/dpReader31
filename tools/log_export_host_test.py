@@ -75,6 +75,8 @@ typedef struct {const char *name,*addr;}ble_pt_bond_t;
 static const ble_pt_bond_t *ble_pt_bond(unsigned i){(void)i;return NULL;}
 static bool crash_note_valid(void){return false;}
 static const char *crash_note_text(void){return "";}
+#define CRASH_NOTE_DETAIL_SIZE 160
+static const char *crash_note_detail(void){return NULL;}
 static unsigned rp_crash_log_count(void){return 0;}
 static const char *rp_crash_log_line(unsigned i){(void)i;return NULL;}
 '''

@@ -12,6 +12,8 @@
 
 #include <stdbool.h>
 
+#define CRASH_NOTE_DETAIL_SIZE 160
+
 /// 是否有上一次崩溃的记录。/ Whether a crash from the previous run was recorded.
 bool crash_note_valid(void);
 
@@ -20,6 +22,9 @@ bool crash_note_valid(void);
 /// One-line description such as "panic pc=0x4201a2b4 exc=4 core=0 ..."; NULL without a record.
 /// The address can go straight to addr2line against the firmware elf for a function and a line.
 const char *crash_note_text(void);
+
+// Thông điệp đã sao chép từ ESP-IDF, hoặc NULL.
+const char *crash_note_detail(void);
 
 /// 把记录打一遍（不清除）。启动时调用一次。/ Log the record once, without clearing it. Call at boot.
 void crash_note_log(void);
