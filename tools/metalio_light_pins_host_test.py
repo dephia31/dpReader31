@@ -54,17 +54,29 @@ int main(void){
  }
  for(int fail=0;fail<=4;fail++){
   uint16_t saved;io_calls=0;bad_io=fail;outputs[0]=0x20;outputs[1]=0x14;
-  int cut=metalio_sleep_cut_rails(&saved);assert(saved==0x1420);
+  int cut=metalio_sleep_cut_rails(&saved,true);assert(saved==0x1420);
   if(cut){bad_io=0;io_calls=0;}else assert(io_calls==2&&io_pins[0]==5&&io_pins[1]==12);
   trace_count=0;unsigned before=io_calls;
-  (void)metalio_sleep_restore_rails(saved);
+  (void)metalio_sleep_restore_rails(saved,true);
   assert(trace_count==4);
   for(unsigned n=0;n<4;++n)assert(trace_phases[n]==15+n);
   assert(trace_io[0]==before&&trace_io[1]==before+1&&trace_io[2]==before+1&&trace_io[3]==before+2);
   assert(outputs[0]==0x20&&outputs[1]==0x14);
   assert(io_pins[io_calls-2]==12&&io_pins[io_calls-1]==5);
  }
- puts("PASS: exact vendor 16 EPD + six SD pins, CNNT release, all22 prepare/hold failures, no GPIO2/36 or LEDC changes, P5/P14 cut and reverse restoration despite I2C faults");
+ // Light Sleep only switches P5. Check both initial VOUT levels and both write failures.
+ for(int vout=0;vout<2;vout++)for(int fail=0;fail<=2;fail++){
+  uint16_t saved;
+  uint8_t initial=(uint8_t)(0x04|(vout?0x10:0));
+  io_calls=trace_count=0;bad_io=fail;outputs[0]=0x20;outputs[1]=initial;
+  assert((metalio_sleep_cut_rails(&saved,false)==ESP_OK)==(fail!=1));
+  assert(saved==(uint16_t)((initial<<8)|0x20));
+  assert(io_calls==1&&io_pins[0]==5&&outputs[1]==initial);
+  assert((metalio_sleep_restore_rails(saved,false)==ESP_OK)==(fail!=2));
+  assert(io_calls==2&&io_pins[1]==5&&outputs[0]==0x20&&outputs[1]==initial);
+  assert(trace_count==2&&trace_phases[0]==17&&trace_phases[1]==18);
+ }
+ puts("PASS: exact vendor 16 EPD + six SD pins, CNNT release, all22 prepare/hold failures, no GPIO2/36 or LEDC changes, Light Sleep P5 only and Deep Sleep P5/P14 sequencing with I2C faults");
 }
 '''
 # Avoid undefined negative shifts in the fault sentinel.

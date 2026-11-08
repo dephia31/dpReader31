@@ -193,7 +193,7 @@ esp_err_t metalio_prepare_key_wake(void) {
     if (err==ESP_OK) err=fca9555_set_config(ioe,1,0x00);
     if (err==ESP_OK) err=fca9555_read_input(ioe,0,&ignored);
     if (err==ESP_OK) err=fca9555_read_input(ioe,1,&ignored);
-    if (err==ESP_OK) err=fca9555_set_config(ioe,1,0x80);
+    if (err==ESP_OK) err=fca9555_set_config(ioe,1,0x83);
     xSemaphoreGive(mutex); return err;
 }
 esp_err_t metalio_restore_key_io(void) {
@@ -216,10 +216,11 @@ bool metalio_key_down(void) {
     return metalio_io_read(&inputs)==ESP_OK && !(inputs&(1u<<15));
 }
 bool metalio_confirm_power_key(void) {
+    const uint16_t mask=(1u<<15)|(1u<<9)|(1u<<8);
     uint16_t first=0xffff,again=0xffff;
-    if(metalio_io_read(&first)!=ESP_OK || (first&(1u<<15))) return false;
+    if(metalio_io_read(&first)!=ESP_OK || (first&mask)==mask) return false;
     vTaskDelay(pdMS_TO_TICKS(30));
-    return metalio_io_read(&again)==ESP_OK && !(again&(1u<<15));
+    return metalio_io_read(&again)==ESP_OK;
 }
 bool metalio_boot_power_key(void) { return boot_power_key; }
 static struct {uint16_t stable,candidate;int64_t since,down_at[2];bool armed[2],long_sent[2];} volume_keys={.stable=0xffff,.candidate=0xffff};
@@ -467,9 +468,13 @@ esp_err_t metalio_hw_init(void) {
     }
     if (err!=ESP_OK) return err;
     hw_ready=true;
-    // 深睡启动尽早采样真实P17，后续挂卡/字体耗时不能用共享IRQ代替按键。
-    // Sample real P17 early on deep boots; later media/font delays cannot turn a shared IRQ into a press.
-    if(esp_reset_reason()==ESP_RST_DEEPSLEEP)boot_power_key=metalio_confirm_power_key();
+    // 深睡启动尽早采样真实按键，或识别已在300ms引导期松开的EXT1按键唤醒。
+    // Sample real wake keys early on deep boots, or recognize an EXT1 key press already released during bootloader startup.
+    if(esp_reset_reason()==ESP_RST_DEEPSLEEP) {
+        uint16_t wake_inputs=0xffff;
+        boot_power_key=metalio_confirm_power_key() ||
+            (metalio_io_read(&wake_inputs)==ESP_OK && gpio_get_level(GPIO_NUM_2)!=0);
+    }
     // P14 VOUT 上电后按参考驱动等待轨稳定。/ Allow reference VOUT rail settling time.
     vTaskDelay(pdMS_TO_TICKS(80));
     ledc_timer_config_t timer={.speed_mode=LEDC_LOW_SPEED_MODE,.duty_resolution=LEDC_TIMER_10_BIT,
@@ -726,20 +731,23 @@ esp_err_t metalio_hold_for_light_sleep(void) {
     }
     return result;
 }
-esp_err_t metalio_sleep_cut_rails(uint16_t *saved) {
+esp_err_t metalio_sleep_cut_rails(uint16_t *saved, bool switch_vout) {
     if (!saved) return ESP_ERR_INVALID_ARG;
     *saved=(uint16_t)outputs[0]|((uint16_t)outputs[1]<<8);
     esp_err_t err=metalio_io_set(5,false);
-    if(err==ESP_OK) err=metalio_io_set(12,false);
+    if(err==ESP_OK && switch_vout) err=metalio_io_set(12,false);
     return err;
 }
-esp_err_t metalio_sleep_restore_rails(uint16_t saved) {
+esp_err_t metalio_sleep_restore_rails(uint16_t saved, bool switch_vout) {
     // 中文：P14先于P5恢复，任何一笔失败仍尝试下一笔。
     // English: Restore P14 before P5, attempting both even after an error.
     // Retained memory markers only: no log/I2C/extra delay between the original writes.
-    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P14_BEFORE);
-    esp_err_t first=metalio_io_set(12,(saved&(1u<<12))!=0);
-    metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P14_AFTER);
+    esp_err_t first=ESP_OK;
+    if(switch_vout) {
+        metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P14_BEFORE);
+        first=metalio_io_set(12,(saved&(1u<<12))!=0);
+        metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P14_AFTER);
+    }
     metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P5_BEFORE);
     esp_err_t next=metalio_io_set(5,(saved&(1u<<5))!=0);
     metalio_sleep_trace_phase(METALIO_SLEEP_TRACE_P5_AFTER);

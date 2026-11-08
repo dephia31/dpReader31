@@ -78,8 +78,8 @@ static int cst836u_set_mode(void *t,int mode){assert(t&&mode==3);if(hardware_err
 static int cst836u_wake(void *t){assert(t);deep_touch=false;return 0;}
 static int metalio_prepare_light_sleep_pins(void){deep_pins=true;return hardware_error==2?-3:0;}
 static void metalio_release_light_sleep_pins(void){deep_pins=false;}
-static int metalio_sleep_cut_rails(uint16_t *saved){*saved=123;deep_rails=true;return hardware_error==3?-3:0;}
-static int metalio_sleep_restore_rails(uint16_t saved){assert(saved==123);deep_rails=false;return 0;}
+static int metalio_sleep_cut_rails(uint16_t *saved,bool switch_vout){assert(switch_vout);*saved=123;deep_rails=true;return hardware_error==3?-3:0;}
+static int metalio_sleep_restore_rails(uint16_t saved,bool switch_vout){assert(switch_vout);assert(saved==123);deep_rails=false;return 0;}
 static void read_pico_epd_restore_lcd(void){lcd_deinit=0;}
 static int ttf_font_open_builtin(void){font_closed++;return ESP_OK;}
 static int read_pico_sd_sync(void){if(!sd_error)sd_closed++;return sd_error;}
@@ -108,7 +108,7 @@ int main(void){
  reset();assert(app_enter_host_sleep(99)==ESP_ERR_INVALID_ARG);intact();
  reset();online=true;assert(app_enter_host_sleep(APP_SLEEP_DEEP)==ESP_ERR_NOT_FINISHED);intact();online=false;
  reset();assert(app_enter_host_sleep(APP_SLEEP_OFF)==ESP_ERR_TIMEOUT);assert(off_calls==1&&resumes==1&&delay_ms==1000);intact();
- reset();assert(lock_prepare_key_wake());assert(paused&&wake_source&&config[0]==0&&config[1]==0x80&&latches[0]==0x20&&latches[1]==0x97);
+ reset();assert(lock_prepare_key_wake());assert(paused&&wake_source&&config[0]==0&&config[1]==0x83&&latches[0]==0x20&&latches[1]==0x97);
  lock_restore_key_wake();intact();
  // Every failed transfer in the reference mask restores normal directions before TF/font closure.
  // 掩码仍是7笔写，等待循环用一次自增读取代替两次单端口读取，故失败注入共8笔。

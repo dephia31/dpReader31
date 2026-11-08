@@ -428,6 +428,10 @@ static unsigned s_chapter_lead_row_height;
 static unsigned s_chapter_lead_width;
 static char s_font_path[192];
 static bool s_reader_display_ready;
+#if DPREADER_BOARD_METALIO47
+static bool s_reader_resume_pending, s_reader_raster_failed;
+static int64_t s_reader_raster_retry_ms;
+#endif
 static char* s_text;
 bool app_book_reader_body_visible(void) {
     return s_view == READING && s_text && s_reader_panel == READER_PANEL_NONE && !s_clear_confirm && !book_notes_active();
@@ -620,6 +624,7 @@ static void copy_text(char* dst, size_t cap, const char* src);
 static void fit_text(char* text, int px, int width);
 static void free_book(void);
 static void save_progress(void);
+static bool reader_reflow_font(void);
 static void before_lock(app_ctx_t *ctx);
 static void invalidate_prep(void);
 static void prepare_inline_image(void);
@@ -2985,7 +2990,8 @@ static const char *reader_key_label(app_reader_key_action_t action) {
     static const char *const labels[] = {
         "Trang trước", "Trang sau", "Thanh công cụ", "Thanh công cụ",
         "Về Trang chủ", "Làm mới trang", "Không dùng",
-        "Chương trước", "Chương sau", "Bật/Tắt đèn", "Đồng bộ KOSync", "Menu thao tác nhanh"
+        "Chương trước", "Chương sau", "Bật/Tắt đèn", "Đồng bộ KOSync", "Menu thao tác nhanh",
+        "Khóa màn hình"
     };
     return labels[action >= 0 && action < APP_READER_KEY_COUNT ? action : APP_READER_KEY_NONE];
 }
@@ -3068,8 +3074,8 @@ static void draw_key_settings(uint8_t *fb) {
     reader_panel_text_vc(fb, 342, 1170, 26, "Xong", EPD_DRAW_ALIGN_CENTER, true);
 }
 static EpdRect reader_key_choice_rect(int action) {
-    int row = action > APP_READER_KEY_FULLSCREEN ? action - 1 : action;
-    return (EpdRect){36, 390 + row * 68, 612, 60};
+    int slot = action > APP_READER_KEY_FULLSCREEN ? action - 1 : action;
+    return (EpdRect){36 + (slot % 2) * 314, 390 + (slot / 2) * 104, 298, 88};
 }
 static void draw_key_picker(uint8_t *fb) {
 #if DPREADER_BOARD_METALIO47
@@ -3084,10 +3090,10 @@ static void draw_key_picker(uint8_t *fb) {
         EpdRect card = reader_key_choice_rect(i);
         bool selected = (s_reader_key_pick == 3 ? app_settings_reader_hold_action() : app_settings_reader_key_action(s_reader_key_pick)) == i;
         ui_fill_round_rect(fb, card, 20, selected ? 0xd8 : UI_GRAY_WHITE);
-        ui_draw_control_frame(fb, card, 20, 0x58);
-        reader_panel_text_vc(fb, 58, card.y + card.height / 2, 27, reader_key_label(i), EPD_DRAW_ALIGN_LEFT, false);
-        epd_draw_circle(608, card.y + card.height / 2, 11, 0x38, fb);
-        if (selected) epd_fill_circle(608, card.y + card.height / 2, 6, UI_GRAY_BLACK, fb);
+        ui_draw_control_frame(fb, card, 20, selected ? UI_GRAY_BLACK : 0x58);
+        ui_text_box(fb, (EpdRect){card.x + 18, card.y + 10, card.width - 62, card.height - 20}, 24, reader_key_label(i), EPD_DRAW_ALIGN_LEFT, false);
+        epd_draw_circle(card.x + card.width - 26, card.y + card.height / 2, 11, 0x38, fb);
+        if (selected) epd_fill_circle(card.x + card.width - 26, card.y + card.height / 2, 6, UI_GRAY_BLACK, fb);
     }
     reader_panel_text_vc(fb, 342, 1112, 20, s_reader_key_error[0] ? s_reader_key_error : "Vuốt từ cạnh dưới lên để mở thanh công cụ đọc", EPD_DRAW_ALIGN_CENTER, false);
     ui_fill_round_rect(fb, (EpdRect){36, 1141, 612, 58}, 20, UI_GRAY_BLACK);
@@ -4062,9 +4068,16 @@ static void draw_reader_outer(uint8_t *fb,size_t page) {
     draw_reader_panel(fb);
 }
 static void draw_reader(uint8_t *fb,size_t page) {
+#if DPREADER_BOARD_METALIO47
+    const uint32_t glyph_failures=ttf_font_glyph_failures();
+#endif
     ui_text_set_system_scale(false);ui_clear_page(fb);
     if (!(s_zoom_active && page == s_page && reader_zoom_mode()))
         book_layout_draw_page(fb,page,body_rect(),s_px);
+#if DPREADER_BOARD_METALIO47
+    s_reader_raster_failed=!ttf_font_ready() || glyph_failures!=ttf_font_glyph_failures();
+    if(s_reader_raster_failed)return;
+#endif
     draw_reader_outer(fb,page);
 }
 #if DPREADER_BOARD_METALIO47
@@ -4076,6 +4089,7 @@ static void draw_reader_cached(uint8_t *fb,size_t page) {
         !book_layout_page_image_count(page)&&!app_settings_book_background_path()[0];
     const uint8_t *cached=eligible?reader_page_cache_find(page,book_layout_generation(),fb_bytes()):NULL;
     if(cached){
+        s_reader_raster_failed=false;
         memcpy(fb,cached,fb_bytes());
         // 缓存可能含旧状态栏/收藏/页脚，只保留正文并重新画当前外围。
         // Cached outer chrome may be stale; retain the body and repaint the current header/footer.
@@ -4085,7 +4099,7 @@ static void draw_reader_cached(uint8_t *fb,size_t page) {
         draw_reader_outer(fb,page);
     }
     else draw_reader(fb,page);
-    if(eligible&&!cached&&s_reader_panel==READER_PANEL_NONE)
+    if(eligible&&!cached&&!s_reader_raster_failed&&s_reader_panel==READER_PANEL_NONE)
         (void)reader_page_cache_store(page,book_layout_generation(),fb,fb_bytes(),page);
     ESP_LOGI(TAG,"reader UI cached=%d panel=%d",cached!=NULL,s_reader_panel);
 }
@@ -4100,7 +4114,17 @@ static void draw_reader_cached(uint8_t *fb,size_t page) {
 static int reader_prefetch_step(void) {
     if(!s_next_fb||s_prep_page<0)return -1;
     if(!s_prep_cursor.generation)memset(s_next_fb,0xff,fb_bytes());
+#if DPREADER_BOARD_METALIO47
+    const uint32_t glyph_failures=ttf_font_glyph_failures();
+#endif
     int result=book_layout_draw_slice(s_next_fb,(size_t)s_prep_page,body_rect(),s_px,&s_prep_cursor);
+#if DPREADER_BOARD_METALIO47
+    if(!ttf_font_ready() || glyph_failures!=ttf_font_glyph_failures()) {
+        // Drop only the unfinished prefetch. Already validated frames remain reusable.
+        pause_reader_prep();
+        return -1;
+    }
+#endif
     if(result<0)invalidate_prep();
 #if DPREADER_BOARD_METALIO47
     else if(result>0){s_next_page=s_prep_page;s_next_generation=book_layout_generation();
@@ -4114,6 +4138,7 @@ static int reader_prefetch_step(void) {
 // 一张已绘当前页 + 上一页 + 后两页，字库只在现有绘制锁下借用。
 // Cache current/previous/two future pages; borrow faces only under the existing draw lock.
 static bool reader_prefetch_target(void) {
+    if(s_reader_resume_pending || s_reader_raster_failed || strcmp(s_font_path,ttf_font_path()))return false;
     if(s_view!=READING||!s_text||s_toolbar||s_clear_confirm||s_reader_panel!=READER_PANEL_NONE||
        app_settings_book_background_path()[0]||book_layout_page_image_count(s_page))return false;
     size_t total=book_layout_page_count();uint32_t generation=book_layout_generation();
@@ -4498,7 +4523,35 @@ static bool reader_slider_feedback_present(app_ctx_t *ctx,app_redraw_t redraw) {
     guard_draw_result(ctx->hl,err);return true;
 }
 #endif
+#if DPREADER_BOARD_METALIO47
+static void reader_preserve_display(app_ctx_t *ctx) {
+    if(ctx->hl->back_fb)memcpy(ctx->fb,ctx->hl->back_fb,fb_bytes());
+}
+static void reader_defer_raster_retry(app_ctx_t *ctx) {
+    s_reader_display_ready=false;
+    s_reader_text_frame=false;
+    s_reader_image_frame=false;
+    s_reader_raster_retry_ms=esp_timer_get_time()/1000+1000;
+    reader_preserve_display(ctx);
+    ESP_LOGW(TAG,"reader frame skipped: font raster incomplete");
+}
+#endif
 static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
+#if DPREADER_BOARD_METALIO47
+    if(s_view==READING && s_text && !ctx->request_app &&
+       redraw!=APP_REDRAW_NONE && redraw!=APP_REDRAW_DONE) {
+        if(s_reader_resume_pending) {
+            if(!app_sleep_media_ready()) {
+                reader_preserve_display(ctx);
+                return true;
+            }
+            app_font_activate_reading();
+            s_reader_resume_pending=false;
+            redraw=APP_REDRAW_FULL;
+        }
+        if(redraw==APP_REDRAW_FULL && reader_reflow_font())redraw=APP_REDRAW_PAGE;
+    }
+#endif
     if((s_reader_choice.open||s_choice_frame)&&redraw!=APP_REDRAW_NONE&&redraw!=APP_REDRAW_DONE&&!ctx->request_app){
         s_reader_panel_frame.valid=false;
         render(ctx,ctx->fb);
@@ -4575,6 +4628,14 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
     int64_t start = esp_timer_get_time();
     const int64_t frame_minute=reader_status_visible()?ui_nav_clock_minute():-1;
     if (redraw == APP_REDRAW_PAGE || redraw == APP_REDRAW_FULL) render(ctx, ctx->fb);
+#if DPREADER_BOARD_METALIO47
+    if(s_view==READING && s_reader_raster_failed &&
+       (redraw==APP_REDRAW_PAGE || redraw==APP_REDRAW_FULL)) {
+        if(reader_prepare)display_page_prepare_end(reader_prepared);
+        reader_defer_raster_retry(ctx);
+        return true;
+    }
+#endif
     bool prep = kick_prep();
     int64_t drawn = esp_timer_get_time();
     // 本地细点阵挡板已是黑白目标，不注册灰区，省去暂存和第二轮GL16。
@@ -4792,6 +4853,7 @@ static app_redraw_t paint_reading(app_ctx_t* ctx, enum EpdDrawMode mode) {
 #endif
     if (cached) {
 #if DPREADER_BOARD_METALIO47
+        s_reader_raster_failed=false;
         memcpy(ctx->fb, cached_pixels, fb_bytes());
 #else
         memcpy(ctx->fb, s_next_fb, fb_bytes());
@@ -4803,6 +4865,11 @@ static app_redraw_t paint_reading(app_ctx_t* ctx, enum EpdDrawMode mode) {
     // A prefetched page can be minutes old; replace its status with the current time.
     if (cached && reader_status_visible()) reader_status_paint(ctx->fb);
 #if DPREADER_BOARD_METALIO47
+    if(s_reader_raster_failed) {
+        unlock_draw();
+        reader_defer_raster_retry(ctx);
+        return APP_REDRAW_NONE;
+    }
     if(!s_toolbar&&!s_clear_confirm&&!s_reader_notice[0]&&!book_layout_page_image_count(s_page)&&
        !app_settings_book_background_path()[0])
         (void)reader_page_cache_store(s_page,book_layout_generation(),ctx->fb,fb_bytes(),s_page);
@@ -4861,6 +4928,9 @@ static void track_ticket_stats(app_ctx_t* ctx) {
 }
 static void free_book(void) {
     s_reader_display_ready=false;
+#if DPREADER_BOARD_METALIO47
+    s_reader_resume_pending=s_reader_raster_failed=false;
+#endif
     kosync_state_commit(s_path);
     book_notes_reset();
     reader_font_recovery_reset();
@@ -6023,6 +6093,10 @@ static bool reader_turn_chrome(app_ctx_t *ctx) {
     return changed;
 }
 static app_redraw_t turn_page(app_ctx_t* ctx, int dir) {
+#if DPREADER_BOARD_METALIO47
+    if(s_reader_resume_pending || s_reader_raster_failed)return APP_REDRAW_NONE;
+    if(reader_reflow_font() && !s_text)return APP_REDRAW_PAGE;
+#endif
     if (!s_text || s_clear_confirm) return APP_REDRAW_NONE;
     reader_zoom_reset();
 #if DPREADER_BOARD_METALIO47
@@ -8657,6 +8731,7 @@ static app_redraw_t reader_key_action(app_ctx_t *ctx, app_reader_key_action_t ac
     s_reader_tap.pending = false;
     switch (action) {
         case APP_READER_KEY_ACTION_MENU:app_action_menu_request();return APP_REDRAW_NONE;
+        case APP_READER_KEY_LOCK:app_lock_request();return APP_REDRAW_NONE;
         case APP_READER_KEY_PREV: case APP_READER_KEY_NEXT:
             s_stats_activity_ms = ctx->now_ms;
             return turn_page(ctx, action == APP_READER_KEY_PREV ? -1 : 1);
@@ -8947,7 +9022,34 @@ static bool reader_maintenance_ready(const app_ctx_t *ctx) {
     return ctx->now_ms >= recent && ctx->now_ms - recent >= 1200;
 }
 
+// Reflow before a new face can draw or cache pixels for the previous layout.
+static bool reader_reflow_font(void) {
+    if(s_view!=READING || !s_text || !strcmp(s_font_path,ttf_font_path()))return false;
+    size_t off=book_layout_page_start_offset(s_page);
+    save_progress();
+    lock_draw();
+    invalidate_prep();
+    bool ok=book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),s_px);
+    if(ok)s_page=book_layout_page_for_offset(off);
+    copy_text(s_font_path,sizeof(s_font_path),ttf_font_path());
+    unlock_draw();
+    if(!ok) {
+        free_book();
+        s_view=SHELF;
+        copy_text(s_message,sizeof(s_message),"Dàn trang lại thất bại, vui lòng mở lại sách");
+    }
+    return true;
+}
+
 static app_redraw_t on_tick(app_ctx_t* ctx) {
+#if DPREADER_BOARD_METALIO47
+    if(s_view==READING && s_text) {
+        if(s_reader_resume_pending)
+            return app_sleep_media_ready()?APP_REDRAW_PAGE:APP_REDRAW_NONE;
+        if(s_reader_raster_failed)
+            return ctx->now_ms>=s_reader_raster_retry_ms?APP_REDRAW_PAGE:APP_REDRAW_NONE;
+    }
+#endif
     const bool ble_enabled = app_settings_ble_turner();
     const bool touch_owns_input = reader_touch_owns_input(ctx);
     // Ưu tiên cử chỉ đang diễn ra, kể cả khi chờ xác định chạm kép trên ảnh.
@@ -9144,19 +9246,7 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
 #else
 #endif
 #endif
-    // 目录暂借系统字体，不应把正文按系统字体重新分页。/ The directory borrows the system face without repaginating the reader.
-    if (s_view == READING && s_text && strcmp(s_font_path, ttf_font_path())) {
-        size_t off = book_layout_page_start_offset(s_page);
-        save_progress();
-        lock_draw();
-        invalidate_prep();
-        bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
-        if (ok) s_page = book_layout_page_for_offset(off);
-        copy_text(s_font_path, sizeof(s_font_path), ttf_font_path());
-        unlock_draw();
-        if (!ok) { free_book(); s_view = SHELF; copy_text(s_message, sizeof(s_message), "Dàn trang lại thất bại, vui lòng mở lại sách"); }
-        return APP_REDRAW_PAGE;
-    }
+    if (reader_reflow_font()) return APP_REDRAW_PAGE;
     app_redraw_t clock=reader_clock_tick(ctx);
 #if DPREADER_BOARD_METALIO47
     if(clock==APP_REDRAW_NONE) {
@@ -9222,6 +9312,9 @@ static int64_t reader_next_tick_ms(app_ctx_t *ctx) {
 #endif
 static void before_lock(app_ctx_t* ctx) {
     s_reader_display_ready=false;
+#if DPREADER_BOARD_METALIO47
+    s_reader_resume_pending=s_view==READING && s_text;
+#endif
     s_reader_choice.open=false;
     book_notes_cancel();
 #if DPREADER_BOARD_METALIO47

@@ -194,6 +194,10 @@ void ttf_set_antialias(bool enabled);
 bool ttf_get_antialias(void);
 int ttf_get_weight(void);
 
+#if DPREADER_BOARD_METALIO47
+/// Monotonic fault counter, read under the same draw lock as the rasterizer.
+uint32_t ttf_font_glyph_failures(void);
+#endif
 void ttf_font_cache_clear(void);
 /// 清空所有槽的字形位图与分块缓冲并把占用还回去，字体本身保持装载；返回回收的字节数。
 /// 开书前调用：系统字体的缓存是 PSRAM 里最容易腾的一块，书内字体要的正是这块地方。

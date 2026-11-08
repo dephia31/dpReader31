@@ -112,9 +112,10 @@ enum{APP_REDRAW_NONE,APP_REDRAW_PAGE,APP_REDRAW_FULL};
 typedef struct{int unused;}app_ctx_t;
 typedef struct{int unused;}app_desc_t;
 static const app_desc_t app_book={1},other={2};
-static bool visible,reading=true;static unsigned requests,turns,chapters,tools,syncs,marks,lights,home,haptics;
+static bool visible,reading=true;static unsigned requests,locks,turns,chapters,tools,syncs,marks,lights,home,haptics;
 static int last;static app_ai_action_t chosen;
 static void app_action_menu_request(void){++requests;}
+static void app_lock_request(void){++locks;}
 static bool app_book_reader_body_visible(void){return visible;}
 static bool app_book_ai_bookmark(void){++marks;return true;}
 static void metalio_haptic_click(void){++haptics;}
@@ -133,6 +134,7 @@ int main(void){app_ctx_t c={0};
  assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&chapters==1);
  reading=false;assert(ai_short_action(&c,&app_book)==APP_REDRAW_NONE&&chapters==1);reading=true;
  chosen=APP_AI_ACTION_MENU;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&requests==1);
+ chosen=APP_AI_LOCK;assert(ai_short_action(&c,&other)==APP_REDRAW_NONE&&locks==1);
  assert(ai_run_action(&c,&app_book,APP_AI_KOSYNC)==APP_REDRAW_PAGE&&syncs==1);
  assert(ai_run_action(&c,&app_book,APP_AI_TOOLS)==APP_REDRAW_PAGE&&tools==1);
  puts("PASS actual AI short/menu dispatch: page/chapter actions work with reader toolbar open, skip non-reader/shelf, KoSync/tools/menu execute without changing AI mapping");
@@ -150,12 +152,13 @@ typedef int app_redraw_t;
 typedef struct{void *request_app;bool request_menu,request_return;}app_ctx_t;
 typedef struct{bool holds_pmu,owns_keys;bool(*navigation_enabled)(app_ctx_t*);int(*on_key)(app_ctx_t*,int);int(*on_key_long)(app_ctx_t*,int);}app_desc_t;
 const app_desc_t app_book={0};
-static uint8_t holds[7],shorts[3],vols[2];static unsigned requests,fallbacks;
+static uint8_t holds[7],shorts[3],vols[2];static unsigned requests,locks,fallbacks;
 static bool blocked,root_page,ready=true;
 static uint8_t app_settings_control_hold(unsigned key){return holds[key];}
 static app_reader_key_action_t app_settings_reader_key_action(unsigned key){return shorts[key];}
 static app_reader_key_action_t app_settings_volume_key_action(unsigned key){return vols[key];}
 static void app_action_menu_request(void){++requests;}
+static void app_lock_request(void){++locks;}
 static bool usb_storage_active(void){return blocked;}
 static bool pico_online_busy(void){return false;}
 static bool app_download_active(void){return false;}
@@ -169,7 +172,7 @@ static bool main_page_ready(app_ctx_t *c,const app_desc_t *app){(void)c;(void)ap
 static int main_key_action(app_ctx_t *c,const app_desc_t *app,int key,bool held){(void)c;(void)app;(void)key;(void)held;++fallbacks;return 0;}
 static bool app_book_volume_key(app_ctx_t *c,int dir,int *out){(void)c;(void)dir;(void)out;return false;}
 """
-for name in ['front_key_opens_action_menu','front_key_dispatch','control_hold_action','volume_key_action']:bindings+=function(name,ROOT/'main/app/app_loop.c')+'\n'
+for name in ['front_key_opens_action_menu','front_key_locks','front_key_dispatch','control_hold_action','volume_key_action']:bindings+=function(name,ROOT/'main/app/app_loop.c')+'\n'
 bindings+=r"""
 int main(void){app_ctx_t ctx={0};app_desc_t other={0};
  for(unsigned key=0;key<7;++key){holds[key]=APP_READER_KEY_ACTION_MENU;assert(control_hold_action(&ctx,&other,key)==APP_REDRAW_NONE);}
@@ -178,7 +181,13 @@ int main(void){app_ctx_t ctx={0};app_desc_t other={0};
  for(unsigned root=0;root<2;++root){root_page=root;for(int key=1;key<=3;++key){front_key_dispatch(&ctx,&other,key,false);front_key_dispatch(&ctx,&other,key,true);}}
  assert(requests==19&&!fallbacks);
  vols[0]=vols[1]=APP_READER_KEY_ACTION_MENU;volume_key_action(&ctx,&other,-1);volume_key_action(&ctx,&other,1);assert(requests==21);
- puts("PASS actual routing: all7 holds, front3 short/hold on roots/subpages, volume short menu and busy guards");
+ for(unsigned key=0;key<7;++key){holds[key]=APP_READER_KEY_LOCK;assert(control_hold_action(&ctx,&other,key)==APP_REDRAW_NONE);}
+ assert(locks==7);blocked=true;control_hold_action(&ctx,&other,0);assert(locks==7);blocked=false;
+ for(unsigned i=0;i<3;++i)shorts[i]=APP_READER_KEY_LOCK;
+ for(unsigned root=0;root<2;++root){root_page=root;for(int key=1;key<=3;++key){front_key_dispatch(&ctx,&other,key,false);front_key_dispatch(&ctx,&other,key,true);}}
+ assert(locks==19&&!fallbacks);
+ vols[0]=vols[1]=APP_READER_KEY_LOCK;volume_key_action(&ctx,&other,-1);volume_key_action(&ctx,&other,1);assert(locks==21);
+ puts("PASS actual routing: all7 holds, front3 short/hold on roots/subpages, volume short menu/lock and busy guards");
 }
 """
 # Render the actual settings branch over arbitrary old page pixels. This catches

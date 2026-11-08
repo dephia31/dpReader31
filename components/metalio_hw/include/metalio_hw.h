@@ -90,8 +90,8 @@ esp_err_t metalio_sd_single_line_idle(void);
 esp_err_t metalio_hold_for_light_sleep(void);
 esp_err_t metalio_prepare_light_sleep_pins(void);
 void metalio_release_light_sleep_pins(void);
-esp_err_t metalio_sleep_cut_rails(uint16_t *saved);
-esp_err_t metalio_sleep_restore_rails(uint16_t saved);
+esp_err_t metalio_sleep_cut_rails(uint16_t *saved, bool switch_vout);
+esp_err_t metalio_sleep_restore_rails(uint16_t saved, bool switch_vout);
 void metalio_ana_sw(bool high);
 /// S31独立USJ与UTMI，以下仅恢复USJ及板上GPIO36通路。
 /// S31 has separate USJ/UTMI PHYs; these recover only USJ and the board GPIO36 route.

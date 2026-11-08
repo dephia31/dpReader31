@@ -12,6 +12,8 @@
 #include "app.h"
 /// Queue the configurable action menu on the UI loop; guarded against overlays/IO.
 void app_action_menu_request(void);
+/// Queue a screen lock on the UI loop; guarded against overlays/IO.
+void app_lock_request(void);
 
 #ifdef __cplusplus
 extern "C" {

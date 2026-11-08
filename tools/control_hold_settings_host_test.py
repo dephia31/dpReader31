@@ -26,6 +26,9 @@ static int nvs_open(const char *ns,int mode,int *h){assert(!strcmp(ns,NVS_NS)&&m
 static int nvs_set_u8(int h,const char *key,uint8_t value){(void)h;(void)value;++writes;last_key=key;return failure==2?-1:0;}
 static int nvs_commit(int h){(void)h;++commits;return failure==3?-1:0;}
 static void nvs_close(int h){(void)h;}
+#define backup_nvs_open nvs_open
+#define backup_nvs_set_u8 nvs_set_u8
+#define settings_backup_commit nvs_commit
 '''+enum+r'''
 static uint8_t s_control_holds[7]={255,APP_READER_KEY_NONE,APP_READER_KEY_NONE,255,255,APP_READER_KEY_NONE,APP_READER_KEY_NONE};
 static const char *const s_control_hold_names[]={"hold_ai","hold_vup","hold_vdown","hold_power","hold_mid","hold_left","hold_right"};

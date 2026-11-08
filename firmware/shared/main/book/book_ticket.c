@@ -17,6 +17,8 @@
 #include <sys/stat.h>
 #include <time.h>
 #include "book_cover.h"
+#include "book_cover_jobs.h"
+#include "boot_state.h"
 #include "book_epub.h"
 #include "book_progress.h"
 #include "book_title.h"
@@ -169,7 +171,7 @@ static void text_fit(char *text, int px, int width) {
     }
 }
 static uint8_t *cover_load(const char *path, const char *title, const char *author,
-                           unsigned *width, unsigned *height) {
+                           unsigned *width, unsigned *height, bool allow_decode) {
     uint8_t *gray = heap_caps_malloc(BOOK_COVER_W * BOOK_COVER_H,
                                      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     // The lock screen must not decode a potentially large EPUB while the
@@ -192,6 +194,13 @@ static uint8_t *cover_load(const char *path, const char *title, const char *auth
             return gray;
         }
     }
+    // An idle lock can recover a cold cover without competing with reader
+    // input or a thumbnail worker writing the same cache file.
+    const char *ext = strrchr(path, '.');
+    if (allow_decode && ext && !strcasecmp(ext, ".epub") &&
+        pico_boot_asset_allowed(path) && book_cover_jobs_quiesce(2000) &&
+        book_cover_load_io(path, title, author, gray, true, width, height, NULL) > 0)
+        return gray;
     free(gray);
     return NULL;
 }
@@ -342,8 +351,7 @@ static int ticket_heading(uint8_t *fb,int top,int height,int px,const char *text
     ui_text_title_vc(fb,82,top+height/2,px,last,text,EPD_DRAW_ALIGN_LEFT);
     return 1;
 }
-bool book_ticket_draw(uint8_t *fb, bool reader_background) {
-    (void)reader_background;
+bool book_ticket_draw(uint8_t *fb, bool allow_cover_decode) {
     char path[288];
     if (!book_progress_last_path(path, sizeof(path))) return false;
     struct stat st;
@@ -362,7 +370,7 @@ bool book_ticket_draw(uint8_t *fb, bool reader_background) {
     ticket_stats_t stats; stats_load(&stats);
     uint32_t day = local_day();
     unsigned cover_width=0,cover_height=0;
-    uint8_t *gray = cover_load(path, title, author, &cover_width, &cover_height);
+    uint8_t *gray = cover_load(path, title, author, &cover_width, &cover_height, allow_cover_decode && file_valid);
     book_ticket_draw_background(fb, gray, cover_width, cover_height, false);
     book_ticket_draw_shadow(fb);
     book_ticket_draw_paper(fb);

@@ -54,7 +54,7 @@ bool app_lock_resume_frame(EpdiyHighlevelState *hl);
 
 void enter_lock_and_sleep(
     EpdiyHighlevelState* hl, int64_t* ignore_until_ms, sc7a20h_handle_t acc, cst836u_handle_t touch,
-    bool reader_background
+    bool auto_lock
 );
 #if DPREADER_BOARD_METALIO47
 #else

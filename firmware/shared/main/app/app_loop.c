@@ -134,6 +134,8 @@ static const app_desc_t* s_presented_main;
 static ui_quick_menu_t s_quick;
 static bool s_action_menu_requested;
 void app_action_menu_request(void){s_action_menu_requested=true;}
+static bool s_lock_requested;
+void app_lock_request(void){s_lock_requested=true;}
 static unsigned s_quick_status;
 static int s_quick_pressed=-1;
 #if DPREADER_BOARD_METALIO47
@@ -147,6 +149,7 @@ static unsigned s_quick_slider_drawn[2],s_quick_slider_level[2];
 #else
 #endif
 static void quick_reset(void) {
+    s_lock_requested=false;
 #if DPREADER_BOARD_METALIO47
     s_action_menu_requested=false;
     s_quick_notice_kind=0;s_quick_notice_text[0]=0;
@@ -731,8 +734,18 @@ static bool front_key_opens_action_menu(int key,bool held) {
     (void)key;(void)held;return false;
 #endif
 }
+static bool front_key_locks(int key,bool held) {
+#if DPREADER_BOARD_METALIO47
+    unsigned slot=key==UI_KEY_1?5:key==UI_KEY_2?4:6;
+    return held?app_settings_control_hold(slot)==APP_READER_KEY_LOCK:
+        app_settings_reader_key_action(key==UI_KEY_1?0:key==UI_KEY_2?1:2)==APP_READER_KEY_LOCK;
+#else
+    (void)key;(void)held;return false;
+#endif
+}
 static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *current,int key,bool held) {
     if(front_key_opens_action_menu(key,held)){app_action_menu_request();return APP_REDRAW_NONE;}
+    if(front_key_locks(key,held)){app_lock_request();return APP_REDRAW_NONE;}
     if(held)return key==UI_KEY_2?APP_REDRAW_FULL:APP_REDRAW_NONE;
     app_redraw_t redraw=APP_REDRAW_NONE;
     if(current->on_main_key && current->on_main_key(ctx,key,&redraw))return redraw;
@@ -744,6 +757,7 @@ static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *current,int
 
 static app_redraw_t front_key_dispatch(app_ctx_t *ctx,const app_desc_t *current,int key,bool held) {
     if(front_key_opens_action_menu(key,held)){app_action_menu_request();return APP_REDRAW_NONE;}
+    if(front_key_locks(key,held)){app_lock_request();return APP_REDRAW_NONE;}
     if(main_page_ready(ctx,current))return main_key_action(ctx,current,key,held);
     return held?(current->on_key_long?current->on_key_long(ctx,key):APP_REDRAW_NONE):
         (current->on_key?current->on_key(ctx,key):APP_REDRAW_NONE);
@@ -758,6 +772,7 @@ static app_redraw_t control_hold_action(app_ctx_t *ctx,const app_desc_t *current
     read_pico_transfer_status_t transfer;read_pico_transfer_get_status(&transfer);
     if(transfer.state==READ_PICO_TRANSFER_UPLOADING)return APP_REDRAW_NONE;
     if(action==APP_READER_KEY_ACTION_MENU){app_action_menu_request();return APP_REDRAW_NONE;}
+    if(action==APP_READER_KEY_LOCK){app_lock_request();return APP_REDRAW_NONE;}
     if(action==APP_READER_KEY_HOME){ui_nav_request(ctx,0);return APP_REDRAW_NONE;}
     if(action==APP_READER_KEY_REFRESH)return APP_REDRAW_FULL;
     if(action==APP_READER_KEY_LIGHT){metalio_frontlight_toggle();return APP_REDRAW_NONE;}
@@ -771,7 +786,9 @@ static app_redraw_t volume_key_action(app_ctx_t *ctx,const app_desc_t *current,i
        usb_storage_active() || pico_online_busy())return APP_REDRAW_NONE;
     if(volume==2||volume==-2)return control_hold_action(ctx,current,volume>0?1:2);
     int key=volume<0?UI_KEY_1:UI_KEY_3;
-    if(app_settings_volume_key_action(volume<0?0:1)==APP_READER_KEY_ACTION_MENU){app_action_menu_request();return APP_REDRAW_NONE;}
+    app_reader_key_action_t vol_action=app_settings_volume_key_action(volume<0?0:1);
+    if(vol_action==APP_READER_KEY_ACTION_MENU){app_action_menu_request();return APP_REDRAW_NONE;}
+    if(vol_action==APP_READER_KEY_LOCK){app_lock_request();return APP_REDRAW_NONE;}
     if(main_page_ready(ctx,current))return main_key_action(ctx,current,key,false);
     app_redraw_t redraw = APP_REDRAW_NONE;
     if(current==&app_book && app_book_volume_key(ctx,volume<0?-1:1,&redraw))return redraw;
@@ -804,6 +821,7 @@ static void ai_dismiss(app_ctx_t *ctx,const app_desc_t *current,bool present){
 }
 static app_redraw_t ai_run_action(app_ctx_t *ctx,const app_desc_t *current,app_ai_action_t action){
     if(action==APP_AI_ACTION_MENU){app_action_menu_request();return APP_REDRAW_NONE;}
+    if(action==APP_AI_LOCK){app_lock_request();return APP_REDRAW_NONE;}
     if(action==APP_AI_TOOLS){return current==&app_book?app_book_handle_key_action(ctx,APP_READER_KEY_TOOLS):APP_REDRAW_NONE;}
     if(action==APP_AI_NONE)return APP_REDRAW_NONE;
     if(action==APP_AI_BOOKMARK){
@@ -1471,10 +1489,9 @@ void app_loop_run(const app_loop_config_t* config) {
                         ui_power_dialog_end();
                         ui_power_dialog_reset(&power_dialog, false);
                         prepare_lock(&ctx, current, true);
-                        extern const app_desc_t app_book;
+
                         main_lock_boundary();
-                        enter_lock_and_sleep(ctx.hl, &s_lock_ignore_until_ms, ctx.acc, ctx.tp,
-                                             current == &app_book && app_book_reader_body_visible());
+                        enter_lock_and_sleep(ctx.hl, &s_lock_ignore_until_ms, ctx.acc, ctx.tp, false);
                         display_request_full_refresh();
                         ctx.now_ms = esp_timer_get_time() / 1000;
                         last_input_ms = ctx.now_ms;
@@ -1562,14 +1579,15 @@ void app_loop_run(const app_loop_config_t* config) {
             }
             if (key >= 0 && current->owns_keys && !menu_open) {
                 bool main_keys=main_page_ready(&ctx,current);
-                bool defer_key=front_key_opens_action_menu(key,true) || (key==UI_KEY_2 && current->defer_middle_short);
+                bool defer_key=front_key_opens_action_menu(key,true) || front_key_locks(key,true) ||
+                    front_key_locks(key,false) || (key==UI_KEY_2 && current->defer_middle_short);
 #if DPREADER_BOARD_METALIO47
                 defer_key|=current==&app_book && app_book_reader_body_visible();
 #endif
                 app_redraw_t redraw=defer_key||(main_keys&&key==UI_KEY_2)?APP_REDRAW_NONE:
                     front_key_dispatch(&ctx,current,key,false);
                 present_page(&ctx,current,&gesture,redraw);
-                if(touch.count==1 && (front_key_opens_action_menu(key,true)||(main_keys&&key==UI_KEY_2)||(!main_keys&&current->on_key_long))) {
+                if(touch.count==1 && (front_key_opens_action_menu(key,true)||front_key_locks(key,true)||front_key_locks(key,false)||(main_keys&&key==UI_KEY_2)||(!main_keys&&current->on_key_long))) {
                     held_key=key;held_since_ms=ctx.now_ms;held_main_key=main_keys;
                 }
             } else if (key == UI_KEY_2) {
@@ -1653,6 +1671,17 @@ void app_loop_run(const app_loop_config_t* config) {
 
         // 电源键短按默认锁屏；阅读正文可选择将它用于下一页。
         // A short power press normally locks; the reader body may use it for the next page.
+        if (s_lock_requested) {
+            s_lock_requested = false;
+            read_pico_transfer_status_t lock_transfer;
+            read_pico_transfer_get_status(&lock_transfer);
+            if (!power_dialog_open && !current->holds_pmu && !usb_storage_active() &&
+                !app_download_active() && !pico_online_busy() &&
+                lock_transfer.state != READ_PICO_TRANSFER_UPLOADING &&
+                (!current->navigation_enabled || current->navigation_enabled(&ctx))) {
+                quick_lock_requested = true;
+            }
+        }
 #if DPREADER_BOARD_METALIO47
         if (!app_sd_recovery_busy() &&
             (quick_lock_requested || (read_pico_pmu_ready() && !current->holds_pmu && !usb_storage_active()
@@ -1691,7 +1720,7 @@ void app_loop_run(const app_loop_config_t* config) {
                     if (reader_power_lock) {
                         prepare_lock(&ctx, current, true);
                         main_lock_boundary();
-                        enter_lock_and_sleep(ctx.hl, &s_lock_ignore_until_ms, ctx.acc, ctx.tp, true);
+                        enter_lock_and_sleep(ctx.hl, &s_lock_ignore_until_ms, ctx.acc, ctx.tp, false);
                         display_request_full_refresh();
                         ctx.now_ms = esp_timer_get_time() / 1000;
                         last_input_ms = ctx.now_ms;
@@ -1731,10 +1760,9 @@ void app_loop_run(const app_loop_config_t* config) {
                         ctx.consumed = true;
                     } else {
                         prepare_lock(&ctx, current, true);
-                        extern const app_desc_t app_book;
+
                         main_lock_boundary();
-                        enter_lock_and_sleep(ctx.hl, &s_lock_ignore_until_ms, ctx.acc, ctx.tp,
-                                             !menu_open && current == &app_book && app_book_reader_body_visible());
+                        enter_lock_and_sleep(ctx.hl, &s_lock_ignore_until_ms, ctx.acc, ctx.tp, false);
                         display_request_full_refresh();
                         ctx.now_ms = esp_timer_get_time() / 1000;
                         last_input_ms = ctx.now_ms;
@@ -1776,7 +1804,7 @@ void app_loop_run(const app_loop_config_t* config) {
             held_key=-1;held_main_key=false;
         }
         if (!power_dialog_open && released && held_key >= 0 && ui_key_hit_test(latest.x, latest.y) == held_key &&
-            ((held_key==UI_KEY_2 && (current->defer_middle_short || main_page_ready(&ctx,current)))||front_key_opens_action_menu(held_key,true)
+            ((held_key==UI_KEY_2 && (current->defer_middle_short || main_page_ready(&ctx,current)))||front_key_opens_action_menu(held_key,true)||front_key_locks(held_key,true)||front_key_locks(held_key,false)
 #if DPREADER_BOARD_METALIO47
              || (current==&app_book && app_book_reader_body_visible())
 #endif
@@ -1810,6 +1838,34 @@ void app_loop_run(const app_loop_config_t* config) {
         }
 #else
 #endif
+        if (s_lock_requested) {
+            s_lock_requested = false;
+            read_pico_transfer_status_t lock_transfer;
+            read_pico_transfer_get_status(&lock_transfer);
+            if (!power_dialog_open && !current->holds_pmu && !usb_storage_active() &&
+                !app_download_active() && !pico_online_busy() &&
+                lock_transfer.state != READ_PICO_TRANSFER_UPLOADING &&
+                (!current->navigation_enabled || current->navigation_enabled(&ctx))) {
+                held_key = -1;
+                cancel_gesture(&ctx, current, &gesture);
+                if (menu_pressed >= 0) menu_feedback(&ctx, current, menu_leaf, menu_pressed, false, &feedback);
+                menu_pressed = UI_MENU_HIT_NONE;
+                prepare_lock(&ctx, current, true);
+
+                main_lock_boundary();
+                enter_lock_and_sleep(ctx.hl, &s_lock_ignore_until_ms, ctx.acc, ctx.tp, false);
+                display_request_full_refresh();
+                ctx.now_ms = esp_timer_get_time() / 1000;
+                last_input_ms = ctx.now_ms;
+                poll_media(&ctx, current, &media_mounted, &media_invalidated);
+                last_media_poll_ms = ctx.now_ms;
+                ctx.consumed = true;
+                ctx.pressed = false;
+                ctx.released = false;
+                if (menu_open) present_menu(&ctx, current, menu_leaf, &feedback);
+                else app_present(&ctx, current, APP_REDRAW_PAGE);
+            }
+        }
         // 蓝牙翻页器：BLE 栈只在这里跟随设置启停。必须走 ble_pt_sync()——自己写
         // 「设置与状态不一致就 start()」会让启动失败的那次判断每轮都成立，变成每秒
         // 几十次重复初始化并把内存耗光。sync() 内部有内存闸门、失败退避和崩溃自锁。
@@ -1928,10 +1984,9 @@ void app_loop_run(const app_loop_config_t* config) {
             if (menu_pressed >= 0) menu_feedback(&ctx, current, menu_leaf, menu_pressed, false, &feedback);
             menu_pressed = UI_MENU_HIT_NONE;
             prepare_lock(&ctx, current, false);
-            extern const app_desc_t app_book;
+
             main_lock_boundary();
-            enter_lock_and_sleep(ctx.hl, &s_lock_ignore_until_ms, ctx.acc, ctx.tp,
-                                 !menu_open && current == &app_book && app_book_reader_body_visible());
+            enter_lock_and_sleep(ctx.hl, &s_lock_ignore_until_ms, ctx.acc, ctx.tp, true);
             display_request_full_refresh();
             ctx.now_ms = esp_timer_get_time() / 1000;
             last_input_ms = ctx.now_ms;

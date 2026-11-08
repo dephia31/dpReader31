@@ -95,7 +95,7 @@ unit += r'''
 static void reset(void){current_background=0x32;memset(draws,0,sizeof(draws));fallback=presents=auths=font_begin=font_end=pause=resume=clear_resume=0;memset(pixels,0x32,FRAME_BYTES);memset(panel,0x32,FRAME_BYTES);frame_ready=s_lock_feedback_visible=feedback_seen=false;full_presents=entry_clears=0;final_ok=true;draw_ok=transfer_ok=true;timeout=reader=boot_cache=cache_ok=false;}
 int main(void){
  EpdiyHighlevelState hl={panel};int64_t ignore=0;
- // 两种来源的阅读背景只影响票根内容，不决定样式。/ Reader provenance affects ticket content, never the style.
+ //  Only automatic locks may decode uncached ticket artwork.
  for(unsigned s=0;s<4;++s)for(unsigned password=0;password<2;++password)for(unsigned body=0;body<2;++body){
   reset();style=s;pin=password;reader=body;
   enter_lock_and_sleep(&hl,&ignore,(void*)1,(void*)2,reader);

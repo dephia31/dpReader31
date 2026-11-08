@@ -59,8 +59,9 @@ static app_reader_key_action_t app_settings_reader_hold_action(void){return held
 static bool app_settings_set_reader_key_action(unsigned i,app_reader_key_action_t v){assert(i<3);if(save_fail)return false;saved_key=i;saved_value=v;values[i]=v;return true;}
 static bool app_settings_set_reader_hold_action(app_reader_key_action_t v){if(save_fail)return false;hold_saved=v;held=v;return true;}
 static void app_settings_set_reader_key_preset(unsigned p){assert(p==1||p==2);}
+static bool app_settings_reader_key_action_allowed(unsigned key,app_reader_key_action_t action){return key<4&&action>=0&&action<APP_READER_KEY_COUNT&&action!=APP_READER_KEY_FULLSCREEN;}
 '''
-for name in ('reader_key_label','reader_key_card','reader_key_preset_card','reader_key_preset_selected','draw_key_settings','draw_key_picker'):
+for name in ('reader_key_label','reader_key_card','reader_key_preset_card','reader_key_preset_selected','draw_key_settings','reader_key_choice_rect','draw_key_picker'):
  u+=function(name,book)+'\n'
 u+=function('ui_key_hit_test',root/'main/ui/ui_menu.c')+'\n'
 action=function('reader_panel_action',book)
@@ -71,12 +72,12 @@ u+=r'''
 int main(void){
  uint8_t fb[1];app_ctx_t ctx={0};
  const unsigned ids[3]={UI_KEY_2,UI_KEY_1,UI_KEY_3};const uint16_t physical_x[3]={100,200,300};
- const char *const expected_names[3]={"圆圈键","左键","右键"};
- const char *const expected_titles[3]={"圆圈键功能","左键功能","右键功能"};
+ const char *const expected_names[3]={"Phím Tròn","Phím Trái","Phím Phải"};
+ const char *const expected_titles[3]={"Phím Tròn","Phím Trái","Phím Phải"};
  draw_key_settings(fb);assert(rings==2&&bars==2);
- assert(!strcmp(hold_label,"圆圈键长按"));
- assert(!strcmp(preset_labels[0],"圆圈工具栏 · 左上一页 · 右下一页"));
- assert(!strcmp(preset_labels[1],"圆圈全屏 · 左回首页 · 右工具栏"));
+ assert(!strcmp(hold_label,"Nhấn giữ phím Tròn"));
+ assert(!strcmp(preset_labels[0],"Tròn: Công cụ · Trái: Trang trước · Phải: Trang sau"));
+ assert(!strcmp(preset_labels[1],"Tròn: Làm mới · Trái: Trang chủ · Phải: Công cụ"));
  for(unsigned col=0;col<3;++col){
   assert(!strcmp(labels[col],expected_names[col]));
   assert(!strcmp(actions[col],reader_key_label(values[ids[col]])));
@@ -89,8 +90,10 @@ int main(void){
   }
   draw_key_picker(fb);assert(!strcmp(title,expected_titles[col]));
   for(int action=0;action<APP_READER_KEY_COUNT;++action){
+   if(!app_settings_reader_key_action_allowed(ids[col],action))continue;
    s_reader_panel=READER_PANEL_KEY_SETTINGS;key_action(&ctx,card.x+20,card.y+20);
-   assert(key_action(&ctx,100,390+action*94+39)==APP_REDRAW_PAGE);
+   EpdRect choice=reader_key_choice_rect(action);
+   assert(key_action(&ctx,choice.x+20,choice.y+20)==APP_REDRAW_PAGE);
    assert(saved_key==(int)ids[col]&&saved_value==action&&values[ids[col]]==(app_reader_key_action_t)action);
   }
  }
@@ -100,10 +103,14 @@ int main(void){
  s_reader_panel=READER_PANEL_KEY_SETTINGS;key_action(&ctx,100,550);save_fail=true;int old=values[1];
  assert(key_action(&ctx,100,429)==APP_REDRAW_PAGE&&s_reader_panel==READER_PANEL_KEY_PICKER&&values[1]==old&&s_reader_key_error[0]);save_fail=false;
  s_reader_panel=READER_PANEL_KEY_SETTINGS;key_action(&ctx,100,690);assert(s_reader_key_pick==3);
- draw_key_picker(fb);assert(!strcmp(title,"圆圈键长按功能"));
- key_action(&ctx,100,390+APP_READER_KEY_REFRESH*94+39);assert(hold_saved==APP_READER_KEY_REFRESH);
+ draw_key_picker(fb);assert(!strcmp(title,"Chức năng nhấn giữ phím Tròn"));
+ EpdRect refresh_choice=reader_key_choice_rect(APP_READER_KEY_REFRESH);
+ key_action(&ctx,refresh_choice.x+20,refresh_choice.y+20);assert(hold_saved==APP_READER_KEY_REFRESH);
+ EpdRect lock_choice=reader_key_choice_rect(APP_READER_KEY_LOCK);
+ s_reader_panel=READER_PANEL_KEY_SETTINGS;key_action(&ctx,100,690);
+ key_action(&ctx,lock_choice.x+20,lock_choice.y+20);assert(hold_saved==APP_READER_KEY_LOCK);
  assert(!invalidations);
- puts("PASS: actual S31 circle/left/right diagram+labels+action display, all67032 card pixels, all21 action saves, physical touch IDs, gaps, long hold and save failure; persisted numbering unchanged");
+ puts("PASS: actual S31 circle/left/right diagram+labels+action display, all67032 card pixels, all action saves (including lock), physical touch IDs, gaps, long hold and save failure; persisted numbering unchanged");
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

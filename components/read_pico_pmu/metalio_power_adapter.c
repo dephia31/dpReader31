@@ -175,16 +175,18 @@ static void key_feed(void *arg) {
         ulTaskNotifyTake(pdTRUE,wait);
     }
 }
-// 原厂浅睡把EXT1解释为P17按键；TF恢复前按键已松开时仍保留一次短按。
-// Vendor light sleep identifies EXT1 as P17; retain one short click when it was released before media restoration.
+// 原厂浅睡把EXT1解释为按键唤醒；无论恢复时按键已松开或仍按住，均补记一次短按并抑制同次松开重复触发。
+// Latch one short wake action on confirmed EXT1 wake whether already released or still held, suppressing the matching release.
 void read_pico_pmu_latch_power_wakeup(void) {
     portENTER_CRITICAL(&key_lock);
-    if (!keys_paused && !held && action==READ_PICO_PMU_KEY_NONE) {
+    if (!keys_paused && action==READ_PICO_PMU_KEY_NONE) {
         action=READ_PICO_PMU_KEY_SHORT;
+        long_sent=held;
         ++s_lock_key_serial;
         power_double_click_push(&s_wake_click,(uint32_t)(esp_timer_get_time()/1000));
     }
     portEXIT_CRITICAL(&key_lock);
+    metalio_volume_clear();
     // 补记的动作要立即生效，避免任务停在无中断的等待里。/ The latched action must take effect now, not after the next IRQ.
     key_kick();
 }
@@ -330,6 +332,8 @@ bool read_pico_pmu_take_key_wakeup_single(void) {
     bool wake=action==READ_PICO_PMU_KEY_SHORT || action==READ_PICO_PMU_KEY_LONG;
     action=READ_PICO_PMU_KEY_NONE; s_wake_click=(power_double_click_t){0};
     portEXIT_CRITICAL(&key_lock);
+    if (metalio_take_volume()!=0) wake=true;
+    if (metalio_take_ai()!=METALIO_AI_NONE) wake=true;
     return wake;
 }
 esp_err_t read_pico_pmu_report_sleep(void) { return ESP_ERR_NOT_SUPPORTED; }
