@@ -6,6 +6,7 @@
 #include "metalio_hw.h"
 #include "metalio_cpu.h"
 #include "metalio_light_schedule.h"
+#include "metalio_preferences_backup.h"
 #include <time.h>
 #include "metalio_sleep.h"
 #include "driver/gpio.h"
@@ -42,7 +43,6 @@ static int64_t tps_wake_us;
 static int tps_last_vcom_mv=-1;
 static bool fl_ready;
 static uint8_t saved_brightness=30,saved_warmth=50;
-static uint8_t last_on_brightness=30;
 static uint16_t brightness_position=72,warmth_position=120,last_on_position=72;
 static bool light_enabled=true;
 static bool light_dirty;
@@ -524,7 +524,7 @@ static void frontlight_schedule_update(void) {
     light_enabled=total!=0;
     saved_brightness=(brightness_position*100+METALIO_FRONTLIGHT_RANGE/2)/METALIO_FRONTLIGHT_RANGE;
     saved_warmth=(warmth_position*100+METALIO_FRONTLIGHT_RANGE/2)/METALIO_FRONTLIGHT_RANGE;
-    if(brightness_position){last_on_position=brightness_position;last_on_brightness=saved_brightness;}
+    if(brightness_position)last_on_position=brightness_position;
 }
 void metalio_frontlight_schedule_poll(void) {
     if(light_suspended)return;
@@ -543,35 +543,68 @@ void metalio_frontlight_restore(void) {
 }
 // 兼容旧版以亮度0表示关闭的设置；新开关独立保存，重启/唤醒不能擅自开灯。
 // Migrate legacy zero-as-off settings; persist the independent switch across boot/wake.
-static void frontlight_load(void) {
+typedef struct {
+    uint16_t brightness, warmth, last_on;
+    bool enabled, migrated;
+} frontlight_settings_t;
+
+static unsigned frontlight_percent(unsigned position) {
+    return (position*100+METALIO_FRONTLIGHT_RANGE/2)/METALIO_FRONTLIGHT_RANGE;
+}
+
+static esp_err_t frontlight_read(frontlight_settings_t *settings) {
+    *settings = (frontlight_settings_t){72, 120, 72, true, false};
     nvs_handle_t h;
-    uint8_t enabled=2;
-    if(nvs_open("metalio_light",NVS_READONLY,&h)==ESP_OK) {
-        (void)nvs_get_u8(h,"brightness",&saved_brightness);
-        (void)nvs_get_u8(h,"warmth",&saved_warmth);
-        (void)nvs_get_u8(h,"last_on",&last_on_brightness);
-        (void)nvs_get_u8(h,"enabled",&enabled);
-        nvs_close(h);
-        if(enabled>1) light_dirty=true;
-    }
-    if(saved_brightness>100) saved_brightness=30;
-    if(saved_warmth>100) saved_warmth=50;
-    if(!last_on_brightness || last_on_brightness>100) last_on_brightness=30;
-    light_enabled=enabled<=1?enabled!=0:saved_brightness!=0;
-    if(enabled>1 && !saved_brightness) saved_brightness=last_on_brightness;
-    if(saved_brightness) last_on_brightness=saved_brightness;
-    brightness_position=(saved_brightness*METALIO_FRONTLIGHT_RANGE+50)/100;
-    warmth_position=(saved_warmth*METALIO_FRONTLIGHT_RANGE+50)/100;
-    last_on_position=(last_on_brightness*METALIO_FRONTLIGHT_RANGE+50)/100;
-    if(nvs_open("metalio_light",NVS_READONLY,&h)==ESP_OK) {
-        uint16_t v;
-        if(nvs_get_u16(h,"brightness_px",&v)==ESP_OK && v<=METALIO_FRONTLIGHT_RANGE) brightness_position=v;
-        if(nvs_get_u16(h,"warmth_px",&v)==ESP_OK && v<=METALIO_FRONTLIGHT_RANGE) warmth_position=v;
-        if(nvs_get_u16(h,"last_on_px",&v)==ESP_OK && v>0 && v<=METALIO_FRONTLIGHT_RANGE) last_on_position=v;
-        nvs_close(h);
-    }
-    saved_brightness=(brightness_position*100+METALIO_FRONTLIGHT_RANGE/2)/METALIO_FRONTLIGHT_RANGE;
-    saved_warmth=(warmth_position*100+METALIO_FRONTLIGHT_RANGE/2)/METALIO_FRONTLIGHT_RANGE;
+    esp_err_t err = nvs_open("metalio_light", NVS_READONLY, &h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) return ESP_OK;
+    if (err != ESP_OK) return err;
+    uint8_t brightness = 30, warmth = 50, last_on = 30, enabled = 2;
+    (void)nvs_get_u8(h, "brightness", &brightness);
+    (void)nvs_get_u8(h, "warmth", &warmth);
+    (void)nvs_get_u8(h, "last_on", &last_on);
+    (void)nvs_get_u8(h, "enabled", &enabled);
+    if (brightness > 100) brightness = 30;
+    if (warmth > 100) warmth = 50;
+    if (!last_on || last_on > 100) last_on = 30;
+    settings->enabled = enabled <= 1 ? enabled != 0 : brightness != 0;
+    settings->migrated = enabled > 1;
+    if (enabled > 1 && !brightness) brightness = last_on;
+    if (brightness) last_on = brightness;
+    settings->brightness = (brightness*METALIO_FRONTLIGHT_RANGE+50)/100;
+    settings->warmth = (warmth*METALIO_FRONTLIGHT_RANGE+50)/100;
+    settings->last_on = (last_on*METALIO_FRONTLIGHT_RANGE+50)/100;
+    uint16_t v;
+    if (nvs_get_u16(h, "brightness_px", &v) == ESP_OK && v <= METALIO_FRONTLIGHT_RANGE) settings->brightness = v;
+    if (nvs_get_u16(h, "warmth_px", &v) == ESP_OK && v <= METALIO_FRONTLIGHT_RANGE) settings->warmth = v;
+    if (nvs_get_u16(h, "last_on_px", &v) == ESP_OK && v > 0 && v <= METALIO_FRONTLIGHT_RANGE) settings->last_on = v;
+    nvs_close(h);
+    return ESP_OK;
+}
+
+static void frontlight_adopt(const frontlight_settings_t *settings) {
+    brightness_position = settings->brightness;
+    warmth_position = settings->warmth;
+    last_on_position = settings->last_on;
+    light_enabled = settings->enabled;
+    light_dirty = settings->migrated;
+    saved_brightness = frontlight_percent(brightness_position);
+    saved_warmth = frontlight_percent(warmth_position);
+}
+
+static void frontlight_load(void) {
+    frontlight_settings_t settings;
+    if (frontlight_read(&settings) == ESP_OK) frontlight_adopt(&settings);
+}
+
+static esp_err_t frontlight_stage(nvs_handle_t h, const frontlight_settings_t *s) {
+    esp_err_t err = nvs_set_u8(h, "brightness", frontlight_percent(s->brightness));
+    if (err == ESP_OK) err = nvs_set_u8(h, "warmth", frontlight_percent(s->warmth));
+    if (err == ESP_OK) err = nvs_set_u8(h, "last_on", frontlight_percent(s->last_on));
+    if (err == ESP_OK) err = nvs_set_u8(h, "enabled", s->enabled);
+    if (err == ESP_OK) err = nvs_set_u16(h, "brightness_px", s->brightness);
+    if (err == ESP_OK) err = nvs_set_u16(h, "warmth_px", s->warmth);
+    if (err == ESP_OK) err = nvs_set_u16(h, "last_on_px", s->last_on);
+    return err;
 }
 void metalio_frontlight_save(unsigned brightness,unsigned warmth) {
     metalio_frontlight_preview(brightness,warmth);
@@ -588,7 +621,7 @@ void metalio_frontlight_preview_position(unsigned brightness,unsigned warmth) {
     warmth_position=warmth>METALIO_FRONTLIGHT_RANGE?METALIO_FRONTLIGHT_RANGE:warmth;
     saved_brightness=(brightness_position*100+METALIO_FRONTLIGHT_RANGE/2)/METALIO_FRONTLIGHT_RANGE;
     saved_warmth=(warmth_position*100+METALIO_FRONTLIGHT_RANGE/2)/METALIO_FRONTLIGHT_RANGE;
-    if(brightness_position) { last_on_position=brightness_position; last_on_brightness=saved_brightness; }
+    if(brightness_position) last_on_position=brightness_position;
     light_dirty=true;
     // 滑块只改参数；关闭时两个PWM通道保持零。/ Sliders never enable an off light.
     metalio_frontlight_restore();
@@ -613,13 +646,8 @@ void metalio_frontlight_commit(void) {
     if(!light_dirty) return;
     nvs_handle_t h;
     if(nvs_open("metalio_light",NVS_READWRITE,&h)==ESP_OK) {
-        esp_err_t err=nvs_set_u8(h,"brightness",saved_brightness);
-        if(err==ESP_OK) err=nvs_set_u8(h,"warmth",saved_warmth);
-        if(err==ESP_OK) err=nvs_set_u8(h,"last_on",last_on_brightness);
-        if(err==ESP_OK) err=nvs_set_u8(h,"enabled",light_enabled?1:0);
-        if(err==ESP_OK) err=nvs_set_u16(h,"brightness_px",brightness_position);
-        if(err==ESP_OK) err=nvs_set_u16(h,"warmth_px",warmth_position);
-        if(err==ESP_OK) err=nvs_set_u16(h,"last_on_px",last_on_position);
+        frontlight_settings_t settings = {brightness_position, warmth_position, last_on_position, light_enabled, false};
+        esp_err_t err = frontlight_stage(h, &settings);
         if(err==ESP_OK) err=nvs_commit(h);
         nvs_close(h); if(err==ESP_OK) light_dirty=false;
     }
@@ -639,16 +667,94 @@ static void haptic_worker(void *arg) {
     }
 }
 bool metalio_haptic_enabled(void) { return atomic_load(&haptic_enabled); }
-void metalio_haptic_set_enabled(bool enabled) {
-    atomic_store(&haptic_enabled,enabled);
-    if(!enabled && haptic_mutex) {
-        xSemaphoreTake(haptic_mutex,portMAX_DELAY);
-        (void)metalio_io_set(3,false); xSemaphoreGive(haptic_mutex);
-    }
+static esp_err_t haptic_save(bool enabled) {
     nvs_handle_t h;
-    if(nvs_open("metalio_haptic",NVS_READWRITE,&h)==ESP_OK) {
-        nvs_set_u8(h,"enabled",enabled); nvs_commit(h); nvs_close(h);
+    esp_err_t err = nvs_open("metalio_haptic", NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_u8(h, "enabled", enabled);
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    if (err != ESP_OK) return err;
+    atomic_store(&haptic_enabled, enabled);
+    if (!enabled && haptic_mutex) {
+        xSemaphoreTake(haptic_mutex, portMAX_DELAY);
+        (void)metalio_io_set(3, false);
+        xSemaphoreGive(haptic_mutex);
     }
+    return ESP_OK;
+}
+void metalio_haptic_set_enabled(bool enabled) {
+    (void)haptic_save(enabled);
+}
+
+/* V32 board block. All positions are little-endian. */
+typedef struct {
+    uint8_t version, brightness[2], warmth[2], last_on[2], light_enabled, haptic;
+    uint8_t schedule[METALIO_LIGHT_SCHEDULE_BYTES];
+} metalio_preferences_bytes_t;
+_Static_assert(sizeof(metalio_preferences_bytes_t) == METALIO_PREFERENCES_BACKUP_BYTES,
+               "V32 Metalio block size");
+
+static uint16_t light_position_decode(const uint8_t bytes[2]) {
+    return bytes[0] | (bytes[1] << 8);
+}
+static void light_position_encode(uint8_t bytes[2], uint16_t value) {
+    bytes[0] = value;
+    bytes[1] = value >> 8;
+}
+
+esp_err_t metalio_preferences_backup_capture(uint8_t out[METALIO_PREFERENCES_BACKUP_BYTES]) {
+    frontlight_settings_t settings;
+    esp_err_t err = frontlight_read(&settings);
+    if (err != ESP_OK) return err;
+    metalio_preferences_bytes_t data = {.version = 1, .light_enabled = settings.enabled,
+                                        .haptic = metalio_haptic_enabled()};
+    light_position_encode(data.brightness, settings.brightness);
+    light_position_encode(data.warmth, settings.warmth);
+    light_position_encode(data.last_on, settings.last_on);
+    err = metalio_light_schedule_export(data.schedule);
+    if (err == ESP_OK) memcpy(out, &data, sizeof(data));
+    return err;
+}
+bool metalio_preferences_backup_valid(const uint8_t bytes[METALIO_PREFERENCES_BACKUP_BYTES]) {
+    metalio_preferences_bytes_t data;
+    memcpy(&data, bytes, sizeof(data));
+    if (!data.version) {
+        for (unsigned i = 0; i < sizeof(data); ++i)
+            if (bytes[i]) return false;
+        return true;
+    }
+    metalio_light_schedule_t schedules[2];
+    return data.version == 1 && data.light_enabled <= 1 && data.haptic <= 1 &&
+        light_position_decode(data.brightness) <= METALIO_FRONTLIGHT_RANGE &&
+        light_position_decode(data.warmth) <= METALIO_FRONTLIGHT_RANGE &&
+        light_position_decode(data.last_on) > 0 &&
+        light_position_decode(data.last_on) <= METALIO_FRONTLIGHT_RANGE &&
+        metalio_light_schedule_decode(data.schedule, schedules);
+}
+esp_err_t metalio_preferences_backup_restore(const uint8_t bytes[METALIO_PREFERENCES_BACKUP_BYTES]) {
+    if (!metalio_preferences_backup_valid(bytes)) return ESP_ERR_INVALID_ARG;
+    metalio_preferences_bytes_t data;
+    memcpy(&data, bytes, sizeof(data));
+    if (!data.version) return ESP_OK;
+    frontlight_settings_t settings = {
+        light_position_decode(data.brightness), light_position_decode(data.warmth),
+        light_position_decode(data.last_on), data.light_enabled != 0, false
+    };
+    metalio_light_schedule_t schedules[2];
+    if (!metalio_light_schedule_decode(data.schedule, schedules)) return ESP_ERR_INVALID_ARG;
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("metalio_light", NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = frontlight_stage(h, &settings);
+    if (err == ESP_OK) err = nvs_set_blob(h, "schedule", data.schedule, sizeof(data.schedule));
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    if (err != ESP_OK) return err;
+    frontlight_adopt(&settings);
+    metalio_light_schedule_adopt(schedules);
+    if (!light_suspended) metalio_frontlight_restore();
+    return haptic_save(data.haptic != 0);
 }
 // 关机/重启前等待当前脉冲结束，拒绝新脉冲。/ Drain the motor before shutdown or restart.
 void metalio_haptic_stop(void) {

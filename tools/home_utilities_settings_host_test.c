@@ -2,8 +2,6 @@
 #define main existing_settings_backup_fixture_main
 #include "settings_backup_host_test.c"
 #undef main
-esp_err_t nvs_get_u32(nvs_handle_t h,const char*k,uint32_t*v){(void)h;(void)k;(void)v;return ESP_FAIL;}
-esp_err_t nvs_set_u32(nvs_handle_t h,const char*k,uint32_t v){(void)h;(void)k;(void)v;return ESP_OK;}
 int main(void) {
     (void)mkdir("build",0700);(void)mkdir("build/book-tests",0700);(void)mkdir(APP_SETTINGS_BACKUP_ROOT,0700);
     app_settings_init();assert(app_settings_home_utility_labels()&&app_settings_home_utility_border());for(unsigned i=0;i<4;++i)assert(!app_settings_home_utility(i));
@@ -25,7 +23,7 @@ int main(void) {
     assert(app_settings_backup_save()==ESP_OK);
     f=fopen(BACKUP_FILE,"rb");assert(f);unsigned char bytes[4096];size_t len=fread(bytes,1,sizeof(bytes),f);assert(feof(f));fclose(f);
     /* Strip newer blocks before constructing historical V23/V24 tails. */
-    size_t removed=sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t);
+    size_t removed=sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t)+sizeof(settings_backup_preferences_t);
     memmove(bytes+len-removed-8,bytes+len-8,8);len-=removed;
     /* A v23 backup has the same block size but no label flag. */
     settings_backup_utilities_t legacy;memcpy(&legacy,bytes+len-16,sizeof(legacy));legacy.actions[0]&=0x3f;

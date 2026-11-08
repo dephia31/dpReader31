@@ -40,6 +40,12 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #include "book/book_history_backup.h"
 
 #if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+#include "metalio_preferences_backup.h"
+#include "anti_fade.h"
+#include "ble_pt_backup.h"
+#endif
+
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
 #include "esp_heap_caps.h"
 #include "esp_attr.h"
 #include "esp_mac.h"
@@ -60,7 +66,7 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #endif
 #include "book/book_progress.h"
 static BACKUP_STATE_RAM struct {
-    uint32_t revision, saved_revision, saved_progress, saved_wifi;
+    uint32_t revision, saved_revision, saved_progress, saved_wifi, saved_preferences;
     bool healthy, failed, saved, enabled;
 #if CONFIG_DPREADER_AUTO_RESTORE
     bool restore_pending, boot_checked;
@@ -1697,7 +1703,7 @@ static bool backup_home_valid(const settings_backup_home_t *v) {
 static unsigned backup_version(const settings_backup_v1_t *backup) {
     if (memcmp(backup->magic, "PICOSET", 7)) return 0;
     unsigned char c = backup->magic[7];
-    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : c == 'L' ? 21 : c == 'M' ? 22 : c == 'N' ? 23 : c == 'O' ? 24 : c == 'P' ? 25 : c == 'Q' ? 26 : c == 'R' ? 27 : c == 'S' ? 28 : c == 'T' ? 29 : c == 'U' ? 30 : c == 'V' ? 31 : 0;
+    return c >= '1' && c <= '9' ? c - '0' : c == 'A' ? 10 : c == 'B' ? 11 : c == 'C' ? 12 : c == 'D' ? 13 : c == 'E' ? 14 : c == 'F' ? 15 : c == 'G' ? 16 : c == 'H' ? 17 : c == 'I' ? 18 : c == 'J' ? 19 : c == 'K' ? 20 : c == 'L' ? 21 : c == 'M' ? 22 : c == 'N' ? 23 : c == 'O' ? 24 : c == 'P' ? 25 : c == 'Q' ? 26 : c == 'R' ? 27 : c == 'S' ? 28 : c == 'T' ? 29 : c == 'U' ? 30 : c == 'V' ? 31 : c == 'W' ? 32 : 0;
 }
 
 static void backup_erase_secret(void *ptr, size_t size) {
@@ -1917,6 +1923,154 @@ static bool backup_identity_valid(const backup_identity_t *identity, unsigned ve
         sum == backup_identity_checksum(identity);
 }
 
+/* V32 appends user preferences without changing the earlier reader and account blocks. */
+typedef struct {
+    uint8_t sleep_off_hours, wake_presses, wifi_timeout, ble_timeout, ota_edition;
+    uint8_t status_hidden, pin_grace, power_menu, ai_short;
+    uint8_t holds[7], action_menu[4];
+    uint8_t hardware[24], anti_fade;
+    uint8_t ble_bindings[180];
+    read_pico_transfer_wifi_backup_t networks[READ_PICO_TRANSFER_WIFI_PROFILES_MAX];
+    uint8_t networks_present;
+    uint8_t checksum[4];
+} settings_backup_preferences_t;
+
+static uint32_t preferences_checksum(const settings_backup_preferences_t *p) {
+    const uint8_t *bytes = (const uint8_t *)p;
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < offsetof(settings_backup_preferences_t, checksum); ++i)
+        hash = (hash ^ bytes[i]) * 16777619u;
+    return hash;
+}
+
+static uint32_t preferences_u32(const uint8_t bytes[4]) {
+    return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |
+        ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
+}
+
+static bool preferences_valid(const settings_backup_preferences_t *p) {
+    if (preferences_u32(p->checksum) != preferences_checksum(p) ||
+        p->sleep_off_hours > APP_SLEEP_OFF_HOURS_MAX || p->wake_presses < 1 || p->wake_presses > 2 ||
+        p->status_hidden > 1 || p->pin_grace > 4 || p->power_menu > 1 ||
+        (p->ota_edition > 1 && p->ota_edition != 255) ||
+        (p->wifi_timeout != 0 && p->wifi_timeout != 1 && p->wifi_timeout != 3 &&
+         p->wifi_timeout != 5 && p->wifi_timeout != 10) ||
+        (p->ble_timeout != 0 && p->ble_timeout != 5 && p->ble_timeout != 10 &&
+         p->ble_timeout != 15 && p->ble_timeout != 30) || p->networks_present > 1)
+        return false;
+#if DPREADER_BOARD_METALIO47
+    if (p->ai_short >= APP_AI_ACTION_COUNT || (preferences_u32(p->action_menu) & ~APP_ACTION_MENU_ALLOWED))
+        return false;
+    for (unsigned i = 0; i < sizeof(p->holds); ++i)
+        if (p->holds[i] != APP_CONTROL_HOLD_DEFAULT &&
+            (p->holds[i] >= APP_READER_KEY_COUNT || p->holds[i] == APP_READER_KEY_FULLSCREEN))
+            return false;
+#endif
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+    if (p->networks_present && !read_pico_transfer_wifi_profiles_backup_valid(p->networks)) return false;
+#endif
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+    _Static_assert(sizeof(p->ble_bindings) == sizeof(ble_pt_bindings_backup_t), "V32 BLE block size");
+    ble_pt_bindings_backup_t bindings;
+    memcpy(&bindings, p->ble_bindings, sizeof(bindings));
+    if (!metalio_preferences_backup_valid(p->hardware) || !anti_fade_minutes_valid(p->anti_fade) ||
+        !ble_pt_bindings_backup_valid(&bindings)) return false;
+#endif
+    return true;
+}
+
+static esp_err_t preferences_capture(settings_backup_preferences_t *p) {
+    p->sleep_off_hours = s_sleep_off_hours;
+    p->wake_presses = s_wake_presses;
+    p->wifi_timeout = s_wifi_timeout_minutes;
+    p->ble_timeout = s_ble_timeout_minutes;
+    p->ota_edition = s_ota_edition;
+    p->status_hidden = s_book_status_hidden;
+#if DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK
+    p->pin_grace = s_pin_grace_code_v;
+#endif
+#if DPREADER_BOARD_METALIO47
+    p->power_menu = s_power_action_menu;
+    p->ai_short = s_ai_short;
+    memcpy(p->holds, s_control_holds, sizeof(p->holds));
+    /* The round button is already stored in the reader block. */
+    p->holds[4] = APP_CONTROL_HOLD_DEFAULT;
+    for (unsigned i = 0; i < 4; ++i) p->action_menu[i] = s_action_menu >> (8*i);
+#endif
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+    p->anti_fade = anti_fade_minutes();
+    esp_err_t hardware_err = metalio_preferences_backup_capture(p->hardware);
+    if (hardware_err != ESP_OK) return hardware_err;
+    ble_pt_bindings_backup_t bindings;
+    esp_err_t ble_err = ble_pt_bindings_backup_capture(&bindings);
+    if (ble_err != ESP_OK) return ble_err;
+    memcpy(p->ble_bindings, &bindings, sizeof(bindings));
+#endif
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+    esp_err_t wifi_err = read_pico_transfer_export_wifi_profiles_backup(p->networks);
+    if (wifi_err != ESP_OK) return wifi_err;
+    p->networks_present = 1;
+#endif
+    uint32_t hash = preferences_checksum(p);
+    for (unsigned i = 0; i < 4; ++i) p->checksum[i] = hash >> (8*i);
+    return preferences_valid(p) ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
+}
+
+static esp_err_t preferences_stage(nvs_handle_t h, const settings_backup_preferences_t *p) {
+    esp_err_t err = ESP_OK;
+#define STAGE(key, value) do { if (err == ESP_OK) err = backup_nvs_set_u8(h, key, value); } while (0)
+    STAGE(NVS_KEY_SLEEP_OFF_HOURS, p->sleep_off_hours);
+#if DPREADER_BOARD_METALIO47
+    if (err == ESP_OK) err = backup_nvs_set_str(h, "sleep_fw", esp_app_get_description()->version);
+#endif
+    STAGE(NVS_KEY_WAKE_PRESSES, p->wake_presses);
+    STAGE(NVS_KEY_WIFI_TIMEOUT, p->wifi_timeout);
+    STAGE(NVS_KEY_BLE_TIMEOUT, p->ble_timeout);
+    STAGE("ota_edition", p->ota_edition);
+    STAGE("rd_status_off", p->status_hidden);
+#if DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK
+    STAGE(NVS_KEY_PIN_GRACE, p->pin_grace);
+#endif
+#if DPREADER_BOARD_METALIO47
+    STAGE("power_menu", p->power_menu);
+    STAGE("ai_short", p->ai_short);
+    for (unsigned i = 0; i < sizeof(p->holds); ++i)
+        if (i != 4) STAGE(s_control_hold_names[i], p->holds[i]);
+    if (err == ESP_OK) err = backup_nvs_set_u32(h, "action_menu", preferences_u32(p->action_menu));
+#endif
+#undef STAGE
+    return err;
+}
+
+static esp_err_t preferences_apply(const settings_backup_preferences_t *p) {
+    s_sleep_off_hours = p->sleep_off_hours;
+    s_wake_presses = p->wake_presses;
+    s_wifi_timeout_minutes = p->wifi_timeout;
+    s_ble_timeout_minutes = p->ble_timeout;
+    s_ota_edition = p->ota_edition;
+    s_book_status_hidden = p->status_hidden != 0;
+#if DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK
+    s_pin_grace_code_v = p->pin_grace;
+#endif
+#if DPREADER_BOARD_METALIO47
+    s_power_action_menu = p->power_menu != 0;
+    s_ai_short = (app_ai_action_t)p->ai_short;
+    s_action_menu = preferences_u32(p->action_menu);
+    for (unsigned i = 0; i < sizeof(p->holds); ++i)
+        if (i != 4) s_control_holds[i] = p->holds[i];
+#endif
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+    esp_err_t err = metalio_preferences_backup_restore(p->hardware);
+    if (err == ESP_OK && p->hardware[0]) err = anti_fade_set_minutes(p->anti_fade);
+    if (err != ESP_OK) return err;
+    ble_pt_bindings_backup_t bindings;
+    memcpy(&bindings, p->ble_bindings, sizeof(bindings));
+    return ble_pt_bindings_backup_restore(&bindings);
+#else
+    return ESP_OK;
+#endif
+}
+
 typedef struct {
     settings_backup_v1_t backup;
     uint8_t extension[7];
@@ -1927,6 +2081,7 @@ typedef struct {
     settings_backup_weight_t weight;
     settings_backup_wifi_t wifi;
     settings_backup_accounts_t accounts;
+    settings_backup_preferences_t preferences;
     settings_backup_background_t background;
     settings_backup_home_t home;
     settings_backup_background_t bookmark;
@@ -1938,12 +2093,13 @@ typedef struct {
     uint32_t wifi_hash;
     backup_identity_t identity;
     uint8_t device_mac[6];
+    bool restore_started;
 } backup_workspace_t;
 
 static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     if (!backup_card_ready()) return ESP_ERR_INVALID_STATE;
 
-    memcpy(work->backup.magic, "PICOSETV", sizeof(work->backup.magic));
+    memcpy(work->backup.magic, "PICOSETW", sizeof(work->backup.magic));
     memcpy(work->identity.magic, "S31BIND1", 8);
     esp_err_t identity_err = backup_device_mac(work->identity.mac);
     if (identity_err != ESP_OK) return identity_err;
@@ -2017,7 +2173,15 @@ static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     uint32_t weight_hash = backup_weight_checksum(&work->weight);
     for (unsigned i = 0; i < 4; ++i) work->weight.checksum[i] = (uint8_t)(weight_hash >> (8 * i));
 
-    esp_err_t wifi_err = read_pico_transfer_export_wifi_backup(&work->wifi.credentials);
+    esp_err_t preferences_err = preferences_capture(&work->preferences);
+    if (preferences_err != ESP_OK) return preferences_err;
+    esp_err_t wifi_err;
+    if (work->preferences.networks_present) {
+        work->wifi.credentials = work->preferences.networks[0];
+        wifi_err = ESP_OK;
+    } else {
+        wifi_err = read_pico_transfer_export_wifi_backup(&work->wifi.credentials);
+    }
     if (wifi_err != ESP_OK) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return wifi_err; }
     backup_wifi_seal(&work->wifi);
     work->wifi_hash = backup_wifi_checksum(&work->wifi);
@@ -2074,6 +2238,7 @@ static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     for (unsigned i = 0; i < 4; ++i) work->accounts.checksum[i] = accounts_hash >> (8*i);
     if (ok) ok = backup_accounts_valid(&work->accounts) &&
         fwrite(&work->accounts, 1, sizeof(work->accounts), file) == sizeof(work->accounts);
+    if (ok) ok = fwrite(&work->preferences, 1, sizeof(work->preferences), file) == sizeof(work->preferences);
     if (ok) ok = book_history_backup_write(file) == ESP_OK;
     if (ok) ok = fflush(file) == 0;
     if (ok) ok = fsync(fileno(file)) == 0;
@@ -2199,18 +2364,22 @@ esp_err_t app_settings_autobackup_checkpoint(void) {
         return ESP_ERR_INVALID_STATE;
     backup_workspace_t *work = backup_alloc(sizeof(*work));
     if (!work) return ESP_ERR_NO_MEM;
-    esp_err_t err = read_pico_transfer_export_wifi_backup(&work->wifi.credentials);
+    esp_err_t err = preferences_capture(&work->preferences);
+    if (err == ESP_OK && !work->preferences.networks_present)
+        err = read_pico_transfer_export_wifi_backup(&work->wifi.credentials);
     uint32_t progress = book_progress_revision();
     uint32_t revision = s_auto_backup.revision;
     if (err == ESP_OK && !(s_auto_backup.saved && revision == s_auto_backup.saved_revision &&
         progress == s_auto_backup.saved_progress &&
-        backup_wifi_checksum(&work->wifi) == s_auto_backup.saved_wifi &&
+        (work->preferences.networks_present || backup_wifi_checksum(&work->wifi) == s_auto_backup.saved_wifi) &&
+        preferences_u32(work->preferences.checksum) == s_auto_backup.saved_preferences &&
         stat(BACKUP_FILE, &work->current) == 0 && S_ISREG(work->current.st_mode))) {
         err = backup_save_workspace(work);
         if (err == ESP_OK) {
             s_auto_backup.saved_revision = revision;
             s_auto_backup.saved_progress = progress;
             s_auto_backup.saved_wifi = work->wifi_hash;
+            s_auto_backup.saved_preferences = preferences_u32(work->preferences.checksum);
             s_auto_backup.saved = true;
         }
     }
@@ -2373,6 +2542,13 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     if (ok && version >= 31)
         ok = fread(&work->accounts, 1, sizeof(work->accounts), file) == sizeof(work->accounts) &&
             backup_accounts_valid(&work->accounts);
+    if (ok && version >= 32) {
+        ok = fread(&work->preferences, 1, sizeof(work->preferences), file) == sizeof(work->preferences) &&
+            preferences_valid(&work->preferences);
+        if (ok && work->preferences.networks_present)
+            ok = has_wifi && !memcmp(&work->wifi.credentials, &work->preferences.networks[0],
+                                     sizeof(work->wifi.credentials));
+    }
     if (require_device) {
         ok = ok && version >= 26 && backup_device_mac(work->device_mac) == ESP_OK &&
             !memcmp(work->identity.mac, work->device_mac, sizeof(work->device_mac));
@@ -2389,6 +2565,7 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     }
 
     if (!apply) return ESP_OK;
+    work->restore_started = true;
 
     if(version<20) {
         int px=version<19?(int)work->backup.flags[BK_TRACKING]*2-4:(int)work->backup.flags[BK_TRACKING]-4;
@@ -2504,6 +2681,7 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
         if (err == ESP_OK) err = backup_nvs_set_u8(h, NVS_KEY_KOSYNC_AUTO, work->accounts.kosync_auto);
         if (err == ESP_OK) err = backup_nvs_set_u8(h, "rd_footer_on", work->accounts.footer_enabled);
     }
+    if (err == ESP_OK && version >= 32) err = preferences_stage(h, &work->preferences);
     if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err != ESP_OK) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return err; }
@@ -2576,6 +2754,10 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
         s_kosync_auto = work->accounts.kosync_auto != 0;
         s_book_footer_enabled = work->accounts.footer_enabled != 0;
     }
+    if (version >= 32) {
+        err = preferences_apply(&work->preferences);
+        if (err != ESP_OK) return err;
+    }
     if (has_history) {
         file = fopen(source, "rb");
         if (!file) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return ESP_FAIL; }
@@ -2588,7 +2770,13 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
         if (history_err != ESP_OK) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return history_err; }
     }
     if (has_wifi) {
-        esp_err_t wifi_err = read_pico_transfer_import_wifi_backup(&work->wifi.credentials);
+        esp_err_t wifi_err;
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+        if (work->preferences.networks_present)
+            wifi_err = read_pico_transfer_import_wifi_profiles_backup(work->preferences.networks);
+        else
+#endif
+            wifi_err = read_pico_transfer_import_wifi_backup(&work->wifi.credentials);
         backup_erase_secret(&work->wifi, sizeof(work->wifi));
         if (wifi_err != ESP_OK) return wifi_err;
     }
@@ -2607,6 +2795,16 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
         if (verify == ESP_OK && strcmp((char *)work->io, work->backup.system_font)) verify = ESP_ERR_INVALID_RESPONSE;
         nvs_close(h);
         if (verify != ESP_OK) return verify;
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+        if (work->preferences.networks_present) {
+            read_pico_transfer_wifi_backup_t networks[READ_PICO_TRANSFER_WIFI_PROFILES_MAX];
+            verify = read_pico_transfer_export_wifi_profiles_backup(networks);
+            if (verify == ESP_OK && memcmp(networks, work->preferences.networks, sizeof(networks)))
+                verify = ESP_ERR_INVALID_RESPONSE;
+            backup_erase_secret(networks, sizeof(networks));
+            return verify;
+        }
+#endif
         if (has_wifi) {
             verify = read_pico_transfer_export_wifi_backup(&work->wifi.credentials);
             if (verify != ESP_OK || backup_wifi_checksum(&work->wifi) != work->wifi_hash)
@@ -2632,6 +2830,10 @@ esp_err_t app_settings_backup_restore(void) {
     }
 #else
     esp_err_t err = backup_restore_workspace(work, source, true, false);
+#endif
+#if CONFIG_DPREADER_AUTO_BACKUP
+    // A failed multi-store restore must not replace its source at the next checkpoint.
+    if (err != ESP_OK && work->restore_started) s_auto_backup.failed = true;
 #endif
     backup_erase_secret(work, sizeof(*work)); free(work);
     if (err == ESP_OK) return backup_rearm_after_explicit_success();

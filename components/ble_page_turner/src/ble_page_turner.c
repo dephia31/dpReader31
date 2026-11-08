@@ -410,6 +410,93 @@ static void bindings_load(const char *addr) {
     nvs_close(h);
 }
 
+#if DPREADER_BOARD_METALIO47
+#include "ble_pt_backup.h"
+_Static_assert(sizeof(ble_pt_frame_t) == 17 && BLE_PT_MAX_BONDS == 4, "V32 BLE backup layout");
+
+static bool binding_backup_frame_valid(const uint8_t bytes[17]) {
+    ble_pt_frame_t frame;
+    memcpy(&frame, bytes, sizeof(frame));
+    if (frame.len > BLE_PT_FRAME_MAX) return false;
+    if (!frame.len) return true;
+    for (unsigned i = 0; i < frame.len; ++i)
+        if (frame.bytes[i]) return true;
+    return false;
+}
+
+bool ble_pt_bindings_backup_valid(const ble_pt_bindings_backup_t *backup) {
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i) {
+        const ble_pt_backup_entry_t *entry = &backup->entries[i];
+        if (!entry->key[0]) continue;
+        if (entry->key[0] != 'b' || entry->key[1] != '_' || entry->key[10]) return false;
+        for (unsigned j = 2; j < 10; ++j) {
+            char c = entry->key[j];
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+        }
+        for (unsigned j = 0; j < i; ++j)
+            if (!strcmp(entry->key, backup->entries[j].key)) return false;
+        for (unsigned j = 0; j < 2; ++j)
+            if (!binding_backup_frame_valid(entry->frames[j])) return false;
+    }
+    return true;
+}
+
+esp_err_t ble_pt_bindings_backup_capture(ble_pt_bindings_backup_t *backup) {
+    memset(backup, 0, sizeof(*backup));
+    nvs_handle_t peers, bindings;
+    esp_err_t err = nvs_open(NVS_NS_BONDS, NVS_READONLY, &peers);
+    if (err == ESP_ERR_NVS_NOT_FOUND) return ESP_OK;
+    if (err != ESP_OK) return err;
+    err = nvs_open(NVS_NS_BINDINGS, NVS_READONLY, &bindings);
+    bool have_bindings = err == ESP_OK;
+    if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS && err == ESP_OK; ++i) {
+        char key[16];
+        snprintf(key, sizeof(key), "d_%u", i);
+        ble_pt_bond_t peer = {0};
+        size_t size = sizeof(peer);
+        err = nvs_get_blob(peers, key, &peer, &size);
+        if (err == ESP_ERR_NVS_NOT_FOUND) { err = ESP_OK; continue; }
+        if (err != ESP_OK) break;
+        if (size != sizeof(peer) || strnlen(peer.addr, sizeof(peer.addr)) != 17) continue;
+        ble_pt_backup_entry_t *entry = &backup->entries[i];
+        bond_key(entry->key, sizeof(entry->key), peer.addr);
+        if (!have_bindings) continue;
+        ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];
+        size = sizeof(frames);
+        err = nvs_get_blob(bindings, entry->key, frames, &size);
+        if (err == ESP_ERR_NVS_NOT_FOUND || err == ESP_ERR_NVS_INVALID_LENGTH) {
+            err = ESP_OK;
+            continue;
+        }
+        if (err == ESP_OK && size == sizeof(frames)) memcpy(entry->frames, frames, sizeof(entry->frames));
+    }
+    if (have_bindings) nvs_close(bindings);
+    nvs_close(peers);
+    return err;
+}
+
+esp_err_t ble_pt_bindings_backup_restore(const ble_pt_bindings_backup_t *backup) {
+    if (!ble_pt_bindings_backup_valid(backup)) return ESP_ERR_INVALID_ARG;
+    bool any = false;
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i) any |= backup->entries[i].key[0] != 0;
+    if (!any) return ESP_OK;
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS_BINDINGS, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS && err == ESP_OK; ++i) {
+        const ble_pt_backup_entry_t *entry = &backup->entries[i];
+        if (!entry->key[0]) continue;
+        ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS] = {0};
+        memcpy(frames, entry->frames, sizeof(entry->frames));
+        err = nvs_set_blob(h, entry->key, frames, sizeof(frames));
+    }
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    return err;
+}
+#endif
+
 /* ---- 环形缓冲操作 / Ring operations ---- */
 
 static uint32_t s_input_serial;

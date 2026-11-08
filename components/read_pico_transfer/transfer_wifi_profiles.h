@@ -9,7 +9,7 @@
 #define TRANSFER_WIFI_DIRECTORY "/sdcard/DPRWIFI"
 #endif
 #define WIFI_PROFILES_FILE TRANSFER_WIFI_DIRECTORY "/WIFI.BIN"
-#define WIFI_PROFILES_LIMIT 6u
+#define WIFI_PROFILES_LIMIT READ_PICO_TRANSFER_WIFI_PROFILES_MAX
 
 static esp_err_t wifi_profiles_open(FILE **file, unsigned *count) {
     *count = 0;

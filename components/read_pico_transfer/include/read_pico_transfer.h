@@ -121,6 +121,13 @@ bool read_pico_transfer_wifi_backup_valid(const read_pico_transfer_wifi_backup_t
 /// 恢复单个 NVS 凭据；已运行的 WiFi 会话在下次重连时采用新配置。
 /// Restore the single NVS record; an active WiFi session adopts it on its next connection.
 esp_err_t read_pico_transfer_import_wifi_backup(const read_pico_transfer_wifi_backup_t *backup);
+#define READ_PICO_TRANSFER_WIFI_PROFILES_MAX 6
+esp_err_t read_pico_transfer_export_wifi_profiles_backup(
+    read_pico_transfer_wifi_backup_t out[READ_PICO_TRANSFER_WIFI_PROFILES_MAX]);
+bool read_pico_transfer_wifi_profiles_backup_valid(
+    const read_pico_transfer_wifi_backup_t profiles[READ_PICO_TRANSFER_WIFI_PROFILES_MAX]);
+esp_err_t read_pico_transfer_import_wifi_profiles_backup(
+    const read_pico_transfer_wifi_backup_t profiles[READ_PICO_TRANSFER_WIFI_PROFILES_MAX]);
 /// 仅热点或 STA 资源已释放时可遗忘（含启动失败）；上传中拒绝。
 /// Forget while AP or after releasing STA resources, including a failed start; rejected during upload.
 esp_err_t read_pico_transfer_forget_wifi(void);

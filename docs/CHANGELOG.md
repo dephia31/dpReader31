@@ -1,3 +1,8 @@
+## dpReader 1.3.9-vn / 1.3.9-love-vn · 2026-11-08
+
+- Sao lưu và khôi phục thêm cài đặt đọc, phím, nút lật trang Bluetooth đã học, tùy chọn hệ thống, đèn, rung và chống phai. Lưu tối đa 6 mạng Wi-Fi theo thứ tự ưu tiên và tiếp tục đọc được tệp sao lưu cũ.
+- Thẻ đọc sách của Love Book dùng bìa lớn hơn và tên sách dài có thể xuống hai dòng. Câu “Lưu giữ dấu ấn…” thay hai dòng thống kê, nằm sát chân thẻ bên dưới tiến độ đọc.
+
 ## dpReader 1.3.8-vn / 1.3.8-love-vn · 2026-11-08
 
 - Khắc phục lỗi mất chữ khi thức dậy vào sách. Trang chỉ được dựng khi thẻ nhớ và font đọc sẵn sàng. Khung dựng thiếu chữ được bỏ khỏi bộ đệm và tự thử lại, giữ vị trí đọc.

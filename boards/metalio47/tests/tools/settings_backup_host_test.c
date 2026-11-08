@@ -110,7 +110,13 @@ esp_err_t nvs_open(const char *ns, int mode, nvs_handle_t *h) {
 }
 void nvs_close(nvs_handle_t h) { (void)h; }
 static bool has_tracking,has_para;static uint8_t loaded_tracking,loaded_para;
+static uint8_t stored_utilities[APP_HOME_UTILITY_SLOTS];
+static uint8_t stored_utility_labels=1, stored_utility_border=1;
 esp_err_t nvs_get_u8(nvs_handle_t h, const char *key, uint8_t *value) {
+ if(!strcmp(key,"home_util_lbl")){*value=stored_utility_labels;return ESP_OK;}
+ if(!strcmp(key,"home_util_bdr")){*value=stored_utility_border;return ESP_OK;}
+ for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i)
+  if(!strcmp(key,s_home_utility_keys[i])){*value=stored_utilities[i];return ESP_OK;}
  if(h==2){if(ui_get_fails)return ESP_FAIL;if(strcmp(key,"mode")||stored_ui_choice<0)return ESP_ERR_NVS_NOT_FOUND;*value=stored_ui_choice;return ESP_OK;}
  if(!strcmp(key,"simple_labels")||!strcmp(key,"simple_border")){int v=!strcmp(key,"simple_labels")?loaded_simple_labels:loaded_simple_border;if(v<0)return ESP_ERR_NVS_NOT_FOUND;*value=v;return ESP_OK;}
  for(unsigned i=0;i<2;++i)if(!strcmp(key,s_simple_utility_keys[i])){if(loaded_simple_utilities[i]<0)return ESP_ERR_NVS_NOT_FOUND;*value=loaded_simple_utilities[i];return ESP_OK;}
@@ -121,6 +127,12 @@ esp_err_t nvs_get_u8(nvs_handle_t h, const char *key, uint8_t *value) {
  if(!strcmp(key,"sys_size_rev")){*value=2;return ESP_OK;}
  if(!strcmp(key,"backup_guard")){if(test_backup_guard<0)return ESP_ERR_NVS_NOT_FOUND;*value=(uint8_t)test_backup_guard;return ESP_OK;} (void)h; if(!strcmp(key,NVS_KEY_SHUTDOWN_MODE)&&loaded_shutdown>=0){*value=(uint8_t)loaded_shutdown;return ESP_OK;} if(!strcmp(key,"lock_lp")&&loaded_lock_lp>=0){*value=(uint8_t)loaded_lock_lp;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_PARA)&&has_para){*value=loaded_para;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_TRACK)&&has_tracking){*value=loaded_tracking;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_WEIGHT_FINE)&&has_fine){*value=loaded_fine;return ESP_OK;} if(!strcmp(key,NVS_KEY_HOME_COMPONENT)&&loaded_home>=0){*value=(uint8_t)loaded_home;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_AA)&&has_aa){*value=loaded_aa;return ESP_OK;} if(!strcmp(key,NVS_KEY_READER_KEYS_V2)&&keys_v2){*value=1;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_WEIGHT)&&has_weight){*value=loaded_weight;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_INDENT_ADJUST)&&has_adjust){*value=loaded_adjust;return ESP_OK;} if(!strcmp(key,NVS_KEY_SHELF_STYLE)&&loaded_shelf>=0){*value=(uint8_t)loaded_shelf;return ESP_OK;} if(!strcmp(key,NVS_KEY_SHELF_V22)&&loaded_shelf_v22){*value=1;return ESP_OK;} if(!strcmp(key,NVS_KEY_LOCK_STYLE)&&loaded_lock>=0){*value=(uint8_t)loaded_lock;return ESP_OK;} if(!strcmp(key,NVS_KEY_HOLD_ACTION)&&has_hold){*value=loaded_hold;return ESP_OK;} for(unsigned i=0;i<3;++i) if(!strcmp(key,s_reader_key_names[i])&&has_keys[i]){*value=loaded_keys[i];return ESP_OK;} if (!strcmp(key, NVS_KEY_MAIN_REFRESH) && has_main_mode) { *value=loaded_main_mode;return ESP_OK; } if (!strcmp(key, "ui_fast")) { *value = test_loaded_fast; return ESP_OK; } if (!strcmp(key, NVS_KEY_SYS_SIZE) && test_loaded_system_size) { *value = test_loaded_system_size; return ESP_OK; } return ESP_FAIL; }
 esp_err_t nvs_set_u8(nvs_handle_t h, const char *key, uint8_t value) {
+ if(!commit_fails) {
+  if(!strcmp(key,"home_util_lbl"))stored_utility_labels=value;
+  if(!strcmp(key,"home_util_bdr"))stored_utility_border=value;
+  for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i)
+   if(!strcmp(key,s_home_utility_keys[i]))stored_utilities[i]=value;
+ }
  if(h==2){if(!strcmp(key,"mode")&&!commit_fails)stored_ui_choice=value;return ESP_OK;}
  if(!commit_fails){if(!strcmp(key,"simple_labels"))loaded_simple_labels=value;if(!strcmp(key,"simple_border"))loaded_simple_border=value;}
  for(unsigned i=0;i<2;++i)if(!strcmp(key,s_simple_utility_keys[i])&&!commit_fails)loaded_simple_utilities[i]=value;
@@ -153,7 +165,7 @@ esp_err_t nvs_erase_key(nvs_handle_t h, const char *key) { (void)h; (void)key; r
 esp_err_t nvs_commit(nvs_handle_t h) { (void)h; ++commit_count; return commit_fails ? ESP_FAIL : ESP_OK; }
 
 /* Fields added after V13 must be removed when constructing historical fixtures. */
-#define POST_V13_BYTES (2*sizeof(settings_backup_background_t)+sizeof(settings_backup_home_t)+sizeof(settings_backup_indent_adjust_t)+sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t))
+#define POST_V13_BYTES (2*sizeof(settings_backup_background_t)+sizeof(settings_backup_home_t)+sizeof(settings_backup_indent_adjust_t)+sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t)+sizeof(settings_backup_preferences_t))
 
 int main(void) {
     assert(app_settings_book_px()==74);
@@ -766,7 +778,7 @@ int main(void) {
         /* V19 ends with bookmark + history, without V21+ additions. */
         assert(fseek(legacy_file,-8,SEEK_END)==0);long history_at=ftell(legacy_file);
         char history[8];assert(fread(history,1,8,legacy_file)==8);
-        history_at-=(long)(sizeof(settings_backup_indent_adjust_t)+sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t));
+        history_at-=(long)(sizeof(settings_backup_indent_adjust_t)+sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t)+sizeof(settings_backup_preferences_t));
         assert(fseek(legacy_file,history_at,SEEK_SET)==0&&fwrite(history,1,8,legacy_file)==8);
         assert(fflush(legacy_file)==0&&ftruncate(fileno(legacy_file),history_at+8)==0&&fclose(legacy_file)==0);
         s_book_tracking=255;assert(app_settings_backup_restore()==ESP_OK);

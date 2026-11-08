@@ -799,6 +799,10 @@ esp_err_t read_pico_transfer_import_wifi_backup(const read_pico_transfer_wifi_ba
     return err;
 }
 
+#if DPREADER_BOARD_METALIO47
+#include "transfer_wifi_profiles_backup.h"
+#endif
+
 esp_err_t read_pico_transfer_save_wifi(const char *ssid, const char *password) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);
     if (!cancel_time_sync(true)) return ESP_ERR_INVALID_STATE;
@@ -2739,6 +2743,10 @@ esp_err_t read_pico_transfer_import_wifi_backup(const read_pico_transfer_wifi_ba
     release_config();
     return err;
 }
+
+#if DPREADER_BOARD_METALIO47
+#include "transfer_wifi_profiles_backup.h"
+#endif
 
 esp_err_t read_pico_transfer_save_wifi(const char *ssid, const char *password) {
     TRANSFER_NETWORK_GUARD_OR_RETURN(ESP_ERR_INVALID_STATE);

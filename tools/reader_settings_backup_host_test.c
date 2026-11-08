@@ -2,8 +2,6 @@
 #define main existing_settings_backup_fixture_main
 #include "settings_backup_host_test.c"
 #undef main
-esp_err_t nvs_get_u32(nvs_handle_t h,const char*k,uint32_t*v){(void)h;(void)k;(void)v;return ESP_FAIL;}
-esp_err_t nvs_set_u32(nvs_handle_t h,const char*k,uint32_t v){(void)h;(void)k;(void)v;return ESP_OK;}
 int main(void) {
     (void)mkdir("build",0700);(void)mkdir("build/book-tests",0700);(void)mkdir(APP_SETTINGS_BACKUP_ROOT,0700);
     app_settings_init();
@@ -37,7 +35,7 @@ int main(void) {
     for(unsigned i=0;i<4;++i)profile.checksum[i]=hash>>(8*i);
     memcpy(ext+7,&profile,sizeof(profile));
     size_t removed=sizeof(reader_backup_t)+sizeof(settings_backup_utilities_t)+
-        sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t);
+        sizeof(backup_identity_t)+sizeof(settings_backup_accounts_t)+sizeof(settings_backup_preferences_t);
     assert(len>=(size_t)offset+removed);
     memmove(bytes+offset,bytes+offset+removed,len-offset-removed);
     len-=removed;
