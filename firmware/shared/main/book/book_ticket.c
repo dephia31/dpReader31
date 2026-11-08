@@ -249,8 +249,8 @@ void book_ticket_draw_shadow(uint8_t *fb) {
         ui_fill_rect_fast((EpdRect){x + 5, y0, 1, y1 - y0}, 0x80, fb);
     }
 }
-static void cover_draw(uint8_t *fb, const uint8_t *gray, unsigned width, unsigned height, const char *title) {
-    EpdRect box = {216, 378, 252, 344};
+static void cover_draw(uint8_t *fb, const uint8_t *gray, unsigned width, unsigned height,
+                       const char *title, EpdRect box) {
     if (gray) {
         // Fit the original aspect ratio instead of stretching a narrow book cover.
         int w = box.width, h = (uint64_t)height * w / width;
@@ -309,13 +309,19 @@ static size_t heading_prefix(const char *text, int px, const char *sample, char 
     return used;
 }
 static int ticket_heading(uint8_t *fb,int top,int height,int px,const char *text) {
-    // Keep the source title intact for the cover and cache keys. Match the exact
-    // drawing face, shrink first, then use the reserved second title line.
+    // Match the drawing face without changing the title used for the cover or cache.
     const int single_height = height > 64 ? 64 : height;
     px=ui_text_effective_px(px);if(px>single_height-2)px=single_height-2;
     // Preserve native-size supplemental Han titles; imported outlines retain their preferred size.
     px=ui_text_title_fit(NULL,px,520,text);
-    const int minimum = height >= 96 ? 28 : 18;
+    int minimum = height >= 96 ? 28 : 18;
+#if DPREADER_LOVE_BOOK
+    if (height >= 96) {
+        // Try two rows at the preferred size before shrinking a long title.
+        if (px > height / 2 - 2) px = height / 2 - 2;
+        minimum = px;
+    }
+#endif
     while(px>minimum && ui_text_title_width_px(px,text,text)>520)--px;
     if(ui_text_title_width_px(px,text,text)<=520) {
         ui_text_title_vc(fb,82,top+single_height/2,px,text,text,EPD_DRAW_ALIGN_LEFT);
@@ -329,6 +335,18 @@ static int ticket_heading(uint8_t *fb,int top,int height,int px,const char *text
         }
         if(px<18)px=18;
         split=heading_prefix(text,px,text,first);
+#if DPREADER_LOVE_BOOK
+        // Prefer a word boundary when the rest still fits at the chosen size.
+        for (size_t i = split; i > 0; --i) {
+            if (text[i] != ' ') continue;
+            const char *rest = text + i + strspn(text + i, " ");
+            if (*rest && ui_text_title_width_px(px, rest, text) <= 520) {
+                first[i] = 0;
+                split = rest - text;
+            }
+            break;
+        }
+#endif
         snprintf(last,sizeof(last),"%s",text+split);
     } else snprintf(last,sizeof(last),"%s",text);
     // Extremely long names retain an explicit ellipsis rather than silently losing characters.
@@ -367,8 +385,10 @@ bool book_ticket_draw(uint8_t *fb, bool allow_cover_decode) {
         char meta_title[256] = {0};
         (void)book_epub_metadata_cached(path, meta_title, sizeof(meta_title), author, sizeof(author));
     }
+#if !DPREADER_LOVE_BOOK
     ticket_stats_t stats; stats_load(&stats);
     uint32_t day = local_day();
+#endif
     unsigned cover_width=0,cover_height=0;
     uint8_t *gray = cover_load(path, title, author, &cover_width, &cover_height, allow_cover_decode && file_valid);
     book_ticket_draw_background(fb, gray, cover_width, cover_height, false);
@@ -377,19 +397,35 @@ bool book_ticket_draw(uint8_t *fb, bool allow_cover_decode) {
     ui_text(fb, 82, 98, 28, "dpReader  /  Thẻ đọc sách", EPD_DRAW_ALIGN_LEFT, false);
     ui_hairline(fb, 156, 82, 520, UI_GRAY_BLACK);
     int lines=ticket_heading(fb,202,112,50,title);
-    if (author[0]) ticket_heading(fb,lines>1?326:274,44,28,author);
-    cover_draw(fb, gray, cover_width, cover_height, title);
+    const int author_top = lines > 1 ? 326 : 274;
+    if (author[0]) ticket_heading(fb, author_top, 44, 28, author);
+#if DPREADER_LOVE_BOOK
+    // Keep a gap below the last text row and above the progress divider.
+    const int heading_bottom = author[0] ? author_top + 44 : (lines > 1 ? 314 : 266);
+    const int cover_top = heading_bottom + 14;
+    const int progress_divider = 870;
+    EpdRect cover_box = {150, cover_top, 384, progress_divider - 26 - cover_top};
+#else
+    const int progress_divider = 768;
+    EpdRect cover_box = {216, 378, 252, 344};
+#endif
+    cover_draw(fb, gray, cover_width, cover_height, title, cover_box);
     free(gray);
-    ui_hairline(fb, 768, 82, 520, UI_GRAY_BLACK);
+    ui_hairline(fb, progress_divider, 82, 520, UI_GRAY_BLACK);
     char line[96];
     if (progress_valid) snprintf(line, sizeof(line), "Đã đọc %u%%  ·  Chương %u", progress.pct,
                                  (unsigned)progress.chapter + 1);
     else snprintf(line, sizeof(line), "Đã đọc —  ·  Chương —");
-    ticket_stat(fb, 802, 54, 34, line);
-    EpdRect track = {82, 868, 520, 10};
+    ticket_stat(fb, progress_divider + 34, 54, 34, line);
+    EpdRect track = {82, progress_divider + 100, 520, 10};
     ui_fill_rect_fast(track, UI_GRAY_LIGHT, fb);
     track.width = progress_valid ? track.width * progress.pct / 100 : 0;
     if (track.width) ui_fill_rect_fast(track, UI_GRAY_BLACK, fb);
+#if DPREADER_LOVE_BOOK
+    ui_hairline(fb, 1012, 82, 520, UI_GRAY_BLACK);
+    ui_text_caption(fb, (EpdRect){82, 1030, 520, 88}, 26,
+                    "Lưu giữ dấu ấn thời gian qua từng trang sách", EPD_DRAW_ALIGN_CENTER, false);
+#else
     if (day && stats.day == day) snprintf(line, sizeof(line), "Hôm nay %llu phút  ·  Lật %u trang",
         (unsigned long long)(stats.today_seconds / 60), (unsigned)stats.today_turns);
     else snprintf(line, sizeof(line), "Hôm nay —  ·  Chưa đồng bộ ngày");
@@ -400,5 +436,6 @@ bool book_ticket_draw(uint8_t *fb, bool allow_cover_decode) {
     ticket_stat(fb, 969, 74, 28, line);
     ui_hairline(fb, 1050, 82, 520, UI_GRAY_BLACK);
     ui_text(fb, 82, 1080, 26, "Lưu giữ dấu ấn thời gian qua từng trang sách", EPD_DRAW_ALIGN_LEFT, false);
+#endif
     return true;
 }

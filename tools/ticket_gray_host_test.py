@@ -38,7 +38,7 @@ int main(void){uint8_t gray[176*240];unsigned tones=0;
  for(int c=50;c<=150;c+=25){contrast=c;
   for(unsigned v=0;v<256;v++){
    memset(gray,v,sizeof(gray));uint8_t expected=ui_contrast_gray(v)>>4;
-   memset(fb,0x77,sizeof(fb));cover_draw(fb,gray,176,240,"book");
+   memset(fb,0x77,sizeof(fb));cover_draw(fb,gray,176,240,"book",(EpdRect){216,378,252,344});
    // 平坦源色应得到平坦灰阶；边缘框线不参与。/ Flat source tones remain flat, excluding the outline.
    for(int y=380;y<718;y+=17)for(int x=218;x<466;x+=13)assert(fb[y*684+x]==expected);
    if(c==100)tones|=1u<<fb[400*684+240];
@@ -47,11 +47,11 @@ int main(void){uint8_t gray[176*240];unsigned tones=0;
   }
  }
  assert(tones==0xffffu);
- contrast=100;memset(gray,255,sizeof(gray));cover_draw(fb,gray,176,240,"book");assert(fb[400*684+240]==15);
+ contrast=100;memset(gray,255,sizeof(gray));cover_draw(fb,gray,176,240,"book",(EpdRect){216,378,252,344});assert(fb[400*684+240]==15);
  memset(gray,0,sizeof(gray));book_ticket_draw_background(fb,gray,176,240,false);assert(fb[0]==0);
  for(unsigned w=1;w<=321;w+=80)for(unsigned h=1;h<=241;h+=60){
   uint8_t *natural=malloc((size_t)w*h);assert(natural);memset(natural,255,(size_t)w*h);
-  cover_draw(fb,natural,w,h,"book");book_ticket_draw_background(fb,natural,w,h,false);assert(fb[0]==15);free(natural);
+  cover_draw(fb,natural,w,h,"book",(EpdRect){216,378,252,344});book_ticket_draw_background(fb,natural,w,h,false);assert(fb[0]==15);free(natural);
  }
  puts("PASS: actual ticket cover/background retain all 16 tones and solid white/black across contrast levels; no second ordered-dither quantization");}
 '''

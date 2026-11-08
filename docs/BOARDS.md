@@ -306,11 +306,13 @@ Trình mở sách liệt kê thư mục và tệp TXT/EPUB, đồng thời ẩn 
 
 “Xóa tất cả” yêu cầu xác nhận đường dẫn và chỉ xóa các tệp trực tiếp khớp bộ lọc hiện tại, kể cả ở ngoài giới hạn hiển thị. Thao tác giữ lại thư mục con và tệp ẩn, dọn dữ liệu đọc tương ứng với mỗi tệp đã xóa và báo số tệp đã xóa nếu có lỗi.
 
-### Reader settings SD profile
+### Sao lưu cài đặt và lịch sử đọc trên thẻ nhớ
 
-Settings → Sao lưu & Khôi phục cấu hình backs up system settings, reading settings, WiFi/sync profiles and reading history in one operation. Version 22 adds a checked reader block to the same backup file, validated before committing settings; older backup formats remain readable. Font and background bytes stay on the SD card; reopen the book after restoring layout.
+Cài đặt → Sao lưu & Khôi phục cấu hình lưu cài đặt hệ thống, trình đọc, tài khoản đồng bộ và lịch sử đọc vào `dpReader-settings.backup` ở thư mục gốc thẻ. Định dạng v32 lưu thêm thanh trạng thái khi đọc, thời gian ngủ và số lần bấm để đánh thức, thời gian chờ Wi-Fi/Bluetooth, lựa chọn kênh nâng cấp, các tác vụ phím, thời gian bỏ qua PIN, độ sáng và độ ấm đèn, công tắc đèn, lịch đèn trắng/vàng, rung, chống phai và các nút lật trang đã học cho phụ kiện Bluetooth đã lưu. Kết nối lại phụ kiện để áp dụng gán nút vừa khôi phục.
 
-Metalio 4.7 lưu tối đa sáu mạng Wi-Fi trong `DPRWIFI/WIFI.BIN` trên thẻ. Khi một tác vụ yêu cầu Wi-Fi, máy đọc từng hồ sơ theo thứ tự mới lưu trước và thử mạng tiếp theo khi kết nối thất bại. Lưu lại cùng SSID cập nhật hồ sơ đó. Máy cần thẻ ghi được để thêm mạng. Lệnh “Quên mạng” xóa tất cả hồ sơ. Để sao lưu toàn bộ danh sách, chép riêng tệp này. Bản sao lưu cấu hình hiện có lưu một hồ sơ Wi-Fi. Mật khẩu trong tệp trên thẻ ở dạng không mã hóa.
+Metalio 4.7 lưu tối đa sáu mạng Wi-Fi trong `DPRWIFI/WIFI.BIN` trên thẻ. Bản sao lưu v32 mang theo cả danh sách theo đúng thứ tự ưu tiên. Khôi phục v32 thay thế danh sách này, kể cả danh sách trống. Các tệp cũ tiếp tục được đọc theo định dạng ban đầu. Mật khẩu trong bản sao lưu ở dạng không mã hóa.
+
+Phông chữ, ảnh và sách nằm trên thẻ. Bản sao lưu giữ đường dẫn cài đặt tới tài nguyên. PIN, khóa ghép đôi Bluetooth và hiệu chuẩn màn hình thuộc dữ liệu riêng của thiết bị. Lựa chọn giao diện đã đặt trên máy đích được giữ khi khôi phục.
 
 ### Home utilities
 

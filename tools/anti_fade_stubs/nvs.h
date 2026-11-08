@@ -1,8 +1,7 @@
 #pragma once
 #include <stdint.h>
-typedef int esp_err_t;
+#include "esp_err.h"
 typedef int nvs_handle_t;
-#define ESP_OK 0
 #define NVS_READONLY 0
 #define NVS_READWRITE 1
 esp_err_t nvs_open(const char*,int,nvs_handle_t*);

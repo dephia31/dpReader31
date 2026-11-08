@@ -24,6 +24,7 @@ unit = r'''
 #define DPREADER_BOARD_METALIO47 1
 #define TRANSFER_WIFI_DIRECTORY "DPRWIFI"
 #define WIFI_PROFILE_ATTEMPT_MS 4500
+#define READ_PICO_TRANSFER_WIFI_PROFILES_MAX 6
 enum {ESP_OK, ESP_FAIL, ESP_ERR_INVALID_ARG, ESP_ERR_INVALID_STATE, ESP_ERR_NOT_FOUND,
       ESP_ERR_INVALID_SIZE, ESP_ERR_TIMEOUT};
 typedef int esp_err_t;
@@ -78,8 +79,19 @@ static int esp_wifi_set_config(int iface, wifi_config_t *config){
     return ESP_OK;
 }
 static void publish_credentials(const transfer_credentials_t *record){
-    strcpy(published_ssid,record->ssid);
+    strcpy(published_ssid,record?record->ssid:"");
 }
+'''
+backup_header = (component / 'include/read_pico_transfer.h').read_text()
+start = backup_header.rindex('typedef struct {', 0, backup_header.index('} read_pico_transfer_wifi_backup_t;'))
+end = backup_header.index('} read_pico_transfer_wifi_backup_t;') + len('} read_pico_transfer_wifi_backup_t;')
+unit += backup_header[start:end] + '\n'
+unit += function('read_pico_transfer_wifi_backup_valid', source) + '\n'
+unit += r'''
+static bool s_wifi;
+static bool claim_config(void) { return true; }
+static void release_config(void) {}
+#include "transfer_wifi_profiles_backup.h"
 '''
 for name in ('wifi_sta_config', 'begin_saved_profile', 'saved_profile_lost',
              'advance_saved_profile', 'read_pico_transfer_service_poll', 'sd_relative_valid'):
@@ -152,10 +164,33 @@ int main(void) {
     assert(credentials_from_text("too-many","",&out));
     assert(store_credentials(&out)==ESP_ERR_INVALID_SIZE);
     assert(wifi_profile_read(0,&out,&count)==ESP_OK && count==6 && !strcmp(out.ssid,"e"));
+    read_pico_transfer_wifi_backup_t archive[READ_PICO_TRANSFER_WIFI_PROFILES_MAX];
+    read_pico_transfer_wifi_backup_t check[READ_PICO_TRANSFER_WIFI_PROFILES_MAX];
+    assert(read_pico_transfer_export_wifi_profiles_backup(archive)==ESP_OK);
+    assert(read_pico_transfer_wifi_profiles_backup_valid(archive));
+    assert(!strcmp(archive[0].ssid,"e")&&!strcmp(archive[5].ssid,"legacy"));
+    memcpy(check,archive,sizeof(check));
+    check[1]=check[0];
+    assert(read_pico_transfer_import_wifi_profiles_backup(check)==ESP_ERR_INVALID_ARG);
+    memcpy(check,archive,sizeof(check));
+    memset(&check[0],0,sizeof(check[0]));
+    assert(!read_pico_transfer_wifi_profiles_backup_valid(check));
+    assert(store_credentials(NULL)==ESP_OK);
+    save("replacement","");
+    assert(mkdir(WIFI_PROFILES_FILE ".tmp",0700)==0);
+    assert(read_pico_transfer_import_wifi_profiles_backup(archive)!=ESP_OK);
+    assert(rmdir(WIFI_PROFILES_FILE ".tmp")==0);
+    assert(load_credentials(&out)==ESP_OK&&!strcmp(out.ssid,"replacement"));
+    assert(read_pico_transfer_import_wifi_profiles_backup(archive)==ESP_OK);
+    assert(read_pico_transfer_export_wifi_profiles_backup(check)==ESP_OK);
+    assert(!memcmp(check,archive,sizeof(check))&&!strcmp(published_ssid,"e"));
+    memset(check,0,sizeof(check));
+    assert(read_pico_transfer_import_wifi_profiles_backup(check)==ESP_OK);
+    assert(wifi_profile_read(0,&out,&count)==ESP_OK&&count==0);
     assert(store_credentials(NULL)==ESP_OK);
     assert(wifi_profile_read(0,&out,&count)==ESP_OK && count==0 && out.version==0 && legacy.version==0);
     assert(access(WIFI_PROFILES_FILE ".old", F_OK)!=0);
-    puts("PASS legacy import, streaming add/update, 6-network limit, interrupted publish, path protection, failover, reconnect, upload protection, and forget");
+    puts("PASS legacy import, streaming add/update, 6-network limit, interrupted publish, backup/restore in priority order, path protection, failover, reconnect, upload protection, and forget");
 }
 '''
 with tempfile.TemporaryDirectory() as temp:

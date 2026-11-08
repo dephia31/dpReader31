@@ -100,6 +100,12 @@ int main(void){
   assert(count==(int)lines&&!strcmp(whole,title)&&!strcmp(name,title));
  }
  advance_factor=1;system_scale=100;
+#if DPREADER_LOVE_BOOK
+ lines=0;
+ assert(ticket_heading(&dummy,202,112,50,"Sách hay hôm nay")==2);
+ assert(lines==2&&shown_px[0]==50&&shown_px[1]==50);
+ assert(!strcmp(shown[0],"Sách hay")&&!strcmp(shown[1],"hôm nay"));
+#endif
  const char *long_title="这是一本比较长的书名需要保留全部字符并且在两行里完整显示";
  lines=0;assert(ticket_heading(&dummy,202,112,50,long_title)==2&&lines==2);
  char joined[520];snprintf(joined,sizeof(joined),"%s%s",shown[0],shown[1]);assert(!strcmp(joined,long_title));
@@ -112,7 +118,7 @@ int main(void){
   if(!source_case){assert(!gray&&reads==4);continue;}
   assert(gray&&h==240&&w==(source_case==1?166:source_case==2?176:1));
   if(source_case==1)assert(list_reads==2&&!grid_reads);
-  book_ticket_draw_background(pixels,gray,w,h,false);memset(pixels,255,sizeof(pixels));cover_draw(pixels,gray,w,h,title);
+  book_ticket_draw_background(pixels,gray,w,h,false);memset(pixels,255,sizeof(pixels));cover_draw(pixels,gray,w,h,title,(EpdRect){216,378,252,344});
   if(source_case==1){
    // The original portrait ratio survives. No stretched 252px-wide image.
    assert(pixels[(378+172)*684+216]==255);
@@ -133,7 +139,7 @@ int main(void){
  assert(!cover_load("book.epub",title,"author",&w,&h,true)&&cover_joins==2&&cover_decodes==1);
  cover_worker_idle=true;decode_result=0;
  assert(!cover_load("book.epub",title,"author",&w,&h,true)&&cover_joins==3&&cover_decodes==2);
- book_ticket_draw_background(pixels,NULL,0,0,false);cover_draw(pixels,NULL,0,0,title);
+ book_ticket_draw_background(pixels,NULL,0,0,false);cover_draw(pixels,NULL,0,0,title,(EpdRect){216,378,252,344});
  app_ctx_t ctx={.now_ms=799};warm_reader_ticket_cover(&ctx);assert(!submits);
  ctx.now_ms=800;media_ready=false;warm_reader_ticket_cover(&ctx);assert(!submits);media_ready=true;
  s_toolbar=true;warm_reader_ticket_cover(&ctx);assert(!submits);s_toolbar=false;
@@ -153,5 +159,6 @@ int main(void){
 '''
 with tempfile.TemporaryDirectory(prefix='ticket-host-') as tmp:
  tmp=Path(tmp);(tmp/'test.c').write_text(unit)
- subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I'+str(ROOT/'main/book'),'-I'+str(ROOT/'main/ui'),str(tmp/'test.c'),str(ROOT/'main/ui/ui_image_dither.c'),'-o',str(tmp/'test')],check=True)
- subprocess.run([str(tmp/'test')],check=True)
+ for love in (0,1):
+  subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',f'-DDPREADER_LOVE_BOOK={love}','-I'+str(ROOT/'main/book'),'-I'+str(ROOT/'main/ui'),str(tmp/'test.c'),str(ROOT/'main/ui/ui_image_dither.c'),'-o',str(tmp/'test')],check=True)
+  subprocess.run([str(tmp/'test')],check=True)

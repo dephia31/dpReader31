@@ -25,7 +25,7 @@ void nvs_close(int h){assert(h==1);}
 #define LEDC_CHANNEL_0 0
 #define LEDC_CHANNEL_1 1
 static bool fl_ready=true,light_enabled,light_dirty,light_suspended;
-static uint8_t saved_brightness=30,saved_warmth=50,last_on_brightness=30;
+static uint8_t saved_brightness=30,saved_warmth=50;
 static uint16_t brightness_position=72,warmth_position=120,last_on_position=72;
 static time_t light_schedule_checked,wall;
 static unsigned duties[2],pwm_updates,manual_commits;
@@ -71,6 +71,18 @@ int main(void){
 
  // Skipped boundaries, clock jumps and restored RTC apply the current phase, not a backlog.
  reset();schedule(false,420,1080,30);wall=0;metalio_frontlight_restore();assert(!duties[0]);tick(10,500);assert(duties[0]);tick(10,1100);assert(!duties[0]);tick(10,500);assert(duties[0]);
+ // Both channels round-trip through the settings archive format.
+ reset();schedule(false,360,720,65);schedule(true,1320,300,35);
+ uint8_t archive[METALIO_LIGHT_SCHEDULE_BYTES];
+ metalio_light_schedule_t restored[2];
+ assert(metalio_light_schedule_export(archive)==ESP_OK);
+ assert(metalio_light_schedule_decode(archive,restored));
+ assert(restored[0].enabled&&restored[0].on_minute==360&&restored[0].off_minute==720&&restored[0].level==65);
+ assert(restored[1].enabled&&restored[1].on_minute==1320&&restored[1].off_minute==300&&restored[1].level==35);
+ archive[14]=1;assert(!metalio_light_schedule_decode(archive,restored));archive[14]=0;
+ assert(metalio_light_schedule_decode(archive,restored));
+ reset();memcpy(disk,archive,sizeof(disk));present=true;metalio_light_schedule_adopt(restored);
+ tick(10,500);assert(duties[0]&&!duties[1]);tick(10,1330);assert(!duties[0]&&duties[1]);
  // Failed saves retain runtime config. Load validates stored version/values before enabling.
  metalio_light_schedule_t prior=metalio_light_schedule_get(false),bad=prior;bad.on_minute=bad.off_minute;
  assert(metalio_light_schedule_save(false,&bad)==ESP_ERR_INVALID_ARG);bad=prior;bad.level=0;assert(metalio_light_schedule_save(false,&bad)==ESP_ERR_INVALID_ARG);
