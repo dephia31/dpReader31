@@ -56,13 +56,12 @@ Các mục Pico bên dưới là tài liệu tham khảo lịch sử về dự �
 
 ## 3. Chuẩn bị môi trường Pico
 
-### 3.1 四条路径对比
+### 3.1 编译环境对比
 
 | 路径 | IDF 版本 | 能烧写? | 适用 | 实测状态 |
 | --- | --- | --- | --- | --- |
 | **本机安装 ESP-IDF v6.1** | 钉死 v6.1 | 是（直连 COM 口，`idf.py flash monitor` 一条龙） | 日常开发首选 | 未实测 |
-| **纯 `docker run` 编译**（§3.3） | `espressif/idf:v6.1` | 否；产物在宿主 `build/`，用 §3.4 从宿主烧 | 不想装 IDF、不想折腾 devcontainer | **已实测通过** |
-| **devcontainer**（[.devcontainer/](../.devcontainer/)） | `devcontainer.json` 里 `build.args.DOCKER_TAG` 钉 v6.1 | 否（Windows 下容器看不到 COM 口）；同上从宿主烧 | 想在容器里用 IDF 扩展 / 调试 | 启动踩坑已解决（§13），编译路径同 docker run |
+| **纯 `docker run` 编译**（§3.3） | `espressif/idf:v6.1` | 否；产物在宿主 `build/`，用 §3.4 从宿主烧 | 不想在本机安装 IDF | **已实测通过** |
 | **CI**（[.github/workflows/build.yml](../.github/workflows/build.yml)） | 容器 `espressif/idf:v6.1` | 否 | 编译回归（用 `sdkconfig.ci`） | 由 GitHub 跑 |
 
 **必须 v6.1**：`components/read_pico/read_pico_flash_hpm.c` 依赖 v6 才有的 `esp_flash_chips/spi_flash_override.h`；[dependencies.lock](../dependencies.lock) 记录 `idf 6.1.0`。
@@ -77,7 +76,7 @@ Các mục Pico bên dưới là tài liệu tham khảo lịch sử về dự �
 
 本机工具链、容器、串口号等机器相关状态写进 `docs/HANDOFF.local.md` 的"环境备注"，不写进本文。
 
-### 3.3 容器编译（docker run / devcontainer）
+### 3.3 容器编译（docker run）
 
 **最短路径（已实测）**——在仓库根目录的 PowerShell 里：
 
@@ -91,8 +90,6 @@ docker run --rm -v ${PWD}:/workspaces/read_pico_firmware -w /workspaces/read_pic
 - 产物落在宿主 `build/`：`bootloader/bootloader.bin`、`partition_table/partition-table.bin`、`Read_Pico.bin`（app，约 1.9 MB）以及 `flash_args`。
 - 容器 build 的副作用（Windows 检出）：`dependencies.lock` 会以 LF 写回，`git status` 显示 `M`。用 `git diff --ignore-cr-at-eol -- dependencies.lock` 确认无内容差异后 `git checkout -- dependencies.lock`。若内容真变了（如版本被改成 6.2.0），说明用错了镜像，回退并换 v6.1。
 - 网络：`docker pull` 报 `TLS handshake timeout` / `failed to fetch oauth token` 是 Docker Hub 链路问题，配置代理后重试，不是镜像不存在。
-
-**devcontainer**：`Dev Containers: Reopen in Container`。容器名 "ESP-IDF QEMU"，`--privileged`，预装 `espressif.esp-idf-extension` 与 `espressif.esp-idf-web`；`export.sh` 已写进 `~/.bashrc`，直接 `idf.py`。Windows + Docker Desktop + WSL 下的启动失败排障见 §13。进入后先 `idf.py --version` 核对 v6.1。
 
 **容器里能不能直接烧？** Windows 宿主下不能：容器看不到 COM 口。选项：
 - **方案 B（已实测）**：容器只编，宿主用 esptool 烧，见 §3.4。
@@ -209,7 +206,7 @@ idf.py size
 | 改两层菜单 / 三键区几何 | [main/ui/ui_menu.h](../main/ui/ui_menu.h) / `ui_menu.c` |
 | 字体渲染、TF 卡字体加载 | [main/font/ttf_font.h](../main/font/ttf_font.h) / `ttf_font.c` |
 | 重新生成内置字体子集 | [tools/gen_builtin_font.py](../tools/gen_builtin_font.py) → `main/assets/builtin.ttf`（扫描 UI 字串 + `main/font/charset.txt`，≤700 KB） |
-| 开机图 / 锁屏图 | 源图 `assets/image/*.png` → `main/assets/*_4bpp.bin`（4bpp，尺寸必须等于 w×h/2，`images_match_panel()` 会校验） |
+| 开机图 / 锁屏图 | 固件图像资源在 `main/assets/`，参见 §8.6。 |
 | 板级初始化、I2C 普查、EPD 扫描时序、TF 卡、蜂鸣器、flash HPM | [components/read_pico/](../components/read_pico/) |
 | PMU 协议（CW32L010） | [components/read_pico_pmu/](../components/read_pico_pmu/)；线格式 `include/read_pico_pmu_protocol.h`；给 LLM 的完整说明 `docs/llms-full_zh_cn.md` / `llms-full_en.md`；寄存器表 `docs/pmu_registers_*.json` |
 | 出厂自检 / VCOM 标定 | [main/factory/](../main/factory/) |
@@ -364,7 +361,7 @@ flowchart TD
 
 ### 8.6 换开机图 / 锁屏图
 
-把 PNG 放 `assets/image/`，转成 4bpp 灰度 raw（尺寸 = 1216×684 竖屏，字节数 = w×h/2），覆盖 `main/assets/*_4bpp.bin`。启动时 `images_match_panel()` 会校验大小。
+Metalio 4.7 使用 `main/assets/lock_4bpp.bin` 作为内置锁屏图（684×1216 竖屏，4bpp 灰度，每两像素一字节）。更换标志时运行 `tools/gen_startup_logo.py`，从 `main/assets/branding/dpreader-logo-source.png` 生成标志资源。
 
 ---
 
@@ -407,7 +404,7 @@ flowchart TD
 | --- | --- |
 | `未编译` | 只改了文件，没跑 build |
 | `已编译 ci` | `-DSDKCONFIG_DEFAULTS=sdkconfig.ci` 通过 |
-| `已编译 defaults` | 默认配置 build 通过（还未上板）。写明在哪里编的：本机 IDF / docker run / devcontainer |
+| `已编译 defaults` | 默认配置 build 通过（还未上板）。写明在哪里编的：本机 IDF / docker run |
 | `已烧写未验证启动` | esptool `Hash of data verified` 了，但**没开串口看开机日志**。必须附烧写命令原文（尤其地址）。不得写成"真机已验证" |
 | `真机已验证` | 必须附：板型 RDP-G01-W、IDF 版本、串口、供电（USB/电池）、串口里看到的开机日志片段、验证了哪些页/操作、未覆盖项 |
 
@@ -537,8 +534,6 @@ Read AGENTS.md, then docs/ONBOARDING.md, then docs/HANDOFF.md. Do not duplicate 
 | `spi_flash_override.h` 找不到 | IDF 不是 v6.x。`idf.py --version` |
 | 容器 build 后 `dependencies.lock` 变 `M` | `git diff --ignore-cr-at-eol` 为空 → 只是 EOL，`git checkout -- dependencies.lock`。若 `version: 6.1.0` 变成别的 → 镜像错了，回退并换 v6.1 |
 | `docker pull` 报 `TLS handshake timeout` / `failed to fetch oauth token` | Docker Hub 链路问题，配代理后重试 |
-| devcontainer 启动失败，日志里有 `--mount type=bind,source=\\wsl.localhost\<distro>\mnt\wslg\runtime-dir\wayland-0` 和 `stat /run/guest-services/distro-services/<distro>.sock: no such file` 或 `timed out waiting for /mnt/wslg/runtime-dir/wayland-0` | VS Code 想把 WSL 的 Wayland socket 挂进容器，Docker Desktop 挂不了 tmpfs。用户设置加 `"dev.containers.mountWaylandSocket": false`，然后 Rebuild and Reopen。镜像本身没问题，不用重建 |
-| devcontainer 日志里 `code: 137` / `No such container` | 是 `up` 失败后 CLI `docker rm -f` 的后续现象，不是 OOM；看上一行 |
 | `git commit` 报 `Author identity unknown` | 人类配 `user.name` / `user.email`（§11.2）；agent 不要从 log 猜 |
 | 终端里中文提交信息乱码 | 控制台代码页问题（`chcp 65001` 或设 `$OutputEncoding`），文件本身是 UTF-8，不用改 |
 | agent 沙箱里 `python` 报 `拒绝访问` / `参数错误` | 解析到了 `WindowsApps\python.exe` MSIX 垫片。用 conda / 完整路径的 python，或非沙箱执行 |
