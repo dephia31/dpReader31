@@ -53,6 +53,7 @@ static int long_keys;
 static uint8_t idle_minutes;
 static bool download_session;
 bool app_download_active(void) { return download_session; }
+static bool last_lock_automatic;
 static int idle_locks, before_locks, lock_feedback_calls, lock_badges, wake_clean_requests;
 static bool feedback_enabled;
 static bool online_busy;
@@ -275,7 +276,7 @@ bool ui_nav_refresh_power(uint8_t *fb) {
 }
 EpdRect ui_nav_status_area(void) {return (EpdRect){0,12,684,56};}
 read_pico_pmu_key_action_t read_pico_pmu_take_key_action(void) {return step==power_trigger_step?READ_PICO_PMU_KEY_LONG:READ_PICO_PMU_KEY_SHORT;}
-void enter_lock_and_sleep(EpdiyHighlevelState*h,int64_t*t,void*a,void*tp,bool reader) {(void)tp;(void)h;(void)t;(void)a;(void)reader;assert(!nav_armed);if(check_clean_action)assert(frame[0]==0x11&&panel_marker==0x11);++idle_locks;lock_due=false;time_offset+=1000000;}
+void enter_lock_and_sleep(EpdiyHighlevelState*h,int64_t*t,void*a,void*tp,bool automatic) {(void)tp;(void)h;(void)t;(void)a;last_lock_automatic=automatic;assert(!nav_armed);if(check_clean_action)assert(frame[0]==0x11&&panel_marker==0x11);++idle_locks;lock_due=false;time_offset+=1000000;}
 void app_lock_set_resume_ready(bool ready) {(void)ready;}
 void app_lock_feedback(EpdiyHighlevelState*h) {(void)h;++lock_feedback_calls;if(feedback_enabled){assert(!before_locks&&!idle_locks);++lock_badges;}}
 void app_lock_wait_key_idle(int ms) {(void)ms;}
@@ -600,7 +601,7 @@ int main(void) {
     assert(media_lost==2&&builtin_opens==2&&!probes&&font_opens==1);
     reset();idle_minutes=1;time_step=60000000;first.on_before_lock=before_lock;
     add(0,0,0,0);add(0,0,0,0);run();
-    assert(idle_locks==1&&before_locks==1&&wake_clean_requests==1); // Real scheduler flushes before automatic lock.
+    assert(idle_locks==1&&last_lock_automatic&&before_locks==1&&wake_clean_requests==1); // Real scheduler flushes before automatic lock.
     reset();idle_minutes=1;time_step=60000000;shake_activity=true;
     add(0,0,0,0);run();assert(!idle_locks);
     reset();idle_minutes=1;time_step=60000000;shake_activity=true;
@@ -773,7 +774,7 @@ int main(void) {
         reset();main_fast=policy==1;main_water=policy==2;feedback_enabled=true;
         first.on_before_lock=before_lock;lock_due=true;time_step=3000000;
         add(0,0,0,0);add(0,0,0,0);run();
-        assert(lock_badges==1&&lock_feedback_calls==1&&before_locks==1&&idle_locks==1);
+        assert(lock_badges==1&&lock_feedback_calls==1&&before_locks==1&&idle_locks==1&&!last_lock_automatic);
         reset();feedback_enabled=true;first.on_power_short=consume_power;lock_due=true;time_step=3000000;
         add(0,0,0,0);add(0,0,0,0);run();assert(!lock_badges&&!lock_feedback_calls&&!before_locks&&!idle_locks);
         reset();feedback_enabled=true;idle_minutes=1;time_step=60000000;first.on_before_lock=before_lock;

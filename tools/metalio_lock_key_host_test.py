@@ -31,14 +31,18 @@ static unsigned input_reads,fail_read,release_read;
 static unsigned drains;
 static int64_t esp_timer_get_time(void){return clock_us;}
 static int metalio_io_read(uint16_t *value){++input_reads;*value=input_reads==release_read?0xffff:inputs;return input_reads==fail_read?-1:io_error;}
+static int queued_volume,queued_ai;
 static void metalio_volume_sample(uint16_t value,int64_t ms){(void)value;(void)ms;}
-static void metalio_volume_clear(void){++drains;}
+static void metalio_volume_clear(void){queued_volume=0;++drains;}
+static int metalio_take_volume(void){int v=queued_volume;queued_volume=0;return v;}
 #define GPIO_NUM_61 61
 #define METALIO_AI_KEY_GPIO GPIO_NUM_61
+enum {METALIO_AI_NONE=0,METALIO_AI_SHORT=1,METALIO_AI_LONG=2};
 static int gpio_get_level(int pin){assert(pin==61);return 1;}
 static bool forced_ai;
 static bool metalio_ai_sample(bool down,int64_t ms){assert(!down);(void)ms;bool queued=forced_ai;forced_ai=false;return queued;}
-static void metalio_ai_clear(void){}
+static void metalio_ai_clear(void){queued_ai=0;}
+static int metalio_take_ai(void){int v=queued_ai;queued_ai=0;return v;}
 static int read_pico_pmu_poll(void){return poll_error;}
 static const typeof(state) *read_pico_pmu_get(void){return &state;}
 static void read_pico_clear_ioe_int(void){}
@@ -94,13 +98,24 @@ int main(void){
  reset();clock_us=1000000;read_pico_pmu_latch_power_wakeup();read_pico_pmu_latch_power_wakeup();
  assert(read_pico_pmu_lock_key_serial()==1&&read_pico_pmu_take_key_wakeup_single());
  reset();assert(read_pico_pmu_keys_pause()==ESP_OK);read_pico_pmu_latch_power_wakeup();assert(!action&&!s_lock_key_serial);
- reset();sample(true,0);sample(true,30);read_pico_pmu_latch_power_wakeup();assert(!action&&!s_lock_key_serial);
- sample(false,80);sample(false,110);read_pico_pmu_latch_power_wakeup();assert(s_lock_key_serial==1&&read_pico_pmu_take_key_wakeup_single());
- // Only two valid physical P17 lows qualify; short glitches, other inputs and either I2C fault do not.
- reset();inputs=0x7fff;assert(metalio_confirm_power_key()&&input_reads==2&&clock_us==30000);
- for(unsigned i=0;i<4;i++){
+ // Confirmed EXT1 wake while still held latches immediately and suppresses duplicate release.
+ reset();sample(true,0);sample(true,30);read_pico_pmu_latch_power_wakeup();
+ assert(s_lock_key_serial==1&&read_pico_pmu_take_key_wakeup_single());
+ sample(false,80);sample(false,110);assert(!read_pico_pmu_take_key_wakeup_single()&&s_lock_key_serial==1);
+ read_pico_pmu_latch_power_wakeup();assert(s_lock_key_serial==2&&read_pico_pmu_take_key_wakeup_single());
+ // Volume and AI events also wake in single-press mode.
+ reset();queued_volume=1;assert(read_pico_pmu_take_key_wakeup_single()&&!read_pico_pmu_take_key_wakeup_single());
+ reset();queued_ai=METALIO_AI_SHORT;assert(read_pico_pmu_take_key_wakeup_single()&&!read_pico_pmu_take_key_wakeup_single());
+ // Valid physical P17/P11/P10 lows (including release within 30ms) qualify; other inputs and either I2C fault do not.
+ for(unsigned k=0;k<3;k++){
+  reset();inputs=(uint16_t)~(k==0?(1u<<15):k==1?(1u<<9):(1u<<8));
+  assert(metalio_confirm_power_key()&&input_reads==2&&clock_us==30000);
+ }
+ reset();inputs=0x7fff;release_read=2;
+ assert(metalio_confirm_power_key()&&input_reads==2&&clock_us==30000);
+ for(unsigned i=0;i<3;i++){
   reset();inputs=0x7fff;
-  if(i<2)fail_read=i+1;else if(i==2)release_read=2;else inputs=0xfffe;
+  if(i<2)fail_read=i+1;else inputs=0xfffe;
   assert(!metalio_confirm_power_key()&&!s_lock_key_serial&&!action);
  }
  reset();forced_ai=true;io_error=-1;sample(false,100);assert(wake_posts==1&&!critical_depth);

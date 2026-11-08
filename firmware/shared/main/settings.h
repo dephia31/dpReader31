@@ -38,10 +38,11 @@ typedef enum {
     APP_AI_NEXT_CHAPTER,
     APP_AI_TOOLS,
     APP_AI_ACTION_MENU,
+    APP_AI_LOCK,
     APP_AI_ACTION_COUNT
 } app_ai_action_t;
 #define APP_AI_MENU_COUNT 10
-#define APP_ACTION_MENU_ALLOWED (((1u<<APP_AI_ACTION_COUNT)-1u)&~(1u<<APP_AI_NONE)&~(1u<<APP_AI_ACTION_MENU))
+#define APP_ACTION_MENU_ALLOWED (((1u<<APP_AI_ACTION_COUNT)-1u)&~(1u<<APP_AI_NONE)&~(1u<<APP_AI_ACTION_MENU)&~(1u<<APP_AI_LOCK))
 #define APP_ACTION_MENU_DEFAULT ((1u<<APP_AI_REFRESH)|(1u<<APP_AI_BOOKMARK)|(1u<<APP_AI_FRONTLIGHT)|(1u<<APP_AI_HOME)|(1u<<APP_AI_KOSYNC)|(1u<<APP_AI_TOOLS))
 uint32_t app_settings_action_menu(void);
 esp_err_t app_settings_set_action_menu(uint32_t mask);
@@ -242,6 +243,7 @@ typedef enum {
     APP_READER_KEY_LIGHT, ///< Tắt / Mở đèn nền
     APP_READER_KEY_KOSYNC, ///< Đồng bộ KOSync
     APP_READER_KEY_ACTION_MENU, ///< Menu thao tác nhanh
+    APP_READER_KEY_LOCK, ///< Khóa màn hình
     APP_READER_KEY_COUNT
 } app_reader_key_action_t;
 /// 三个短按功能，0/1/2对应左/中/右；长按独立配置。/ Short actions indexed left/middle/right, with a separate hold action.

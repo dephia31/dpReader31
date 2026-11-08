@@ -33,6 +33,20 @@ static bool book_cover_load_list_gray(const char*p,const char*t,const char*a,uin
  (void)p;(void)t;assert(!decode&&!pending);++reads;++list_reads;
  if((source_case==1&&!strcmp(a,""))||source_case==3){*w=source_case==3?1:166;*h=240;for(unsigned y=0;y<*h;++y)for(unsigned x=0;x<*w;++x)out[y**w+x]=(x*13+y*7)&255;return true;}return false;
 }
+static bool allowed=true,cover_worker_idle=true;
+static unsigned cover_joins,cover_decodes;
+static int decode_result=1;
+static bool pico_boot_asset_allowed(const char *p){(void)p;return allowed;}
+bool book_cover_jobs_quiesce(unsigned timeout_ms){
+ assert(timeout_ms==2000);++cover_joins;return cover_worker_idle;
+}
+int book_cover_load_io(const char *p,const char *title,const char *author,uint8_t *out,
+                              bool list,unsigned *w,unsigned *h,bool *auto_cache){
+ assert(!strcmp(p,"book.epub")&&title[0]&&author[0]&&list&&!auto_cache);
+ ++cover_decodes;
+ if(decode_result==1){*w=160;*h=240;memset(out,83,*w**h);}
+ return decode_result;
+}
 static uint8_t ui_contrast_gray(uint8_t g){return g;}
 static int ui_text_effective_px(int px){return px*system_scale/100;}
 static unsigned cp_count(const char *s){unsigned n=0;while(*s){if(((unsigned char)*s&0xc0)!=0x80)++n;++s;}return n;}
@@ -57,13 +71,12 @@ for name in ('text_fit','cover_load','book_ticket_draw_background','cover_draw',
 unit+=r'''
 enum {READING,SHELF};
 static int s_view=READING,lock_style=0;static char *s_text="body";static char s_path[288]="/sdcard/books/current.epub",s_book_title[256]="title";
-static bool s_toolbar,s_clear_confirm,media_ready=true,allowed=true,s_ticket_cover_started,s_ticket_cover_done;
+static bool s_toolbar,s_clear_confirm,media_ready=true,s_ticket_cover_started,s_ticket_cover_done;
 static unsigned s_cover_generation,generation,cancels,submits,takes;static int take_result;
 static int64_t s_stats_activity_ms;
 typedef struct {bool touched;} touch_t;
 typedef struct {int64_t now_ms;bool consumed,request_app,request_return,request_menu;touch_t *touch;} app_ctx_t;
 static bool read_pico_sd_io_ready(void){return media_ready;}
-static bool pico_boot_asset_allowed(const char*p){(void)p;return allowed;}
 static int app_settings_lock_style(void){return lock_style;}
 static void copy_text(char*d,size_t n,const char*s){snprintf(d,n,"%s",s);}
 static int book_epub_metadata_cached(const char*p,char*t,size_t n,char*a,size_t m){(void)p;snprintf(t,n,"metadata");snprintf(a,m,"author");return 0;}
@@ -95,7 +108,7 @@ int main(void){
  lines=0;ticket_heading(&dummy,202,112,50,huge);assert(lines==2&&strstr(shown[1],"…")&&strlen(huge)==252);
  for(source_case=0;source_case<=3;++source_case){
   reads=list_reads=grid_reads=0;unsigned w=0,h=0;
-  uint8_t *gray=cover_load("book.epub",title,"余华",&w,&h);
+  uint8_t *gray=cover_load("book.epub",title,"余华",&w,&h,false);
   if(!source_case){assert(!gray&&reads==4);continue;}
   assert(gray&&h==240&&w==(source_case==1?166:source_case==2?176:1));
   if(source_case==1)assert(list_reads==2&&!grid_reads);
@@ -107,7 +120,19 @@ int main(void){
   }
   free(gray);
  }
- reads=0;oom=true;unsigned w=0,h=0;assert(!cover_load("book.epub",title,"余华",&w,&h)&&!reads);oom=false;
+ reads=0;oom=true;unsigned w=0,h=0;assert(!cover_load("book.epub",title,"余华",&w,&h,true)&&!reads);oom=false;
+ assert(!cover_decodes&&!cover_joins);
+ source_case=1;uint8_t *warm=cover_load("book.epub",title,"", &w,&h,true);
+ assert(warm&&w==166&&h==240&&!cover_decodes&&!cover_joins);free(warm);
+ source_case=0;
+ uint8_t *cold=cover_load("book.epub",title,"author",&w,&h,true);
+ assert(cold&&w==160&&h==240&&cold[0]==83&&cover_joins==1&&cover_decodes==1);free(cold);
+ allowed=false;assert(!cover_load("book.epub",title,"author",&w,&h,true));allowed=true;
+ assert(!cover_load("book.txt",title,"author",&w,&h,true)&&cover_joins==1);
+ cover_worker_idle=false;
+ assert(!cover_load("book.epub",title,"author",&w,&h,true)&&cover_joins==2&&cover_decodes==1);
+ cover_worker_idle=true;decode_result=0;
+ assert(!cover_load("book.epub",title,"author",&w,&h,true)&&cover_joins==3&&cover_decodes==2);
  book_ticket_draw_background(pixels,NULL,0,0,false);cover_draw(pixels,NULL,0,0,title);
  app_ctx_t ctx={.now_ms=799};warm_reader_ticket_cover(&ctx);assert(!submits);
  ctx.now_ms=800;media_ready=false;warm_reader_ticket_cover(&ctx);assert(!submits);media_ready=true;
@@ -123,7 +148,7 @@ int main(void){
  s_ticket_cover_done=false;lock_style=2;warm_reader_ticket_cover(&ctx);assert(submits==1);lock_style=0;
  allowed=false;warm_reader_ticket_cover(&ctx);assert(submits==1&&s_ticket_cover_done);allowed=true;
  s_ticket_cover_done=false;warm_reader_ticket_cover(&ctx);take_result=-1;warm_reader_ticket_cover(&ctx);assert(cancels==2&&s_ticket_cover_done);
- puts("PASS: intact photo title at100–200%, shrink/wrap/ellipsis, author boundary, natural+legacy+grid cache-only paths, OOM, narrow artwork stride, bounded idle queue, input/media/style guards, snapshot ownership and result release");
+ puts("PASS: intact photo title at100–200%, shrink/wrap/ellipsis, author boundary, natural+legacy+grid caches and automatic-only cold recovery, OOM, narrow artwork stride, bounded idle queue, input/media/style guards, snapshot ownership and result release");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='ticket-host-') as tmp:

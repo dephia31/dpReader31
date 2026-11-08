@@ -24,12 +24,14 @@ typedef struct{int state;}read_pico_transfer_status_t;
 #define READ_PICO_TRANSFER_UPLOADING 1
 static bool app_download_active(void){return download;}
 static void read_pico_transfer_get_status(read_pico_transfer_status_t*s){s->state=upload;}
-static int homes,lights,reader_calls;
+static int homes,lights,menus,locks,reader_calls;
 static uint8_t app_settings_control_hold(unsigned key){assert(key<7);return action;}
 static bool usb_storage_active(void){return usb;}
 static bool pico_online_busy(void){return busy;}
 static void ui_nav_request(app_ctx_t*ctx,int tab){(void)ctx;assert(tab==0);++homes;}
 static void metalio_frontlight_toggle(void){++lights;}
+static void app_action_menu_request(void){++menus;}
+static void app_lock_request(void){++locks;}
 static bool app_book_reader_body_visible(void){return body;}
 static app_redraw_t app_book_handle_key_action(app_ctx_t*ctx,int a){(void)ctx;assert(a==action);++reader_calls;return APP_REDRAW_PAGE;}
 static bool navigation_denied(app_ctx_t*c){(void)c;return false;}
@@ -43,10 +45,11 @@ int main(void){app_ctx_t ctx={0};
     assert(control_hold_action(&ctx,&app_book,key)==APP_REDRAW_NONE);
    }
    usb=busy=download=upload=false;ctx=(app_ctx_t){0};body=false;
-   int before=reader_calls;control_hold_action(&ctx,&other,key);assert(reader_calls==before);
+   int before=reader_calls,before_locks=locks;control_hold_action(&ctx,&other,key);assert(reader_calls==before);
+   if(action==APP_READER_KEY_LOCK)assert(locks==before_locks+1);
    body=true;app_redraw_t r=control_hold_action(&ctx,&app_book,key);
    if(action==APP_READER_KEY_REFRESH)assert(r==APP_REDRAW_FULL);
-   else if(action==APP_READER_KEY_HOME||action==APP_READER_KEY_LIGHT||action==APP_READER_KEY_NONE)assert(r==APP_REDRAW_NONE);
+   else if(action==APP_READER_KEY_HOME||action==APP_READER_KEY_LIGHT||action==APP_READER_KEY_ACTION_MENU||action==APP_READER_KEY_LOCK||action==APP_READER_KEY_NONE)assert(r==APP_REDRAW_NONE);
    else assert(r==APP_REDRAW_PAGE&&reader_calls==before+1);
   }
   action=APP_CONTROL_HOLD_DEFAULT;assert(control_hold_action(&ctx,&app_book,key)==APP_REDRAW_NONE);
@@ -55,7 +58,7 @@ int main(void){app_ctx_t ctx={0};
  assert(control_hold_action(&ctx,&blocked,0)==APP_REDRAW_NONE);
  blocked.holds_pmu=false;blocked.navigation_enabled=navigation_denied;
  assert(control_hold_action(&ctx,&blocked,0)==APP_REDRAW_NONE);
- assert(homes&&lights&&reader_calls);puts("PASS actual hold dispatch:7 keys,USB/OTA/navigation guards,global Home/light/refresh,reader-only page/chapter/tools/sync");}
+ assert(homes&&lights&&menus&&locks&&reader_calls);puts("PASS actual hold dispatch:7 keys,USB/OTA/navigation guards,global Home/light/refresh/lock/menu,reader-only page/chapter/tools/sync");}
 '''
 with tempfile.TemporaryDirectory() as directory:
  p=Path(directory);(p/'test.c').write_text(unit)

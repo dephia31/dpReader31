@@ -82,7 +82,9 @@ static bool reader_page_cache_store(size_t page,uint32_t gen,const uint8_t*fb,si
  assert(bytes==BYTES&&page==focus);++stores;if(cache_oom)return false;
  memcpy(cached_body,fb,bytes);cached_page=page;cached_generation=gen;cache_ready=true;return true;
 }
-static void draw_reader(uint8_t*fb,size_t page){assert(page==s_page);++full_draws;memset(fb,0x76,BYTES);}
+static bool s_reader_raster_failed,inject_raster_failure;
+static bool reader_status_visible(void){return true;}
+static void draw_reader(uint8_t*fb,size_t page){assert(page==s_page);++full_draws;memset(fb,0x76,BYTES);s_reader_raster_failed=inject_raster_failure;}
 static EpdRect body_rect(void){return(EpdRect){12,80,660,1110};}
 static void ui_fill_rect_fast(EpdRect r,uint8_t v,uint8_t*fb){assert(r.x==0&&r.width==684);memset(fb+r.y*684/2,v,r.height*684/2);}
 static void draw_reader_outer(uint8_t*fb,size_t page){assert(page==s_page);++outer_draws;fb[BYTES-1]=0x43;}
@@ -207,6 +209,10 @@ int main(void){
  cache_oom=false;strcpy(s_reader_notice,"notice");draw_reader_cached(front,s_page);assert(full_draws==4&&!cache_ready);
  s_reader_notice[0]=0;images=1;draw_reader_cached(front,s_page);assert(full_draws==5&&!cache_ready);
  images=0;background=true;draw_reader_cached(front,s_page);assert(full_draws==6&&!cache_ready);
+ background=false;inject_raster_failure=true;
+ draw_reader_cached(front,s_page);assert(s_reader_raster_failed&&!cache_ready&&stores==2);
+ inject_raster_failure=false;
+ draw_reader_cached(front,s_page);assert(!s_reader_raster_failed&&cache_ready&&stores==3);
  puts("PASS: actual S31 overlay one regional gray push,entry erasure only on panel changes,same-sheet/slider short feedback,untouched body,100/200% panel bounds,27 stale/state/error fallbacks;existing body slots reused,no overlay/notice cache,OOM and generation guards");
 }
 '''

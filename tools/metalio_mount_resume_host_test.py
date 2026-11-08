@@ -49,7 +49,8 @@ int main(void){
  clock_us=1000000;book_error=0;lock_resume_io_service();assert(!s_lock_io_pending&&font_calls==2);
  // 解锁后由主循环继续调用，挂载/字体失败各自恢复，USB不抢占。/ Public main-loop service survives unlock, separate mount/font failures and USB ownership.
  reset();remaining=2;assert(!app_sleep_media_ready()&&s_lock_io_pending&&!font_calls);
- clock_us=1000000;assert(app_sleep_media_ready()&&!s_lock_io_pending&&font_calls==1);
+ clock_us=19000;assert(!app_sleep_media_ready()&&!font_calls);
+ clock_us=20000;assert(app_sleep_media_ready()&&!s_lock_io_pending&&font_calls==1);
  reset();mounted=true;font_error=7;assert(!app_sleep_media_ready());clock_us=1000000;font_error=0;
  assert(app_sleep_media_ready()&&font_calls==2);reset();usb=true;assert(!app_sleep_media_ready()&&!remounts);
  usb=false;clock_us=1000000;assert(app_sleep_media_ready());

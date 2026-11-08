@@ -15,7 +15,9 @@ unit=r'''
 typedef struct {int x,y,width,height;} EpdRect;
 '''+enums+r'''
 static int ai,volume[2],keys[3];
-static bool power,up,bottom,fail;
+static bool power,power_menu,up,bottom,fail;
+static uint8_t holds[7]={255,255,255,255,255,255,255};
+#define APP_CONTROL_HOLD_DEFAULT 255
 static int app_settings_ai_short(void){return ai;}
 static int app_settings_set_ai_short(int n){if(fail)return -1;ai=n;return 0;}
 static int app_settings_volume_key_action(int k){return volume[k];}
@@ -24,6 +26,10 @@ static int app_settings_reader_key_action(int k){return keys[k];}
 static bool app_settings_set_reader_key_action(int k,int n){if(fail)return false;keys[k]=n;return true;}
 static bool app_settings_reader_power_turn(void){return power;}
 static void app_settings_set_reader_power_turn(bool on){power=on;}
+static bool app_settings_power_action_menu(void){return power_menu;}
+static int app_settings_set_power_action_menu(bool on){if(fail)return -1;power_menu=on;return 0;}
+static uint8_t app_settings_control_hold(int k){return holds[k];}
+static bool app_settings_set_control_hold(int k,uint8_t n){if(fail)return false;holds[k]=n;return true;}
 static bool app_settings_reader_swipe_up_tools(void){return up;}
 static void app_settings_set_reader_swipe_up_tools(bool on){up=on;}
 static bool app_settings_reader_swipe_bottom_home(void){return bottom;}
@@ -31,7 +37,9 @@ static void app_settings_set_reader_swipe_bottom_home(bool on){bottom=on;}
 '''
 unit+=r'''
 #define UI_GRAY_WHITE 255
+#define UI_GRAY_BLACK 0
 #define UI_ICON_CHEVRON_DOWN 1
+#define UI_ICON_CHEVRON_RIGHT 2
 enum EpdFontFlags {EPD_DRAW_ALIGN_LEFT,EPD_DRAW_ALIGN_CENTER,EPD_DRAW_ALIGN_RIGHT};
 static EpdRect text_boxes[2],choice_box;
 static int box_count;
@@ -57,8 +65,7 @@ static void ui_text_box(void *fb,EpdRect r,int px,const char *text,int align,boo
  assert(box_count<2);text_boxes[box_count++]=r;fitting_box=r;
  fit_text_box(fb,r,px,text,align,invert);
 }
-static void ui_fill_round_rect(void *fb,EpdRect r,int radius,int gray){(void)fb;(void)radius;(void)gray;choice_box=r;}
-static void ui_draw_control_frame(void *fb,EpdRect r,int radius,int gray){(void)fb;(void)r;(void)radius;(void)gray;}
+static void settings_card(void *fb,EpdRect r,int radius,int fill,int border){(void)fb;(void)radius;(void)fill;(void)border;choice_box=r;}
 static void ui_draw_icon(void *fb,int x,int y,int px,int icon,int gray){
  (void)fb;(void)icon;(void)gray;assert(x-px/2>=choice_box.x&&x+px/2<=choice_box.x+choice_box.width);
  assert(y-px/2>=choice_box.y&&y+px/2<=choice_box.y+choice_box.height);
@@ -71,29 +78,35 @@ int main(void){
  const int rows[]={230,310,390,470,550,630,710,835,915};
  for(test_percent=100;test_percent<=200;test_percent+=10)for(int face=0;face<2;++face)for(unsigned i=0;i<sizeof(rows)/sizeof(rows[0]);++i){
   s_system_ttf=face;uint8_t fb=0;box_count=0;controls_row(&fb,rows[i],"Nút Âm lượng (+) bên hông","Đồng bộ KOSync");
-  assert(box_count==2&&text_boxes[0].y+text_boxes[0].height<=choice_box.y);
+  assert(box_count==2&&text_boxes[0].y>=choice_box.y&&text_boxes[0].y+text_boxes[0].height<=text_boxes[1].y);
   assert(text_boxes[1].y>=choice_box.y&&text_boxes[1].y+text_boxes[1].height<=choice_box.y+choice_box.height);
   assert(text_boxes[1].x+text_boxes[1].width<=choice_box.x+choice_box.width-32);
   assert(choice_box.y+choice_box.height<=rows[i]+80);
  }
 
- for(int target=0;target<=8;++target){
-  int count=controls_choice_count(target);assert(count>=2&&count<=10);
+ for(int target=0;target<=15;++target){
+  int count=controls_choice_count(target);assert(count>=2&&count<=13);
+  bool has_lock=(target==7||target==8);
   for(int i=0;i<count;++i){
-   EpdRect r=controls_choice_rect(i);assert(r.y>=268&&r.y+r.height<944);
-   assert(controls_choice_label(target,i)[0]);assert(controls_choice_save(target,i));
-   int expected=target==0||target==3||target>=7?i:controls_choice_action(i);
+   EpdRect r=controls_choice_rect(i);assert(r.y>=268&&r.y+r.height<944&&r.width>=290&&r.height>=80);
+   const char *label=controls_choice_label(target,i);
+   assert(label[0]);
+   if(!strcmp(label,"Khóa màn hình"))has_lock=true;
+   assert(controls_choice_save(target,i));
+   int expected=target>=9?(i?controls_choice_action(i-1):APP_CONTROL_HOLD_DEFAULT):
+    target==0||target==3||target>=7?i:controls_choice_action(i);
    assert(controls_choice_current(target)==expected);
-   if(target!=0&&target!=3&&target<7)assert(expected!=APP_READER_KEY_FULLSCREEN);
+   if(target!=0&&target!=3&&(target<7||target>=9))assert(expected!=APP_READER_KEY_FULLSCREEN);
   }
+  assert(has_lock);
   assert(!controls_choice_save(target,-1)&&!controls_choice_save(target,count));
  }
  fail=true;int previous=volume[1];assert(!controls_choice_save(1,0)&&volume[1]==previous);
- assert(!controls_choice_save(-1,0)&&!controls_choice_save(9,0));
- bool light=false,home=false;
- for(int i=0;i<controls_choice_count(1);++i){light|=controls_choice_action(i)==APP_READER_KEY_LIGHT;home|=controls_choice_action(i)==APP_READER_KEY_HOME;}
- assert(light&&home);
- puts("PASS: actual menu exposes Home/light and all allowed shortcuts, saves each target, rejects invalid/retired choices and preserves failed settings");
+ assert(!controls_choice_save(-1,0)&&!controls_choice_save(16,0));
+ bool light=false,home=false,lock=false;
+ for(int i=0;i<controls_choice_count(1);++i){light|=controls_choice_action(i)==APP_READER_KEY_LIGHT;home|=controls_choice_action(i)==APP_READER_KEY_HOME;lock|=controls_choice_action(i)==APP_READER_KEY_LOCK;}
+ assert(light&&home&&lock);
+ puts("PASS: actual menu exposes Home/light/lock and all allowed shortcuts across all 7 keys (short & hold), saves each target, rejects invalid/retired choices and preserves failed settings");
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

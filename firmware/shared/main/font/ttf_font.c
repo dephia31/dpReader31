@@ -552,8 +552,8 @@ static bool file_read_at(uint32_t offset, void* dst, size_t n) {
         if (io_from_map(offset, n, dst)) return true;
         return io_read_raw(offset, dst, n);
     }
-    if (font_fd < 0) return false;
     if (io_from_map(offset, n, dst)) return true;
+    if (font_fd < 0) return false;
     if (io_data == NULL && !io_ensure()) return io_read_raw(offset, dst, n);
 
     uint8_t* out = dst;
@@ -1716,6 +1716,8 @@ static bool pack_glyph_tree(int root_gid) {
         return true;
     }
     if (root_gid < 0 || root_gid >= num_glyphs) return true;
+    // A failed read may already have overwritten part of the working outline.
+    packed_root = -1;
 
     int tree[TTF_TREE_MAX];
     int tree_n = 0;
@@ -2294,8 +2296,18 @@ static glyph_entry_t* rasterize_glyph(uint32_t codepoint, int pixel_height) {
     return entry;
 }
 
+#if DPREADER_BOARD_METALIO47
+static uint32_t s_glyph_failures;
+uint32_t ttf_font_glyph_failures(void) { return s_glyph_failures; }
+#endif
+
 static const glyph_entry_t* get_glyph(uint32_t codepoint, int pixel_height) {
-    if (!font_ready) return NULL;
+    if (!font_ready) {
+#if DPREADER_BOARD_METALIO47
+        ++s_glyph_failures;
+#endif
+        return NULL;
+    }
     pixel_height = clamp_px(pixel_height);
     if (bench_on) bench.glyphs++;
     glyph_entry_t* entry = cache_lookup(codepoint, pixel_height);
@@ -2306,6 +2318,9 @@ static const glyph_entry_t* get_glyph(uint32_t codepoint, int pixel_height) {
     if (bench_on) bench.misses++;
     int64_t t0 = bench_on ? esp_timer_get_time() : 0;
     entry = rasterize_glyph(codepoint, pixel_height);
+#if DPREADER_BOARD_METALIO47
+    if (!entry) ++s_glyph_failures;
+#endif
     if (bench_on) bench.raster_us += esp_timer_get_time() - t0;
     return entry;
 }

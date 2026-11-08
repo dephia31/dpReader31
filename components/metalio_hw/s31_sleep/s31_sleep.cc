@@ -162,10 +162,8 @@ esp_err_t s31_sleep::LightSleep(unsigned applied) {
     // Never let the wake-only register workaround leak into normal clock use.
     s_pmu_sleep_active = false;
     s_sdk_sleep_active = false;
-    const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-    Checkpoint(Phase::AfterSleep, applied); // CPU returned, before any I2C access
-    esp_rom_printf("PowerHw: sleep returned cycle=%lu err=%d cause=%d before I2C\n",
-                   static_cast<unsigned long>(s_sleep_trace.cycle), static_cast<int>(err), static_cast<int>(cause));
+    s_sleep_trace.applied = applied;
+    s_sleep_trace.phase = static_cast<uint32_t>(Phase::AfterSleep);
     return err;
 }
 

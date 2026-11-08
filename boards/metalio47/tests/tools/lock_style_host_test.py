@@ -46,7 +46,8 @@ static const char*app_settings_wallpaper_path(void){return "/sdcard/wall.jpg";}
 static const char*app_settings_bookmark_path(void){return "/sdcard/overlay.png";}
 static bool lock_pin_enabled(void){return pin;}
 static bool art(unsigned id,uint8_t*f){assert(id==style);if(id==3)assert(f[0]==(boot_cache?255:background));++draws[id];memset(f,0x10+id,FRAME_BYTES);return decode_ok;}
-static bool book_ticket_draw(uint8_t*f,bool reader){(void)reader;return art(0,f);}
+static bool auto_cover_decode;
+static bool book_ticket_draw(uint8_t*f,bool allow_decode){assert(allow_decode==auto_cover_decode);return art(0,f);}
 static bool ui_wallpaper_prepare_lock(uint8_t*f,const char*p){assert(!strcmp(p,app_settings_wallpaper_path()));return art(1,f);}
 static bool book_lock_collage_prepare(uint8_t*f){return art(2,f);}
 static bool book_lock_bookmark_draw(uint8_t*f,const char*p){assert(!strcmp(p,app_settings_bookmark_path()));return art(3,f);}
@@ -87,10 +88,10 @@ static void vTaskDelay(int ms){assert(ms==20);}
 '''
 for name in ['lock_present_art','draw_wallpaper','enter_lock_and_sleep','app_lock_boot_gate']:u+=function(name,r/'main/sleep.c')+'\n'
 u+=r'''
-static void reset(void){ota_busy=false;media_resumes=0;memset(draws,0,sizeof(draws));presents=outputs=auths=begins=ends=resumes=cleared=waits=saves=lamp_off=lamp_restore=white_outputs=white_faults=0;pin=boot_cache=s_lock_feedback_started=s_lock_deep_ready=s_lock_frame_cached=false;s_lock_sleep_touch=NULL;decode_ok=transfer_ok=ble_ok=output_ok=white_ok=true;cache_ok=false;background=0x32;memset(panel,background,FRAME_BYTES);memset(pixels,0x99,FRAME_BYTES);}
+static void reset(void){auto_cover_decode=ota_busy=false;media_resumes=0;memset(draws,0,sizeof(draws));presents=outputs=auths=begins=ends=resumes=cleared=waits=saves=lamp_off=lamp_restore=white_outputs=white_faults=0;pin=boot_cache=s_lock_feedback_started=s_lock_deep_ready=s_lock_frame_cached=false;s_lock_sleep_touch=NULL;decode_ok=transfer_ok=ble_ok=output_ok=white_ok=true;cache_ok=false;background=0x32;memset(panel,background,FRAME_BYTES);memset(pixels,0x99,FRAME_BYTES);}
 int main(void){EpdiyHighlevelState hl={panel};
  reset();ota_busy=true;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(!outputs&&!begins&&!resumes&&!waits);
- for(int s=0;s<4;++s)for(int password=0;password<2;++password)for(int reader=0;reader<2;++reader){reset();style=s;pin=password;int64_t ignore=0;enter_lock_and_sleep(&hl,&ignore,(void*)1,(void*)2,reader);assert(white_outputs==(unsigned)(s!=3)&&!white_faults);assert(draws[s]==1&&presents==1&&outputs==1&&auths==(unsigned)password&&waits==(unsigned)!password);assert(begins==(unsigned)(s==0||s==2||password)&&ends==begins&&resumes==1&&cleared==1&&lamp_off&&ignore==3000);assert(!s_lock_sleep_touch&&!s_lock_frame_cached&&saves==1&&media_resumes==1);}
+ for(int s=0;s<4;++s)for(int password=0;password<2;++password)for(int automatic=0;automatic<2;++automatic){reset();auto_cover_decode=automatic;style=s;pin=password;int64_t ignore=0;enter_lock_and_sleep(&hl,&ignore,(void*)1,(void*)2,automatic);assert(white_outputs==(unsigned)(s!=3)&&!white_faults);assert(draws[s]==1&&presents==1&&outputs==1&&auths==(unsigned)password&&waits==(unsigned)!password);assert(begins==(unsigned)(s==0||s==2||password)&&ends==begins&&resumes==1&&cleared==1&&lamp_off&&ignore==3000);assert(!s_lock_sleep_touch&&!s_lock_frame_cached&&saves==1&&media_resumes==1);}
  for(unsigned screen=0;screen<4;++screen){reset();style=3;background=0x21+screen*17;memset(panel,background,FRAME_BYTES);unsigned prior=image_clears;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(!white_outputs&&draws[3]==1&&presents==1&&image_clears==prior+1);}
  for(int ready=0;ready<2;++ready)for(int password=0;password<2;++password)for(int cache=0;cache<2;++cache){reset();style=3;s_lock_deep_ready=ready;pin=password;cache_ok=cache;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(saves==1&&!s_lock_frame_cached&&!s_lock_deep_ready);}
  for(int s=0;s<4;++s){reset();style=s;decode_ok=false;enter_lock_and_sleep(&hl,NULL,(void*)1,(void*)2,false);assert(draws[s]==1&&presents==1&&panel[0]==0xff&&style==s&&!saves);}

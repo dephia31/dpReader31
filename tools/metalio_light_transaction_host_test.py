@@ -57,7 +57,7 @@ static int sc7a20h_shared_irq_idle(void *a){assert(a);return fail()?-2:ESP_OK;}
 static bool lock_take_key_wakeup(void){bool v=allow_key&&queued;queued=false;return v;}
 static bool lock_prepare_key_wake(void){if(fail())return false;keys=true;return true;}
 static int esp_sleep_enable_timer_wakeup(uint64_t us){assert(us>0&&us<=60000000);++timer_arms;if(fail_rearm&&timer_arms==2)return -2;timer_us=us;if(usb_at_timer)usb=true;return fail()?-2:ESP_OK;}
-static int metalio_sleep_cut_rails(uint16_t *s){*s=123;rails=true;++cut;return fail()?-2:ESP_OK;}
+static int metalio_sleep_cut_rails(uint16_t *s,bool switch_vout){assert(!switch_vout);*s=123;rails=true;++cut;return fail()?-2:ESP_OK;}
 static int metalio_hold_for_light_sleep(void){return fail()?-2:ESP_OK;}
 static int metalio_light_sleep_start(void){
  assert(pins&&rails&&keys&&touch&&lcd&&!media);assert(++sleeps<=181);
@@ -69,7 +69,7 @@ static bool metalio_confirm_power_key(void){assert(keys&&rails&&pins);return con
 static void vTaskDelay(unsigned ms){clock_us+=(int64_t)ms*1000;}
 static void metalio_release_light_sleep_pins(void){pins=false;}
 static int esp_sleep_disable_wakeup_source(int s){assert(s==ESP_SLEEP_WAKEUP_TIMER);++timers;return ESP_OK;}
-static int metalio_sleep_restore_rails(uint16_t s){assert(s==123);rails=false;++restore;return fail()?-2:ESP_OK;}
+static int metalio_sleep_restore_rails(uint16_t s,bool switch_vout){assert(!switch_vout);assert(s==123);rails=false;++restore;return fail()?-2:ESP_OK;}
 static void read_pico_pmu_latch_power_wakeup(void);
 static void lock_restore_key_wake(void){s_lock_keys_restore_pending=false;keys=false;++keys_restored;if(s_lock_power_wake_pending){read_pico_pmu_latch_power_wakeup();s_lock_power_wake_pending=false;}}
 static void read_pico_pmu_latch_power_wakeup(void){assert(!keys);queued=true;++latches;}
