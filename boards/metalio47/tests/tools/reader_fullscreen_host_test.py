@@ -43,6 +43,8 @@ static void *s_blocks;
 static int s_px=48,s_reader_panel=READER_PANEL_NONE,s_reader_slider=-1,s_view=READING;
 #define s_toolbar (s_reader_panel!=READER_PANEL_NONE)
 static bool s_clear_confirm,s_reader_text_frame,s_reader_turn_pending;
+static bool s_reader_resume_pending,s_reader_raster_failed;
+static bool reader_reflow_font(void){return false;}
 static bool s_reader_image_frame,s_reader_image_exit_pending;
 static bool s_water_turn_pending,s_reader_cleanup,draw_locked,load_failed;
 static int s_water_turn_dir;

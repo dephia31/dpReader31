@@ -42,6 +42,13 @@ static bool s_reader_clock_pending,s_input_settle,s_shelf_feedback_pending,s_cov
 static bool s_reader_image_refresh_pending,s_reader_cleanup,s_reader_turn_pending,s_water_turn_pending,s_clear_confirm,s_reader_footer_pending,s_reader_text_frame;
 static bool s_reader_image_frame,s_reader_image_exit_pending,hide_images;
 static bool s_toolbar,s_shelf_key_paint_pending,test_panel_short;
+static bool s_reader_resume_pending,s_reader_raster_failed;
+static bool app_sleep_media_ready(void){return true;}
+static void reader_preserve_display(app_ctx_t *ctx){(void)ctx;assert(false);}
+static void app_font_activate_reading(void){assert(false);}
+static bool reader_reflow_font(void){return false;}
+static void reader_defer_raster_retry(app_ctx_t *ctx){(void)ctx;assert(false);}
+
 static bool reader_indent_present(app_ctx_t*c,app_redraw_t d){(void)c;(void)d;return false;}
 static int s_view=READING,s_reader_panel,s_mode=MODE_GL16,s_presented_view=READING,s_water_turn_dir,s_page,s_du_count;
 static unsigned s_cover_dirty_mask,s_cover_present_mask;
