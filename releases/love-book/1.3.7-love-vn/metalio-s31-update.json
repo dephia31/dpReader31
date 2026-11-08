@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.3.7-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "sha256": "39ea9ff2223ae10952068f27b7396f610378911f2540809cae049474cd2929d5",
+  "size": 4661456,
+  "notes": "dpReader 1.3.7: Sửa lỗi khởi động, lưu chi tiết panic vào RTC, tùy chọn Status & Footer, nền ô trám Love Book.",
+  "previous_version": "1.3.5-love-vn"
+}
