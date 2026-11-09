@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.3.9-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "sha256": "1a7cbf1778b9fb08f60fd768051df0e2f41706ace25fd050b8a5528df69ec8f1",
+  "size": 4673184,
+  "notes": "Sao lưu thêm cài đặt đọc, phím, Bluetooth, đèn và tối đa 6 mạng Wi-Fi. Đọc được tệp sao lưu cũ. Cải thiện bố cục màn khóa Thẻ đọc sách.",
+  "previous_version": "1.3.8-love-vn"
+}
