@@ -5,8 +5,8 @@
   "chip_id": 32,
   "project": "Kiikoread_Metalio_S31",
   "version": "1.4.0-love-vn",
-  "size": 4681536,
-  "sha256": "d9bcfc5af717188e4303035258fc81e583db4a081fb502eedc2def74bb8927fd",
+  "size": 4673360,
+  "sha256": "3986f9695054b55cd3a10b3c94a9fafff8965626a676a11fc9294823477f4e26",
   "partitions": {
     "nvs": [
       1,
@@ -53,7 +53,7 @@
   },
   "bootloader_offset": 8192,
   "esptool_stub": false,
-  "free_app_bytes": 561344,
+  "free_app_bytes": 569520,
   "firmware_bin": "dpReader_metalio47_firmware.bin",
   "full_bin": "dpReader_metalio47_full.bin",
   "experimental_pie_pixels": false,

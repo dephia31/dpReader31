@@ -3,4 +3,4 @@
 0b065bcf7eb8e6602c08188430f8365f57f9224ce311b210ff5fd213422daa38  verification.json
 30307cd3d0081f253e91b44a6e2abfe97834e1c9220b781f7bb1ae1114d182db  metalio-s31-update.json
 aa5a8d87f6dcf852c647f834d7294251fa1bc3cd2cf9ed3f5701c61694f8afa5  dpReader-metalio47-1.4.0-vn-USB.zip
-a334b5118e2e2c73f9844f080cf90fa32096fe1c40dc7ae0a959ead5e501e1f2  dpReader-metalio47-1.4.0-vn-TF.zip
+21288215b7166bb737a3dafa84290d521c05fc226aaae8b6f8bb8a997d43751c  dpReader-metalio47-1.4.0-vn-TF.zip
