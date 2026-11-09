@@ -1,6 +1,6 @@
-## dpReader 1.3.9-vn / 1.3.9-love-vn · 2026-11-08
+## dpReader 1.4.0-vn / 1.4.0-love-vn · 2026-11-09
 
-- Sao lưu và khôi phục thêm cài đặt đọc, phím, nút lật trang Bluetooth đã học, tùy chọn hệ thống, đèn, rung và chống phai. Lưu tối đa 6 mạng Wi-Fi theo thứ tự ưu tiên và tiếp tục đọc được tệp sao lưu cũ.
-- Thẻ đọc sách của Love Book dùng bìa lớn hơn và tên sách dài có thể xuống hai dòng. Câu “Lưu giữ dấu ấn…” thay hai dòng thống kê, nằm sát chân thẻ bên dưới tiến độ đọc.
+- Khắc phục lỗi NVS đầy làm đổi font thất bại hoặc chặn mở sách.
+- Lưu tiến độ và tùy chọn trình bày riêng từng cuốn vào thư mục ẩn trên thẻ. Tiếp tục đọc tiến độ cũ và hỗ trợ sao lưu, khôi phục.
 
-Có hai bản **Full 1.3.9-vn** và **Love Book 1.3.9-love-vn**. Cập nhật qua Wi-Fi, gói TF đúng phiên bản hoặc [Web Flash dpReader](https://dephia31.github.io/dpReader31/). Web Flash giữ bản 1.3.8 để chọn lại.
+Có hai bản **Full 1.4.0-vn** và **Love Book 1.4.0-love-vn**. Cập nhật qua Wi-Fi, gói TF đúng phiên bản hoặc [Web Flash dpReader](https://dephia31.github.io/dpReader31/). Web Flash giữ bản 1.3.9 để chọn lại.

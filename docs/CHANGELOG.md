@@ -1,3 +1,8 @@
+## dpReader 1.4.0-vn / 1.4.0-love-vn · 2026-11-09
+
+- Khắc phục lỗi NVS đầy làm đổi font thất bại hoặc chặn mở sách.
+- Lưu tiến độ và tùy chọn trình bày riêng từng cuốn vào thư mục ẩn trên thẻ. Tiếp tục đọc tiến độ cũ và hỗ trợ sao lưu, khôi phục.
+
 ## dpReader 1.3.9-vn / 1.3.9-love-vn · 2026-11-08
 
 - Sao lưu và khôi phục thêm cài đặt đọc, phím, nút lật trang Bluetooth đã học, tùy chọn hệ thống, đèn, rung và chống phai. Lưu tối đa 6 mạng Wi-Fi theo thứ tự ưu tiên và tiếp tục đọc được tệp sao lưu cũ.

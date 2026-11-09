@@ -4998,6 +4998,7 @@ static void free_book(void) {
     // follows onto the shelf.
     ui_nav_status_set_title_on(false);
     app_font_activate_system();
+    app_settings_book_profile_leave();
 }
 // 通栏之后一页位图更大：装不下就按最大空闲块等比缩一档——图小一圈也胜过整页消失。
 // A full-bleed page bitmap is larger: when it does not fit, step the aspect-preserving size down
@@ -5462,9 +5463,11 @@ static bool open_book_impl(app_ctx_t* ctx, const char* path) {
     }
     save_progress();
     free_book();
+    app_settings_book_profile_enter(path, (uint32_t)st.st_size);
     app_font_activate_reading();
     if (!pending_reserve(path)) {
         copy_text(s_message, sizeof(s_message), "Không đủ bộ nhớ để mở sách");
+        app_settings_book_profile_leave();
         app_font_activate_system();
         return false;
     }
@@ -5493,6 +5496,7 @@ static bool open_book_impl(app_ctx_t* ctx, const char* path) {
                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT),
                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        app_settings_book_profile_leave();
         app_font_activate_system();
         return false;
     }
@@ -5513,8 +5517,8 @@ static bool open_book_impl(app_ctx_t* ctx, const char* path) {
     s_file_size = (uint32_t)st.st_size;
     book_progress_t p = {0};
     bool resume = pending_restore(path, s_file_size, &p) || book_progress_load(path, s_file_size, &p);
-    // 排版字号以全局阅读设置为准；旧书进度只决定阅读位置。
-    // Use the shared reading size for every book; per-book progress restores position only.
+    // 当前书籍配置决定排版，进度记录只决定阅读位置。
+    // The active book profile supplies appearance; progress supplies the reading position.
     s_px = app_settings_book_px();
     if (s_px < BOOK_PX_MIN || s_px > BOOK_PX_MAX) s_px = BOOK_READER_PX_DEFAULT;
     size_t chapter = resume && p.chapter < book_chapter_count() ? p.chapter : 0;

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * 按书籍路径保存 NVS 进度，不依赖 UI 或 SD。
- * Per-path NVS progress with checked SD snapshots when NVS has insufficient space.
+ * S31 per-book checked files, with legacy NVS/snapshot reads; Pico retains NVS storage.
  *
  * 冻结：文件大小不同不恢复；失败返回调用方并告警，不擦除其他记录。
  * 为无 RTC 的最近阅读排序，v2 使用持久序号；v1 保留续读但排序置零。
@@ -72,3 +72,7 @@ esp_err_t book_progress_forget(const char* path);
 bool book_progress_last_path(char* out, size_t cap);
 /// 保存最后路径；空串清除自动恢复入口。/ Save last path; empty string clears automatic restore.
 esp_err_t book_progress_set_last_path(const char* path);
+/// Import a checked historical record, preserving its reading order.
+esp_err_t book_progress_import(const char *path, const book_progress_t *progress);
+/// Replace sidecar progress during an explicit history restore.
+esp_err_t book_progress_reset_files(void);

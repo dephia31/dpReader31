@@ -16,6 +16,14 @@ static int nvs_open(const char*n,int m,int*h){(void)n;(void)m;*h=1;return fault=
 static int nvs_set_u8(int h,const char*n,uint8_t p){(void)h;(void)n;pending=p;return fault==2?-1:0;}
 static int nvs_commit(int h){(void)h;if(fault==3)return -1;stored=pending;return 0;}
 static void nvs_close(int h){(void)h;}
+/* This fixture exercises the global NVS setting with no open book. */
+static bool book_profile_active(void) { return false; }
+static bool book_profile_u8(const char *key, uint8_t value) {
+    (void)key;
+    (void)value;
+    assert(false);
+    return false;
+}
 typedef struct {uint8_t encoded,checksum[4];} settings_backup_indent_adjust_t;
 '''
 u+='\n#define backup_nvs_open nvs_open\n#define backup_nvs_set_u8 nvs_set_u8\n#define backup_nvs_set_u32 nvs_set_u32\n#define backup_nvs_set_str nvs_set_str\n#define settings_backup_commit nvs_commit\n'

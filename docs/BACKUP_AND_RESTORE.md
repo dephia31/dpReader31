@@ -140,3 +140,47 @@ khởi động lại và vòng sao lưu/khôi phục lịch sử với Undefined
 hồi kiểm tra đúng/sai MAC, bản cũ, bản dự phòng, lịch sử còn sống, thiếu thẻ,
 thiếu PSRAM, lỗi nhập/đọc lại, lỗi chốt journal và gián đoạn qua reboot.
 Không đọc/ghi thiết bị thật.
+
+
+## Dữ liệu theo cuốn trên S31
+
+Từ `1.4.0`, firmware tạo `/sdcard/.dpreader`, đặt thuộc tính Hidden trên FAT,
+và lưu tiến độ, tùy chọn trình bày theo đường dẫn sách trong `books/` (chia 16
+thư mục con để giới hạn số tệp mỗi thư mục). Tên tệp dùng hash 64-bit; bản ghi
+vẫn chứa đường dẫn đầy đủ để từ chối ghi đè khi xảy ra va chạm. Sách trong
+`/flash/books/` dùng `/flash/.dpreader` trên vùng lưu trữ nội bộ đã có.
+
+Mỗi bản ghi có hai slot luân phiên, số thứ tự và checksum; ghi slot kế tiếp,
+flush và đồng bộ trước khi báo thành công. Bản hợp lệ mới nhất được đọc, bản
+hỏng bị loại. Cách này giữ bản trước khi một tệp ghi dở; không bảo đảm khôi phục
+nếu toàn bộ hệ thống file hoặc cả hai slot hỏng. Thẻ lỗi/đầy trả lỗi lưu, không
+xóa NVS hay tự định dạng. Các bộ đệm kiểm tra dùng PSRAM, cấp phát có giới hạn.
+
+Font, cỡ chữ, độ đậm, khử răng cưa, khoảng cách, căn lề, hình nền, hiển thị ảnh,
+font nhúng, thanh trạng thái và chân trang được lưu riêng khi chỉnh trong sách.
+Sách chưa có cấu hình kế thừa mặc định chung; thoát sách trả lại mặc định chung.
+Phím/gestures, Wi-Fi, Bluetooth và cấu hình hệ thống vẫn dùng cơ chế chung.
+Đổi đường dẫn hoặc đổi kích thước tệp không tự mang theo cấu hình/tiến độ cũ.
+
+Lật trang tiếp tục cập nhật tiến độ trong RAM; cơ chế lưu trì hoãn lúc rảnh,
+đóng sách và khóa máy được giữ nguyên. Chỉnh trình bày ghi khi thay đổi lựa chọn.
+Dấu vết khởi động/mở sách nằm trong bản ghi phiên riêng, được đọc sau khi thẻ
+sẵn sàng, không ghi từng trang. Khi không có thẻ lúc khởi động, phiên dùng bộ
+nhớ trong; nếu nơi lưu phiên mất kết nối thì không cho mở sách trước khi ghi
+được checkpoint bảo vệ. Không đổi bảng phân vùng hoặc kích thước NVS.
+
+Tiến độ NVS và snapshot `.dpreader-progress/progress.bin` cũ được đọc khi chưa
+có bản ghi mới; các lượt lưu tiếp theo ghi theo cuốn, không xóa dữ liệu nguồn.
+Sao lưu xuất tiến độ có hiệu lực và cấu hình riêng từng cuốn, dùng phần lịch sử
+`RPHIST2`; firmware mới tiếp tục nhập `RPHIST1`. Firmware cũ không nhập được bản
+sao chứa phần lịch sử mới. Khôi phục là thay thế thư viện được lưu, không gộp;
+dữ liệu cũ ngoài bản sao được che bằng bản ghi xóa. Thao tác khôi phục nhiều tệp
+không phải một giao dịch nguyên tử: nếu gián đoạn cần chạy khôi phục lại.
+Reset cấu hình hệ thống xóa checkpoint phiên nhưng giữ thư viện theo cuốn.
+
+Kiểm thử host: materialize bằng `tools/board_source_view.py --board metalio47
+--tests --output build/host/metalio47`, rồi chạy trong cây đó các script
+`tools/book_state_files_host_test.py`, `tools/book_profile_host_test.py`,
+`tools/boot_file_state_host_test.py` và `tools/book_history_files_host_test.py`.
+Tốc độ và độ trễ ghi thực tế phụ thuộc thẻ, cần đo trên thiết bị; các kiểm thử
+host không thay thế kiểm tra mất nguồn hoặc lật trang trên máy.

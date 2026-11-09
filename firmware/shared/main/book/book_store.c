@@ -62,10 +62,10 @@ static bool sd_ready(void) {
     return info.present && info.mounted;
 }
 
-static esp_err_t flash_root(book_store_root_t* out) {
+static esp_err_t mount_flash(bool format_if_mount_failed) {
     if (!book_store_flash_ready()) {
         const esp_vfs_fat_mount_config_t config = {
-            .format_if_mount_failed = true,
+            .format_if_mount_failed = format_if_mount_failed,
             .max_files = 4,
             .allocation_unit_size = 4096,
         };
@@ -76,7 +76,17 @@ static esp_err_t flash_root(book_store_root_t* out) {
             return err;
         }
     }
-    esp_err_t err = ensure_dir("/flash/books");
+    return ESP_OK;
+}
+
+esp_err_t book_store_mount_flash(void) {
+    return mount_flash(false);
+}
+
+static esp_err_t flash_root(book_store_root_t* out) {
+    esp_err_t err = mount_flash(true);
+    if (err != ESP_OK) return err;
+    err = ensure_dir("/flash/books");
     if (err == ESP_OK) *out = (book_store_root_t){.path = "/flash/books", .is_flash = true};
     return err;
 }

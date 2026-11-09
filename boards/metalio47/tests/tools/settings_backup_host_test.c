@@ -21,6 +21,8 @@ size_t strlcpy(char *dst, const char *src, size_t cap) {
 #endif
 
 #define APP_SETTINGS_BACKUP_ROOT "build/book-tests/settings-card"
+#define DPREADER_FONT_FLASH_TEST 1
+#define FONT_SETTINGS_FLASH_ROOT "build/book-tests/font-flash"
 #include "../main/settings.c"
 
 static read_pico_transfer_wifi_backup_t saved_wifi = {
@@ -63,6 +65,15 @@ esp_err_t book_history_backup_restore(FILE *file) {
 }
 
 static bool card_mounted = true;
+static esp_err_t font_nvs_error;
+static bool flash_mount_fails;
+bool book_store_flash_ready(void) {
+    struct stat status;
+    return !flash_mount_fails && stat(FONT_SETTINGS_FLASH_ROOT, &status) == 0 && S_ISDIR(status.st_mode);
+}
+esp_err_t book_store_mount_flash(void) {
+    return book_store_flash_ready() ? ESP_OK : ESP_FAIL;
+}
 static char loaded_dirs[2][96];
 static bool commit_fails;
 static int loaded_simple_ui=-1;
@@ -157,7 +168,10 @@ esp_err_t nvs_get_str(nvs_handle_t h, const char *key, char *value, size_t *size
  return ESP_FAIL;
 }
 esp_err_t nvs_set_str(nvs_handle_t h, const char *key, const char *value) { (void)h;
- if(!strcmp(key,NVS_KEY_FONT)||!strcmp(key,NVS_KEY_SYS_FONT))strlcpy(test_persisted_fonts[!strcmp(key,NVS_KEY_SYS_FONT)],value,288);
+ if(!strcmp(key,NVS_KEY_FONT)||!strcmp(key,NVS_KEY_SYS_FONT)) {
+  if (font_nvs_error != ESP_OK) return font_nvs_error;
+  strlcpy(test_persisted_fonts[!strcmp(key,NVS_KEY_SYS_FONT)],value,288);
+ }
  if((!strcmp(key,NVS_KEY_BOOKS_DIR)||!strcmp(key,NVS_KEY_FONTS_DIR))&&!commit_fails)
   strlcpy(loaded_dirs[!strcmp(key,NVS_KEY_FONTS_DIR)],value,sizeof(loaded_dirs[0]));
  return ESP_OK; }
@@ -815,6 +829,52 @@ int main(void) {
     }
     app_settings_set_book_px(17);assert(app_settings_book_px()==BOOK_READER_PX_DEFAULT);
     app_settings_set_book_px(91);assert(app_settings_book_px()==BOOK_READER_PX_DEFAULT);
+    assert(mkdir(FONT_SETTINGS_FLASH_ROOT, 0700) == 0);
+    app_settings_set_font_path("/sdcard/fonts/Old.ttf");
+    app_settings_set_system_font_path("/sdcard/fonts/OldSystem.ttf");
+    assert(access(reader_font_files.current, F_OK) != 0 && access(system_font_files.current, F_OK) != 0);
+
+    font_nvs_error = ESP_ERR_NVS_NOT_ENOUGH_SPACE;
+    app_settings_set_font_path("/sdcard/fonts/Bookerly.ttf");
+    app_settings_set_system_font_path(DEFAULT_READER_FONT);
+    assert(!strcmp(app_settings_font_path(), "/sdcard/fonts/Bookerly.ttf"));
+    assert(!strcmp(app_settings_system_font_path(), DEFAULT_READER_FONT));
+    assert(!strcmp(test_persisted_fonts[0], "/sdcard/fonts/Old.ttf"));
+    assert(!strcmp(test_persisted_fonts[1], "/sdcard/fonts/OldSystem.ttf"));
+    app_settings_init();
+    assert(!strcmp(app_settings_font_path(), "/sdcard/fonts/Bookerly.ttf"));
+    assert(!strcmp(app_settings_system_font_path(), DEFAULT_READER_FONT));
+
+    // An empty override is an explicit built-in choice. Backup sees the effective font.
+    app_settings_set_font_path("");
+    assert(!app_settings_font_path()[0]);
+    assert(app_settings_backup_save() == ESP_OK);
+    assert(mkdir(reader_font_files.temporary, 0700) == 0);
+    app_settings_set_font_path("/sdcard/fonts/Failed.ttf");
+    assert(!app_settings_font_path()[0]);
+    assert(rmdir(reader_font_files.temporary) == 0);
+    assert(rename(reader_font_files.current, reader_font_files.temporary) == 0);
+    app_settings_init();
+    assert(!strcmp(app_settings_font_path(), "/sdcard/fonts/Bookerly.ttf"));
+    assert(unlink(reader_font_files.temporary) == 0);
+
+    font_nvs_error = ESP_FAIL;
+    app_settings_set_system_font_path("");
+    assert(!strcmp(app_settings_system_font_path(), DEFAULT_READER_FONT));
+    font_nvs_error = ESP_ERR_NVS_NOT_ENOUGH_SPACE;
+    flash_mount_fails = true;
+    app_settings_set_system_font_path("");
+    assert(!strcmp(app_settings_system_font_path(), DEFAULT_READER_FONT));
+    flash_mount_fails = false;
+
+    font_nvs_error = ESP_OK;
+    app_settings_set_font_path(DEFAULT_READER_FONT);
+    assert(access(reader_font_files.current, F_OK) != 0 && access(reader_font_files.previous, F_OK) != 0);
+    assert(app_settings_backup_restore() == ESP_OK);
+    app_settings_init();
+    assert(!app_settings_font_path()[0]);
+    assert(!strcmp(app_settings_system_font_path(), DEFAULT_READER_FONT));
+    assert(rmdir(FONT_SETTINGS_FLASH_ROOT) == 0);
     puts("settings backup host test passed (200% sizes, retired shelf migration, collage persistence/restore without wallpaper)");
     return 0;
 }

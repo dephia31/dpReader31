@@ -184,11 +184,15 @@ void app_main(void) {
     app_settings_init();
     // 大缓冲/字体之前读取凭据；失败不缓存，后续入口仍可重试。/ Read credentials before large buffers/fonts; retry failed reads later.
     (void)lock_pin_enabled();
-    pico_boot_init(reset == ESP_RST_PANIC || reset == ESP_RST_INT_WDT ||
-                   reset == ESP_RST_TASK_WDT || reset == ESP_RST_WDT);
 
     read_pico_handle_t hw;
     if (read_pico_init(&hw) != ESP_OK) return;
+    read_pico_sd_info_t checkpoint_media = {0};
+    for (unsigned wait = 0; wait < 150 &&
+         read_pico_sd_get_info(&checkpoint_media) == ESP_ERR_NOT_FINISHED; ++wait)
+        vTaskDelay(pdMS_TO_TICKS(20));
+    pico_boot_init(reset == ESP_RST_PANIC || reset == ESP_RST_INT_WDT ||
+                   reset == ESP_RST_TASK_WDT || reset == ESP_RST_WDT);
 #if CONFIG_DPREADER_AUTO_RESTORE
     if (app_settings_autorestore_pending()) {
         read_pico_sd_info_t media = {0};
