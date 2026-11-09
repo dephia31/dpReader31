@@ -32,6 +32,7 @@ static stbtt_fontinfo font_info;
 a=text.index('typedef struct glyph_entry {');b=text.index('} glyph_entry_t;',a)+len('} glyph_entry_t;');unit+=text[a:b]+'\n'
 unit+=r'''
 static bool font_ready=true,bench_on;
+static uint32_t s_glyph_failures;
 static struct{uint64_t glyphs,hits,misses,raster_us;}bench;
 static int64_t esp_timer_get_time(void){return 0;}
 static void warm_runs(int px,const char *s){(void)px;(void)s;}
