@@ -2155,7 +2155,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : (DPREADER_LOVE_BOOK ? "1.3.9-love-vn" : "1.3.9-vn"), DPREADER_LOVE_BOOK ? "Love Book / S31" : "Full / S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : (DPREADER_LOVE_BOOK ? "1.4.0-love-vn" : "1.4.0-vn"), DPREADER_LOVE_BOOK ? "Love Book / S31" : "Full / S31");
         ui_text_caption(fb,(EpdRect){56,294,572,54},22,v_line,EPD_DRAW_ALIGN_LEFT,false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",

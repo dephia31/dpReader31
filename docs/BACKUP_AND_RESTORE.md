@@ -144,7 +144,7 @@ Không đọc/ghi thiết bị thật.
 
 ## Dữ liệu theo cuốn trên S31
 
-Từ `1.3.10RC2`, firmware tạo `/sdcard/.dpreader`, đặt thuộc tính Hidden trên FAT,
+Từ `1.4.0`, firmware tạo `/sdcard/.dpreader`, đặt thuộc tính Hidden trên FAT,
 và lưu tiến độ, tùy chọn trình bày theo đường dẫn sách trong `books/` (chia 16
 thư mục con để giới hạn số tệp mỗi thư mục). Tên tệp dùng hash 64-bit; bản ghi
 vẫn chứa đường dẫn đầy đủ để từ chối ghi đè khi xảy ra va chạm. Sách trong

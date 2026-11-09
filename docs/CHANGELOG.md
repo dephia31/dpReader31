@@ -1,12 +1,7 @@
-## dpReader 1.3.10RC2-vn / 1.3.10RC2-love-vn
+## dpReader 1.4.0-vn / 1.4.0-love-vn · 2026-11-09
 
-- Lưu tiến độ và tùy chọn trình bày riêng từng cuốn trong thư mục ẩn `.dpreader` trên thẻ; tiếp tục đọc được tiến độ cũ.
-- Chuyển dấu vết mở sách/khôi phục sang tệp có kiểm tra toàn vẹn, tránh chặn mở sách khi NVS đầy.
-- Sao lưu và khôi phục bao gồm dữ liệu đọc trên thẻ và cấu hình riêng từng cuốn; giữ cách lưu dự phòng font hệ thống của RC1.
-
-## dpReader 1.3.10RC1-vn / 1.3.10RC1-love-vn
-
-- Lưu lựa chọn font hệ thống và font đọc vào bộ nhớ trong khi NVS thiếu chỗ ghi.
+- Khắc phục lỗi NVS đầy làm đổi font thất bại hoặc chặn mở sách.
+- Lưu tiến độ và tùy chọn trình bày riêng từng cuốn vào thư mục ẩn trên thẻ. Tiếp tục đọc tiến độ cũ và hỗ trợ sao lưu, khôi phục.
 
 ## dpReader 1.3.9-vn / 1.3.9-love-vn · 2026-11-08
 
