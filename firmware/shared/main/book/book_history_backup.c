@@ -18,7 +18,14 @@
 #define history_alloc(size) malloc(size)
 #endif
 
-#define HISTORY_MAX_RECORDS 512
+#if (defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47) || defined(BOOK_STATE_STORE_TEST)
+#include "book_state_store.h"
+#define HISTORY_FILES 1
+#else
+#define HISTORY_FILES 0
+#endif
+
+#define HISTORY_MAX_RECORDS 16384
 #define HISTORY_MAX_VALUE 4096
 #define HISTORY_RECORD_HEADER 20
 
@@ -30,10 +37,30 @@ static const char *const namespaces[] = {
 #endif
 };
 
+#if HISTORY_FILES
+static bool history_nonempty(const char *path,const book_progress_t *v,void *ctx) {
+    (void)path;(void)v;*(bool*)ctx=false;return false;
+}
+static bool history_profile_nonempty(const char *path,const void *data,size_t size,void *ctx) {
+    (void)path;(void)data;if(size)*(bool*)ctx=false;return !size;
+}
+#endif
 esp_err_t book_history_backup_empty(bool *empty) {
     if (!empty) return ESP_ERR_INVALID_ARG;
     *empty = true;
+#if HISTORY_FILES
+    esp_err_t state=book_progress_list(history_nonempty,empty);
+    if(state!=ESP_OK||!*empty)return state;
+    const char *roots[]={BOOK_STATE_SD_ROOT,BOOK_STATE_FLASH_ROOT};
+    for(unsigned i=0;i<2;++i)if(book_state_ready(roots[i])) {
+        state=book_state_list(roots[i],"profile",history_profile_nonempty,empty);
+        if(state!=ESP_OK||!*empty)return state;
+    }
+#endif
     for (unsigned ns = 0; ns < sizeof(namespaces) / sizeof(namespaces[0]); ++ns) {
+#if HISTORY_FILES
+        if(ns==0)continue;
+#endif
         nvs_handle_t h;
         esp_err_t err = nvs_open(namespaces[ns], NVS_READONLY, &h);
         if (err == ESP_ERR_NVS_NOT_FOUND) continue;
@@ -62,6 +89,13 @@ static bool book_key(const char *key, char prefix) {
 }
 
 static bool valid_record(unsigned ns, uint8_t type, const char *key, const uint8_t *data, size_t len) {
+#if HISTORY_FILES
+    if(ns==6) {
+        return type==NVS_TYPE_BLOB&&!strcmp(key,"profile")&&len>=BOOK_STATE_KEY_MAX&&len<=HISTORY_MAX_VALUE&&
+            strnlen((const char*)data,BOOK_STATE_KEY_MAX)<BOOK_STATE_KEY_MAX&&
+            (!strncmp((const char*)data,"/sdcard/",8)||!strncmp((const char*)data,"/flash/books/",13));
+    }
+#endif
     if (ns >= sizeof(namespaces) / sizeof(namespaces[0]) || !key[0] ||
         strnlen(key, 16) == 16 || !len || len > HISTORY_MAX_VALUE) return false;
     if (ns == 0) {
@@ -116,13 +150,54 @@ static esp_err_t read_value(nvs_handle_t h, const nvs_entry_info_t *info, uint8_
     return err;
 }
 
+#if HISTORY_FILES
+typedef struct {FILE *file;uint32_t *hash;uint16_t *count;esp_err_t error;} history_files_t;
+static bool history_file_record(history_files_t *ctx,unsigned ns,uint8_t type,const char *key,const void *data,size_t size) {
+    if(*ctx->count==HISTORY_MAX_RECORDS||!valid_record(ns,type,key,data,size)){ctx->error=ESP_ERR_INVALID_STATE;return false;}
+    uint8_t head[HISTORY_RECORD_HEADER]={(uint8_t)ns,type};
+    memcpy(head+2,key,strlen(key));head[18]=size;head[19]=size>>8;
+    if(fwrite(head,1,sizeof(head),ctx->file)!=sizeof(head)||fwrite(data,1,size,ctx->file)!=size){ctx->error=ESP_FAIL;return false;}
+    *ctx->hash=hash_bytes(hash_bytes(*ctx->hash,head,sizeof(head)),data,size);++*ctx->count;return true;
+}
+static void history_put32(uint8_t *p,uint32_t n){for(unsigned i=0;i<4;++i)p[i]=n>>(8*i);}
+static uint32_t history_get32(const uint8_t *p){return (uint32_t)p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
+static bool history_progress(const char *path,const book_progress_t *v,void *opaque) {
+    uint8_t data[24+288]={0};size_t len=strlen(path)+1;if(len>288)return false;
+    memcpy(data,"RPB\2",4);history_put32(data+4,v->file_size);data[8]=v->chapter;data[9]=v->chapter>>8;
+    history_put32(data+10,v->byte_off);data[14]=v->px;data[15]=v->pct;history_put32(data+16,v->last_open_s);
+    data[22]=len;data[23]=len>>8;memcpy(data+24,path,len);
+    char key[16];snprintf(key,sizeof(key),"b_%08lx",(unsigned long)hash_bytes(2166136261u,path,len-1));
+    return history_file_record(opaque,0,NVS_TYPE_BLOB,key,data,24+len);
+}
+static bool history_profile(const char *path,const void *data,size_t size,void *opaque) {
+    history_files_t *ctx=opaque;
+    if(!size)return true;
+    if(size>HISTORY_MAX_VALUE-BOOK_STATE_KEY_MAX){ctx->error=ESP_ERR_INVALID_SIZE;return false;}
+    uint8_t *buffer=history_alloc(BOOK_STATE_KEY_MAX+size);
+    if(!buffer){ctx->error=ESP_ERR_NO_MEM;return false;}
+    memset(buffer,0,BOOK_STATE_KEY_MAX);strcpy((char*)buffer,path);memcpy(buffer+BOOK_STATE_KEY_MAX,data,size);
+    bool ok=history_file_record(ctx,6,NVS_TYPE_BLOB,"profile",buffer,BOOK_STATE_KEY_MAX+size);free(buffer);return ok;
+}
+static esp_err_t history_restore_file(unsigned ns,const char *key,const uint8_t *data,size_t size) {
+    if(ns==6)return book_state_write(book_state_root((const char*)data),(const char*)data,"profile",data+BOOK_STATE_KEY_MAX,size-BOOK_STATE_KEY_MAX);
+    if(!strcmp(key,"seq"))return ESP_OK;
+    if(!strcmp(key,"last"))return book_progress_set_last_path((const char*)data);
+    book_progress_t v={.file_size=history_get32(data+4),.chapter=data[8]|(uint16_t)data[9]<<8,
+        .byte_off=history_get32(data+10),.px=data[14],.pct=data[15],.last_open_s=data[3]==2?history_get32(data+16):0};
+    return book_progress_import((const char*)data+24,&v);
+}
+#endif
+
 esp_err_t book_history_backup_write(FILE *file) {
     if (!file) return ESP_ERR_INVALID_ARG;
-    static const char magic[8] = {'R','P','H','I','S','T','1',0};
+    static const char magic[8] = {'R','P','H','I','S','T',HISTORY_FILES ? '2' : '1',0};
     if (fwrite(magic, 1, 8, file) != 8) return ESP_FAIL;
     uint32_t hash = UINT32_C(2166136261);
     uint16_t count = 0;
     for (unsigned ns = 0; ns < sizeof(namespaces) / sizeof(namespaces[0]); ++ns) {
+#if HISTORY_FILES
+        if(ns==0)continue;
+#endif
         nvs_handle_t h;
         esp_err_t err = nvs_open(namespaces[ns], NVS_READONLY, &h);
         if (err == ESP_ERR_NVS_NOT_FOUND) continue;
@@ -158,6 +233,20 @@ esp_err_t book_history_backup_write(FILE *file) {
         nvs_close(h);
         if (err != ESP_ERR_NVS_NOT_FOUND) return err;
     }
+#if HISTORY_FILES
+    history_files_t files={file,&hash,&count,ESP_OK};
+    esp_err_t result=book_progress_list(history_progress,&files);
+    if(result!=ESP_OK)return result;
+    if(files.error!=ESP_OK)return files.error;
+    char last[288];
+    if(book_progress_last_path(last,sizeof(last))&&!history_file_record(&files,0,NVS_TYPE_STR,"last",last,strlen(last)+1))return files.error;
+    const char *roots[]={BOOK_STATE_SD_ROOT,BOOK_STATE_FLASH_ROOT};
+    for(unsigned i=0;i<2;++i)if(book_state_ready(roots[i])) {
+        result=book_state_list(roots[i],"profile",history_profile,&files);
+        if(result!=ESP_OK)return result;
+        if(files.error!=ESP_OK)return files.error;
+    }
+#endif
     uint8_t end[HISTORY_RECORD_HEADER] = {0xff};
     uint8_t seal[6] = {(uint8_t)count, (uint8_t)(count >> 8),
         (uint8_t)hash, (uint8_t)(hash >> 8), (uint8_t)(hash >> 16), (uint8_t)(hash >> 24)};
@@ -167,7 +256,7 @@ esp_err_t book_history_backup_write(FILE *file) {
 
 static esp_err_t read_stream(FILE *file, bool restore) {
     char magic[8];
-    if (fread(magic, 1, sizeof(magic), file) != sizeof(magic) || memcmp(magic, "RPHIST1", 8))
+    if (fread(magic, 1, sizeof(magic), file) != sizeof(magic) || (memcmp(magic, "RPHIST1", 8) && (!HISTORY_FILES || memcmp(magic, "RPHIST2", 8))))
         return ESP_ERR_INVALID_RESPONSE;
     uint32_t hash = UINT32_C(2166136261);
     uint16_t count = 0;
@@ -186,7 +275,7 @@ static esp_err_t read_stream(FILE *file, bool restore) {
         uint8_t type = head[1];
         char key[16]; memcpy(key, head + 2, sizeof(key));
         size_t len = (size_t)head[18] | ((size_t)head[19] << 8);
-        if (result != ESP_OK || ns >= sizeof(namespaces) / sizeof(namespaces[0]) ||
+        if (result != ESP_OK || ns >= sizeof(namespaces) / sizeof(namespaces[0]) + HISTORY_FILES ||
             strnlen(key, sizeof(key)) == sizeof(key) || !len || len > HISTORY_MAX_VALUE ||
             count == HISTORY_MAX_RECORDS) { result = ESP_ERR_INVALID_RESPONSE; break; }
         uint8_t *value = history_alloc(len);
@@ -198,6 +287,10 @@ static esp_err_t read_stream(FILE *file, bool restore) {
         hash = hash_bytes(hash, value, len);
         ++count;
         if (restore) {
+#if HISTORY_FILES
+            if(ns==0||ns==6)result=history_restore_file(ns,key,value,len);
+            else {
+#endif
             if (open_ns != (int)ns) {
                 if (open_ns >= 0) { result = nvs_commit(h); nvs_close(h); }
                 open_ns = -1;
@@ -211,6 +304,9 @@ static esp_err_t read_stream(FILE *file, bool restore) {
                 else result = nvs_set_blob(h, key, value, len);
             }
         }
+#if HISTORY_FILES
+        }
+#endif
         free(value);
         if (result != ESP_OK) break;
     }
@@ -239,7 +335,14 @@ esp_err_t book_history_backup_restore(FILE *file) {
     // Recovery replaces the old reading library. Merging leaves stale "last"
     // and per-book records behind, so the restored shelf can appear unchanged.
     // 恢复应替换旧阅读资料；合并会留下备份外的旧书进度与最近阅读排序。
+#if HISTORY_FILES
+    esp_err_t reset=book_progress_reset_files();
+    if(reset!=ESP_OK)return reset;
+#endif
     for (unsigned ns = 0; ns < sizeof(namespaces) / sizeof(namespaces[0]); ++ns) {
+#if HISTORY_FILES
+        if(ns==0)continue;
+#endif
         nvs_handle_t h;
         esp_err_t err = nvs_open(namespaces[ns], NVS_READWRITE, &h);
         if (err != ESP_OK) return err;

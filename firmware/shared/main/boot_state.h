@@ -50,3 +50,6 @@ void pico_boot_clear_resume(void);
 /// 仅导出本次启动发现的中断图书；不把一般异常归因给最后阅读的书。/ Export only a book interrupted on this boot, never blame the last read for a generic reset.
 bool pico_boot_interrupted_book(char *path, size_t capacity);
 void pico_boot_forget_interrupted_book(void);
+
+/* Factory reset clears startup files while retaining the reading library. */
+esp_err_t pico_boot_reset_files(void);

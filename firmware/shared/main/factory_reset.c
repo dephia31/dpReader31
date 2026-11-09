@@ -5,8 +5,18 @@
 #include "factory_reset.h"
 #include "dpreader_board_config.h"
 #include "nvs.h"
+#if DPREADER_BOARD_METALIO47 && defined(ESP_PLATFORM)
+#include "settings.h"
+#include "boot_state.h"
+#endif
 
 esp_err_t app_factory_reset(void) {
+#if DPREADER_BOARD_METALIO47 && defined(ESP_PLATFORM)
+    esp_err_t font_error = pico_boot_reset_files();
+    if (font_error != ESP_OK) return font_error;
+    font_error = app_settings_clear_flash_fonts();
+    if (font_error != ESP_OK) return font_error;
+#endif
     const char *names[] = {
         DPREADER_BOARD_SETTINGS_NAMESPACE, DPREADER_BOARD_STARTUP_NAMESPACE,
 #if DPREADER_BOARD_METALIO47

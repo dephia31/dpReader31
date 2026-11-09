@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0
  * 中文：有界内存与紧凑校验的 NVS 启动记录，兼容旧定长格式。开书中断保留原进度，不把不支持的缓存当图书。
  * English: Bounded-memory compact checked NVS startup state, compatible with the legacy fixed record. Interrupted opening preserves progress and unsupported caches are never treated as books.
- * 冻结：不擦除分区、不动态分配、不逐页写 Flash；恢复入口须先成功消费，资源失败回可操作页面。
- * Frozen: No partition erasure, allocations or per-page Flash writes. Consume resume successfully before using it; failed resources fall back to an operable page.
+ * 用户修订 2026-11-09：S31 启动记录改为带校验的 SD 文件，允许有界分配；不擦分区、不逐页写入，恢复入口须先成功消费。
+ * Frozen (user revision 2026-11-09): S31 checkpoints use checked SD files with bounded allocations; no partition erasure or per-page writes. Consume resume successfully before using it; failed resources fall back to an operable page.
  */
 #include "boot_state.h"
 #include "dpreader_board_config.h"
@@ -11,6 +11,13 @@
 #include "esp_log.h"
 #include "nvs.h"
 #include "book/book_file_path.h"
+#if DPREADER_BOARD_METALIO47 && (defined(ESP_PLATFORM) || defined(BOOK_STATE_STORE_TEST))
+#include "book/book_state_store.h"
+#define BOOT_FILE_STORE 1
+static const char *s_session_root;
+#else
+#define BOOT_FILE_STORE 0
+#endif
 
 #define BOOT_MAGIC UINT32_C(0x50425331)
 #define BOOT_PACKED_MAGIC UINT32_C(0x50425332)
@@ -110,6 +117,11 @@ static esp_err_t store(void) {
     s_record.checksum = checksum(&s_record);
     uint8_t packed[BOOT_PACKED_MAX];size_t size=pack_record(packed);
     if(!size)return ESP_ERR_INVALID_STATE;
+#if BOOT_FILE_STORE
+    esp_err_t result = book_state_write(s_session_root, "", "session", packed, size);
+    if (result != ESP_OK) ESP_LOGW("boot_state", "checkpoint file: %s", esp_err_to_name(result));
+    return result;
+#else
     nvs_handle_t h;
     esp_err_t err = nvs_open(DPREADER_BOARD_STARTUP_NAMESPACE, NVS_READWRITE, &h);
     s_writable=err==ESP_OK;
@@ -129,6 +141,7 @@ static esp_err_t store(void) {
     nvs_close(h);
     if (err != ESP_OK) ESP_LOGW("boot_state", "checkpoint: %s", esp_err_to_name(err));
     return err;
+#endif
 }
 void pico_boot_init(bool abnormal_reset) {
     memset(&s_record, 0, sizeof(s_record));
@@ -140,13 +153,27 @@ void pico_boot_init(bool abnormal_reset) {
     s_lock_pending = false;
     s_font_allowed = false;
 #endif
-    nvs_handle_t h;
-    esp_err_t err = nvs_open(DPREADER_BOARD_STARTUP_NAMESPACE, NVS_READWRITE, &h);
-    s_writable = err == ESP_OK;
+    uint8_t data[BOOT_PACKED_MAX]; size_t size = sizeof(data);
+    esp_err_t err;
+#if BOOT_FILE_STORE
+    s_session_root = book_state_ready(BOOK_STATE_SD_ROOT) ? BOOK_STATE_SD_ROOT : BOOK_STATE_FLASH_ROOT;
+    err = book_state_read(s_session_root, "", "session", data, &size);
+    s_writable = book_state_ready(s_session_root);
+    if (err == ESP_ERR_NOT_FOUND) {
+#endif
+        nvs_handle_t h;
+        err = nvs_open(DPREADER_BOARD_STARTUP_NAMESPACE, BOOT_FILE_STORE ? NVS_READONLY : NVS_READWRITE, &h);
+#if !BOOT_FILE_STORE
+        s_writable = err == ESP_OK || err == ESP_ERR_NVS_NOT_FOUND;
+#endif
+        if (err == ESP_OK) {
+            err = nvs_get_blob(h, "state", data, &size);
+            nvs_close(h);
+        }
+#if BOOT_FILE_STORE
+    }
+#endif
     if (s_writable) {
-        uint8_t data[BOOT_PACKED_MAX];size_t size=sizeof(data);
-        err = nvs_get_blob(h, "state", data, &size);
-        nvs_close(h);
         bool valid=err==ESP_OK&&size<=sizeof(data)&&unpack_record(data,size,&s_record);
         if(!valid&&err==ESP_OK&&size==sizeof(s_record)){
             memcpy(&s_record,data,sizeof(s_record));
@@ -267,4 +294,19 @@ void pico_boot_forget_interrupted_book(void) {
     s_interrupted = false;
     s_record.blocked[0] = 0;
     (void)store();
+}
+
+esp_err_t pico_boot_reset_files(void) {
+#if BOOT_FILE_STORE
+    boot_record_t previous=s_record;
+    memset(&s_record,0,sizeof(s_record));s_record.magic=BOOT_MAGIC;
+    uint8_t packed[BOOT_PACKED_MAX];size_t size=pack_record(packed);
+    s_record=previous;
+    const char *roots[]={BOOK_STATE_SD_ROOT,BOOK_STATE_FLASH_ROOT};
+    for(unsigned i=0;i<2;++i)if(book_state_ready(roots[i])) {
+        esp_err_t err=book_state_write(roots[i],"","session",packed,size);
+        if(err!=ESP_OK)return err;
+    }
+#endif
+    return ESP_OK;
 }

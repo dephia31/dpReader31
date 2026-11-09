@@ -7,7 +7,8 @@
  *
  * 冻结：独立 rp_books 命名空间；不擦除分区、不覆盖碰撞书籍。为可靠最近阅读排序，
  * v2 改用持久序号，v1 仍可恢复但排序为 0；遗忘只清指定路径，部分失败允许重试。
- * Frozen: use rp_books; never erase partitions or overwrite collisions. Reliable recent ordering uses
+ * User revision 2026-11-09: per-book SD files are primary on S31; old NVS/snapshots remain readable.
+ * Frozen: retain the legacy namespace; never erase partitions or overwrite collisions. Reliable recent ordering uses
  * persistent v2 sequences; v1 resumes with order zero. Forget only the given path, retrying partial failures.
  */
 #include "book_progress.h"
@@ -287,4 +288,23 @@ esp_err_t nvs_progress_set_last_path(const char* path) {
     return warn_error(err);
 }
 
+#if (defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47) || defined(BOOK_STATE_STORE_TEST)
+#define book_progress_load legacy_sd_progress_load
+#define book_progress_save legacy_sd_progress_save
+#define book_progress_last_path legacy_sd_progress_last_path
+#define book_progress_set_last_path legacy_sd_progress_set_last_path
+#define book_progress_clear legacy_sd_progress_clear
+#define book_progress_forget legacy_sd_progress_forget
+#define book_progress_list legacy_sd_progress_list
+#endif
 #include "book_progress_sd.h"
+#if (defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47) || defined(BOOK_STATE_STORE_TEST)
+#undef book_progress_load
+#undef book_progress_save
+#undef book_progress_last_path
+#undef book_progress_set_last_path
+#undef book_progress_clear
+#undef book_progress_forget
+#undef book_progress_list
+#include "./book_progress_files.h"
+#endif

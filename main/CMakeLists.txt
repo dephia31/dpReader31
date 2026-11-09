@@ -99,6 +99,7 @@ dpreader_board_sources(dpreader_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "ap
         "apps/usb_storage.c"
         "book/book_store.c"
         "book/book_progress.c"
+        "book/book_state_store.c"
         "book/book_history_backup.c"
         "book/book_title.c"
         "book/book_ticket.c"

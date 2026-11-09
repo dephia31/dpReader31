@@ -340,6 +340,16 @@ static esp_err_t mount_card(bool format_if_failed) {
         card = NULL;
         err = esp_vfs_fat_sdmmc_mount(SD_MOUNT_POINT, &host, &slot, &mount_config, &card);
         if (err == ESP_OK) {
+#ifdef ESP_PLATFORM
+            /* Dot prefix hides it in the reader; FAT Hidden also hides it on Windows. */
+            if (mkdir(SD_MOUNT_POINT "/.dpreader", 0775) == 0 || errno == EEXIST) {
+                BYTE drive = ff_diskio_get_pdrv_card(card);
+                char hidden[32];
+                snprintf(hidden, sizeof(hidden), "%u:/.dpreader", (unsigned)drive);
+                if (f_chmod(hidden, AM_HID, AM_HID) != FR_OK)
+                    ESP_LOGW(TAG, "Cannot set reading state directory hidden attribute");
+            }
+#endif
             sd_remember_profile(index);
             ESP_LOGI(TAG,"SD mounted profile: %d kHz/%d-bit preferred=%u attempt=%u",
                 profile.khz,profile.width,(unsigned)first,(unsigned)attempt+1);

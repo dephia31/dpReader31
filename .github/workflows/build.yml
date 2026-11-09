@@ -229,6 +229,10 @@ jobs:
           python3 tools/board_source_view.py --board "${{ matrix.board }}" --tests --output build/host/${{ matrix.board }}
           cd build/host/${{ matrix.board }}
           mkdir -p build/book-tests/settings-card
+          python3 tools/book_state_files_host_test.py
+          python3 tools/book_profile_host_test.py
+          python3 tools/boot_file_state_host_test.py
+          python3 tools/book_history_files_host_test.py
           python3 tools/reading_settings_host_test.py
           python3 tools/reader_controls_host_test.py
           python3 tools/reader_ui_scale_host_test.py

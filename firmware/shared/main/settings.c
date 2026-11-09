@@ -38,6 +38,12 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #include "read_pico_sd.h"
 #include "read_pico_transfer.h"
 #include "book/book_history_backup.h"
+#if defined(DPREADER_FONT_FLASH_TEST) || (defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47)
+#include "book/book_store.h"
+#include "font/font_settings_flash.h"
+#define FONT_FLASH_FALLBACK 1
+#endif
+
 
 #if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
 #include "metalio_preferences_backup.h"
@@ -59,6 +65,17 @@ static bool reader_full_pages_valid(uint8_t pages) {
 #define backup_alloc(size) calloc(1, (size))
 #endif
 #endif
+
+#if (defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47) || defined(BOOK_STATE_STORE_TEST)
+#include "book/book_state_store.h"
+#define BOOK_PROFILES 1
+#else
+#define BOOK_PROFILES 0
+#endif
+static bool book_profile_active(void);
+static bool book_profile_key(const char *key);
+static bool book_profile_u8(const char *key, uint8_t value);
+static bool book_profile_string(const char *key, const char *value);
 
 #if CONFIG_DPREADER_AUTO_BACKUP
 #if defined(ESP_PLATFORM) && (!DPREADER_BOARD_METALIO47 || !CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY)
@@ -228,6 +245,34 @@ static char s_status_signature[96];
 #define DEFAULT_READER_FONT "/builtin/Bitter-Regular.ttf"
 static char s_font[FONT_PATH_MAX] = DEFAULT_READER_FONT;
 static char s_system_font[FONT_PATH_MAX];
+
+#if FONT_FLASH_FALLBACK
+#ifndef FONT_SETTINGS_FLASH_ROOT
+#define FONT_SETTINGS_FLASH_ROOT "/flash"
+#endif
+static const font_settings_files_t reader_font_files = {
+    FONT_SETTINGS_FLASH_ROOT "/.reader-font", FONT_SETTINGS_FLASH_ROOT "/.reader-font.old", FONT_SETTINGS_FLASH_ROOT "/.reader-font.tmp",
+};
+static const font_settings_files_t system_font_files = {
+    FONT_SETTINGS_FLASH_ROOT "/.system-font", FONT_SETTINGS_FLASH_ROOT "/.system-font.old", FONT_SETTINGS_FLASH_ROOT "/.system-font.tmp",
+};
+
+static void load_flash_fonts(void) {
+    if (book_store_mount_flash() != ESP_OK) return;
+    char path[FONT_PATH_MAX];
+    if (font_settings_read(&reader_font_files, path, sizeof(path)))
+        strlcpy(s_font, path, sizeof(s_font));
+    if (font_settings_read(&system_font_files, path, sizeof(path)))
+        strlcpy(s_system_font, path, sizeof(s_system_font));
+}
+
+esp_err_t app_settings_clear_flash_fonts(void) {
+    if (book_store_mount_flash() != ESP_OK) return ESP_OK;
+    return font_settings_clear(&reader_font_files) && font_settings_clear(&system_font_files)
+        ? ESP_OK : ESP_FAIL;
+}
+#endif
+
 static uint8_t s_system_size = 100;
 static uint8_t s_system_contrast = 100;
 static uint8_t s_lock_style;
@@ -473,6 +518,9 @@ void app_settings_init(void) {
 #if CONFIG_DPREADER_AUTO_BACKUP
         s_auto_backup.healthy = false;
 #endif
+#if FONT_FLASH_FALLBACK
+        load_flash_fonts();
+#endif
         return;
     }
     uint8_t raw = APP_SLEEP_DEEP;
@@ -573,6 +621,9 @@ void app_settings_init(void) {
     font_len = sizeof(s_system_font);
     if (nvs_get_str(h, NVS_KEY_SYS_FONT, s_system_font, &font_len) != ESP_OK)
         s_system_font[0] = 0;
+#if FONT_FLASH_FALLBACK
+    load_flash_fonts();
+#endif
     uint8_t system_contrast = 100;
     if (nvs_get_u8(h, NVS_KEY_SYS_CONTRAST, &system_contrast) == ESP_OK &&
         system_contrast >= 100 && system_contrast <= 140 && system_contrast % 10 == 0)
@@ -982,6 +1033,34 @@ void app_settings_set_status_signature(const char *signature) {
         strlcpy(s_status_signature, signature, sizeof(s_status_signature));
 }
 
+
+#if FONT_FLASH_FALLBACK
+static bool save_font_path(const char *key, const font_settings_files_t *files, const char *path) {
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_str(h, key, path);
+        if (err == ESP_OK) err = nvs_commit(h);
+        nvs_close(h);
+    }
+    if (err == ESP_OK) {
+        if (book_store_flash_ready() && !font_settings_clear(files)) err = ESP_FAIL;
+    } else if (err == ESP_ERR_NVS_NOT_ENOUGH_SPACE && book_store_mount_flash() == ESP_OK) {
+        char scratch[FONT_PATH_MAX];
+        if (font_settings_write(files, path, scratch, sizeof(scratch))) {
+            ESP_LOGI(TAG, "saved %s in internal storage (NVS out of space)", key);
+            err = ESP_OK;
+        }
+    }
+#if CONFIG_DPREADER_AUTO_BACKUP
+    if (err == ESP_OK) ++s_auto_backup.revision;
+    else s_auto_backup.failed = true;
+#endif
+    if (err != ESP_OK) ESP_LOGE(TAG, "save %s: %s", key, esp_err_to_name(err));
+    return err == ESP_OK;
+}
+#endif
+
 const char* app_settings_font_path(void) {
     return s_font;
 }
@@ -990,7 +1069,12 @@ const char* app_settings_system_font_path(void) { return s_system_font; }
 void app_settings_set_system_font_path(const char* path) {
     if(!path)path="";
     if(strnlen(path,sizeof(s_system_font))>=sizeof(s_system_font))return;
-    if(nvs_put_str(NVS_KEY_SYS_FONT,path))strlcpy(s_system_font,path,sizeof(s_system_font));
+#if FONT_FLASH_FALLBACK
+    if(save_font_path(NVS_KEY_SYS_FONT, &system_font_files, path))
+#else
+    if(nvs_put_str(NVS_KEY_SYS_FONT,path))
+#endif
+        strlcpy(s_system_font,path,sizeof(s_system_font));
 }
 
 uint8_t app_settings_system_font_size(void) { return s_system_size; }
@@ -1041,6 +1125,7 @@ void app_settings_set_wallpaper_path(const char* path) {
 }
 
 static void nvs_put_u8(const char* key, uint8_t value) {
+    if (book_profile_active() && book_profile_key(key)) { (void)book_profile_u8(key, value); return; }
     nvs_handle_t h;
     if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
     backup_nvs_set_u8(h, key, value);
@@ -1081,13 +1166,20 @@ void app_settings_set_pickup_wake(bool on) {
 void app_settings_set_font_path(const char* path) {
     if(!path)path="";
     if(strnlen(path,sizeof(s_font))>=sizeof(s_font))return;
-    if(nvs_put_str(NVS_KEY_FONT,path))strlcpy(s_font,path,sizeof(s_font));
+    if(book_profile_active()){(void)book_profile_string(NVS_KEY_FONT,path);return;}
+#if FONT_FLASH_FALLBACK
+    if(save_font_path(NVS_KEY_FONT, &reader_font_files, path))
+#else
+    if(nvs_put_str(NVS_KEY_FONT,path))
+#endif
+        strlcpy(s_font,path,sizeof(s_font));
 }
 
 int8_t app_settings_book_weight(void) { return (int8_t)s_book_weight - 2; }
 bool app_settings_book_antialias(void) { return s_book_antialias; }
 bool app_settings_set_book_antialias(bool enabled) {
     if (enabled == s_book_antialias) return true;
+    if(book_profile_active())return book_profile_u8(NVS_KEY_BOOK_AA,enabled);
     nvs_handle_t h;
     if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
     esp_err_t err = backup_nvs_set_u8(h, NVS_KEY_BOOK_AA, enabled ? 1 : 0);
@@ -1100,6 +1192,7 @@ int8_t app_settings_book_weight_fine(void) {return s_book_weight_fine;}
 bool app_settings_set_book_weight_fine(int8_t steps) {
     if(steps < -APP_BOOK_WEIGHT_FINE_MAX || steps > APP_BOOK_WEIGHT_FINE_MAX)return false;
     if(steps==s_book_weight_fine)return true;
+    if(book_profile_active())return book_profile_u8(NVS_KEY_BOOK_WEIGHT_FINE,steps+APP_BOOK_WEIGHT_FINE_MAX);
     uint8_t legacy=(uint8_t)(steps/APP_BOOK_WEIGHT_SUBSTEPS+2);
     nvs_handle_t h;
     if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
@@ -1129,6 +1222,7 @@ const char *app_settings_book_background_path(void) { return s_book_background; 
 bool app_settings_set_book_background_path(const char *path) {
     if (!path || (path[0] && strncmp(path, "/sdcard/pictures/", 17)) ||
         strnlen(path, sizeof(s_book_background)) >= sizeof(s_book_background) || strstr(path, "/../")) return false;
+    if(book_profile_active())return book_profile_string(NVS_KEY_BOOK_BACKGROUND,path);
     nvs_handle_t h;
     if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
     esp_err_t err = backup_nvs_set_str(h, NVS_KEY_BOOK_BACKGROUND, path);
@@ -1347,6 +1441,7 @@ int8_t app_settings_book_word_spacing(void){return s_book_word_spacing;}
 bool app_settings_set_book_word_spacing(int8_t px) {
     if(px < -10 || px>20)return false;
     if(px==s_book_word_spacing)return true;
+    if(book_profile_active())return book_profile_u8("book_word_gap",(uint8_t)px);
     nvs_handle_t h;if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
     esp_err_t err=backup_nvs_set_u8(h,"book_word_gap",px);
     if(err==ESP_OK)err=settings_backup_commit(h);
@@ -1880,6 +1975,107 @@ static void reader_backup_apply(const reader_backup_t *profile) {
     s_control_holds[4]=s_reader_hold_action;
 }
 
+/* Per-book appearance is scoped to the open reader. Hardware actions remain global. */
+#if BOOK_PROFILES
+typedef struct {
+    uint32_t version, file_size;
+    reader_backup_t appearance;
+    uint8_t footer, status_hidden, reserved[2];
+} book_profile_t;
+static book_profile_t s_book_profile, s_book_defaults;
+static char s_profile_path[BOOK_STATE_KEY_MAX];
+static bool profile_field(unsigned i) {
+    return i == 0 || i == 1 || i == 2 || i == 6 || (i >= 13 && i <= 28);
+}
+static void profile_seal(reader_backup_t *v) {
+    uint32_t hash = reader_backup_checksum(v);
+    for(unsigned i=0;i<4;++i)v->checksum[i]=hash>>(8*i);
+}
+static void profile_apply(const book_profile_t *v) {
+    for(unsigned i=0;i<READER_BACKUP_FIELDS;++i)if(profile_field(i)) {
+        uint8_t value=v->appearance.values[i];
+        if(s_reader_backup_fields[i].fine)value=(uint8_t)(int8_t)((int)value-APP_BOOK_WEIGHT_FINE_MAX);
+        memcpy(s_reader_backup_fields[i].state,&value,1);
+    }
+    s_book_weight=s_book_weight_fine/APP_BOOK_WEIGHT_SUBSTEPS+2;
+    strlcpy(s_font,v->reserved[0]?"builtin":v->appearance.font,sizeof(s_font));
+    strlcpy(s_book_background,v->appearance.background,sizeof(s_book_background));
+    s_book_footer_enabled=v->footer;
+    s_book_status_hidden=v->status_hidden;
+}
+static bool book_profile_active(void){return s_profile_path[0]!=0;}
+static bool book_profile_key(const char *key) {
+    if(!strcmp(key,"rd_footer_on")||!strcmp(key,"rd_status_off"))return true;
+    for(unsigned i=0;i<READER_BACKUP_FIELDS;++i)
+        if(profile_field(i)&&!strcmp(key,s_reader_backup_fields[i].key))return true;
+    return false;
+}
+static bool profile_save(book_profile_t *candidate) {
+    profile_seal(&candidate->appearance);
+    esp_err_t err=reader_backup_valid(&candidate->appearance)?
+        book_state_write(book_state_root(s_profile_path),s_profile_path,"profile",candidate,sizeof(*candidate)):
+        ESP_ERR_INVALID_ARG;
+    if(err==ESP_OK){s_book_profile=*candidate;app_settings_autobackup_media_changed();}
+    else ESP_LOGW(TAG,"book appearance save: %s",esp_err_to_name(err));
+    profile_apply(&s_book_profile);
+    return err==ESP_OK;
+}
+static bool book_profile_u8(const char *key,uint8_t value) {
+    book_profile_t candidate=s_book_profile;
+    if(!strcmp(key,"rd_footer_on"))candidate.footer=value;
+    else if(!strcmp(key,"rd_status_off"))candidate.status_hidden=value;
+    else for(unsigned i=0;i<READER_BACKUP_FIELDS;++i)
+        if(profile_field(i)&&!strcmp(key,s_reader_backup_fields[i].key)) {
+            candidate.appearance.values[i]=!strcmp(key,NVS_KEY_BOOK_TRACK)?value-192:value;break;
+        }
+    return profile_save(&candidate);
+}
+static bool book_profile_string(const char *key,const char *value) {
+    book_profile_t candidate=s_book_profile;
+    if(!strcmp(key,NVS_KEY_FONT)){candidate.reserved[0]=!strcmp(value,"builtin");strlcpy(candidate.appearance.font,candidate.reserved[0]?"":value,sizeof(candidate.appearance.font));}
+    else strlcpy(candidate.appearance.background,value,sizeof(candidate.appearance.background));
+    return profile_save(&candidate);
+}
+void app_settings_book_profile_leave(void) {
+    if(!book_profile_active())return;
+    profile_apply(&s_book_defaults);s_profile_path[0]=0;
+}
+void app_settings_book_profile_enter(const char *path,uint32_t file_size) {
+    app_settings_book_profile_leave();
+    if(!path||strnlen(path,sizeof(s_profile_path))>=sizeof(s_profile_path))return;
+    memset(&s_book_defaults,0,sizeof(s_book_defaults));
+    s_book_defaults.version=1;s_book_defaults.file_size=file_size;
+    s_book_defaults.reserved[0]=!strcmp(s_font,"builtin");
+    reader_backup_capture(&s_book_defaults.appearance);
+    s_book_defaults.footer=s_book_footer_enabled;s_book_defaults.status_hidden=s_book_status_hidden;
+    s_book_profile=s_book_defaults;
+    strlcpy(s_profile_path,path,sizeof(s_profile_path));
+    book_profile_t loaded={0};size_t size=sizeof(loaded);
+    esp_err_t err=book_state_read(book_state_root(path),path,"profile",&loaded,&size);
+    if(err==ESP_OK&&size==sizeof(loaded)&&loaded.version==1&&loaded.file_size==file_size&&
+       loaded.footer<=1&&loaded.status_hidden<=1&&loaded.reserved[0]<=1&&reader_backup_valid(&loaded.appearance))s_book_profile=loaded;
+    else if(err!=ESP_ERR_NOT_FOUND&&!(err==ESP_OK&&(!size||loaded.file_size!=file_size)))
+        ESP_LOGW(TAG,"book appearance load: %s",esp_err_to_name(err));
+    profile_apply(&s_book_profile);
+}
+/* Global backups must not adopt the appearance of the currently open book. */
+static void profile_global_backup(reader_backup_t *v) {
+    if(!book_profile_active())return;
+    for(unsigned i=0;i<READER_BACKUP_FIELDS;++i)if(profile_field(i))v->values[i]=s_book_defaults.appearance.values[i];
+    memcpy(v->font,s_book_defaults.appearance.font,sizeof(v->font));
+    memcpy(v->background,s_book_defaults.appearance.background,sizeof(v->background));
+    profile_seal(v);
+}
+#else
+static bool book_profile_active(void){return false;}
+static bool book_profile_key(const char *key){(void)key;return false;}
+static bool book_profile_u8(const char *key,uint8_t value){(void)key;(void)value;return false;}
+static bool book_profile_string(const char *key,const char *value){(void)key;(void)value;return false;}
+void app_settings_book_profile_enter(const char *path,uint32_t size){(void)path;(void)size;}
+void app_settings_book_profile_leave(void){}
+static void profile_global_backup(reader_backup_t *v){(void)v;}
+#endif
+
 typedef struct {uint8_t actions[APP_HOME_UTILITY_SLOTS],checksum[4];} settings_backup_utilities_t;
 static uint32_t backup_utilities_checksum(const settings_backup_utilities_t *v) {
     uint32_t hash=2166136261u;for(unsigned i=0;i<APP_HOME_UTILITY_SLOTS;++i)hash=(hash^v->actions[i])*16777619u;return hash;
@@ -1986,6 +2182,9 @@ static esp_err_t preferences_capture(settings_backup_preferences_t *p) {
     p->ble_timeout = s_ble_timeout_minutes;
     p->ota_edition = s_ota_edition;
     p->status_hidden = s_book_status_hidden;
+#if BOOK_PROFILES
+    if(book_profile_active())p->status_hidden=s_book_defaults.status_hidden;
+#endif
 #if DPREADER_BOARD_METALIO47 && !DPREADER_LOVE_BOOK
     p->pin_grace = s_pin_grace_code_v;
 #endif
@@ -2129,6 +2328,9 @@ static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     f[BK_PARAGRAPH] = s_book_para;
     f[BK_SHELF] = s_shelf_style;
     strlcpy(work->backup.font, !strcmp(s_font, "builtin") ? "" : s_font, sizeof(work->backup.font));
+#if BOOK_PROFILES
+    if(book_profile_active())strlcpy(work->backup.font,s_book_defaults.appearance.font,sizeof(work->backup.font));
+#endif
     strlcpy(work->backup.system_font, s_system_font, sizeof(work->backup.system_font));
     strlcpy(work->backup.wallpaper, s_wallpaper, sizeof(work->backup.wallpaper));
     strlcpy(work->backup.books_dir, s_books_dir, sizeof(work->backup.books_dir));
@@ -2187,6 +2389,9 @@ static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     work->wifi_hash = backup_wifi_checksum(&work->wifi);
 
     strlcpy(work->background.path, s_book_background, sizeof(work->background.path));
+#if BOOK_PROFILES
+    if(book_profile_active())strlcpy(work->background.path,s_book_defaults.appearance.background,sizeof(work->background.path));
+#endif
     uint32_t background_hash = backup_background_checksum(&work->background);
     for (unsigned i = 0; i < 4; ++i) work->background.checksum[i] = (uint8_t)(background_hash >> (8 * i));
 
@@ -2219,6 +2424,7 @@ static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     for(unsigned i=0;i<4;i++)work->word_spacing.checksum[i]=word_hash>>(8*i);
     if(ok)ok=fwrite(&work->word_spacing,1,sizeof(work->word_spacing),file)==sizeof(work->word_spacing);
     reader_backup_capture(&work->reader);
+    profile_global_backup(&work->reader);
     if(ok)ok=reader_backup_valid(&work->reader)&&fwrite(&work->reader,1,sizeof(work->reader),file)==sizeof(work->reader);
     memcpy(work->utilities.actions,s_home_utilities,sizeof(work->utilities.actions));
     /* v24 packs the hidden-label flag in the first action's unused high bit. */
@@ -2234,6 +2440,9 @@ static esp_err_t backup_save_workspace(backup_workspace_t *work) {
     }
     work->accounts.kosync_auto = s_kosync_auto;
     work->accounts.footer_enabled = s_book_footer_enabled;
+#if BOOK_PROFILES
+    if(book_profile_active())work->accounts.footer_enabled=s_book_defaults.footer;
+#endif
     uint32_t accounts_hash = backup_accounts_checksum(&work->accounts);
     for (unsigned i = 0; i < 4; ++i) work->accounts.checksum[i] = accounts_hash >> (8*i);
     if (ok) ok = backup_accounts_valid(&work->accounts) &&
@@ -2684,6 +2893,9 @@ static esp_err_t backup_restore_workspace(backup_workspace_t *work, const char *
     if (err == ESP_OK && version >= 32) err = preferences_stage(h, &work->preferences);
     if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
+#if FONT_FLASH_FALLBACK
+    if (err == ESP_OK) err = app_settings_clear_flash_fonts();
+#endif
     if (err != ESP_OK) { backup_erase_secret(&work->wifi, sizeof(work->wifi)); return err; }
 #if CONFIG_DPREADER_AUTO_BACKUP
     if (version >= 27) s_auto_backup.enabled = (work->identity.reserved[0]&1) != 0;
@@ -2913,6 +3125,7 @@ esp_err_t app_settings_autorestore_boot(void) {
 
 static bool reader_edge_setting(bool *value,const char *key,bool on) {
     if(*value==on)return true;
+    if(book_profile_active()&&book_profile_key(key))return book_profile_u8(key,on);
     nvs_handle_t h;
     if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
     esp_err_t err=backup_nvs_set_u8(h,key,on?1:0);

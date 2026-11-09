@@ -1,3 +1,13 @@
+## dpReader 1.3.10RC2-vn / 1.3.10RC2-love-vn
+
+- Lưu tiến độ và tùy chọn trình bày riêng từng cuốn trong thư mục ẩn `.dpreader` trên thẻ; tiếp tục đọc được tiến độ cũ.
+- Chuyển dấu vết mở sách/khôi phục sang tệp có kiểm tra toàn vẹn, tránh chặn mở sách khi NVS đầy.
+- Sao lưu và khôi phục bao gồm dữ liệu đọc trên thẻ và cấu hình riêng từng cuốn; giữ cách lưu dự phòng font hệ thống của RC1.
+
+## dpReader 1.3.10RC1-vn / 1.3.10RC1-love-vn
+
+- Lưu lựa chọn font hệ thống và font đọc vào bộ nhớ trong khi NVS thiếu chỗ ghi.
+
 ## dpReader 1.3.9-vn / 1.3.9-love-vn · 2026-11-08
 
 - Sao lưu và khôi phục thêm cài đặt đọc, phím, nút lật trang Bluetooth đã học, tùy chọn hệ thống, đèn, rung và chống phai. Lưu tối đa 6 mạng Wi-Fi theo thứ tự ưu tiên và tiếp tục đọc được tệp sao lưu cũ.

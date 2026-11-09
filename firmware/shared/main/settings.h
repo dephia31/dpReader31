@@ -23,6 +23,10 @@ typedef enum {
 } app_sleep_mode_t;
 
 void app_settings_init(void);
+#if DPREADER_BOARD_METALIO47
+/// Retire internal font overrides after restoring or resetting the settings.
+esp_err_t app_settings_clear_flash_fonts(void);
+#endif
 app_sleep_mode_t app_settings_sleep_mode(void);
 #if DPREADER_BOARD_METALIO47
 typedef enum {
@@ -414,3 +418,7 @@ bool app_settings_reader_edge_brightness(void);
 bool app_settings_set_reader_edge_brightness(bool on);
 bool app_settings_reader_edge_warmth(void);
 bool app_settings_set_reader_edge_warmth(bool on);
+
+/* Scope appearance to one book; hardware bindings stay global. */
+void app_settings_book_profile_enter(const char *path, uint32_t file_size);
+void app_settings_book_profile_leave(void);
