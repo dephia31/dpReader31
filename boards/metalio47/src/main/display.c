@@ -968,7 +968,7 @@ enum EpdDrawError update_display_mode(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -985,7 +985,7 @@ enum EpdDrawError update_display_mode_diff(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1126,7 +1126,7 @@ enum EpdDrawError update_display_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1144,7 +1144,7 @@ enum EpdDrawError update_display_area_with(
     EpdRect area
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1162,7 +1162,7 @@ enum EpdDrawError update_display_area_diff_with(
     EpdRect area
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
