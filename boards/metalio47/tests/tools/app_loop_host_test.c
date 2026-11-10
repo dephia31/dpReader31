@@ -190,7 +190,7 @@ int ui_ai_menu_feed(ui_ai_menu_t*m,const app_ctx_t*c,bool valid){
 EpdRect ui_ai_menu_save_error(ui_ai_menu_t*m,uint8_t*f){(void)f;return m->rect;}
 const void *display_main_gray_waveform(void){return &E0470_WAVEFORM;}
 int metalio_take_volume(void) {if(step!=volume_step)return 0;volume_step=-1;return volume_value;}
-void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool enabled,unsigned b,unsigned w,bool soften_text) {assert(!soften_text);(void)fb;(void)wifi;(void)bluetooth;assert(enabled==light_enabled&&b==light_brightness_position&&w==light_warmth_position);fb[0]=0xaa;++quick_draws;}
+void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool enabled,bool inverted,unsigned b,unsigned w,bool soften_text) {assert(!soften_text);(void)fb;(void)wifi;(void)bluetooth;(void)inverted;assert(enabled==light_enabled&&b==light_brightness_position&&w==light_warmth_position);fb[0]=0xaa;++quick_draws;}
 void ui_quick_menu_draw_slider(uint8_t *fb,bool warmth,unsigned value) {
  (void)fb;unsigned expected=warmth?metalio_frontlight_position(true):ui_quick_brightness_position(metalio_frontlight_position(false));
  int raw=UI_QUICK_SLIDER_Y1-samples[step].y;if(raw<0)raw=0;if(raw>UI_QUICK_SLIDER_RANGE)raw=UI_QUICK_SLIDER_RANGE;

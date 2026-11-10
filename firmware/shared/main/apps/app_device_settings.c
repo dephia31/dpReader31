@@ -817,6 +817,7 @@ static const char *ai_action_label(app_ai_action_t action) {
         case APP_AI_NEXT_PAGE: return "Trang sau";
         case APP_AI_PREV_CHAPTER: return "Chương trước";
         case APP_AI_NEXT_CHAPTER: return "Chương sau";
+        case APP_AI_INVERT: return "Đảo màu";
         case APP_AI_LOCK: return "Khóa màn hình";
         case APP_AI_NONE:
         default: return "Không dùng";
@@ -836,6 +837,7 @@ static const char *reader_key_action_label(app_reader_key_action_t action) {
         case APP_READER_KEY_LIGHT: return "Tắt / Mở đèn nền";
         case APP_READER_KEY_ACTION_MENU:return "Menu thao tác nhanh";
         case APP_READER_KEY_KOSYNC: return "Đồng bộ KOSync";
+        case APP_READER_KEY_INVERT: return "Đảo màu";
         case APP_READER_KEY_LOCK: return "Khóa màn hình";
         case APP_READER_KEY_NONE:
         default: return "Không dùng";

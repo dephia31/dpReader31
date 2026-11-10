@@ -119,6 +119,7 @@ static void app_lock_request(void){++locks;}
 static bool app_book_reader_body_visible(void){return visible;}
 static bool app_book_ai_bookmark(void){++marks;return true;}
 static void metalio_haptic_click(void){++haptics;}
+static bool display_toggle_inverted(void){return true;}
 static void metalio_frontlight_toggle(void){++lights;}
 static void ui_nav_request(app_ctx_t *c,int tab){(void)c;assert(!tab);++home;}
 static void app_book_request_kosync(app_ctx_t *c){(void)c;++syncs;}
@@ -165,6 +166,7 @@ static bool app_download_active(void){return false;}
 typedef struct{int state;}read_pico_transfer_status_t;
 static void read_pico_transfer_get_status(read_pico_transfer_status_t *s){s->state=0;}
 static void ui_nav_request(app_ctx_t *c,int tab){(void)c;(void)tab;}
+static bool display_toggle_inverted(void){return true;}
 static void metalio_frontlight_toggle(void){}
 static bool app_book_reader_body_visible(void){return ready;}
 static int app_book_handle_key_action(app_ctx_t *c,int action){(void)c;(void)action;return 0;}

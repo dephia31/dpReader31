@@ -23,3 +23,9 @@ AA text normally uses GL. Disable AA to exercise DU on binary text pages. Images
 `tools/invert_settings_host_test.py` checks NVS persistence, errors and default-off behavior. These host checks do not establish optical quality or on-device latency.
 
 Hardware acceptance: repeated toggles; at least 50 turns with AA on/off; illustrated pages; opening/closing menus and frontlight sliders; rotation; sleep/wake/reboot; manual and periodic full refresh. Compare white-text edges, black-background ghosting, visible flashes and page latency.
+
+## RC9 controls
+
+Quick Settings includes a sixth contrast-icon toggle (bottom row, right). Its badge shares the persistent inversion preference with Settings > Display. Toggling keeps the quick layer open and performs one full presentation in the new polarity; a failed NVS save keeps the previous mode and reports a notice.
+
+The "Dao mau" action can be assigned to AI short press, volume buttons, front buttons and configurable holds. Existing stored action IDs are unchanged; the new IDs are appended. These bindings request full presentation only after persistence succeeds. USB/OTA ownership guards remain in place. The configurable action menu keeps its existing ten-action capacity and content; this addition targets Quick Settings and hardware bindings.

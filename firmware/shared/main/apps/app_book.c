@@ -2997,7 +2997,7 @@ static const char *reader_key_label(app_reader_key_action_t action) {
         "Trang trước", "Trang sau", "Thanh công cụ", "Thanh công cụ",
         "Về Trang chủ", "Làm mới trang", "Không dùng",
         "Chương trước", "Chương sau", "Bật/Tắt đèn", "Đồng bộ KOSync", "Menu thao tác nhanh",
-        "Khóa màn hình"
+        "Khóa màn hình", "Đảo màu"
     };
     return labels[action >= 0 && action < APP_READER_KEY_COUNT ? action : APP_READER_KEY_NONE];
 }
@@ -3081,7 +3081,7 @@ static void draw_key_settings(uint8_t *fb) {
 }
 static EpdRect reader_key_choice_rect(int action) {
     int slot = action > APP_READER_KEY_FULLSCREEN ? action - 1 : action;
-    return (EpdRect){36 + (slot % 2) * 314, 390 + (slot / 2) * 104, 298, 88};
+    return (EpdRect){36 + (slot % 2) * 314, 390 + (slot / 2) * 100, 298, 84};
 }
 static void draw_key_picker(uint8_t *fb) {
 #if DPREADER_BOARD_METALIO47
@@ -8738,6 +8738,12 @@ static app_redraw_t reader_key_action(app_ctx_t *ctx, app_reader_key_action_t ac
     if(book_notes_active()){book_notes_cancel();return APP_REDRAW_PAGE;}
     s_reader_tap.pending = false;
     switch (action) {
+        case APP_READER_KEY_INVERT:
+#if DPREADER_BOARD_METALIO47
+            return display_toggle_inverted()?APP_REDRAW_FULL:APP_REDRAW_NONE;
+#else
+            return APP_REDRAW_NONE;
+#endif
         case APP_READER_KEY_ACTION_MENU:app_action_menu_request();return APP_REDRAW_NONE;
         case APP_READER_KEY_LOCK:app_lock_request();return APP_REDRAW_NONE;
         case APP_READER_KEY_PREV: case APP_READER_KEY_NEXT:

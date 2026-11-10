@@ -41,7 +41,7 @@ int main(void){
  open();assert(feed(0,1250,1,true,false,true,true)==UI_QUICK_CLOSE);
  feed(0,1250,0,false,true,true,true);
  open();assert(feed(0,0,0,false,false,false,true)==UI_QUICK_CLOSE&&!menu.open);
- open();feed(244,284,1,true,false,true,true);assert(feed(244,284,0,false,true,true,true)==UI_QUICK_FRONTLIGHT);
+ open();feed(186,284,1,true,false,true,true);assert(feed(186,284,0,false,true,true,true)==UI_QUICK_FRONTLIGHT);
  assert(feed(426,344,1,true,false,true,true)==UI_QUICK_BRIGHTNESS&&menu.slider_value==0);
  assert(feed(426,224,1,false,false,true,true)==UI_QUICK_BRIGHTNESS&&menu.slider_value==20);
  assert(menu.slider_position==120);
@@ -56,7 +56,7 @@ int main(void){
  assert(feed(572,104,1,true,false,true,true)==UI_QUICK_WARMTH&&menu.slider_value==100);
  ui_quick_menu_cancel_input(&menu);assert(feed(572,104,0,false,true,true,true)==UI_QUICK_NONE&&menu.open);
  for(int i=0;i<UI_QUICK_BUTTON_COUNT;i++) {
-  static const ui_quick_action_t actions[]={UI_QUICK_WIFI,UI_QUICK_BLUETOOTH,UI_QUICK_KOSYNC,UI_QUICK_FULL,UI_QUICK_FRONTLIGHT};
+  static const ui_quick_action_t actions[]={UI_QUICK_WIFI,UI_QUICK_BLUETOOTH,UI_QUICK_KOSYNC,UI_QUICK_FULL,UI_QUICK_FRONTLIGHT,UI_QUICK_INVERT};
   feed(UI_QUICK_CENTER_X(i),UI_QUICK_CENTER_Y(i),1,true,false,true,true);
   assert(feed(UI_QUICK_CENTER_X(i),UI_QUICK_CENTER_Y(i),0,false,true,true,true)==actions[i]);
  }

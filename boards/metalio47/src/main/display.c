@@ -87,6 +87,11 @@ void display_page_prepare_end(bool held) {
     (void)held;metalio_tps_cancel_prepare();
 }
 void display_request_full_refresh(void) { s_full_refresh_requested = true; }
+bool display_toggle_inverted(void) {
+    if(!app_settings_set_screen_inverted(!app_settings_screen_inverted()))return false;
+    display_request_full_refresh();
+    return true;
+}
 static int s_pclk_mhz = DISPLAY_PCLK_DEFAULT_MHZ;
 
 void display_set_bulk_io(bool active) {

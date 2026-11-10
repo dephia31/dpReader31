@@ -24,7 +24,8 @@ typedef struct{int state;}read_pico_transfer_status_t;
 #define READ_PICO_TRANSFER_UPLOADING 1
 static bool app_download_active(void){return download;}
 static void read_pico_transfer_get_status(read_pico_transfer_status_t*s){s->state=upload;}
-static int homes,lights,menus,locks,reader_calls;
+static int homes,lights,menus,locks,reader_calls,inverts;
+static bool display_toggle_inverted(void){++inverts;return true;}
 static uint8_t app_settings_control_hold(unsigned key){assert(key<7);return action;}
 static bool usb_storage_active(void){return usb;}
 static bool pico_online_busy(void){return busy;}
@@ -48,7 +49,7 @@ int main(void){app_ctx_t ctx={0};
    int before=reader_calls,before_locks=locks;control_hold_action(&ctx,&other,key);assert(reader_calls==before);
    if(action==APP_READER_KEY_LOCK)assert(locks==before_locks+1);
    body=true;app_redraw_t r=control_hold_action(&ctx,&app_book,key);
-   if(action==APP_READER_KEY_REFRESH)assert(r==APP_REDRAW_FULL);
+   if(action==APP_READER_KEY_REFRESH||action==APP_READER_KEY_INVERT)assert(r==APP_REDRAW_FULL);
    else if(action==APP_READER_KEY_HOME||action==APP_READER_KEY_LIGHT||action==APP_READER_KEY_ACTION_MENU||action==APP_READER_KEY_LOCK||action==APP_READER_KEY_NONE)assert(r==APP_REDRAW_NONE);
    else assert(r==APP_REDRAW_PAGE&&reader_calls==before+1);
   }
@@ -58,7 +59,7 @@ int main(void){app_ctx_t ctx={0};
  assert(control_hold_action(&ctx,&blocked,0)==APP_REDRAW_NONE);
  blocked.holds_pmu=false;blocked.navigation_enabled=navigation_denied;
  assert(control_hold_action(&ctx,&blocked,0)==APP_REDRAW_NONE);
- assert(homes&&lights&&menus&&locks&&reader_calls);puts("PASS actual hold dispatch:7 keys,USB/OTA/navigation guards,global Home/light/refresh/lock/menu,reader-only page/chapter/tools/sync");}
+ assert(homes&&lights&&menus&&locks&&reader_calls&&inverts);puts("PASS actual hold dispatch:7 keys,USB/OTA/navigation guards,global Home/light/refresh/lock/menu,reader-only page/chapter/tools/sync");}
 '''
 with tempfile.TemporaryDirectory() as directory:
  p=Path(directory);(p/'test.c').write_text(unit)

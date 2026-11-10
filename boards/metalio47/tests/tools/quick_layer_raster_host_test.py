@@ -119,7 +119,7 @@ int main(void){
 
  for(rotation=0;rotation<4;++rotation){
   for(int policy=0;policy<3;++policy){
-   patterned();texts=0;ui_quick_menu_draw(frame,true,false,true,30,50,false);
+   patterned();texts=0;ui_quick_menu_draw(frame,true,false,true,false,30,50,false);
    if(!(rotation&1)){assert(!live&&!memcmp(frame,saved,BYTES));continue;}
    assert(live==2&&texts==0&&live_bytes==UI_LOCK_WIDTH*UI_QUICK_HEIGHT/2+UI_QUICK_BUTTON_COUNT*KEY_BYTES);int grays=0;
    for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x){
@@ -153,11 +153,11 @@ int main(void){
    for(int y=0;y<epd_rotated_display_height();++y)for(int x=0;x<epd_rotated_display_width();++x)
     if(x<notice.x||x>=notice.x+notice.width||y<notice.y||y>=notice.y+notice.height)assert(pixel(frame,x,y)==pixel(again,x,y));
    assert(ui_quick_menu_restore(frame)&&!memcmp(frame,saved,BYTES));ui_quick_menu_end();assert(!live);
-   for(int fail=0;fail<8;++fail){fail_after=fail;ui_quick_menu_draw(frame,true,false,true,120,120,false);int after_open=allocs;
+   for(int fail=0;fail<8;++fail){fail_after=fail;ui_quick_menu_draw(frame,true,false,true,false,120,120,false);int after_open=allocs;
     for(int n=0;n<40;n++){EpdRect dirty;assert(ui_quick_menu_draw_button(frame,n%4,n&1,n&2,&dirty));}assert(allocs==after_open);
     ui_quick_menu_end();assert(!live);fail_after=-1;memcpy(frame,saved,BYTES);
    }
-   oom=true;ui_quick_menu_draw(frame,true,false,false,30,50,false);assert(!live&&!ui_quick_menu_restore(frame));
+   oom=true;ui_quick_menu_draw(frame,true,false,false,false,30,50,false);assert(!live&&!ui_quick_menu_restore(frame));
    for(unsigned button=0;button<UI_QUICK_BUTTON_COUNT;button++){EpdRect d;assert(ui_quick_menu_draw_button(frame,button,true,true,&d));}ui_quick_menu_end();oom=false;
   }
   for(int warm=0;warm<2;++warm)for(unsigned v=0;v<=240;v+=120){
@@ -336,7 +336,7 @@ int main(void){
  memset(han+5,0,sizeof(han)-5);for(int y=0;y<72;++y)for(int x=0;x<72;++x)assert(!ui_hanzi_coverage(han,72,72,x,y));
  memset(han+5,255,sizeof(han)-5);assert(ui_hanzi_coverage(han,39,39,19,19)==255);
  for(rotation=1;rotation<4;rotation+=2){
-  patterned();ui_quick_menu_draw(frame,true,false,true,30,50,true);
+  patterned();ui_quick_menu_draw(frame,true,false,true,false,30,50,true);
   assert(ui_quick_menu_restore(frame)&&!memcmp(frame,saved,BYTES));
   ui_quick_menu_end();assert(!live);
  }

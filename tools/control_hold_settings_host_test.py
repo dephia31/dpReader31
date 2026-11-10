@@ -42,8 +42,8 @@ int main(void){
  for(unsigned k=0;k<7;++k){
   uint8_t old=app_settings_control_hold(k);
   assert(!app_settings_set_control_hold(k,APP_READER_KEY_FULLSCREEN));
-  for(failure=1;failure<=3;++failure){assert(!app_settings_set_control_hold(k,APP_READER_KEY_NEXT_CHAPTER));assert(app_settings_control_hold(k)==old);}
-  failure=0;assert(app_settings_set_control_hold(k,APP_READER_KEY_NEXT_CHAPTER));assert(app_settings_control_hold(k)==APP_READER_KEY_NEXT_CHAPTER);
+  for(failure=1;failure<=3;++failure){assert(!app_settings_set_control_hold(k,APP_READER_KEY_INVERT));assert(app_settings_control_hold(k)==old);}
+  failure=0;assert(app_settings_set_control_hold(k,APP_READER_KEY_INVERT));assert(app_settings_control_hold(k)==APP_READER_KEY_INVERT);
   if(k!=4)assert(!strcmp(last_key,s_control_hold_names[k]));
   assert(app_settings_set_control_hold(k,APP_CONTROL_HOLD_DEFAULT));
   assert(app_settings_control_hold(k)==(k==4?APP_READER_KEY_HOME:APP_CONTROL_HOLD_DEFAULT));

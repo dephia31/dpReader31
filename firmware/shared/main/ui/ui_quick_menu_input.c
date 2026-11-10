@@ -143,7 +143,7 @@ bool ui_quick_menu_feed(ui_quick_menu_t *menu, const app_ctx_t *ctx, bool allowe
             if (menu->hit >= 0 && hit_test(x, y) == menu->hit) {
                 static const ui_quick_action_t actions[] = {
 #if DPREADER_BOARD_METALIO47
-                    UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_KOSYNC, UI_QUICK_FULL, UI_QUICK_FRONTLIGHT,
+                    UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_KOSYNC, UI_QUICK_FULL, UI_QUICK_FRONTLIGHT, UI_QUICK_INVERT,
 #else
                     UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_FULL, UI_QUICK_LOCK,
 #endif

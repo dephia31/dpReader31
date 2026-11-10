@@ -177,3 +177,8 @@ void guard_draw_result(EpdiyHighlevelState* hl, enum EpdDrawError result);
 #ifdef __cplusplus
 }
 #endif
+
+#if DPREADER_BOARD_METALIO47
+// Persist the shared inversion preference and request one complete refresh.
+bool display_toggle_inverted(void);
+#endif

@@ -187,7 +187,7 @@ static unsigned quick_status(void) {
     read_pico_transfer_get_status(&status);
     bool wifi = status.mode == READ_PICO_TRANSFER_MODE_STA && status.state != READ_PICO_TRANSFER_STOPPED;
 #if DPREADER_BOARD_METALIO47
-    return (wifi ? 1u : 0u) | (app_settings_ble_turner() ? 2u : 0u) | (status.network_ready ? 4u : 0u) | (metalio_frontlight_enabled()?8u:0u);
+    return (wifi ? 1u : 0u) | (app_settings_ble_turner() ? 2u : 0u) | (status.network_ready ? 4u : 0u) | (metalio_frontlight_enabled()?8u:0u) | (app_settings_screen_inverted()?16u:0u);
 #else
     return (wifi ? 1u : 0u) | (app_settings_ble_turner() ? 2u : 0u) | (status.network_ready ? 4u : 0u);
 #endif
@@ -205,7 +205,7 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
     if(full&&s_quick.open){
         // 复用合成帧，只还原按压键；不重排底页或重算玻璃。/ Reuse the composed frame, restoring pressed keys without re-rendering or reblurring.
 #if DPREADER_BOARD_METALIO47
-        static const unsigned bits[]={1u,2u,0u,0u,8u};
+        static const unsigned bits[]={1u,2u,0u,0u,8u,16u};
 #else
         static const unsigned bits[]={1u,2u,0u,0u};
 #endif
@@ -224,7 +224,7 @@ static void quick_present(app_ctx_t *ctx, const app_desc_t *current, bool full) 
             s_quick_slider_level[1]=metalio_frontlight_position(true);
             s_quick_slider_drawn[0]=ui_quick_brightness_position(s_quick_slider_level[0]);
             s_quick_slider_drawn[1]=metalio_frontlight_position(true);
-            ui_quick_menu_draw(ctx->fb,status&1u,status&2u,status&8u,metalio_frontlight_position(false),s_quick_slider_drawn[1],
+            ui_quick_menu_draw(ctx->fb,status&1u,status&2u,status&8u,status&16u,metalio_frontlight_position(false),s_quick_slider_drawn[1],
                 current==&app_book&&app_book_reader_body_visible());
         }else{
             bool restored=ui_quick_menu_restore(ctx->fb);ui_quick_menu_end();
@@ -306,7 +306,8 @@ static void quick_notice_begin(int kind,esp_err_t error) {
 static EpdRect quick_notice_poll(uint8_t *fb) {
     if(!s_quick_notice_kind)return (EpdRect){0};
     const char *text;
-    if(s_quick_notice_error!=ESP_OK) {
+    if(s_quick_notice_kind==3)text="Đảo màu: không lưu được cài đặt";
+    else if(s_quick_notice_error!=ESP_OK) {
         text=s_quick_notice_kind==2?"Không thể bật/tắt Bluetooth":
             s_quick_notice_error==ESP_ERR_NOT_FOUND?"Chưa lưu mạng Wi-Fi":
             s_quick_notice_error==ESP_ERR_INVALID_STATE?"Wi-Fi đang bận truyền tệp":"Không thể bật/tắt Wi-Fi";
@@ -333,9 +334,9 @@ static void quick_buttons_present(app_ctx_t *ctx,const app_desc_t *current) {
 #endif
     if(!s_quick.open)return;
 #if DPREADER_BOARD_METALIO47
-    unsigned status=quick_status(),changed=(status^s_quick_status)&11u;
+    unsigned status=quick_status(),changed=(status^s_quick_status)&27u;
     int pressed=ui_quick_menu_pressed(&s_quick);EpdRect dirty=quick_notice_poll(ctx->fb);
-    static const unsigned bits[]={1u,2u,0u,0u,8u};
+    static const unsigned bits[]={1u,2u,0u,0u,8u,16u};
     for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i)if((changed&bits[i])||((pressed==(int)i)!=(s_quick_pressed==(int)i))) {
         EpdRect r;if(ui_quick_menu_draw_button(ctx->fb,i,(status&bits[i])!=0,pressed==(int)i,&r))dirty=quick_join(dirty,r);
 #else
@@ -756,6 +757,14 @@ static app_redraw_t main_key_action(app_ctx_t *ctx,const app_desc_t *current,int
 }
 
 static app_redraw_t front_key_dispatch(app_ctx_t *ctx,const app_desc_t *current,int key,bool held) {
+#if DPREADER_BOARD_METALIO47
+    unsigned slot=key==UI_KEY_1?5:key==UI_KEY_2?4:6;
+    unsigned action=held?app_settings_control_hold(slot):app_settings_reader_key_action(key==UI_KEY_1?0:key==UI_KEY_2?1:2);
+    if(action==APP_READER_KEY_INVERT) {
+        if(usb_storage_active()||pico_online_busy())return APP_REDRAW_NONE;
+        return display_toggle_inverted()?APP_REDRAW_FULL:APP_REDRAW_NONE;
+    }
+#endif
     if(front_key_opens_action_menu(key,held)){app_action_menu_request();return APP_REDRAW_NONE;}
     if(front_key_locks(key,held)){app_lock_request();return APP_REDRAW_NONE;}
     if(main_page_ready(ctx,current))return main_key_action(ctx,current,key,held);
@@ -775,6 +784,7 @@ static app_redraw_t control_hold_action(app_ctx_t *ctx,const app_desc_t *current
     if(action==APP_READER_KEY_LOCK){app_lock_request();return APP_REDRAW_NONE;}
     if(action==APP_READER_KEY_HOME){ui_nav_request(ctx,0);return APP_REDRAW_NONE;}
     if(action==APP_READER_KEY_REFRESH)return APP_REDRAW_FULL;
+    if(action==APP_READER_KEY_INVERT)return display_toggle_inverted()?APP_REDRAW_FULL:APP_REDRAW_NONE;
     if(action==APP_READER_KEY_LIGHT){metalio_frontlight_toggle();return APP_REDRAW_NONE;}
     extern const app_desc_t app_book;
     if(current==&app_book && app_book_reader_body_visible())return app_book_handle_key_action(ctx,action);
@@ -788,6 +798,7 @@ static app_redraw_t volume_key_action(app_ctx_t *ctx,const app_desc_t *current,i
     int key=volume<0?UI_KEY_1:UI_KEY_3;
     app_reader_key_action_t vol_action=app_settings_volume_key_action(volume<0?0:1);
     if(vol_action==APP_READER_KEY_ACTION_MENU){app_action_menu_request();return APP_REDRAW_NONE;}
+    if(vol_action==APP_READER_KEY_INVERT)return display_toggle_inverted()?APP_REDRAW_FULL:APP_REDRAW_NONE;
     if(vol_action==APP_READER_KEY_LOCK){app_lock_request();return APP_REDRAW_NONE;}
     if(main_page_ready(ctx,current))return main_key_action(ctx,current,key,false);
     app_redraw_t redraw = APP_REDRAW_NONE;
@@ -831,6 +842,7 @@ static app_redraw_t ai_run_action(app_ctx_t *ctx,const app_desc_t *current,app_a
     }
     (void)metalio_haptic_click();
     if(action==APP_AI_REFRESH)return APP_REDRAW_FULL;
+    if(action==APP_AI_INVERT)return display_toggle_inverted()?APP_REDRAW_FULL:APP_REDRAW_NONE;
     if(action==APP_AI_FRONTLIGHT){metalio_frontlight_toggle();return APP_REDRAW_NONE;}
     if(action==APP_AI_HOME){ui_nav_request(ctx,0);return APP_REDRAW_NONE;}
     if(action==APP_AI_KOSYNC){
@@ -1426,6 +1438,10 @@ void app_loop_run(const app_loop_config_t* config) {
                     quick_dismiss(&ctx, current, false);
                     extern void app_book_request_kosync(app_ctx_t *ctx);
                     app_book_request_kosync(&ctx);
+                }
+                else if(action==UI_QUICK_INVERT) {
+                    if(display_toggle_inverted())quick_present(&ctx,current,true);
+                    else quick_notice_begin(3,ESP_FAIL);
                 }
                 else if(action==UI_QUICK_FRONTLIGHT) {
                     metalio_frontlight_toggle();

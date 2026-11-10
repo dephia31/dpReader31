@@ -16,7 +16,7 @@
 enum { KEY_SIDE=2*UI_QUICK_RADIUS, KEY_BYTES=KEY_SIDE*KEY_SIDE/2, TOP_BYTES=UI_LOCK_WIDTH*UI_QUICK_HEIGHT/2 };
 static uint8_t *s_underlay,*s_key_pixels,*s_frame;
 static int s_rotation;
-static const ui_icon_t icons[]={UI_ICON_WIFI,UI_ICON_BLUETOOTH,UI_ICON_ROTATE_CW,UI_ICON_REFRESH_CW,UI_ICON_LIGHTBULB};
+static const ui_icon_t icons[]={UI_ICON_WIFI,UI_ICON_BLUETOOTH,UI_ICON_ROTATE_CW,UI_ICON_REFRESH_CW,UI_ICON_LIGHTBULB,UI_ICON_CONTRAST};
 static EpdRect key_rect(unsigned i) { return (EpdRect){UI_QUICK_CENTER_X(i)-UI_QUICK_RADIUS,UI_QUICK_CENTER_Y(i)-UI_QUICK_RADIUS,KEY_SIDE,KEY_SIDE}; }
 EpdRect ui_quick_button_rect(unsigned i) { return key_rect(i); }
 void ui_quick_menu_end(void) { heap_caps_free(s_underlay);heap_caps_free(s_key_pixels);s_underlay=s_key_pixels=s_frame=NULL; }
@@ -191,7 +191,7 @@ bool ui_quick_menu_restore(uint8_t *fb) {
 }
 #endif
 #if DPREADER_BOARD_METALIO47
-void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool frontlight,unsigned brightness,unsigned warmth,bool soften_text) {
+void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool frontlight,bool inverted,unsigned brightness,unsigned warmth,bool soften_text) {
 #else
 static void restore_circle(uint8_t *fb,const uint8_t *saved,int cx) {
     const int cy=UI_QUICK_CIRCLE_Y,r=UI_QUICK_RADIUS;
@@ -235,7 +235,7 @@ void ui_quick_menu_draw(uint8_t *fb,bool wifi,bool bluetooth,bool soften_text) {
     s_key_pixels=heap_caps_malloc(UI_QUICK_BUTTON_COUNT*KEY_BYTES,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
 #if DPREADER_BOARD_METALIO47
     if(s_key_pixels)for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i)save_tile(fb,key_rect(i),s_key_pixels+i*KEY_BYTES);
-    for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i){EpdRect dirty;ui_quick_menu_draw_button(fb,i,(i==0&&wifi)||(i==1&&bluetooth)||(i==4&&frontlight),false,&dirty);}
+    for(unsigned i=0;i<UI_QUICK_BUTTON_COUNT;++i){EpdRect dirty;ui_quick_menu_draw_button(fb,i,(i==0&&wifi)||(i==1&&bluetooth)||(i==4&&frontlight)||(i==5&&inverted),false,&dirty);}
     ui_quick_menu_draw_slider(fb,false,ui_quick_brightness_position(brightness));ui_quick_menu_draw_slider(fb,true,warmth);
     ui_fill_round_rect(fb,(EpdRect){UI_LOCK_WIDTH/2-26,UI_QUICK_HEIGHT-24,52,6},3,0x70);
 #else

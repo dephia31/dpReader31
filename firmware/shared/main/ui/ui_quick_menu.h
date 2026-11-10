@@ -13,13 +13,12 @@
 #define UI_QUICK_SWIPE_PX 60
 #if DPREADER_BOARD_METALIO47
 #define UI_QUICK_HEIGHT 384
-#define UI_QUICK_BUTTON_COUNT 5
+#define UI_QUICK_BUTTON_COUNT 6
 static inline int ui_quick_center_x(unsigned i) {
     if (i == 0) return 76;
     if (i == 1) return 186;
     if (i == 2) return 296;
-    if (i == 3) return 131;
-    return 241;
+    return 76+110*(i-3);
 }
 static inline int ui_quick_center_y(unsigned i) {
     return (i < 3) ? 152 : 284;
@@ -46,7 +45,7 @@ static inline int ui_quick_center_y(unsigned i) {
 typedef enum {
     UI_QUICK_NONE, UI_QUICK_OPEN, UI_QUICK_CLOSE,
 #if DPREADER_BOARD_METALIO47
-    UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_KOSYNC, UI_QUICK_FULL, UI_QUICK_FRONTLIGHT,
+    UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_KOSYNC, UI_QUICK_FULL, UI_QUICK_FRONTLIGHT, UI_QUICK_INVERT,
     UI_QUICK_BRIGHTNESS, UI_QUICK_WARMTH, UI_QUICK_LIGHT_COMMIT,
 #else
     UI_QUICK_WIFI, UI_QUICK_BLUETOOTH, UI_QUICK_FULL, UI_QUICK_LOCK,
@@ -78,7 +77,7 @@ void ui_quick_menu_cancel_input(ui_quick_menu_t *menu);
 /// soften_text仅用于阅读正文：轻微柔化玻璃背后的文字，收起恢复原像素，点按不重复模糊。
 /// soften_text is for reader body only: gently blur text behind glass, restore original pixels on close and never reblur on input.
 #if DPREADER_BOARD_METALIO47
-void ui_quick_menu_draw(uint8_t *fb, bool wifi, bool bluetooth, bool frontlight, unsigned brightness, unsigned warmth,bool soften_text);
+void ui_quick_menu_draw(uint8_t *fb, bool wifi, bool bluetooth, bool frontlight, bool inverted, unsigned brightness, unsigned warmth,bool soften_text);
 /// 独立圆钮的绘图与内部刷新范围；不重新合成下层。/ Draw one control without recomposing the underlay.
 bool ui_quick_menu_draw_button(uint8_t *fb, unsigned index, bool enabled, bool pressed, EpdRect *dirty);
 #else
