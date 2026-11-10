@@ -972,9 +972,11 @@ static enum EpdDrawError display_inverted_output(EpdiyHighlevelState *hl,bool fo
     // an aligned scan column or packed byte. Pending draws there stay pending.
     for(size_t i=0;i<bytes;++i)s_inverted_front[i]=(requested&&!full?hl->back_fb[i]:logical[i])^mask;
     if(full)physical=epd_full_screen();
+    const int stride=epd_width()/2;
     for(int y=physical.y;y<physical.y+physical.height;++y) {
+        const size_t row=(size_t)y*stride;
         for(int x=physical.x;x<physical.x+physical.width;++x) {
-            size_t i=(size_t)y*(epd_width()/2)+x/2;
+            size_t i=row+x/2;
             unsigned shift=(x&1)*4;
             unsigned from=((hl->back_fb[i]^old_mask)>>shift)&15;
             unsigned to=((logical[i]^mask)>>shift)&15;
