@@ -691,7 +691,7 @@ int main(void) {
     assert(quick_opens==1&&quick_draws==1&&button_partial_draws==4&&status_partial_draws==2&&status_draws==2&&button_draws==4);
     reset();first.on_before_lock=before_lock;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
-    add(244,284,1,0);add(0,0,0,0);add(100,284,1,0);add(0,0,0,0);run();
+    add(186,284,1,0);add(0,0,0,0);add(100,284,1,0);add(0,0,0,0);run();
     assert(!idle_locks&&!before_locks&&fulls>=2&&!touch_calls&&!light_enabled&&light_brightness==30&&light_saves==1&&haptics==2);
     assert(quick_opens==1&&button_partial_draws==3&&button_draws==3);
     for(int policy=0;policy<3;++policy){
@@ -713,7 +713,7 @@ int main(void) {
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);add(0,0,0,0);run();
     assert(quick_opens==1&&quick_draws==1&&button_draws==1&&button_partial_draws==1);
     reset();light_enabled=false;light_brightness=light_brightness_position=0;
-    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(244,284,1,0);add(0,0,0,0);run();
+    add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);add(186,284,1,0);add(0,0,0,0);run();
     assert(light_enabled&&light_brightness_position==72&&button_draws==2&&slider_draws==1&&quick_opens==1&&!slider_forced_draws);
     reset();time_step=100000;
     add(300,20,1,0);add(300,110,1,0);add(0,0,0,0);
