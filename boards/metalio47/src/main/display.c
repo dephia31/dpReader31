@@ -973,18 +973,24 @@ static enum EpdDrawError display_inverted_output(EpdiyHighlevelState *hl,bool fo
     for(size_t i=0;i<bytes;++i)s_inverted_front[i]=(requested&&!full?hl->back_fb[i]:logical[i])^mask;
     if(full)physical=epd_full_screen();
     const int stride=epd_width()/2;
+    const int right=physical.x+physical.width;
     for(int y=physical.y;y<physical.y+physical.height;++y) {
         const size_t row=(size_t)y*stride;
-        for(int x=physical.x;x<physical.x+physical.width;++x) {
-            size_t i=row+x/2;
-            unsigned shift=(x&1)*4;
-            unsigned from=((hl->back_fb[i]^old_mask)>>shift)&15;
-            unsigned to=((logical[i]^mask)>>shift)&15;
-            uint8_t pixel_mask=(uint8_t)(15u<<shift);
-            s_inverted_front[i]=(s_inverted_front[i]&~pixel_mask)|(to<<shift);
-            if(from==to)continue;
+        for(int x=physical.x/2;x<(right+1)/2;++x) {
+            size_t i=row+x;
+            uint8_t keep=255;
+            if(x==physical.x/2&&(physical.x&1))keep=240;
+            if(x==right/2&&(right&1))keep&=15;
+            uint8_t from=hl->back_fb[i]^old_mask;
+            uint8_t to=logical[i]^mask;
+            to=(s_inverted_front[i]&~keep)|(to&keep);
+            s_inverted_front[i]=to;
+            uint8_t delta=from^to;
+            if(!delta)continue;
             changed=true;
-            if((from!=0&&from!=15)||(to!=0&&to!=15))gray=true;
+            unsigned lo=to&15,hi=to>>4,old_lo=from&15,old_hi=from>>4;
+            if(((delta&15)&&((lo!=0&&lo!=15)||(old_lo!=0&&old_lo!=15)))||
+               ((delta&240)&&((hi!=0&&hi!=15)||(old_hi!=0&&old_hi!=15))))gray=true;
         }
     }
     if(!full&&!changed){pico_online_display_end(held);return EPD_DRAW_SUCCESS;}
