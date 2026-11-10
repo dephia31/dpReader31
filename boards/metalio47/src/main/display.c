@@ -1355,7 +1355,7 @@ static bool transition_gray_changed(EpdiyHighlevelState* hl, EpdRect area) {
 
 enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl,EpdRect area) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false,&area,true);
+        return display_inverted_output(hl,false,&area,false);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();

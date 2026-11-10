@@ -140,7 +140,7 @@ with tempfile.TemporaryDirectory() as d:
  subprocess.run([str(p/'test')],check=True)
 # All local public presenters retain the requested crop, including full-area GL.
 s=src.read_text()
-for name in ('update_display_area_with','update_display_area_diff_with','update_display_area_full_with','update_display_click_feedback','update_display_reader_panel','update_display_reader_panel_fast','update_display_reader_panel_gray4'):
+for name in ('update_display_area_with','update_display_area_diff_with','update_display_area_full_with','update_display_click_feedback','update_display_reader_panel','update_display_reader_panel_fast','update_display_reader_panel_gray4','update_display_gray_transition'):
  f=function(name,src)
  assert 'display_inverted_output(hl,' in f and '&area,false)' in f,name
 assert 'display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,&area,false)' in function('update_display_area_full_with',src)
