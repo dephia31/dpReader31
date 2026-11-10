@@ -35,6 +35,11 @@ static uint32_t s_reconnect_at,s_retry_after_ms;
 static unsigned s_reconnect_failures;
 static char s_start_failure[160],s_failure[128];
 static int commits,handles,connects,connect_error,boot_tries;
+static atomic_bool s_profiles_dirty;
+static unsigned s_profiles_revision;
+static int s_profiles_lock;
+#define portENTER_CRITICAL(lock) ((void)(lock))
+#define portEXIT_CRITICAL(lock) ((void)(lock))
 static char connected_addr[18];
 static int64_t now_us=123000;
 static int64_t esp_timer_get_time(void){return now_us;}
@@ -43,25 +48,23 @@ static void why_store(const char *why){(void)why;}
 static esp_err_t nvs_open(const char *ns,int mode,nvs_handle_t *h){assert(mode==NVS_READONLY||mode==NVS_READWRITE);*h=!strcmp(ns,NVS_NS_BONDS)?1:2;++handles;return ESP_OK;}
 static int key_index(const char *key){int i=-1;assert(sscanf(key,"d_%d",&i)==1&&i>=0&&i<BLE_PT_MAX_BONDS);return i;}
 static esp_err_t nvs_get_blob(nvs_handle_t h,const char *key,void *value,size_t *len){assert(h==1&&*len==sizeof(ble_pt_bond_t));int i=key_index(key);if(!on_disk[i])return ESP_FAIL;memcpy(value,&disk[i],*len);return ESP_OK;}
-static esp_err_t nvs_set_blob(nvs_handle_t h,const char *key,const void *value,size_t len){assert(h==1&&len==sizeof(ble_pt_bond_t));int i=key_index(key);disk[i]=*(const ble_pt_bond_t*)value;on_disk[i]=true;return ESP_OK;}
-static esp_err_t nvs_erase_key(nvs_handle_t h,const char *key){if(h==1)on_disk[key_index(key)]=false;else assert(!strcmp(key,"binding"));return ESP_OK;}
-static esp_err_t nvs_commit(nvs_handle_t h){assert(h==1||h==2);++commits;return ESP_OK;}
 static void nvs_close(nvs_handle_t h){assert(h==1||h==2);--handles;}
 static __attribute__((unused)) const char *bond_key(char *out,size_t cap,const char *addr){assert(addr[0]);snprintf(out,cap,"binding");return out;}
 esp_err_t ble_pt_connect(const char *addr){++connects;snprintf(connected_addr,sizeof(connected_addr),"%s",addr);return connect_error;}
 '''
-for name in ['bonds_load','bonds_save','bond_find','bond_add','ble_pt_reconnect_recent','ble_pt_cancel_recent','reconnect_recent_requested','ble_pt_reset_failure']:
+for name in ['bonds_load','bonds_save','bond_find','bond_add_locked','bond_add','ble_pt_reconnect_recent','ble_pt_cancel_recent','reconnect_recent_requested','ble_pt_reset_failure']:
  unit+=function(name)
 unit+=r'''
 int main(void){
  const char *a="01:02:03:04:05:06",*b="11:12:13:14:15:16",*c="21:22:23:24:25:26";
  ble_pt_reconnect_recent();assert(s_recent_requested&&!connects);
  reconnect_recent_requested();assert(!connects&&!s_recent_requested);
- bond_add(a,"A",0);bond_add(b,"B",1);bond_add(c,"C",0);assert(s_bond_count==3&&commits==3&&!handles);
+ bond_add(a,"A",0);bond_add(b,"B",1);bond_add(c,"C",0);assert(s_bond_count==3&&s_profiles_revision==3&&commits==0&&!handles);
  // 已存在的设备成功重连应成为最近设备，重复通知不能反复写NVS。
  // An existing peer's successful reconnection makes it most recent; duplicate reports do not rewrite NVS.
- bond_add(a,"A",0);assert(commits==4&&!strcmp(s_bonds[2].addr,a));
- for(int n=0;n<100;++n)bond_add(a,"A",0);assert(commits==4);
+ bond_add(a,"A",0);assert(s_profiles_revision==4&&commits==0&&!strcmp(s_bonds[2].addr,a));
+ for(int n=0;n<100;++n)bond_add(a,"A",0);assert(s_profiles_revision==4&&commits==0);
+ memcpy(disk,s_bonds,sizeof(disk));for(unsigned i=0;i<s_bond_count;i++)on_disk[i]=true;
  memset(s_bonds,0,sizeof(s_bonds));s_bond_count=0;bonds_load();assert(s_bond_count==3&&!strcmp(s_bonds[2].addr,a)&&!handles);
  s_reconnect_failures=3;ble_pt_reconnect_recent();ble_pt_reconnect_recent();assert(!connects);
  reconnect_recent_requested();assert(connects==1&&!strcmp(connected_addr,a)&&!strcmp(s_reconnect_addr,a)&&s_reconnect_at==123&&!s_reconnect_failures);
@@ -78,7 +81,7 @@ int main(void){
  ble_pt_reconnect_recent();boot_tries=2;ble_pt_cancel_recent();reconnect_recent_requested();assert(connects==2&&boot_tries==2);ble_pt_reset_failure();assert(!boot_tries);
  connect_error=ESP_FAIL;ble_pt_reconnect_recent();reconnect_recent_requested();assert(connects==3&&!strcmp(s_reconnect_addr,b));
  reconnect_recent_requested();assert(connects==3);
- puts("PASS: recent successful peer ordering/reload, no repeated NVS writes, coalesced asynchronous quick-connect, existing-link protection, explicit-off cancellation");
+ puts("PASS: recent successful peer ordering/legacy reload, deferred SD save requests, coalesced asynchronous quick-connect, existing-link protection, explicit-off cancellation");
 }
 '''
 poll=function('poll_locked');assert poll.index('if (!s_running) return;')<poll.index('reconnect_recent_requested();')

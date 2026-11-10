@@ -347,3 +347,13 @@ a delivered RC for different bytes.
 ## Tiến độ khi NVS đầy
 
 Từ 1.3.5RC9, lỗi NVS thiếu chỗ chuyển tiến độ sang `/sdcard/.dpreader-progress/progress.bin`. Snapshot có checksum và bản `.old` phục hồi. Cuốn sách gần nhất, thứ tự đọc, danh sách và dấu xóa dùng cùng nơi lưu. Giữ thư mục này khi chép hoặc sao lưu thẻ. NVS cũ tiếp tục cung cấp các cuốn chưa có bản ghi trên thẻ. Giới hạn snapshot là 4096 đường dẫn, gồm dấu xóa. Ghi không thành công tiếp tục trả lỗi cho cơ chế thử lại. Footer không hiển thị trạng thái lưu.
+
+### Hồ sơ BLE trên SD
+
+Từ 1.4.1, danh sách tối đa bốn thiết bị và hai phím đã học của từng thiết bị được lưu trong `/sdcard/DPRBLE/PROFILE0.BIN` và `PROFILE1.BIN`. Hai bản có số thứ tự và checksum. Firmware chọn bản hợp lệ mới nhất, giữ bản thành công trước khi ghi bản kế tiếp. Khi cả hai tệp chưa tồn tại, firmware đọc hồ sơ và phím cũ từ NVS để chuyển sang SD. Hai bản cùng hỏng sẽ báo lỗi thay vì tự ghi đè.
+
+Các callback BLE dùng dữ liệu RAM. Luồng chính ghi danh sách sau khi kết nối khi lịch chạy cho phép. Học phím chỉ báo lưu thành công sau khi ghi thẻ thành công. Thẻ chưa sẵn sàng hoặc đang dành cho USB sẽ chặn việc ghi hồ sơ. Phím đã nạp trong RAM tiếp tục phục vụ kết nối hiện tại. Khởi động BLE lần đầu cần thẻ sẵn sàng để nạp hồ sơ; không nạp được sẽ báo lỗi, không tự ghi đè dữ liệu. Sao lưu cấu hình vẫn giữ định dạng bốn mục phím BLE hiện có. Khôi phục chỉ cập nhật những mục có trong bản sao lưu; bản rỗng không xóa phím. Nếu kết hợp các mục vượt bốn chỗ, khôi phục trả lỗi và giữ nguyên dữ liệu hiện có.
+
+Khóa bảo mật ghép đôi NimBLE tiếp tục dùng kho NVS của SDK. Lỗi mở/ghi/commit kho khóa được ghi kèm tên và mã lỗi ESP-IDF để chẩn đoán. Chuyển hồ sơ sang SD chưa xác nhận sửa được lỗi lưu khóa ghép đôi trên thiết bị.
+
+Từ 1.4.1, thiết bị đã học phím chỉ điều hướng bằng khung đã cấu hình; học cả phím trước và sau nếu cần hai chiều. Thiết bị chưa học vẫn dùng ánh xạ HID mặc định. Chống lặp khung đã học dựa trên thời điểm nhận, không phụ thuộc thời gian vẽ màn hình.

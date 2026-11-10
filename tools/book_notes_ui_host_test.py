@@ -258,6 +258,8 @@ int main(void){
  assert(book_annotations_put(&rc2,test_text,0,5,"RC2 note"));assert(book_annotations_save(&rc2,NOTES_ROOT));
  book_notes_bind("old.txt",0,test_text,strlen(test_text));assert(s->valid&&s->annotations.count==1&&!strcmp(s->annotations.items[0].note,"RC2 note"));
  struct stat absent;assert(stat("old.sdr",&absent)&&errno==ENOENT);
+ assert(stat("dpReader_note/book.txt/dpReader.annotations.json",&absent)&&errno==ENOENT);
+ assert(stat("dpReader_note/legacy.txt/dpReader.annotations.json",&absent)&&errno==ENOENT);
  book_notes_reset();assert(!s);puts("notes UI selection/save/edit/delete/reflow/cancel: PASS");return 0;
 }
 '''

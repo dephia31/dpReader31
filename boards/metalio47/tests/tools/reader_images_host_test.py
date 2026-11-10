@@ -218,7 +218,6 @@ static esp_err_t reader_footnote_load(const char *href,char **text,size_t *lengt
 static void book_notes_bind_links(const html_link_t *links,size_t count,esp_err_t (*load)(const char*,char**,size_t*)){(void)links;(void)count;(void)load;}
 static size_t book_chapter_count(void){return 8;}
 static bool notes_chapter_title(size_t chapter,char *out,size_t cap){return book_chapter_title(chapter,out,cap)==ESP_OK;}
-static void book_notes_catalog(size_t count,bool (*title)(size_t,char*,size_t)){assert(count==8&&title);}
 static void free_book(void){
  release_page_images();free(s_text);free(s_blocks);free(s_runs);for(size_t i=0;i<s_image_count;++i)free(s_images[i]);free(s_images);
  s_text=NULL;s_blocks=NULL;s_runs=NULL;s_run_count=0;s_images=NULL;s_image_count=0;

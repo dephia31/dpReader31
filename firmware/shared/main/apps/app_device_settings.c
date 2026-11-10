@@ -2155,7 +2155,7 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, info_card, 22, UI_GRAY_WHITE, 0x70);
         char v_line[80];
         const esp_app_desc_t *app_d = esp_app_get_description();
-        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : (DPREADER_LOVE_BOOK ? "1.4.0-love-vn" : "1.4.0-vn"), DPREADER_LOVE_BOOK ? "Love Book / S31" : "Full / S31");
+        snprintf(v_line, sizeof(v_line), "Firmware: %s (%s)", app_d ? app_d->version : (DPREADER_LOVE_BOOK ? "1.4.1-love-vn" : "1.4.1-vn"), DPREADER_LOVE_BOOK ? "Love Book / S31" : "Full / S31");
         ui_text_caption(fb,(EpdRect){56,294,572,54},22,v_line,EPD_DRAW_ALIGN_LEFT,false);
         char heap_line[80];
         snprintf(heap_line, sizeof(heap_line), "RAM trống: %u KB · PSRAM trống: %u KB",
@@ -2649,9 +2649,10 @@ static bool ble_receive_feedback(void) {
         if (s_ble_learning) {
             const ble_pt_action_t action = s_ble_learning == 1 ? BLE_PT_ACTION_PREV : BLE_PT_ACTION_NEXT;
             const esp_err_t error = ble_pt_bind(action, &raw.frame);
+            if (error != ESP_OK) ESP_LOGE(TAG, "BLE learned binding save failed: %s", esp_err_to_name(error));
             snprintf(s_ble_feedback, sizeof(s_ble_feedback), "%s",
                      error == ESP_OK ? (action == BLE_PT_ACTION_PREV ? "Nhận diện thành công · Đã gán phím Trang trước" : "Nhận diện thành công · Đã gán phím Trang sau")
-                                     : "Nhận diện được nhưng lưu thất bại, vui lòng thử lại");
+                                     : "Nhận diện được; lưu thất bại, kiểm tra thẻ");
             s_ble_learning = 0;
             s_ble_scroll = 0;
             changed = true;

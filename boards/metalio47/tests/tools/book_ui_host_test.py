@@ -61,11 +61,14 @@ typedef enum { UI_GESTURE_SWIPE_L, UI_GESTURE_SWIPE_R, UI_GESTURE_SWIPE_U, UI_GE
 #define ESP_ERR_NOT_FINISHED 7
 typedef struct {uint8_t usage,mods;} ble_pt_event_t;
 typedef struct {uint8_t len;uint8_t bytes[16];} ble_pt_frame_t;
-typedef struct {ble_pt_frame_t frame;bool pressed;} ble_pt_raw_t;
+typedef struct {ble_pt_frame_t frame;bool pressed;uint32_t at_ms;} ble_pt_raw_t;
 typedef enum {BLE_PT_ACTION_NONE,BLE_PT_ACTION_PREV,BLE_PT_ACTION_NEXT} ble_pt_action_t;
 static ble_pt_event_t test_remote_keys[4];
 static ble_pt_raw_t test_remote_raw[4];
 static int test_remote_key_count,test_remote_raw_count;
+#define BLE_REMOTE_DEBOUNCE_MS 350
+static uint32_t s_last_ble_remote_turn_ms,s_last_ble_learned_ms;
+static bool ble_pt_binding(ble_pt_action_t action,ble_pt_frame_t *out){(void)action;(void)out;return false;}
 static bool ble_pt_pop_key(ble_pt_event_t *event){if(!test_remote_key_count)return false;*event=test_remote_keys[--test_remote_key_count];return true;}
 static bool ble_pt_pop_raw(ble_pt_raw_t *event){if(!test_remote_raw_count)return false;*event=test_remote_raw[--test_remote_raw_count];return true;}
 static ble_pt_action_t ble_pt_action_for_frame(const ble_pt_frame_t *frame){

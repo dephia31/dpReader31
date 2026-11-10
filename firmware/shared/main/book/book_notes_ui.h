@@ -8,7 +8,6 @@ void book_notes_bind(const char *path,uint32_t chapter,const char *text,size_t l
 /* Borrowed footnote references of the bound chapter; load returns a malloc'd plain-text note. */
 typedef esp_err_t (*book_notes_footnote_fn)(const char *href,char **utf8,size_t *len);
 void book_notes_bind_links(const html_link_t *links,size_t count,book_notes_footnote_fn load);
-void book_notes_catalog(size_t count,bool (*title)(size_t,char*,size_t));
 void book_notes_reset(void);
 void book_notes_cancel(void);
 bool book_notes_active(void);

@@ -34,6 +34,7 @@ static const char *s_text="body";
 static char s_title[128]="第一章 山边小村";
 static int s_view=READING,s_reader_panel=READER_PANEL_NONE,s_reader_slider=2,s_bookmark_page;
 static bool s_water_turn_pending,s_reader_turn_pending,s_reader_text_frame;
+static bool s_reader_image_frame,s_reader_image_exit_pending;
 static bool s_reader_footer_pending,s_reader_image_refresh_pending,s_reader_cleanup;
 static bool s_bookmark_edit,s_bookmark_delete_confirm,s_bookmark_delete_error,s_recent_days_valid;
 static unsigned s_bookmark_selected,s_session_turns=12;
@@ -93,6 +94,7 @@ static void pause_reader_prep(void){}
 static void reader_show_sync_notice(app_ctx_t *ctx){(void)ctx;}
 static void reader_prepare_network(void){}
 static int64_t esp_timer_get_time(void){return 0;}
+static double reader_sync_ratio(size_t page){return percent(page)/100.0;}
 static int kosync_push_book_progress(const char *path,const book_progress_t *p,double ratio,char *out,size_t cap){(void)path;(void)p;(void)ratio;(void)out;(void)cap;return 0;}
 static void ui_draw_icon(uint8_t *fb,int x,int y,int px,int icon,int color){(void)fb;(void)x;(void)y;(void)px;(void)icon;(void)color;}
 """
@@ -152,7 +154,7 @@ int main(void){
  s_chapter_jump_page=0;assert(tap(&ctx,2)==APP_REDRAW_NONE&&s_chapter_jump_page==0);
  s_chapter_jump_page=31;assert(tap(&ctx,4)==APP_REDRAW_NONE&&s_chapter_jump_page==31);
  assert(tap(&ctx,5)==APP_REDRAW_PAGE&&s_page==31);
- ctx.now_ms=8000;assert(reader_chapter_jump_commit(&ctx,0,true)==APP_REDRAW_NONE&&s_page==31);
+ ctx.now_ms=3000;assert(reader_chapter_jump_commit(&ctx,0,true)==APP_REDRAW_NONE&&s_page==31);
  ctx.now_ms=1000;s_chapter++;assert(reader_chapter_jump_commit(&ctx,0,true)==APP_REDRAW_NONE);
  s_chapter--;s_text=NULL;assert(reader_chapter_jump_commit(&ctx,0,true)==APP_REDRAW_NONE);
  reset();span=0;s_page=0;reader_chapter_jump_begin();draw_reader_stats(&fb);assert(tap(&ctx,5)==APP_REDRAW_NONE&&!saves);
