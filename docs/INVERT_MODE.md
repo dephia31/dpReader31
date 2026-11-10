@@ -1,0 +1,11 @@
+# Đảo màu S31 — thử nghiệm RC7
+
+Trong **Cài đặt → Hiển thị → Đảo màu**, bật để đảo toàn bộ giao diện, chữ và hình ảnh. Mặc định tắt. Lựa chọn được lưu NVS; không thay đổi độ sáng đèn. Áp dụng cho cả Full và Love Book.
+
+Renderer, cache trang/ảnh và framebuffer mà ứng dụng sử dụng vẫn ở màu bình thường. Khi xuất màn hình, adapter S31 tạo bản đích đảo 4 bit (`15 - gray`), chuyển lịch sử sang màu vật lý, refresh đồng bộ rồi trả buffer lịch sử về màu logic. Dùng thêm một framebuffer PSRAM, chỉ cấp phát khi cần. Không đảo vùng nhớ file sách hoặc cache phông.
+
+Chế độ đảo dùng GL48/GC48 chuẩn của S31, bỏ các đường refresh/animation chuyên cho nền trắng. Bật/tắt và yêu cầu full refresh dùng GC48 toàn màn hình; các lần vẽ còn lại dùng GL48 vi sai, có GC định kỳ. Có thể chậm hơn chế độ sáng và có chớp sáng khi làm mới kỹ. Ảnh cũng đảo màu; chưa có cơ chế giữ nguyên màu ảnh. Waveform, VCOM và trình tự nguồn không sửa.
+
+Kiểm thử host mô phỏng giao diện scan: đủ 16 mức xám, buffer logic không bị sửa, màu của ảnh lịch sử trước/sau bật/tắt, lỗi cấp phát, refresh thất bại và cờ phục hồi; setter NVS giữ lựa chọn khi mở/ghi/commit thất bại. Đây không phải kiểm thử quang học.
+
+Cần thử trên máy: bật/tắt nhiều lần; lật ít nhất 50 trang với AA bật/tắt; trang có ảnh; mở/đóng menu, điều chỉnh đèn và slider; xoay màn hình; ngủ/thức và khởi động lại; refresh thủ công. Đánh giá bóng mờ trên nền đen, độ rõ nét chữ trắng, chớp sáng và độ trễ. Chưa có kết luận đạt chất lượng phần cứng.

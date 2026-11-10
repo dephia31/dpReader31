@@ -441,7 +441,7 @@ static int settings_main_row_height(void) {
 #define SETTINGS_ROW_H settings_main_row_height()
 #define SETTINGS_WIRELESS_ROWS 7
 #if DPREADER_BOARD_METALIO47
-#define SETTINGS_DISPLAY_ROWS 8
+#define SETTINGS_DISPLAY_ROWS 9
 #else
 #define SETTINGS_DISPLAY_ROWS 7
 #endif
@@ -2430,15 +2430,15 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     unsigned minutes=app_settings_auto_lock_minutes();
     if(minutes)snprintf(idle,sizeof(idle),"%u phút",minutes);else strcpy(idle,"Tắt");
 #if DPREADER_BOARD_METALIO47
-    const char *display_labels[]={"Phông chữ hệ thống","Độ tương phản hệ thống","Chế độ làm mới Trang chủ","Làm mới kỹ Trang chủ","Tự động khóa màn hình","Nhấn đúp mở khóa","Chế độ tắt nguồn / ngủ","Đèn nền & Rung"};
+    const char *display_labels[]={"Phông chữ hệ thống","Độ tương phản hệ thống","Chế độ làm mới Trang chủ","Làm mới kỹ Trang chủ","Tự động khóa màn hình","Nhấn đúp mở khóa","Chế độ tắt nguồn / ngủ","Đèn nền & Rung","Đảo màu"};
 #else
     const char *display_labels[]={"Phông chữ hệ thống","Độ tương phản hệ thống","Chế độ làm mới Trang chủ","Làm mới kỹ Trang chủ","Tự động khóa màn hình","Nhấn đúp mở khóa","Chế độ tắt nguồn / ngủ"};
 #endif
     const char *display_values[]={font_name,contrast,
         app_settings_main_refresh_mode()==APP_MAIN_REFRESH_FAST?"Làm mới nhanh":app_settings_main_refresh_mode()==APP_MAIN_REFRESH_WATER?"Sóng nước":"Thường",
 #if DPREADER_BOARD_METALIO47
-        app_settings_home_full_refresh()?"Bật":"Tắt",idle,"",app_settings_sleep_off_hours()?"Sleep và tắt nguồn":"Chỉ Sleep","Độ sáng & Nhiệt màu"};
-    const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9,7};
+        app_settings_home_full_refresh()?"Bật":"Tắt",idle,"",app_settings_sleep_off_hours()?"Sleep và tắt nguồn":"Chỉ Sleep","Độ sáng & Nhiệt màu",app_settings_screen_inverted()?"Bật":"Tắt"};
+    const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9,7,7};
 #else
         app_settings_home_full_refresh()?"Bật":"Tắt",idle,"",app_settings_staged_shutdown()?"Ngủ nhẹ rồi sâu":"Ngắt nguồn hoàn toàn"};
     const int display_icons[]={2,7,15,11,14,SETTINGS_UNLOCK_ICON,9};
@@ -3917,7 +3917,14 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else if(row==5)settings_choice_open(SET_PICK_WAKE);
 #if DPREADER_BOARD_METALIO47
         else if(row==6)s_page=SETTINGS_POWER_SLEEP;
-        else s_page=SETTINGS_FRONTLIGHT;
+        else if(row==7)s_page=SETTINGS_FRONTLIGHT;
+        else {
+            if(app_settings_set_screen_inverted(!app_settings_screen_inverted())) {
+                app_book_release_shelf_cache();
+                app_home_release_clock_cache();
+                display_request_full_refresh();
+            } else snprintf(s_notice,sizeof(s_notice),"Không lưu được chế độ đảo màu");
+        }
 #else
         else s_page=SETTINGS_POWER_SLEEP;
 #endif

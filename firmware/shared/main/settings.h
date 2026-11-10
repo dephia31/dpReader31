@@ -422,3 +422,7 @@ bool app_settings_set_reader_edge_warmth(bool on);
 /* Scope appearance to one book; hardware bindings stay global. */
 void app_settings_book_profile_enter(const char *path, uint32_t file_size);
 void app_settings_book_profile_leave(void);
+
+// Output inversion; raster/cache coordinates and colors stay logical.
+bool app_settings_screen_inverted(void);
+bool app_settings_set_screen_inverted(bool enabled);

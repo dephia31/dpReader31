@@ -144,6 +144,7 @@ static esp_err_t backup_nvs_set_str(nvs_handle_t h, const char *key, const char 
 #define NVS_KEY_FONT "font"
 #define NVS_KEY_SYS_FONT "sys_font"
 #define NVS_KEY_SYS_SIZE "sys_size"
+#define NVS_KEY_INVERT "screen_invert"
 #define NVS_KEY_SYS_CONTRAST "sys_contrast"
 #define NVS_KEY_LOCK_STYLE "lock_ui"
 #define NVS_KEY_WALLPAPER "wallpaper"
@@ -274,6 +275,7 @@ esp_err_t app_settings_clear_flash_fonts(void) {
 #endif
 
 static uint8_t s_system_size = 100;
+static bool s_screen_inverted;
 static uint8_t s_system_contrast = 100;
 static uint8_t s_lock_style;
 static char s_wallpaper[288];
@@ -663,6 +665,8 @@ void app_settings_init(void) {
 #if FONT_FLASH_FALLBACK
     load_flash_fonts();
 #endif
+    uint8_t inverted=0;
+    s_screen_inverted=nvs_get_u8(h,NVS_KEY_INVERT,&inverted)==ESP_OK && inverted==1;
     uint8_t system_contrast = 100;
     if (nvs_get_u8(h, NVS_KEY_SYS_CONTRAST, &system_contrast) == ESP_OK &&
         system_contrast >= 100 && system_contrast <= 140 && system_contrast % 10 == 0)
@@ -1126,6 +1130,17 @@ void app_settings_set_system_font_size(uint8_t percent) {
     if(err==ESP_OK)err=settings_backup_commit(h);
     nvs_close(h);
     if(err==ESP_OK)s_system_size=percent;
+}
+bool app_settings_screen_inverted(void) { return s_screen_inverted; }
+bool app_settings_set_screen_inverted(bool enabled) {
+    if(enabled==s_screen_inverted)return true;
+    nvs_handle_t h;
+    if(backup_nvs_open(NVS_NS,NVS_READWRITE,&h)!=ESP_OK)return false;
+    esp_err_t err=backup_nvs_set_u8(h,NVS_KEY_INVERT,enabled?1:0);
+    if(err==ESP_OK)err=settings_backup_commit(h);
+    nvs_close(h);
+    if(err==ESP_OK)s_screen_inverted=enabled;
+    return err==ESP_OK;
 }
 uint8_t app_settings_system_contrast(void) { return s_system_contrast; }
 void app_settings_set_system_contrast(uint8_t percent) {
