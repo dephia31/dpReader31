@@ -9,12 +9,17 @@ on:
 permissions:
   contents: write
   pages: write
+  id-token: write
 concurrency:
   group: pages
   cancel-in-progress: false
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,11 +49,14 @@ jobs:
             git commit -m "pages: publish verified firmware from ${GITHUB_SHA}"
             git push origin HEAD:gh-pages
           fi
-      - name: Build the existing legacy Pages site
-        uses: actions/github-script@v7
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload the complete verified site
+        uses: actions/upload-pages-artifact@v3
         with:
-          script: |
-            await github.request('POST /repos/{owner}/{repo}/pages/builds', {
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
+          path: public
+      - name: Deploy verified Web Flash and OTA
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 1800000
