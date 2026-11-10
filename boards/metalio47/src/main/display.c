@@ -930,34 +930,86 @@ static bool display_needs_full(void) { return s_full_refresh_requested; }
 static uint8_t *s_inverted_front;
 static bool s_output_inverted;
 static unsigned s_inverted_pages;
-static enum EpdDrawError display_inverted_output(EpdiyHighlevelState *hl,bool force_full) {
+// Match highlevel's logical-to-physical crop; clip before its uint16 conversion.
+static bool display_inverted_crop(EpdRect *area,EpdRect *physical) {
+    int pw=epd_width(),ph=epd_height();
+    if(area->x==0&&area->y==0&&area->width==pw&&area->height==ph){*physical=*area;return true;}
+    enum EpdRotation rotation=epd_get_rotation();
+    bool portrait=rotation==EPD_ROT_PORTRAIT||rotation==EPD_ROT_INVERTED_PORTRAIT;
+    int lw=portrait?ph:pw,lh=portrait?pw:ph;
+    int64_t right=(int64_t)area->x+area->width,bottom=(int64_t)area->y+area->height;
+    int x=area->x<0?0:area->x,y=area->y<0?0:area->y;
+    if(right>lw)right=lw;
+    if(bottom>lh)bottom=lh;
+    if(right<=x||bottom<=y)return false;
+    int w=(int)right-x,h=(int)bottom-y;
+    *area=(EpdRect){x,y,w,h};
+    switch(rotation) {
+        case EPD_ROT_LANDSCAPE:*physical=*area;break;
+        case EPD_ROT_PORTRAIT:*physical=(EpdRect){pw-y-h,x,h,w};break;
+        case EPD_ROT_INVERTED_LANDSCAPE:*physical=(EpdRect){pw-x-w,ph-y-h,w,h};break;
+        case EPD_ROT_INVERTED_PORTRAIT:*physical=(EpdRect){y,ph-x-w,h,w};break;
+        default:return false;
+    }
+    return true;
+}
+static enum EpdDrawError display_inverted_output(EpdiyHighlevelState *hl,bool force_full,
+                                                const EpdRect *requested,bool page) {
     if(!hl||!hl->front_fb||!hl->back_fb)return EPD_DRAW_INVALID_CROP;
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     bool held=pico_online_display_begin();
     size_t bytes=(size_t)epd_width()*epd_height()/2;
-    if(!s_inverted_front)s_inverted_front=heap_caps_aligned_alloc(16,bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-    if(!s_inverted_front){pico_online_display_end(held);return EPD_DRAW_FAILED_ALLOC;}
     bool inverted=app_settings_screen_inverted();
     bool full=force_full||s_full_refresh_requested||s_main_fault||inverted!=s_output_inverted;
-    if(APP_UI_GC16_EVERY>0 && ++s_inverted_pages>=APP_UI_GC16_EVERY)full=true;
+    EpdRect area=requested?*requested:epd_full_screen(),physical=epd_full_screen();
+    if(!full&&!display_inverted_crop(&area,&physical)){pico_online_display_end(held);return EPD_DRAW_SUCCESS;}
+    if(!s_inverted_front)s_inverted_front=heap_caps_aligned_alloc(16,bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!s_inverted_front){pico_online_display_end(held);return EPD_DRAW_FAILED_ALLOC;}
     uint8_t *logical=hl->front_fb;
-    for(size_t i=0;i<bytes;++i)s_inverted_front[i]=inverted?(uint8_t)~logical[i]:logical[i];
-    // The previous physical frame uses the previous polarity, including toggles.
+    const uint8_t mask=inverted?255:0,old_mask=s_output_inverted?255:0;
+    bool changed=false,gray=false;
+    // Outside a local crop keep the physical baseline, including pixels sharing
+    // an aligned scan column or packed byte. Pending draws there stay pending.
+    for(size_t i=0;i<bytes;++i)s_inverted_front[i]=(requested&&!full?hl->back_fb[i]:logical[i])^mask;
+    if(full)physical=epd_full_screen();
+    for(int y=physical.y;y<physical.y+physical.height;++y) {
+        for(int x=physical.x;x<physical.x+physical.width;++x) {
+            size_t i=(size_t)y*(epd_width()/2)+x/2;
+            unsigned shift=(x&1)*4;
+            unsigned from=((hl->back_fb[i]^old_mask)>>shift)&15;
+            unsigned to=((logical[i]^mask)>>shift)&15;
+            uint8_t pixel_mask=(uint8_t)(15u<<shift);
+            s_inverted_front[i]=(s_inverted_front[i]&~pixel_mask)|(to<<shift);
+            if(from==to)continue;
+            changed=true;
+            if((from!=0&&from!=15)||(to!=0&&to!=15))gray=true;
+        }
+    }
+    if(!full&&!changed){pico_online_display_end(held);return EPD_DRAW_SUCCESS;}
+    if(!full&&page&&APP_UI_GC16_EVERY>0&&s_inverted_pages+1>=APP_UI_GC16_EVERY) {
+        full=true;
+        for(size_t i=0;i<bytes;++i)s_inverted_front[i]=logical[i]^mask;
+    }
     if(s_output_inverted)for(size_t i=0;i<bytes;++i)hl->back_fb[i]^=255;
     hl->front_fb=s_inverted_front;
     continuous_du_reset();display_main_transition_cancel();
-    const EpdWaveform *wave=full?&E0470_FULL_WAVEFORM:&E0470_WAVEFORM;
-    enum EpdDrawMode mode=full?MODE_GC16:MODE_GL16;
+    // Existing vendor-derived DU20/GL48 tables hold every equal-value pair.
+    const EpdWaveform *wave=full?&E0470_FULL_WAVEFORM:
+        gray?display_main_gray_waveform():display_main_bw_waveform();
+    enum EpdDrawMode mode=full?MODE_GC16:gray?MODE_GL16:MODE_DU;
     use_scan_for(wave,mode);epd_poweron();epd_hl_waveform(hl,wave);
-    enum EpdDrawError result=full?epd_hl_update_screen_full(hl,mode,25):epd_hl_update_screen(hl,mode,25);
-    // Highlevel records the submitted physical frame. Convert back for callers.
+    enum EpdDrawError result=full?epd_hl_update_screen_full(hl,mode,25):
+        epd_hl_update_area(hl,mode,25,area);
     if(result==EPD_DRAW_SUCCESS?inverted:s_output_inverted)
         for(size_t i=0;i<bytes;++i)hl->back_fb[i]^=255;
     hl->front_fb=logical;
     if(result==EPD_DRAW_SUCCESS)s_output_inverted=inverted;
     s_main_fault=result!=EPD_DRAW_SUCCESS;
-    if(result==EPD_DRAW_SUCCESS){s_full_refresh_requested=false;if(full){s_inverted_pages=0;ui_page_cleaned(result);}}
-    else s_full_refresh_requested=true;
+    if(result==EPD_DRAW_SUCCESS){
+        s_full_refresh_requested=false;
+        if(full){s_inverted_pages=0;ui_page_cleaned(result);}
+        else if(page)++s_inverted_pages;
+    } else s_full_refresh_requested=true;
     epd_hl_waveform(hl,&E0470_WAVEFORM);rails_keepalive();
     pico_online_display_end(held);
     return result;
@@ -968,7 +1020,7 @@ enum EpdDrawError update_display_mode(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,NULL,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -985,7 +1037,7 @@ enum EpdDrawError update_display_mode_diff(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,NULL,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1000,7 +1052,7 @@ enum EpdDrawError update_display_mode_diff(
 
 enum EpdDrawError update_display_fast_page(EpdiyHighlevelState* hl) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,false,NULL,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1017,7 +1069,7 @@ enum EpdDrawError update_display_from_white_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,true);
+        return display_inverted_output(hl,true,NULL,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1032,7 +1084,7 @@ enum EpdDrawError update_display_from_white_with(
 
 enum EpdDrawError update_display_from_white(EpdiyHighlevelState* hl) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,true);
+        return display_inverted_output(hl,true,NULL,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1048,7 +1100,7 @@ enum EpdDrawError update_display_from_white(EpdiyHighlevelState* hl) {
 enum EpdDrawError update_display_white(EpdiyHighlevelState* hl) {
     if(app_settings_screen_inverted() || s_output_inverted) {
         epd_hl_set_all_white(hl);
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,false,NULL,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1063,7 +1115,7 @@ enum EpdDrawError update_display_white(EpdiyHighlevelState* hl) {
 
 enum EpdDrawError update_display_full(EpdiyHighlevelState* hl) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,true);
+        return display_inverted_output(hl,true,NULL,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1079,7 +1131,7 @@ enum EpdDrawError update_display_full(EpdiyHighlevelState* hl) {
 // User-triggered Settings repair only; reuse S31 clear, never Pico blind-drive parameters.
 enum EpdDrawError display_panel_repair(EpdiyHighlevelState* hl) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,true);
+        return display_inverted_output(hl,true,NULL,true);
     }
     if(!hl||!hl->front_fb||!hl->back_fb)return EPD_DRAW_INVALID_CROP;
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
@@ -1104,7 +1156,7 @@ enum EpdDrawError display_panel_repair(EpdiyHighlevelState* hl) {
 
 enum EpdDrawError update_display_image_gray(EpdiyHighlevelState* hl) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,true);
+        return display_inverted_output(hl,true,NULL,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1126,7 +1178,7 @@ enum EpdDrawError update_display_with(
     EpdiyHighlevelState* hl, const EpdWaveform* waveform, enum EpdDrawMode mode
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,NULL,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1144,7 +1196,7 @@ enum EpdDrawError update_display_area_with(
     EpdRect area
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,&area,false);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1162,7 +1214,7 @@ enum EpdDrawError update_display_area_diff_with(
     EpdRect area
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,&area,false);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1177,7 +1229,7 @@ enum EpdDrawError update_display_area_diff_with(
 
 enum EpdDrawError update_display_click_feedback(EpdiyHighlevelState* hl,EpdRect area) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,false,&area,false);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1207,7 +1259,7 @@ enum EpdDrawError update_display_area_full_with(
     EpdRect area
 ) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,true);
+        return display_inverted_output(hl,(mode & 0x3f)==MODE_GC16,&area,false);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1223,7 +1275,7 @@ enum EpdDrawError update_display_area_full_with(
 enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect area,
                                              e0470_turn_dir_t dir) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,false,&area,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1241,7 +1293,7 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
 enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area,
                                              e0470_turn_dir_t dir) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,false,&area,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1295,7 +1347,7 @@ static bool transition_gray_changed(EpdiyHighlevelState* hl, EpdRect area) {
 
 enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl,EpdRect area) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,false,&area,true);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1326,7 +1378,7 @@ void guard_draw_result(EpdiyHighlevelState* hl, enum EpdDrawError result) {
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     if(app_settings_screen_inverted() || s_output_inverted) {
-        if(result!=EPD_DRAW_SUCCESS)(void)display_inverted_output(hl,true);
+        if(result!=EPD_DRAW_SUCCESS)(void)display_inverted_output(hl,true,NULL,false);
     } else guard_draw_result_unlocked(hl, result);
     pico_online_display_end(held);
     LATENCY_DISPLAY_END();
@@ -1336,7 +1388,7 @@ void guard_draw_result(EpdiyHighlevelState* hl, enum EpdDrawError result) {
 // Graphical panels retain complete vendor grays without text quantization; settle the region each time to correct midgray history.
 enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect area) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,false,&area,false);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1357,7 +1409,7 @@ enum EpdDrawError update_display_reader_panel(EpdiyHighlevelState* hl,EpdRect ar
 static bool s_reader_panel37_failed;
 enum EpdDrawError update_display_reader_panel_fast(EpdiyHighlevelState* hl,EpdRect area) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,false,&area,false);
     }
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     LATENCY_DISPLAY_BEGIN();
@@ -1383,7 +1435,7 @@ enum EpdDrawError update_display_reader_panel_fast(EpdiyHighlevelState* hl,EpdRe
 
 enum EpdDrawError update_display_reader_panel_gray4(EpdiyHighlevelState* hl,EpdRect area,bool erase_underlay) {
     if(app_settings_screen_inverted() || s_output_inverted) {
-        return display_inverted_output(hl,false);
+        return display_inverted_output(hl,false,&area,false);
     }
     if(!display_reader_fast_panels_enabled())return update_display_reader_panel_fast(hl,area);
     static bool failed;
