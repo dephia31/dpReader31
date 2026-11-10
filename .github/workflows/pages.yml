@@ -17,9 +17,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,8 +52,15 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: public
+  publish:
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy verified Web Flash and OTA
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          timeout: 1800000
+          timeout: 600000
