@@ -12,8 +12,8 @@
  * persistence are ported from CrossMux's BleKeyboardHost; the BLE plumbing is rewritten for
  * ESP-IDF's NimBLE (which keeps the GATT client API in host/ble_gatt.h, with no ble_gattc.h).
  *
- * 冻结：不做刷屏、不决定翻页语义、不碰本模块 NVS 命名空间以外的存储。
- * Frozen: no drawing, no page-turn policy, no storage outside this module's NVS namespace.
+ * 冻结：不做刷屏、不决定翻页语义、按2026-11-10用户决定，配置使用SD上的DPRBLE，旧NVS仅用于迁移。
+ * Frozen: no drawing, no page-turn policy, profile storage uses DPRBLE on SD per the 2026-11-10 user decision; legacy NVS is read for migration.
  */
 
 #if DPREADER_BOARD_METALIO47 && defined(ESP_PLATFORM)
@@ -327,6 +327,18 @@ static const char *bond_key(char *buf, size_t cap, const char *addr) {
     return buf;
 }
 
+#if DPREADER_BOARD_METALIO47
+#include "ble_pt_backup.h"
+#include "ble_profile_store.h"
+static ble_profile_disk_t s_profiles;
+static bool s_profiles_ready;
+static atomic_bool s_profiles_dirty;
+static portMUX_TYPE s_profiles_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t s_profiles_revision;
+static int64_t s_profiles_retry_ms;
+static void profiles_poll(void);
+#endif
+
 static void bonds_load(void) {
     s_bond_count = 0;
     nvs_handle_t h;
@@ -342,6 +354,10 @@ static void bonds_load(void) {
 }
 
 static void bonds_save(void) {
+#if DPREADER_BOARD_METALIO47
+    ++s_profiles_revision;
+    atomic_store(&s_profiles_dirty, true);
+#else
     nvs_handle_t h;
     if (nvs_open(NVS_NS_BONDS, NVS_READWRITE, &h) != ESP_OK) return;
     for (uint8_t i = 0; i < BLE_PT_MAX_BONDS; ++i) {
@@ -352,6 +368,7 @@ static void bonds_save(void) {
     }
     nvs_commit(h);
     nvs_close(h);
+#endif
 }
 
 static ble_pt_bond_t *bond_find(const char *addr) {
@@ -360,7 +377,7 @@ static ble_pt_bond_t *bond_find(const char *addr) {
     return NULL;
 }
 
-static void bond_add(const char *addr, const char *name, uint8_t type) {
+static void bond_add_locked(const char *addr, const char *name, uint8_t type) {
     if (!addr || !addr[0]) return;
     ble_pt_bond_t *existing = bond_find(addr);
     if (existing) {
@@ -392,10 +409,29 @@ static void bond_add(const char *addr, const char *name, uint8_t type) {
     bonds_save();
 }
 
+static void bond_add(const char *addr, const char *name, uint8_t type) {
+#if DPREADER_BOARD_METALIO47
+    portENTER_CRITICAL(&s_profiles_lock);
+#endif
+    bond_add_locked(addr, name, type);
+#if DPREADER_BOARD_METALIO47
+    portEXIT_CRITICAL(&s_profiles_lock);
+#endif
+}
+
 static void bindings_load(const char *addr) {
     memset(&s_bindings, 0, sizeof(s_bindings));
     if (!addr || !addr[0]) return;
     snprintf(s_bindings.addr, sizeof(s_bindings.addr), "%s", addr);
+#if DPREADER_BOARD_METALIO47
+    char key[16];
+    bond_key(key, sizeof(key), addr);
+    portENTER_CRITICAL(&s_profiles_lock);
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i)
+        if (!strcmp(key, s_profiles.bindings.entries[i].key))
+            memcpy(s_bindings.frames, s_profiles.bindings.entries[i].frames, sizeof(s_bindings.frames));
+    portEXIT_CRITICAL(&s_profiles_lock);
+#else
     nvs_handle_t h;
     if (nvs_open(NVS_NS_BINDINGS, NVS_READONLY, &h) != ESP_OK) return;
     char key[16];
@@ -408,6 +444,7 @@ static void bindings_load(const char *addr) {
         len != sizeof(s_bindings.frames))
         memset(s_bindings.frames, 0, sizeof(s_bindings.frames));
     nvs_close(h);
+#endif
 }
 
 #if DPREADER_BOARD_METALIO47
@@ -441,7 +478,7 @@ bool ble_pt_bindings_backup_valid(const ble_pt_bindings_backup_t *backup) {
     return true;
 }
 
-esp_err_t ble_pt_bindings_backup_capture(ble_pt_bindings_backup_t *backup) {
+static esp_err_t bindings_legacy_capture(ble_pt_bindings_backup_t *backup) {
     memset(backup, 0, sizeof(*backup));
     nvs_handle_t peers, bindings;
     esp_err_t err = nvs_open(NVS_NS_BONDS, NVS_READONLY, &peers);
@@ -458,7 +495,7 @@ esp_err_t ble_pt_bindings_backup_capture(ble_pt_bindings_backup_t *backup) {
         err = nvs_get_blob(peers, key, &peer, &size);
         if (err == ESP_ERR_NVS_NOT_FOUND) { err = ESP_OK; continue; }
         if (err != ESP_OK) break;
-        if (size != sizeof(peer) || strnlen(peer.addr, sizeof(peer.addr)) != 17) continue;
+        if (size != sizeof(peer) || strnlen(peer.addr, sizeof(peer.addr)) != 17) { err = ESP_ERR_INVALID_STATE; break; }
         ble_pt_backup_entry_t *entry = &backup->entries[i];
         bond_key(entry->key, sizeof(entry->key), peer.addr);
         if (!have_bindings) continue;
@@ -476,25 +513,114 @@ esp_err_t ble_pt_bindings_backup_capture(ble_pt_bindings_backup_t *backup) {
     return err;
 }
 
+static esp_err_t profiles_load(void) {
+    if (s_profiles_ready) return ESP_OK;
+    ble_profile_disk_t loaded = {0};
+    esp_err_t err = profile_read(&loaded);
+    if (err == ESP_ERR_NOT_FOUND) {
+        bonds_load();
+        loaded.count = s_bond_count;
+        memcpy(loaded.peers, s_bonds, sizeof(s_bonds));
+        err = bindings_legacy_capture(&loaded.bindings);
+        if (err != ESP_OK) return err;
+        loaded.magic = BLE_PROFILE_MAGIC;
+        loaded.sequence = 1;
+        loaded.checksum = profile_checksum(&loaded);
+        if (!profile_valid(&loaded)) return ESP_ERR_INVALID_STATE;
+        loaded.sequence = 0;
+        atomic_store(&s_profiles_dirty, true);
+    } else if (err != ESP_OK) return err;
+    s_profiles = loaded;
+    s_bond_count = loaded.count;
+    memcpy(s_bonds, loaded.peers, sizeof(s_bonds));
+    s_profiles_ready = true;
+    return ESP_OK;
+}
+
+static esp_err_t profiles_commit(ble_profile_disk_t *next) {
+    esp_err_t err = profile_write(next);
+    if (err != ESP_OK) ESP_LOGE(TAG, "BLE profile SD write failed: %s errno=%d", esp_err_to_name(err), errno);
+    return err;
+}
+
+static void profiles_poll(void) {
+    if (!read_pico_sd_io_ready() || esp_timer_get_time()/1000 < s_profiles_retry_ms) return;
+    if (profiles_load() != ESP_OK) { s_profiles_retry_ms = esp_timer_get_time()/1000 + 5000; return; }
+    if (!atomic_load(&s_profiles_dirty)) return;
+    ble_profile_disk_t next;
+    portENTER_CRITICAL(&s_profiles_lock);
+    next = s_profiles;
+    next.count = s_bond_count;
+    memcpy(next.peers, s_bonds, sizeof(s_bonds));
+    uint32_t revision = s_profiles_revision;
+    portEXIT_CRITICAL(&s_profiles_lock);
+    esp_err_t err = profiles_commit(&next);
+    if (err == ESP_OK) {
+        portENTER_CRITICAL(&s_profiles_lock);
+        s_profiles.sequence = next.sequence;
+        if (revision == s_profiles_revision) atomic_store(&s_profiles_dirty, false);
+        portEXIT_CRITICAL(&s_profiles_lock);
+    } else s_profiles_retry_ms = esp_timer_get_time()/1000 + 5000;
+}
+
+esp_err_t ble_pt_bindings_backup_capture(ble_pt_bindings_backup_t *backup) {
+    esp_err_t err = profiles_load();
+    if (err != ESP_OK) return err;
+    *backup = s_profiles.bindings;
+    return ESP_OK;
+}
+
+static esp_err_t profiles_replace_bindings(const ble_pt_bindings_backup_t *backup) {
+    if (!ble_pt_bindings_backup_valid(backup)) return ESP_ERR_INVALID_ARG;
+    esp_err_t err = profiles_load();
+    if (err != ESP_OK) return err;
+    ble_profile_disk_t next = s_profiles;
+    next.bindings = *backup;
+    portENTER_CRITICAL(&s_profiles_lock);
+    next.count = s_bond_count;
+    memcpy(next.peers, s_bonds, sizeof(s_bonds));
+    portEXIT_CRITICAL(&s_profiles_lock);
+    err = profiles_commit(&next);
+    if (err == ESP_OK) {
+        portENTER_CRITICAL(&s_profiles_lock);
+        s_profiles.bindings = next.bindings;
+        s_profiles.sequence = next.sequence;
+        portEXIT_CRITICAL(&s_profiles_lock);
+    }
+    return err;
+}
+
+/* Restore only named entries, preserving bindings absent from older backups. */
+static esp_err_t profiles_merge_bindings(ble_pt_bindings_backup_t *merged,
+                                         const ble_pt_bindings_backup_t *backup) {
+    ble_pt_bindings_backup_t next = *merged;
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i) {
+        const ble_pt_backup_entry_t *entry = &backup->entries[i];
+        if (!entry->key[0]) continue;
+        int slot = -1;
+        for (unsigned j = 0; j < BLE_PT_MAX_BONDS; ++j) {
+            if (!strcmp(next.entries[j].key, entry->key)) { slot = j; break; }
+            if (slot < 0 && !next.entries[j].key[0]) slot = j;
+        }
+        if (slot < 0) return ESP_ERR_NO_MEM;
+        next.entries[slot] = *entry;
+    }
+    *merged = next;
+    return ESP_OK;
+}
+
 esp_err_t ble_pt_bindings_backup_restore(const ble_pt_bindings_backup_t *backup) {
     if (!ble_pt_bindings_backup_valid(backup)) return ESP_ERR_INVALID_ARG;
     bool any = false;
     for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i) any |= backup->entries[i].key[0] != 0;
     if (!any) return ESP_OK;
-    nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NS_BINDINGS, NVS_READWRITE, &h);
+    esp_err_t err = profiles_load();
     if (err != ESP_OK) return err;
-    for (unsigned i = 0; i < BLE_PT_MAX_BONDS && err == ESP_OK; ++i) {
-        const ble_pt_backup_entry_t *entry = &backup->entries[i];
-        if (!entry->key[0]) continue;
-        ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS] = {0};
-        memcpy(frames, entry->frames, sizeof(entry->frames));
-        err = nvs_set_blob(h, entry->key, frames, sizeof(frames));
-    }
-    if (err == ESP_OK) err = nvs_commit(h);
-    nvs_close(h);
-    return err;
+    ble_pt_bindings_backup_t merged = s_profiles.bindings;
+    err = profiles_merge_bindings(&merged, backup);
+    return err == ESP_OK ? profiles_replace_bindings(&merged) : err;
 }
+
 #endif
 
 /* ---- 环形缓冲操作 / Ring operations ---- */
@@ -1747,7 +1873,12 @@ static esp_err_t start_locked(void) {
     // internal symbol with no public declaration); bond persistence is decided by
     // CONFIG_BT_NIMBLE_NVS_PERSIST.
 
-    bonds_load();
+    esp_err_t profile_error = profiles_load();
+    if (profile_error != ESP_OK) {
+        ESP_LOGE(TAG, "BLE profile load failed: %s", esp_err_to_name(profile_error));
+        (void)nimble_port_deinit();
+        return profile_error;
+    }
     // 检查任务分配结果，失败时完整回收，避免假启动及停止死等。/ Check task allocation and unwind failures instead of claiming a running host.
     if (xTaskCreatePinnedToCore(host_task, "nimble_host", CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE,
                                NULL, configMAX_PRIORITIES - 4, &s_host_task,
@@ -2052,6 +2183,9 @@ void ble_pt_reset_failure(void) {
 #define REPEAT_PERIOD_MS 120
 
 static void poll_locked(void) {
+#if DPREADER_BOARD_METALIO47
+    profiles_poll();
+#endif
     if(atomic_load(&s_stop_active)) {
         s_stop_budget_ms=0;(void)stop_locked();s_stop_budget_ms=2000;return;
     }
@@ -2214,56 +2348,72 @@ const ble_pt_bond_t *ble_pt_bond(uint8_t index) {
 #if DPREADER_BOARD_METALIO47
 esp_err_t ble_pt_forget(const char *addr) {
     if (!addr || !addr[0]) return ESP_ERR_INVALID_ARG;
-    if (!s_running || !atomic_load(&s_host_ready)||atomic_load(&s_stop_active)|| !ble_hs_synced()) return ESP_ERR_INVALID_STATE;
-    char saved_addr[18];snprintf(saved_addr,sizeof(saved_addr),"%s",addr);
-    const ble_pt_bond_t *bond=bond_find(saved_addr);
-    if (!bond) return ESP_ERR_NOT_FOUND;
+    if (!s_running || !atomic_load(&s_host_ready) || atomic_load(&s_stop_active) || !ble_hs_synced()) return ESP_ERR_INVALID_STATE;
+    char saved_addr[18];
+    snprintf(saved_addr, sizeof(saved_addr), "%s", addr);
+    ble_profile_disk_t next;
+    portENTER_CRITICAL(&s_profiles_lock);
+    next = s_profiles;
+    next.count = s_bond_count;
+    memcpy(next.peers, s_bonds, sizeof(s_bonds));
+    portEXIT_CRITICAL(&s_profiles_lock);
+    unsigned index = 0;
+    while (index < next.count && strcasecmp(next.peers[index].addr, saved_addr)) ++index;
+    if (index == next.count) return ESP_ERR_NOT_FOUND;
     unsigned bytes[6];
-    if (sscanf(saved_addr,"%x:%x:%x:%x:%x:%x",&bytes[0],&bytes[1],&bytes[2],&bytes[3],&bytes[4],&bytes[5])!=6)
-        return ESP_ERR_INVALID_ARG;
-    ble_addr_t peer={.type=bond->addr_type};
-    for (int i=0;i<6;i++) peer.val[5-i]=(uint8_t)bytes[i];
-    // SDK blecent示例删除真正的LTK/IRK，不能只删界面列表。/ Delete the real NimBLE peer keys as blecent does.
-    if (ble_store_util_delete_peer(&peer)!=0) return ESP_FAIL;
-    if (!strcasecmp(saved_addr,s_conn_addr)) ble_pt_disconnect();
-    if (!strcasecmp(saved_addr,s_reconnect_addr)) s_reconnect_addr[0]=0;
-    if (!strcasecmp(saved_addr,s_pending_addr)) s_pending_addr[0]=0;
-    for (uint8_t i=0;i<s_bond_count;i++) {
-        if (strcasecmp(s_bonds[i].addr,saved_addr)) continue;
-        memmove(&s_bonds[i],&s_bonds[i+1],sizeof(s_bonds[0])*(s_bond_count-i-1));
-        s_bond_count--;bonds_save();break;
+    if (sscanf(saved_addr, "%x:%x:%x:%x:%x:%x", &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5]) != 6) return ESP_ERR_INVALID_ARG;
+    ble_addr_t peer = {.type = next.peers[index].addr_type};
+    for (int i = 0; i < 6; ++i) peer.val[5-i] = (uint8_t)bytes[i];
+    if (!read_pico_sd_io_ready()) return ESP_ERR_INVALID_STATE;
+    int rc = ble_store_util_delete_peer(&peer);
+    if (rc) { ESP_LOGE(TAG, "BLE key removal failed rc=%d", rc); return ESP_FAIL; }
+    memmove(&next.peers[index], &next.peers[index+1], sizeof(next.peers[0]) * (next.count-index-1));
+    memset(&next.peers[--next.count], 0, sizeof(next.peers[0]));
+    char key[16];
+    bond_key(key, sizeof(key), saved_addr);
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i)
+        if (!strcmp(next.bindings.entries[i].key, key)) memset(&next.bindings.entries[i], 0, sizeof(next.bindings.entries[i]));
+    esp_err_t err = profiles_commit(&next);
+    if (err != ESP_OK) return err;
+    if (!strcasecmp(saved_addr, s_conn_addr)) ble_pt_disconnect();
+    if (!strcasecmp(saved_addr, s_reconnect_addr)) s_reconnect_addr[0] = 0;
+    if (!strcasecmp(saved_addr, s_pending_addr)) s_pending_addr[0] = 0;
+    portENTER_CRITICAL(&s_profiles_lock);
+    for (unsigned i = 0; i < s_bond_count; ++i) {
+        if (strcasecmp(saved_addr, s_bonds[i].addr)) continue;
+        memmove(&s_bonds[i], &s_bonds[i+1], sizeof(s_bonds[0]) * (s_bond_count-i-1));
+        --s_bond_count;
+        break;
+    }
+    s_profiles.bindings = next.bindings;
+    s_profiles.sequence = next.sequence;
+    bonds_save();
+    portEXIT_CRITICAL(&s_profiles_lock);
+    if (!strcasecmp(saved_addr, s_bindings.addr)) memset(&s_bindings, 0, sizeof(s_bindings));
+    return ESP_OK;
+}
+
 #else
 void ble_pt_forget(const char *addr) {
     if (!addr) return;
-    if(!strcmp(s_reconnect_addr,addr))s_reconnect_addr[0]=0;
-    if(!strcmp(s_pending_addr,addr))s_pending_addr[0]=0;
+    if (!strcmp(s_reconnect_addr, addr)) s_reconnect_addr[0] = 0;
+    if (!strcmp(s_pending_addr, addr)) s_pending_addr[0] = 0;
     for (uint8_t i = 0; i < s_bond_count; ++i) {
         if (strcmp(s_bonds[i].addr, addr)) continue;
-        memmove(&s_bonds[i], &s_bonds[i + 1], sizeof(s_bonds[0]) * (s_bond_count - i - 1));
-        s_bond_count--;
+        memmove(&s_bonds[i], &s_bonds[i+1], sizeof(s_bonds[0])*(s_bond_count-i-1));
+        --s_bond_count;
         bonds_save();
         break;
-#endif
     }
-#if DPREADER_BOARD_METALIO47
     nvs_handle_t h;
-    if (nvs_open(NVS_NS_BINDINGS,NVS_READWRITE,&h)==ESP_OK) {
-        char key[16];nvs_erase_key(h,bond_key(key,sizeof(key),saved_addr));nvs_commit(h);nvs_close(h);
-#else
-    nvs_handle_t h;  // 绑定也跟着清掉 / drop the bindings with it
     if (nvs_open(NVS_NS_BINDINGS, NVS_READWRITE, &h) == ESP_OK) {
         char key[16];
         nvs_erase_key(h, bond_key(key, sizeof(key), addr));
         nvs_commit(h);
         nvs_close(h);
-#endif
     }
-#if DPREADER_BOARD_METALIO47
-    if (!strcasecmp(saved_addr,s_bindings.addr)) memset(&s_bindings,0,sizeof(s_bindings));
-    return ESP_OK;
-#else
-#endif
 }
+#endif
 
 /* ---- 手动映射 / Manual bindings ---- */
 
@@ -2300,6 +2450,32 @@ esp_err_t ble_pt_bind(ble_pt_action_t action, const ble_pt_frame_t *frame) {
         if (frame_same(&frames[1 - index], &frames[index])) memset(&frames[1 - index], 0, sizeof(frames[0]));
     }
 
+#if DPREADER_BOARD_METALIO47
+    ble_pt_bindings_backup_t backup;
+    esp_err_t err = ble_pt_bindings_backup_capture(&backup);
+    if (err != ESP_OK) return err;
+    char key[16];
+    bond_key(key, sizeof(key), s_bindings.addr);
+    int slot = -1;
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i)
+        if (!strcmp(backup.entries[i].key, key)) slot = i;
+    for (unsigned i = 0; slot < 0 && i < BLE_PT_MAX_BONDS; ++i)
+        if (!backup.entries[i].key[0]) slot = i;
+    if (slot < 0) {
+        for (unsigned i = 0; slot < 0 && i < BLE_PT_MAX_BONDS; ++i) {
+            bool retained = false;
+            for (unsigned j = 0; j < s_bond_count; ++j) {
+                char peer_key[16];
+                retained |= !strcmp(backup.entries[i].key, bond_key(peer_key, sizeof(peer_key), s_bonds[j].addr));
+            }
+            if (!retained) slot = i;
+        }
+    }
+    if (slot < 0) return ESP_ERR_NO_MEM;
+    memcpy(backup.entries[slot].key, key, sizeof(backup.entries[slot].key));
+    memcpy(backup.entries[slot].frames, frames, sizeof(frames));
+    err = profiles_replace_bindings(&backup);
+#else
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NS_BINDINGS, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
@@ -2307,6 +2483,7 @@ esp_err_t ble_pt_bind(ble_pt_action_t action, const ble_pt_frame_t *frame) {
     err = nvs_set_blob(h, bond_key(key, sizeof(key), s_bindings.addr), frames, sizeof(frames));
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
+#endif
     if (err == ESP_OK) memcpy(s_bindings.frames, frames, sizeof(frames));
     return err;
 }
@@ -2356,6 +2533,8 @@ ble_pt_action_t ble_pt_action_for_frame(const ble_pt_frame_t *frame) {
     // Manual bindings win: they are more specific and let the user override the built-in map.
     if (frame_same(frame, &s_bindings.frames[0])) return BLE_PT_ACTION_PREV;
     if (frame_same(frame, &s_bindings.frames[1])) return BLE_PT_ACTION_NEXT;
+    // Once learned, only exact configured frames navigate this peer.
+    if (s_bindings.frames[0].len || s_bindings.frames[1].len) return BLE_PT_ACTION_NONE;
     // 阅星瞳协议：裸的一字节报告，报告号和字节下标都为 0，所以整帧就是 0x01 / 0x02。
     // 声明了键盘页的外设上，byte 0 是修饰键字节，那里的 0x01 是左 Ctrl；9 字节帧的 byte 0 是
     // 报告号。两者都不是键码，不能当成翻页。

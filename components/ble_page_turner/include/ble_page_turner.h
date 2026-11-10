@@ -72,7 +72,7 @@ typedef struct {
     bool bonded;        ///< 已在已配对列表里 / already in the bond list
 } ble_pt_device_t;
 
-/// 已配对（bonded）的设备，持久化在 NVS。/ A bonded peer, persisted in NVS.
+/// 已配对设备，S31配置保存到SD。/ A saved peer; S31 profiles persist on SD.
 typedef struct {
     char addr[18];
     char name[32];

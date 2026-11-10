@@ -5211,7 +5211,6 @@ static bool heading_text_matches(const char *text, const char *toc, const char *
     return false;
 }
 
-static bool notes_chapter_title(size_t i,char *out,size_t cap) {return book_chapter_title(i,out,cap)==ESP_OK;}
 static esp_err_t reader_footnote_load(const char *href, char **utf8, size_t *len) {
     return book_chapter_note(s_chapter, href, utf8, len);
 }
@@ -5351,7 +5350,6 @@ static bool load_chapter_at(app_ctx_t* ctx, size_t chapter, size_t offset,
     unlock_draw();
     book_notes_bind(s_path,(uint32_t)s_chapter,s_text,s_text_len);
     book_notes_bind_links(s_links,s_link_count,reader_footnote_load);
-    book_notes_catalog(book_chapter_count(),notes_chapter_title);
     prepare_inline_image();
     // 开书这条链上有解析、解压和字体装载，栈曾经在这里溢出过；留一个可观测的水位。
     // 顺带量一下章节排完后的 PSRAM 余量：书内字体的装载预算要靠这个数来定，不能靠估。
@@ -6843,7 +6841,7 @@ static app_redraw_t reader_chapter_jump_commit(app_ctx_t *ctx,size_t page,bool r
     bool changed=page!=s_page||destination!=before;
     s_chapter_jump_undo.valid=!restore&&changed;
     s_chapter_jump_undo.chapter=s_chapter;s_chapter_jump_undo.offset=before;
-    s_chapter_jump_undo.until_ms=ctx->now_ms+7000;
+    s_chapter_jump_undo.until_ms=ctx->now_ms+2000;
     s_page=page;s_jump_page=page;s_jump_offset=offset;
     s_reader_panel=READER_PANEL_NONE;s_reader_slider=-1;
     s_reader_tap.pending=false;
@@ -8926,16 +8924,19 @@ static app_redraw_t shelf_key_tick(app_ctx_t *ctx) {
     return redraw==APP_REDRAW_NONE?shelf_key_paint(ctx):redraw;
 }
 
-// 键事件与原始边沿可能属于同一份报告，每轮最多执行一次；其他子页只清理旧输入。
-// 蓝牙翻页器防抖冷却：市面蓝牙翻页器/自拍器按一次可能连续发送数帧或无松开报告，
-// 350ms 冷却与队列清空保证单次物理按键绝不会发生多页连翻。
+// Learned frames own navigation; generic HID reports from the same gesture must not
+// produce a second action. Compare arrival times, not ticks delayed by E-Ink drawing.
 #define BLE_REMOTE_DEBOUNCE_MS 350
 static uint32_t s_last_ble_remote_turn_ms = 0;
+static uint32_t s_last_ble_learned_ms = 0;
 
 static int book_remote_direction(uint32_t now_ms) {
     int direction = 0;
+    const bool learned = ble_pt_binding(BLE_PT_ACTION_PREV, NULL) ||
+                         ble_pt_binding(BLE_PT_ACTION_NEXT, NULL);
     ble_pt_event_t event;
     while (ble_pt_pop_key(&event)) {
+        if (learned) continue;
         ble_pt_action_t action = ble_pt_action_for_usage(event.usage, event.mods);
         if (action == BLE_PT_ACTION_PREV) direction = -1;
         else if (action == BLE_PT_ACTION_NEXT) direction = 1;
@@ -8944,21 +8945,23 @@ static int book_remote_direction(uint32_t now_ms) {
     while (ble_pt_pop_raw(&raw)) {
         if (!raw.pressed) continue;
         ble_pt_action_t action = ble_pt_action_for_frame(&raw.frame);
-        if (action == BLE_PT_ACTION_PREV) direction = -1;
-        else if (action == BLE_PT_ACTION_NEXT) direction = 1;
-    }
-    if (direction != 0) {
-        if (s_last_ble_remote_turn_ms && now_ms - s_last_ble_remote_turn_ms < BLE_REMOTE_DEBOUNCE_MS) {
-            // 350ms 内重复事件直接丢弃
-            return 0;
+        if (action == BLE_PT_ACTION_NONE) continue;
+        if (learned) {
+            const bool duplicate = s_last_ble_learned_ms &&
+                raw.at_ms - s_last_ble_learned_ms < BLE_REMOTE_DEBOUNCE_MS;
+            s_last_ble_learned_ms = raw.at_ms;
+            if (duplicate) continue;
         }
+        direction = action == BLE_PT_ACTION_PREV ? -1 : 1;
+    }
+    if (!learned && direction != 0) {
+        if (s_last_ble_remote_turn_ms &&
+            now_ms - s_last_ble_remote_turn_ms < BLE_REMOTE_DEBOUNCE_MS) return 0;
         s_last_ble_remote_turn_ms = now_ms;
-        // 成功识别一次翻页，立刻抽干两端队列，杜绝同一按键残留的重复包在下一 tick 再次触发
-        while (ble_pt_pop_key(&event)) {}
-        while (ble_pt_pop_raw(&raw)) {}
     }
     return direction;
 }
+
 #if DPREADER_BOARD_METALIO47
 // 实际阅读/唤醒回退也计数，每次持续回退只记一次；预览与异常启动保护不计数。
 // Observe reading/wake fallbacks once per episode, excluding previews and abnormal-start protection.

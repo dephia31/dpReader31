@@ -29,7 +29,7 @@ ctx.consumed=true;assert(reader_touch_owns_input(&ctx));ctx.consumed=false;
 s_reader_tap.pending=true;assert(reader_touch_owns_input(&ctx));
 s_reader_tap.pending=false;assert(!reader_touch_owns_input(&ctx));}
 '''
-start=function('start_locked',ble);assert start.index('bonds_load();')<start.index('s_running = true;')<start.index('atomic_store(&s_recent_requested,true)')
+start=function('start_locked',ble);assert start.index('profiles_load();')<start.index('s_running = true;')<start.index('atomic_store(&s_recent_requested,true)')
 poll=function('poll_locked',ble);assert poll.index('if(!atomic_load(&s_host_ready))')<poll.index('reconnect_recent_requested();')
 run=loop[loop.index('void app_loop_run('):];assert run.index('current->on_tick(&ctx)')<run.index('bool radio_ready=')<run.index('ble_pt_sync(app_settings_ble_turner());')
 assert run.index('switch_to(&ctx, &current, next)')<run.index('bool radio_ready=')

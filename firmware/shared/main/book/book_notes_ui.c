@@ -68,21 +68,6 @@ bool book_notes_open_list(size_t page) {
     s->generation=book_layout_generation();return true;
 }
 size_t book_notes_page(size_t fallback) {return book_notes_active()?s->page:fallback;}
-static bool sync_notes(void) {
-    unsigned unresolved=0;
-    if(!book_annotation_import(&s->annotations,s->book_path,s->text,&unresolved))return false;
-    if(memcmp(s->annotations.items,s->committed.items,sizeof(s->annotations.items))||s->annotations.count!=s->committed.count) {
-        if(!book_annotations_save(&s->annotations,s->storage_root)){s->annotations=s->committed;return false;}
-        s->committed=s->annotations;
-    }
-    bool ok=book_annotation_publish(&s->annotations,s->book_path,s->text);
-    snprintf(s->message,sizeof(s->message),ok?(unresolved?"Đã đồng bộ; %u mục chưa gắn được vị trí":"Đã đồng bộ tệp KOReader"):"Đã lưu cục bộ; chưa đồng bộ được KOReader",unresolved);
-    return ok;
-}
-void book_notes_catalog(size_t count,bool (*title)(size_t,char*,size_t)) {
-    if(s&&s->valid&&!book_annotation_catalog(s->book_path,count,title))
-        snprintf(s->message,sizeof(s->message),"Chưa cập nhật được danh mục chương cho KOReader");
-}
 void book_notes_bind(const char *path,uint32_t chapter,const char *text,size_t length) {
     book_notes_reset();
     s=heap_caps_calloc(1,sizeof(*s),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
@@ -95,8 +80,7 @@ void book_notes_bind(const char *path,uint32_t chapter,const char *text,size_t l
        snprintf(s->storage_root,sizeof(s->storage_root),"%s/snapshots",directory)>=(int)sizeof(s->storage_root))return;
     s->valid=book_annotations_load(&s->annotations,s->storage_root,"",chapter,text,length);
     /* Prefer RC3..5 sidecar snapshots, then RC2. Old files stay untouched.
-     * Preserve sequence while committing the migrated copy so its JSON baseline
-     * still agrees with the snapshot generation. */
+     * Preserve the snapshot sequence while committing the migrated copy. */
     if(s->valid&&!s->annotations.sequence) {
         book_annotations_t *legacy=heap_caps_calloc(1,sizeof(*legacy),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
         if(!legacy){s->valid=false;return;}
@@ -109,15 +93,11 @@ void book_notes_bind(const char *path,uint32_t chapter,const char *text,size_t l
         if(legacy->sequence) {
             s->annotations.count=legacy->count;memcpy(s->annotations.items,legacy->items,sizeof(legacy->items));
             s->annotations.sequence=legacy->sequence-1;
-            /* Catalog creates the central parent, but never touches old .sdr. */
-            unsigned unresolved=0;
-            s->valid=book_annotation_import(&s->annotations,path,text,&unresolved)&&
-                book_annotations_save(&s->annotations,s->storage_root);
+            s->valid=book_annotations_save(&s->annotations,s->storage_root);
         }
         free(legacy);
     }
     s->committed=s->annotations;
-    if(s->valid)sync_notes();
 }
 void book_notes_bind_links(const html_link_t *links,size_t count,book_notes_footnote_fn load) {
     if(!s)return;
@@ -128,7 +108,6 @@ static ui_icon_t action_icon(const char *label) {
     if(!strcmp(label,"Tra từ"))return UI_ICON_SEARCH;
     if(!strcmp(label,"Tô sáng"))return UI_ICON_HIGHLIGHTER;
     if(!strcmp(label,"Ghi chú"))return UI_ICON_PENCIL;
-    if(!strcmp(label,"Đồng bộ"))return UI_ICON_REFRESH_CW;
     if(!strcmp(label,"Lưu ghi chú"))return UI_ICON_SAVE;
     if(!strcmp(label,"Các ghi chú"))return UI_ICON_LIST;
     if(!strcmp(label,"Trước")||!strcmp(label,"Trang trước"))return UI_ICON_CHEVRON_LEFT;
@@ -371,7 +350,7 @@ void book_notes_draw(uint8_t *fb,size_t page,EpdRect body,int px) {
             ui_text_box(fb,(EpdRect){42,288+row*NOTES_LIST_ROW_H,500,36},27,note,EPD_DRAW_ALIGN_LEFT,false);
             button(fb,(EpdRect){560,260+row*NOTES_LIST_ROW_H,78,52},"Xóa");
         }
-        button(fb,(EpdRect){42,844,180,58},"Trước");button(fb,(EpdRect){240,844,200,58},"Đồng bộ");button(fb,(EpdRect){458,844,180,58},"Sau");
+        button(fb,(EpdRect){42,844,180,58},"Trước");button(fb,(EpdRect){458,844,180,58},"Sau");
     }
 }
 static bool persist(void) {
@@ -382,9 +361,7 @@ static bool persist(void) {
         snprintf(s->message,sizeof(s->message),"Không ghi được thẻ nhớ (lỗi %d). Có thể thử lại.",error);return false;
     }
     s->committed=s->annotations;
-    if(book_annotation_publish(&s->annotations,s->book_path,s->text))
-        snprintf(s->message,sizeof(s->message),"Đã lưu trên thẻ nhớ và tệp KOReader");
-    else snprintf(s->message,sizeof(s->message),"Đã lưu cục bộ; chưa đồng bộ được KOReader (lỗi %d)",errno);
+    snprintf(s->message,sizeof(s->message),"Đã lưu trên thẻ nhớ");
     return true;
 }
 static bool save_note(const char *note) {
@@ -486,7 +463,6 @@ bool book_notes_gesture(app_ctx_t *ctx,const ui_gesture_event_t *ev,size_t page,
     } else if(s->mode==LIST) {
         if(hit((EpdRect){42,844,180,58},x,y)&&s->list_at>=NOTES_LIST_ROWS)s->list_at-=NOTES_LIST_ROWS;
         else if(hit((EpdRect){458,844,180,58},x,y)&&s->list_at+NOTES_LIST_ROWS<(int)s->annotations.count)s->list_at+=NOTES_LIST_ROWS;
-        else if(hit((EpdRect){240,844,200,58},x,y)){if(!sync_notes())snprintf(s->message,sizeof(s->message),"Chưa đồng bộ được; dữ liệu cũ vẫn được giữ");}
         else for(int row=0;row<NOTES_LIST_ROWS;row++) {
             int i=s->list_at+row;if(i>=(int)s->annotations.count)break;
             if(hit((EpdRect){560,260+row*NOTES_LIST_ROW_H,78,52},x,y)&&s->valid) {

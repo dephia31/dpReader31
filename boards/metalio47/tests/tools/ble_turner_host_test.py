@@ -127,7 +127,7 @@ static esp_err_t nimble_port_deinit(void){++deinit_count;return ESP_OK;}
 static int nimble_port_stop(void){++stop_count;if(!stop_error)atomic_store(&s_host_exited,true);return stop_error;}
 static void host_task(void*p){(void)p;}
 static void on_sync(void){}
-static void bonds_load(void){}
+static esp_err_t profiles_load(void){return ESP_OK;}
 static struct {void(*sync_cb)(void);void(*reset_cb)(int);int sm_io_cap,sm_bonding,sm_mitm,sm_sc,sm_our_key_dist,sm_their_key_dist;}ble_hs_cfg;
 static int xTaskCreatePinnedToCore(void(*fn)(void*),const char*name,int stack,void*param,int priority,void**handle,int core){
  if(!strcmp(name,"ble_stop")){assert(fn==stop_worker&&stack==4096&&!handle);if(task_error)return 0;fn(NULL);return pdPASS;}
@@ -143,15 +143,16 @@ bool ble_pt_connected(void){return s_connected;}
 static int binding_error;
 static struct {char addr[18];ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];} s_bindings;
 static ble_pt_frame_t persisted[BLE_PT_MAX_BINDINGS];
-static int binding_handles;
 typedef int nvs_handle_t;
 #define NVS_NS_BINDINGS "bindings"
 #define NVS_READWRITE 1
-static esp_err_t nvs_open(const char *ns,int mode,nvs_handle_t *h){assert(!strcmp(ns,NVS_NS_BINDINGS)&&mode==1);if(binding_error==1)return ESP_FAIL;*h=1;binding_handles++;return ESP_OK;}
-static const char *bond_key(char*k,size_t cap,const char*addr){assert(addr[0]);snprintf(k,cap,"test");return k;}
-static esp_err_t nvs_set_blob(nvs_handle_t h,const char*k,const void*in,size_t len){assert(h==1&&!strcmp(k,"test")&&len==sizeof(persisted));if(binding_error==2)return ESP_FAIL;memcpy(persisted,in,len);return ESP_OK;}
-static esp_err_t nvs_commit(nvs_handle_t h){assert(h==1);return binding_error==3?ESP_FAIL:ESP_OK;}
-static void nvs_close(nvs_handle_t h){assert(h==1);binding_handles--;}
+#include "ble_pt_backup.h"
+static ble_pt_bindings_backup_t saved_bindings;
+static ble_pt_bond_t s_bonds[BLE_PT_MAX_BONDS];
+static const char *bond_key(char*k,size_t cap,const char*addr){assert(addr[0]);snprintf(k,cap,"b_12345678");return k;}
+esp_err_t ble_pt_bindings_backup_capture(ble_pt_bindings_backup_t *out){if(binding_error==1)return ESP_FAIL;*out=saved_bindings;return ESP_OK;}
+esp_err_t profiles_replace_bindings(const ble_pt_bindings_backup_t *in){if(binding_error)return ESP_FAIL;saved_bindings=*in;memcpy(persisted,in->entries[0].frames,sizeof(persisted));return ESP_OK;}
+
 
 '''
 for name in ('lifecycle_take','lifecycle_give','ble_pt_input_serial','key_push','raw_push','frame_of','frame_same',
