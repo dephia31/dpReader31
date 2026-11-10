@@ -1,19 +1,25 @@
-# Đảo màu S31 — thử nghiệm RC8
+# S31 display inversion - RC8 experiment
 
-Trong **Cài đặt → Hiển thị → Đảo màu**, bật để đảo toàn bộ giao diện, chữ và hình ảnh. Mặc định tắt. Lựa chọn được lưu NVS; không thay đổi độ sáng đèn. Áp dụng cho cả Full và Love Book.
+In Settings > Display > Invert colors ("Dao mau" in Vietnamese), enable inversion of the whole UI, text and images. Default is off. The preference persists in NVS and does not change frontlight brightness. Available in Full and Love Book.
 
-Renderer, cache trang/ảnh và framebuffer mà ứng dụng sử dụng vẫn ở màu bình thường. Khi xuất màn hình, adapter S31 tạo bản đích đảo 4 bit (`15 - gray`), chuyển lịch sử sang màu vật lý, refresh đồng bộ rồi trả buffer lịch sử về màu logic. Dùng thêm một framebuffer PSRAM, chỉ cấp phát khi cần. Không đảo vùng nhớ file sách hoặc cache phông.
+The renderer, prepared pages, image caches and application framebuffer remain in normal logical polarity. The S31 output adapter uses one lazily allocated PSRAM framebuffer to prepare the physical target, temporarily converts the previous-frame history to physical polarity, scans synchronously and restores logical history. Source images and font caches are not modified.
 
-Chế độ đảo dùng GL48/GC48 chuẩn của S31, bỏ các đường refresh/animation chuyên cho nền trắng. Bật/tắt và yêu cầu full refresh dùng GC48 toàn màn hình; các lần vẽ còn lại dùng GL48 vi sai, có GC định kỳ. Có thể chậm hơn chế độ sáng và có chớp sáng khi làm mới kỹ. Ảnh cũng đảo màu; chưa có cơ chế giữ nguyên màu ảnh. Waveform, VCOM và trình tự nguồn không sửa.
+## Refresh routing
 
-Kiểm thử host mô phỏng giao diện scan: đủ 16 mức xám, buffer logic không bị sửa, màu của ảnh lịch sử trước/sau bật/tắt, lỗi cấp phát, refresh thất bại và cờ phục hồi; setter NVS giữ lựa chọn khi mở/ghi/commit thất bại. Đây không phải kiểm thử quang học.
+- DU20 when every changed pixel transitions between black and white.
+- GL48 when either the old or new value of a changed pixel is gray. Unchanged gray does not promote an otherwise binary update to GL.
+- Full GC48 for polarity changes, explicit full requests (including reader entry/cleaning), periodic cleaning and fault recovery.
 
-Cần thử trên máy: bật/tắt nhiều lần; lật ít nhất 50 trang với AA bật/tắt; trang có ảnh; mở/đóng menu, điều chỉnh đèn và slider; xoay màn hình; ngủ/thức và khởi động lại; refresh thủ công. Đánh giá bóng mờ trên nền đen, độ rõ nét chữ trắng, chớp sáng và độ trễ. Chưa có kết luận đạt chất lượng phần cứng.
+The existing derived DU20/GL48 tables hold every equal-value pair, including black backgrounds. All changed pairs retain native vendor pulses. White-background animation shortcuts are bypassed; dark page turns use direct differential output. Waveform source tables, VCOM and power sequencing are unchanged.
 
-## RC8 update (supersedes the RC7 refresh description above)
+Local menus and sliders preserve the requested logical crop through all four rotations. Pixels outside the crop stay at the physical baseline, even when sharing a packed byte or aligned 32-pixel scan column. Pending changes outside that crop remain pending. No-change submissions do not scan or advance the cleaning counter. Only successful changed page submissions advance the adapter's periodic counter; local controls do not. The reader's configured full-refresh interval is still respected.
 
-Dark output now inspects actual changed physical pixels: DU20 for black/white transitions, GL48 if either the old or new changed pixel is gray. Unchanged gray pixels do not promote an otherwise binary update. Existing derived waveforms hold all equal-value pairs, including black backgrounds; all changed pairs retain native vendor pulses.
+AA text normally uses GL. Disable AA to exercise DU on binary text pages. Images are inverted as well; original image polarity is not preserved. Full refresh can still flash visibly. Ghosting and speed on a black background require optical validation on the S31.
 
-Local menus/sliders preserve the requested logical crop through all four rotations. Pending pixels outside the crop remain untouched, even in a shared byte or aligned 32-pixel scan column. No-change submissions do not scan. Only changed, successful page submissions count toward the adapter's periodic GC; local controls do not. Explicit full refresh, polarity transitions, reader cleaning cycles and recovery still use full GC.
+## Validation
 
-Host checks cover real DU20/GL48 LUTs, DU/GL/GC routing, unchanged gray, exact crop and rotation, clipping, no-op/control/page cycle, allocation failure, failed refresh and toggle history. Optical quality and page latency require hardware testing. Reading with AA normally uses GL; turn AA off to exercise DU text pages. Existing configured reader full-refresh intervals still apply.
+`tools/invert_display_host_test.py` checks the actual output adapter against the real highlevel rotation routine and an aligned-scan simulation: DU/GL/GC routing, all gray values, unchanged gray, exact crops, pending neighboring pixels, clipping, all rotations, no-op/control/page cycles, allocation failure, draw failure and toggle history. It also checks actual DU20/GL48 LUTs: equal pixels receive no pulse and every changed pair retains its native drive sequence.
+
+`tools/invert_settings_host_test.py` checks NVS persistence, errors and default-off behavior. These host checks do not establish optical quality or on-device latency.
+
+Hardware acceptance: repeated toggles; at least 50 turns with AA on/off; illustrated pages; opening/closing menus and frontlight sliders; rotation; sleep/wake/reboot; manual and periodic full refresh. Compare white-text edges, black-background ghosting, visible flashes and page latency.
