@@ -39,7 +39,7 @@
 // turned back into pointers, so every older cache has to lapse.
 // 14：无名页不再缓存「第 N 节」占位标题，旧缓存会把这些名字带回来。
 // 14: unnamed pages no longer cache an invented label, so caches holding one must lapse.
-#define EPUB_CACHE_VERSION 14u
+#define EPUB_CACHE_VERSION 15u
 #define EPUB_META_CACHE_VERSION 1u
 #define EPUB_CSS_MAX (256u * 1024u)
 #define EPUB_CSS_FILE_MAX (128u * 1024u)
@@ -58,6 +58,7 @@ typedef struct {
     char path[EPUB_PATH_CAP]; ///< ZIP 内路径 / In-zip path
     int zip_index;
     uint8_t slot; ///< 装载后的字体槽，0 表示还没装 / Loaded slot, 0 while not loaded
+    uint8_t style; ///< 粗体/斜体标志 / Bold and italic flags
     bool failed; ///< 装过且失败，不再重试 / Tried and failed, never retried
 } epub_face_t;
 
@@ -1030,7 +1031,7 @@ void book_epub_close(book_epub_t *book) {
     // 书内字体装在全局槽里，关书必须还回去，否则下一本书会读到上一本的字形。
     // Embedded faces live in global slots: closing the book must hand them back, or the next
     // book would read the previous one's glyphs.
-    if (book->face_count) ttf_font_close_embedded();
+    ttf_font_close_embedded();
     text_pool_free(book);
     zip_close(book->zip); free(book->visible_index); free(book->navigation);
     free(book->chapters); free(book->faces); free(book);
@@ -1606,10 +1607,10 @@ static void font_stem_of(const char* name, char out[EPUB_FACE_NAME_CAP]) {
 // 同名只留先到的那条：样式表声明的名字比文件名主干更权威，而扫描在前。
 // Keep the first entry per name: a declared name is more authoritative than a file stem, and
 // the scan runs first.
-static void face_add(book_epub_t* book, const char* family, const char* path, int zip_index) {
+static void face_add(book_epub_t* book, const char* family, const char* path, int zip_index, unsigned style) {
     if (!family[0] || !path[0] || book->face_count >= EPUB_FACE_MAX) return;
     for (size_t i = 0; i < book->face_count; ++i) {
-        if (!strcasecmp(book->faces[i].family, family)) return;
+        if (!strcasecmp(book->faces[i].family, family) && book->faces[i].style==style) return;
     }
     if (book->face_count == book->face_capacity) {
         size_t cap = book->face_capacity ? book->face_capacity * 2 : 4;
@@ -1626,6 +1627,7 @@ static void face_add(book_epub_t* book, const char* family, const char* path, in
     snprintf(face->family, sizeof(face->family), "%s", family);
     snprintf(face->path, sizeof(face->path), "%s", path);
     face->zip_index = zip_index;
+    face->style = style;
 }
 
 // 按文件名认一遍包里的字体。按魔数逐条嗅探要给每个条目解压一次，代价太高，
@@ -1640,7 +1642,7 @@ static void epub_scan_faces(book_epub_t* book) {
         if (name == NULL || !font_entry_name(name)) continue;
         char stem[EPUB_FACE_NAME_CAP];
         font_stem_of(name, stem);
-        face_add(book, stem, name, (int)i);
+        face_add(book, stem, name, (int)i, 0);
     }
 }
 
@@ -1691,7 +1693,7 @@ static uint8_t epub_face_slot(void* ctx, const char* family, size_t len) {
     if (!book->fonts_enabled || len == 0 || len >= EPUB_FACE_NAME_CAP) return 0;
     for (size_t i = 0; i < book->face_count; ++i) {
         epub_face_t* face = &book->faces[i];
-        if (face->failed || strlen(face->family) != len) continue;
+        if (face->failed || face->style || strlen(face->family) != len) continue;
         if (strncasecmp(face->family, family, len)) continue;
         if (face->slot == 0) face->slot = epub_load_face(book, face);
         if (face->slot == 0) face->failed = true;
@@ -1782,7 +1784,13 @@ static void css_add_faces(book_epub_t* book, const char* css_path, const char* c
         if (!css_first_url(sc->src, sc->url, sizeof(sc->url))) continue;   // 只有 local(...)，不是内嵌字体
         if (!resolve_path(css_path, sc->url, sc->path)) continue;
         int index = zip_find(book->zip, sc->path);
-        if (index >= 0) face_add(book, sc->family, sc->path, index);
+        unsigned style=0;
+        char weight[32], slant[32];
+        if (css_declaration(open+1,shut,"font-weight",weight,sizeof(weight)) &&
+            (!strcasecmp(weight,"bold") || atoi(weight)>=600)) style|=1;
+        if (css_declaration(open+1,shut,"font-style",slant,sizeof(slant)) &&
+            (!strcasecmp(slant,"italic") || !strncasecmp(slant,"oblique",7))) style|=2;
+        if (index >= 0) face_add(book, sc->family, sc->path, index, style);
     }
     free(sc);
 }
@@ -1947,6 +1955,35 @@ static char *chapter_css(book_epub_t *book, const char *chapter_path,
     return css;
 }
 
+static uint8_t epub_style_slot(book_epub_t *book, uint8_t encoded) {
+    unsigned style=((encoded&HTML_FONT_BOLD)?1:0)|((encoded&HTML_FONT_ITALIC)?2:0);
+    uint8_t base=encoded&HTML_FONT_SLOT_MASK;
+    if (!style) return base;
+    const char *family=NULL;
+    for (size_t i=0;base && i<book->face_count;++i)
+        if (book->faces[i].slot==base) { family=book->faces[i].family; break; }
+    if (family) {
+        for (size_t i=0;i<book->face_count;++i) {
+            epub_face_t *face=&book->faces[i];
+            if (face->style!=style || strcasecmp(face->family,family) || face->failed) continue;
+            if (!face->slot) face->slot=epub_load_face(book,face);
+            if (face->slot) return face->slot;
+            face->failed=true;
+        }
+    }
+    return (uint8_t)ttf_font_family_style(base,style);
+}
+
+void book_epub_prepare_font_runs(book_epub_t *book, html_run_t *runs, size_t count) {
+    uint8_t resolved[256];
+    memset(resolved,255,sizeof(resolved));
+    for (size_t run=0;run<count;++run) {
+        unsigned encoded=runs[run].source_font;
+        if (resolved[encoded]==255) resolved[encoded]=epub_style_slot(book,(uint8_t)encoded);
+        runs[run].slot=resolved[encoded];
+    }
+}
+
 esp_err_t book_epub_load_target(book_epub_t *book, size_t i, const char *anchor,
                                 size_t source_offset, size_t *anchor_offset, html_text_t *out) {
     if (!out) return ESP_ERR_INVALID_ARG;
@@ -1969,7 +2006,10 @@ esp_err_t book_epub_load_target(book_epub_t *book, size_t i, const char *anchor,
     err = html_to_blocks_with_css_target(text, len, css, css_len,
                                          fonts.resolve ? &fonts : NULL,
                                          anchor, source_offset, anchor_offset, out);
-    if (err == ESP_OK) chapter_breaks_prepare(book, i, out);
+    if (err == ESP_OK) {
+        book_epub_prepare_font_runs(book,out->runs,out->run_count);
+        chapter_breaks_prepare(book, i, out);
+    }
     free(css); free(text); return err;
 }
 // 脚注弹窗只要目标元素的纯文字：太短（空锚点或只有编号）就向后补到成句，过长截断加省略号。

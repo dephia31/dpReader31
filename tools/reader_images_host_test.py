@@ -183,6 +183,10 @@ static bool book_layout_build_blocks(const char *text,size_t len,const blk_t *bl
  if(dims_fn){int w=0,h=0;assert(dims_fn(dims_ctx,0,&w,&h)&&w==60&&h==20);}
  if(reflow_failures){--reflow_failures;return false;}return true;
 }
+static __attribute__((unused)) bool reader_build_current_layout(int px){
+ return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
 static size_t book_layout_page_count(void){return 2;}
 static size_t book_layout_page_for_offset(size_t off){return off>=4?1:0;}
 static void release_page_images(void);

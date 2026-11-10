@@ -27,10 +27,12 @@ enum {
     CSS_BEFORE = 1u << 2,
     CSS_AFTER = 1u << 3,
     CSS_FAMILY = 1u << 4,
+    CSS_BOLD = 1u << 5,
+    CSS_ITALIC = 1u << 6,
 };
 
 typedef struct {
-    uint8_t mask, align, indent, before, after, family;
+    uint8_t mask, align, indent, before, after, family, bold, italic;
 } css_style_t;
 
 typedef struct {
@@ -114,6 +116,8 @@ static void css_apply(css_style_t* dst, const css_style_t* src) {
     if (src->mask & CSS_BEFORE) dst->before = src->before;
     if (src->mask & CSS_AFTER) dst->after = src->after;
     if (src->mask & CSS_FAMILY) dst->family = src->family;
+    if (src->mask & CSS_BOLD) dst->bold = src->bold;
+    if (src->mask & CSS_ITALIC) dst->italic = src->italic;
     dst->mask |= src->mask;
 }
 
@@ -187,6 +191,19 @@ static void css_declarations(writer_t* w, const char* at, const char* end, css_s
             style->before = css_length_percent(value, vn); style->mask |= CSS_BEFORE;
         } else if (kn == 13 && !strncasecmp(key, "margin-bottom", 13)) {
             style->after = css_length_percent(value, vn); style->mask |= CSS_AFTER;
+        } else if (kn == 11 && !strncasecmp(key, "font-weight", 11)) {
+            if (vn == 7 && !strncasecmp(value,"inherit",7)) continue;
+            style->bold = (vn == 4 && !strncasecmp(value,"bold",4)) ||
+                          (vn == 6 && !strncasecmp(value,"bolder",6)) ||
+                          (vn == 3 && value[0] >= '6' && value[0] <= '9' && value[1] == '0' && value[2] == '0');
+            style->mask |= CSS_BOLD;
+            w->family_rules = true;
+        } else if (kn == 10 && !strncasecmp(key, "font-style", 10)) {
+            if (vn == 7 && !strncasecmp(value,"inherit",7)) continue;
+            style->italic = (vn == 6 && !strncasecmp(value,"italic",6)) ||
+                            (vn >= 7 && !strncasecmp(value,"oblique",7));
+            style->mask |= CSS_ITALIC;
+            w->family_rules = true;
         } else if (kn == 11 && !strncasecmp(key, "font-family", 11)) {
             style->family = font_family_slot(w, value, vn);
             style->mask |= CSS_FAMILY;
@@ -375,7 +392,9 @@ static bool css_scope_match(const writer_t *w, const char *s, size_t len,
 }
 static css_style_t style_for(writer_t* w, const char* tag, const char* attrs, const char* attrs_end) {
     css_style_t out = {0};
-    unsigned priorities[5] = {0};
+    if (!strcmp(tag,"b") || !strcmp(tag,"strong")) { out.bold=1; out.mask|=CSS_BOLD; }
+    if (!strcmp(tag,"i") || !strcmp(tag,"em")) { out.italic=1; out.mask|=CSS_ITALIC; }
+    unsigned priorities[7] = {0};
     for (size_t i = 0; i < w->rule_count; ++i) {
         const css_rule_t *rule = &w->rules[i];
         bool body = rule->length == 4 && !strncasecmp(rule->selector, "body", 4);
@@ -384,8 +403,9 @@ static css_style_t style_for(writer_t* w, const char* tag, const char* attrs, co
                                                tag, attrs, attrs_end, w->depth ? w->depth - 1 : 0, 8, &work);
         if (!matches) continue;
         css_style_t chosen = rule->style;
+        if (body && strcmp(tag,"body")) chosen.mask &= ~(CSS_BOLD|CSS_ITALIC);
         unsigned specificity = body ? 0 : rule->specificity;
-        for (unsigned bit = 0; bit < 5; ++bit) {
+        for (unsigned bit = 0; bit < 7; ++bit) {
             if (!(chosen.mask & (1u << bit))) continue;
             if (specificity < priorities[bit]) chosen.mask &= ~(1u << bit);
             else priorities[bit] = specificity;
@@ -450,6 +470,7 @@ static esp_err_t run_open(writer_t* w) {
         .offset = w->run_start,
         .len = w->text.len - w->start - w->run_start,
         .slot = w->run_slot,
+        .source_font = w->run_slot,
     };
     return ESP_OK;
 }
@@ -831,18 +852,15 @@ static esp_err_t html_to_blocks_core(const char* html, size_t len,
                     // declaration inherits its parent's. With no font-family rule and no style
                     // attribute the step is skipped and body text pays nothing; a styled tag is
                     // only probed for the attribute instead of running the selector match.
-                    bool want_family = w.family_rules;
-                    if (!want_family && w.fonts != NULL && w.fonts->resolve != NULL) {
-                        const char* probe = NULL;
-                        size_t probe_len = 0;
-                        want_family = attr_value(html + at, html + end, "style", &probe, &probe_len);
-                    }
-                    if (want_family && w.depth <= CSS_ANCESTOR_MAX) {
+                    if (w.depth <= CSS_ANCESTOR_MAX) {
                         uint8_t parent = w.depth >= 2 ? w.family_at[w.depth - 2] : 0;
                         css_style_t level = style_for(&w, name, html + at, html + end);
-                        w.family_at[w.depth - 1] =
-                            (level.mask & CSS_FAMILY) ? level.family : parent;
-                        w.family = w.family_at[w.depth - 1];
+                        uint8_t family = (level.mask & CSS_FAMILY) ? level.family : parent & HTML_FONT_SLOT_MASK;
+                        bool bold = (level.mask & CSS_BOLD) ? level.bold : (parent & HTML_FONT_BOLD) != 0;
+                        bool italic = (level.mask & CSS_ITALIC) ? level.italic : (parent & HTML_FONT_ITALIC) != 0;
+                        w.family = family | (bold ? HTML_FONT_BOLD : 0) | (italic ? HTML_FONT_ITALIC : 0);
+                        w.family_at[w.depth - 1] = w.family;
+                        if (bold || italic) w.family_rules = true;
                     }
                     if (w.ancestors && w.depth <= CSS_ANCESTOR_MAX) {
                         css_node_t *node = &w.ancestors[w.depth - 1];

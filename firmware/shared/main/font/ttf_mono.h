@@ -17,3 +17,6 @@ bool ttf_mono_render_stroke(ttf_mono_face_t *face,uint32_t cp,float scale,int we
 bool ttf_gray_render_stroke(ttf_mono_face_t *face,uint32_t cp,float scale,int weight,int steps,ttf_mono_bitmap_t *bitmap);
 size_t ttf_mono_bytes(void);
 size_t ttf_mono_peak_bytes(void);
+
+/// 缺失字体面的合成后备。/ Synthetic fallback for missing family faces.
+bool ttf_render_styled(ttf_mono_face_t *face,uint32_t cp,float scale,int weight,int steps,bool gray,unsigned style,ttf_mono_bitmap_t *bitmap);

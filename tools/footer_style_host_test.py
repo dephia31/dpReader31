@@ -188,6 +188,10 @@ static bool book_layout_build_blocks(const char *text,size_t len,const void *blo
  if(fail_build){--fail_build;return false;}
  return true;
 }
+static __attribute__((unused)) bool reader_build_current_layout(int px){
+ return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
 static bool app_settings_set_book_footer_enabled(bool on){if(fail_write)return false;footer_enabled=on;return true;}
 static bool app_settings_set_book_status_enabled(bool on){if(fail_write)return false;status_enabled=on;return true;}
 static void release_page_images(void){assert(!locked);++image_releases;}

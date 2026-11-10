@@ -68,6 +68,10 @@ static bool book_layout_build_blocks(const char *text,size_t length,const void *
  assert(text==s_text&&length==s_text_len&&blocks==s_blocks&&count==s_block_count);
  assert(rect.width==636&&px==s_px);++builds;return !fail_layout;
 }
+static __attribute__((unused)) bool reader_build_current_layout(int px){
+ return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
 static void save_progress(void){++saves;}
 '''
 header = (root / 'main/settings.h').read_text()

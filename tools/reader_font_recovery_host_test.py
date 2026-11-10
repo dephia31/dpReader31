@@ -60,6 +60,10 @@ static size_t book_layout_page_start_offset(size_t page){(void)page;return 1234;
 static int body_rect(void){return 0;}
 static bool book_layout_build_blocks(const char *t,size_t n,int b,size_t c,int rect,int px){
  (void)t;(void)n;(void)b;(void)c;(void)rect;(void)px;return !layout_fails;}
+static __attribute__((unused)) bool reader_build_current_layout(int px){
+ return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
 static size_t book_layout_page_for_offset(size_t off){assert(off==1234);return 7;}
 static void app_settings_set_font_path(const char *p){copy_text(saved,sizeof(saved),p);}
 static const char *app_settings_font_path(void){return saved;}

@@ -69,6 +69,16 @@ int main(int argc,char **argv){
    assert(light.width!=heavy.width||light.height!=heavy.height||light.pitch!=heavy.pitch||memcmp(copy,heavy.pixels,n)!=0);
    free(copy);puts("PASS variable wght300/700 produces distinct hinted glyphs");
   }
+  uint64_t style_hashes[4]={0};
+  for(unsigned style=0;style<4;++style){
+   ttf_mono_bitmap_t styled;
+   assert(ttf_render_styled(face,'m',stbtt_ScaleForPixelHeight(&info,48),-1,0,true,style,&styled));
+   uint64_t hash=1469598103934665603ULL;
+   for(int y=0;y<styled.height;++y)for(int x=0;x<styled.width;++x)hash=(hash^styled.pixels[y*styled.pitch+x])*1099511628211ULL;
+   for(unsigned prior=0;prior<style;++prior)assert(style_hashes[prior]!=hash);
+   style_hashes[style]=hash;
+  }
+  puts("PASS four synthetic family styles have distinct real FreeType rasters");
   source.fail=true;ttf_mono_bitmap_t unavailable;
   assert(!ttf_mono_render(face,'H',stbtt_ScaleForPixelHeight(&info,73),-1,&unavailable));
   source.fail=false;assert(ttf_mono_render(face,'H',stbtt_ScaleForPixelHeight(&info,73),-1,&unavailable));

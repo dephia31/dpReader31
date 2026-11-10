@@ -48,8 +48,14 @@ typedef struct {
 
 /// 同时驻留的字体数。0 号槽固定给系统字体，1..N 按需装载书籍内嵌字体。
 /// Resident faces. Slot 0 is always the system face; slots 1..N hold embedded book faces.
-#define TTF_FONT_SLOTS 4
+#define TTF_FONT_SLOTS 16
 #define TTF_FONT_SLOT_SYSTEM 0
+
+/// 按需打开粗体/斜体；返回实际槽，失败回退原槽。/ Load a style lazily; return its real slot, falling back to the base face.
+int ttf_font_family_style(int base, unsigned style);
+int ttf_font_family_count(void);
+const ttf_font_item_t* ttf_font_family_item(int index);
+void ttf_font_family_name(const char *path, char *name, size_t cap);
 
 /// 初始化全部槽位；可重复调用。/ Initialise every slot; idempotent.
 void ttf_font_slots_init(void);

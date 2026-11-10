@@ -189,6 +189,7 @@
     "main/font/ttf_font.h": "firmware/shared/main/font/ttf_font.h",
     "main/font/ttf_stroke_filter.h": "firmware/shared/main/font/ttf_stroke_filter.h",
     "main/font/ttf_mono.h": "firmware/shared/main/font/ttf_mono.h",
+    "main/font/font_family.h": "firmware/shared/main/font/font_family.h",
     "main/font/font_filename.h": "firmware/shared/main/font/font_filename.h",
     "main/font/font_settings_flash.h": "firmware/shared/main/font/font_settings_flash.h",
     "main/font/online_font_store.h": "firmware/shared/main/font/online_font_store.h",

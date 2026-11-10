@@ -41,9 +41,14 @@ static int body_rect(void){return 1;}
 static bool book_layout_build_blocks(const char *t,size_t n,int b,size_t c,int r,int px){
  (void)t;(void)n;(void)b;(void)c;(void)r;(void)px;assert(locked);++layout_calls;
  return !(!strcmp(active,"new.ttf")&&layout_fails)&&!restore_fails;}
+static __attribute__((unused)) bool reader_build_current_layout(int px){
+ return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
 static size_t book_layout_page_for_offset(size_t off){assert(locked&&off==expected_offset);return 3;}
 static void app_settings_set_font_path(const char *path){assert(locked);++setting_writes;if(!persist_fails)strcpy(saved,path);}
 static const char *app_settings_font_path(void){return saved;}
+static void pico_boot_allow_font(void){}
 static void reader_font_choice_begin(const char *p){(void)p;}
 static void reader_font_choice_finish(void){}
 static bool ttf_font_path_is_builtin(const char *p){return !p||!*p||!strcmp(p,"builtin");}

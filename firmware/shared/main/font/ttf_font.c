@@ -16,6 +16,7 @@
  */
 
 #include "ttf_font.h"
+#include "font_family.h"
 #include "../dpreader_board_config.h"
 #if defined(TEST_METALIO) && !defined(DPREADER_BOARD_METALIO47)
 #define DPREADER_BOARD_METALIO47 TEST_METALIO
@@ -297,6 +298,7 @@ typedef struct {
     bool f_preview;        ///< 临时名称预览不映射整份 glyf/gvar / transient names never map full outline tables
 #else
 #endif
+    uint8_t f_synthetic_style;
     bool f_used;           ///< 槽位已被占用 / the slot is in use
 } ttf_slot_t;
 
@@ -308,6 +310,9 @@ static ttf_slot_t s_slots[TTF_FONT_SLOTS];
 #endif
 static ttf_slot_t* s_cur = &s_slots[TTF_FONT_SLOT_SYSTEM];
 static int s_cur_index = TTF_FONT_SLOT_SYSTEM;
+
+static uint8_t s_family_variants[TTF_FONT_SLOTS][4];
+static void close_system_family(void);
 
 // 下面这组宏让 2000 多行现有函数体一行不改地作用在“当前槽”上。新增代码请直接写
 // `s_cur->f_xxx`，不要用宏名，免得以后再加字段时又撞上。
@@ -2150,6 +2155,9 @@ static bool mono_bitmap(uint32_t cp,float scale,ttf_mono_bitmap_t *bitmap) {
         if(!s_cur->f_mono)ESP_LOGW(TAG,"mono hinting unavailable; keep native binary fallback");
         else ESP_LOGI(TAG,"TrueType mono hinting ready; engine PSRAM=%u",(unsigned)ttf_mono_bytes());
     }
+    if (s_cur->f_synthetic_style)
+        return ttf_render_styled(s_cur->f_mono,cp,scale,gvar_ready?current_weight:-1,
+                                 s_stroke_adjust,s_antialias,s_cur->f_synthetic_style,bitmap);
     return s_antialias
         ? ttf_gray_render_stroke(s_cur->f_mono,cp,scale,gvar_ready?current_weight:-1,s_stroke_adjust,bitmap)
         : ttf_mono_render_stroke(s_cur->f_mono,cp,scale,gvar_ready?current_weight:-1,s_stroke_adjust,bitmap);
@@ -2579,6 +2587,7 @@ static void unload_here(void) {
     font_data = NULL;
     font_data_borrowed = false;
     cff_outline = false;
+    s_cur->f_synthetic_style=0;
     reset_variation();
     packed_root = -1;
     packed_weight = -1;
@@ -2768,6 +2777,7 @@ bool ttf_font_slot_has_text(int slot, const char* text) {
 // active face, and must not hit a book face just because the cursor sits there.
 void ttf_font_unload(void) {
     ttf_font_slots_init();
+    close_system_family();
     int keep = slot_lend(TTF_FONT_SLOT_SYSTEM);
     unload_here();
     s_cur_index = keep;
@@ -2822,7 +2832,7 @@ size_t ttf_font_reclaim_optional_cache(void) {
 void ttf_font_close_embedded(void) {
     ttf_font_slots_init();
     int keep = s_cur_index;
-    for (int i = TTF_FONT_SLOT_SYSTEM + 1; i < TTF_FONT_SLOTS; i++) {
+    for (int i = TTF_FONT_SLOTS - 1; i > TTF_FONT_SLOT_SYSTEM; i--) {
         if (!s_slots[i].f_used) continue;
         s_cur_index = i;
         s_cur = &s_slots[i];
@@ -2832,6 +2842,7 @@ void ttf_font_close_embedded(void) {
     if (keep <= TTF_FONT_SLOT_SYSTEM || !s_slots[keep].f_used) {
         keep = TTF_FONT_SLOT_SYSTEM;
     }
+    memset(s_family_variants,0,sizeof(s_family_variants));
     s_cur_index = keep;
     s_cur = &s_slots[keep];
 }
@@ -2956,8 +2967,123 @@ static esp_err_t open_path_here(const char* path) {
     return ESP_OK;
 }
 
+static void close_system_family(void) {
+    int keep=s_cur_index;
+    for (unsigned style=1;style<4;++style) {
+        unsigned slot=s_family_variants[0][style];
+        if (!slot || slot>=TTF_FONT_SLOTS) continue;
+        slot_lend(slot);
+        unload_here();
+        s_slots[slot].f_used=false;
+        if (keep==(int)slot) keep=0;
+    }
+    memset(s_family_variants[0],0,sizeof(s_family_variants[0]));
+    slot_restore(keep);
+}
+
+void ttf_font_family_name(const char *path, char *name, size_t cap) {
+    (void)font_family_identity(path,name,cap);
+}
+
+static bool family_representative(int item) {
+    char family[TTF_FONT_PATH_MAX], candidate[TTF_FONT_PATH_MAX];
+    unsigned style=font_family_identity(s_catalog[item].path,family,sizeof(family));
+    for (int i=0;i<s_catalog_n;++i) {
+        if (i==item || !font_family_same_directory(s_catalog[i].path,s_catalog[item].path)) continue;
+        unsigned other=font_family_identity(s_catalog[i].path,candidate,sizeof(candidate));
+        if (!strcasecmp(family,candidate) && (other<style || (other==style && i<item))) return false;
+    }
+    return true;
+}
+
+int ttf_font_family_count(void) {
+    int count=0;
+    for (int i=0;i<s_catalog_n;++i) count+=family_representative(i);
+    return count;
+}
+
+const ttf_font_item_t* ttf_font_family_item(int index) {
+    for (int i=0;i<s_catalog_n;++i)
+        if (family_representative(i) && index--==0) return &s_catalog[i];
+    return NULL;
+}
+
+int ttf_font_family_style(int base, unsigned style) {
+    ttf_font_slots_init();
+    if (base<0 || base>=TTF_FONT_SLOTS || !s_slots[base].f_ready) base=0;
+    if (!style || style>3) return base;
+    unsigned known=s_family_variants[base][style];
+    if (known) return known<TTF_FONT_SLOTS?known:base;
+    s_family_variants[base][style]=255;
+    // 为插图和正文保留空间；此入口只在章节准备时调用。/ Reserve space for body/illustrations; called only during chapter preparation.
+    if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<2u*1024u*1024u) return base;
+    int slot=-1;
+    for (int i=1;i<TTF_FONT_SLOTS;++i) if (!s_slots[i].f_used) { slot=i; break; }
+    if (slot<0) return base;
+    char path[TTF_FONT_PATH_MAX], family[TTF_FONT_PATH_MAX];
+    snprintf(path,sizeof(path),"%s",s_slots[base].f_path);
+    bool genuine=false;
+    if (base==0 && !ttf_font_path_is_builtin(path)) {
+        font_family_identity(path,family,sizeof(family));
+        char directory[TTF_FONT_PATH_MAX];
+        snprintf(directory,sizeof(directory),"%s",path);
+        char *slash=strrchr(directory,'/');
+        if (slash) {
+            *slash=0;
+            DIR *dir=opendir(directory);
+            if (dir) {
+                struct dirent *entry;
+                while ((entry=readdir(dir))) {
+                    if (!is_ttf_name(entry->d_name) || entry->d_name[0]=='.') continue;
+                    char candidate[TTF_FONT_PATH_MAX];
+                    unsigned variant=font_family_identity(entry->d_name,candidate,sizeof(candidate));
+                    if (variant!=style || strcasecmp(candidate,family)) continue;
+                    if (snprintf(path,sizeof(path),"%s/%s",directory,entry->d_name)>=(int)sizeof(path)) continue;
+                    genuine=true;
+                    break;
+                }
+                closedir(dir);
+            }
+        }
+    }
+    int keep=slot_lend(slot);
+    unload_here();
+    esp_err_t err=ESP_FAIL;
+    if (genuine) {
+        snprintf(font_path,sizeof(font_path),"%s",path);
+        font_fd=open_font_file(path);
+        if (font_fd>=0) err=ensure_work()?load_opened_font():ESP_ERR_NO_MEM;
+    }
+    if (err!=ESP_OK) {
+        genuine=false;
+        unload_here();
+        const ttf_slot_t *source=&s_slots[base];
+        snprintf(path,sizeof(path),"%s",source->f_path);
+        snprintf(font_path,sizeof(font_path),"%s",source->f_path);
+        if (source->f_mem && source->f_mem_len) {
+            font_mem=source->f_mem;
+            font_mem_len=source->f_mem_len;
+            font_mem_owned=false;
+        } else font_fd=open_font_file(source->f_path);
+        if (font_mem || font_fd>=0) err=ensure_work()?load_opened_font():ESP_ERR_NO_MEM;
+    }
+    if (err==ESP_OK) {
+        snprintf(font_path,sizeof(font_path),"%s",path);
+        s_cur->f_used=true;
+        s_cur->f_synthetic_style=genuine?0:style;
+        current_weight=s_slots[base].f_weight;
+        s_family_variants[base][style]=(uint8_t)slot;
+    } else {
+        unload_here();
+        s_cur->f_used=false;
+    }
+    slot_restore(keep);
+    return err==ESP_OK?slot:base;
+}
+
 esp_err_t ttf_font_open_builtin(void) {
     ttf_font_slots_init();
+    close_system_family();
     int keep = slot_lend(TTF_FONT_SLOT_SYSTEM);
     esp_err_t err = open_builtin_path_here(TTF_FONT_BUILTIN);
     s_cur_index = keep;
@@ -2967,6 +3093,7 @@ esp_err_t ttf_font_open_builtin(void) {
 
 esp_err_t ttf_font_open(const char* path) {
     ttf_font_slots_init();
+    close_system_family();
     int keep = slot_lend(TTF_FONT_SLOT_SYSTEM);
     esp_err_t err = open_path_here(path);
 #if DPREADER_BOARD_METALIO47

@@ -14,6 +14,7 @@ unit = r'''
 #include <errno.h>
 #include <sys/stat.h>
 #include "font_filename.h"
+#include "font_family.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,7 +32,7 @@ static const char *app_settings_fonts_dir(void){return user_dir;}
 static ttf_font_item_t *s_catalog;static int s_catalog_n;
 '''
 for name in ('font_basename', 'is_junk_name', 'is_ttf_name', 'font_stem', 'font_item_cmp',
-             'catalog_has_name', 'catalog_alloc', 'ttf_font_scan', 'ttf_font_count', 'ttf_font_item'):
+             'catalog_has_name', 'catalog_alloc', 'ttf_font_scan', 'ttf_font_count', 'ttf_font_item', 'family_representative', 'ttf_font_family_count', 'ttf_font_family_item'):
     unit += function(name, source) + '\n'
 unit += r'''
 static void put(const char *dir,const char *name){
@@ -74,6 +75,17 @@ int main(int argc,char **argv){
  unsigned builtins=0,assets=0,users=0;for(int i=0;i<128;++i){const char*p=ttf_font_item(i)->path;builtins+=!strcmp(p,TTF_FONT_BITTER_REGULAR);assets+=strstr(p,k_font_dirs[0])!=NULL;users+=strstr(p,user_dir)!=NULL;}
  assert(builtins==1&&assets==65&&users==62);
  assert(allocations==1&&allocated==28672);
+ clear(k_font_dirs[0]);clear(user_dir);
+ put(user_dir,"NotoSerif-BoldItalic.ttf");put(user_dir,"NotoSerif-Italic.ttf");
+ put(user_dir,"NotoSerif-Regular.ttf");put(user_dir,"NotoSerif-Bold.ttf");
+ assert(ttf_font_scan()==5&&ttf_font_family_count()==2);
+ const ttf_font_item_t *family=ttf_font_family_item(1);
+ assert(family&&strstr(family->path,"NotoSerif-Regular.ttf"));
+ assert(!ttf_font_family_item(2));
+ char normalized[64];
+ assert(font_family_identity("NotoSerif-BoldItalic.ttf",normalized,sizeof(normalized))==3&&!strcmp(normalized,"NotoSerif"));
+ assert(font_family_identity("NotoSerif-SemiBoldItalic.ttf",normalized,sizeof(normalized))==3&&!strcmp(normalized,"NotoSerif"));
+ puts("PASS four sibling faces form one selectable family with Regular as its representative");
  free(s_catalog);s_catalog=NULL;clear(k_font_dirs[0]);clear(user_dir);
  puts("PASS: actual catalogue0/1/24/25/127/128/129/160 bounds,all128 reachable,sorted metadata,shared two-directory limit/casefold dedup/hidden-sidecar filtering;one28672B PSRAM allocation,no font-face loading");
 }

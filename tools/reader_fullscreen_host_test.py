@@ -63,6 +63,10 @@ static bool book_layout_build_blocks(const char *text,size_t len,const void *blo
  (void)text;(void)len;(void)blocks;(void)count;(void)px;assert(draw_locked);++reflows;
  if(failed_reflows){--failed_reflows;return false;}layout_span=r.height;return true;
 }
+static __attribute__((unused)) bool reader_build_current_layout(int px){
+ return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
 static void save_progress(void){++saves;}
 static size_t book_chapter_count(void){return 2;}
 static bool load_chapter(app_ctx_t *ctx,size_t chapter,int off,bool last){(void)ctx;(void)off;if(load_failed)return false;s_chapter=chapter;s_page=last?book_layout_page_count()-1:0;return true;}

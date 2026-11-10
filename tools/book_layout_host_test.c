@@ -722,7 +722,7 @@ int main(void) {
     {
         const char* runs_text = "甲甲乙";
         blk_t run_block = {.offset = 0, .len = 9, .image = -1, .run_first = 0, .run_count = 2};
-        html_run_t run_spans[] = {{0, 3, 1}, {3, 6, 2}};
+        html_run_t run_spans[] = {{.offset=0,.len=3,.slot=1}, {.offset=3,.len=6,.slot=2}};
         EpdRect run_box = {40, 0, 80, 60};
         const int old_cjk = test_cjk_advance;
         test_cjk_advance = 10;

@@ -69,3 +69,6 @@ esp_err_t book_resume_io(void);
 int book_chapter_prefetch_step(size_t chapter);
 #else
 #endif
+
+/// 重排前准备当前字体族。/ Prepare the current font family before reflow.
+void book_prepare_font_runs(html_run_t *runs, size_t count);

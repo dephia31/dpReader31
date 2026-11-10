@@ -258,6 +258,22 @@ int main(void) {
     assert(t.run_count == 0 && t.runs == NULL);
     html_text_free(&t);
 
+    t = parse("<p>A<strong>B<em>C</em>D</strong>E<i>F</i>G</p>", "ABCDEFG");
+    const unsigned styles[] = {0,HTML_FONT_BOLD,HTML_FONT_BOLD|HTML_FONT_ITALIC,
+                               HTML_FONT_BOLD,0,HTML_FONT_ITALIC,0};
+    assert(t.run_count == 7);
+    for (unsigned i=0;i<7;++i) assert(t.runs[i].slot == styles[i] && t.runs[i].len == 1);
+    assert_runs_cover(&t);
+    html_text_free(&t);
+    t = parse_faces("<body><p class='em'>A<b>B<span style='font-weight:normal;font-style:normal'>C</span>D</b>E</p>F</body>",
+                    "body{font-family:A;font-weight:normal}.em{font-style:italic}", "ABCDE\nF");
+    assert(t.runs[0].slot == (1|HTML_FONT_ITALIC));
+    assert(t.runs[1].slot == (1|HTML_FONT_BOLD|HTML_FONT_ITALIC));
+    assert(t.runs[2].slot == 1);
+    assert(t.runs[3].slot == (1|HTML_FONT_BOLD|HTML_FONT_ITALIC));
+    assert_runs_cover(&t);
+    html_text_free(&t);
+
     // 脚注引用：noteref 语义或短编号链接才进表；目录与普通链接不进。
     // Footnote references: only noteref semantics or short numbered links are recorded; TOC and ordinary links are not.
     {

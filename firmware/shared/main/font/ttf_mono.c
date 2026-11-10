@@ -97,7 +97,7 @@ void ttf_mono_close(ttf_mono_face_t *f) {
     if(!f)return;
     FT_Done_Face(f->face);release(&memory,f);--faces;finish_library();
 }
-static bool render_stroke(ttf_mono_face_t *f,uint32_t cp,float scale,int weight,int steps,bool gray,ttf_mono_bitmap_t *out) {
+static bool render_stroke(ttf_mono_face_t *f,uint32_t cp,float scale,int weight,int steps,bool gray,unsigned style,ttf_mono_bitmap_t *out) {
     if(!f||!out||!isfinite(scale)||scale<=0)return false;
     double em=scale*f->face->units_per_EM*64.0;
     if(em<64 || em>256*64)return false;
@@ -112,6 +112,13 @@ static bool render_stroke(ttf_mono_face_t *f,uint32_t cp,float scale,int weight,
     if(!glyph)return false;
     FT_Int32 flags=FT_LOAD_NO_BITMAP|(gray?FT_LOAD_TARGET_LIGHT:FT_LOAD_TARGET_MONO)|(f->force_auto?FT_LOAD_FORCE_AUTOHINT:0);
     if(FT_Load_Glyph(f->face,glyph,flags))return false;
+    if (style && f->face->glyph->format==FT_GLYPH_FORMAT_OUTLINE) {
+        if (style & 2) {
+            const FT_Matrix shear={65536,13930,0,65536};
+            FT_Outline_Transform(&f->face->glyph->outline,&shear);
+        }
+        if ((style & 1) && FT_Outline_EmboldenXY(&f->face->glyph->outline,size/24,size/24)) return false;
+    }
     if(steps < -32)steps=-32;
     if(steps > 32)steps=32;
     if(steps && f->face->glyph->format==FT_GLYPH_FORMAT_OUTLINE) {
@@ -126,11 +133,14 @@ static bool render_stroke(ttf_mono_face_t *f,uint32_t cp,float scale,int weight,
     *out=(ttf_mono_bitmap_t){slot->bitmap.buffer,(int)slot->bitmap.width,(int)slot->bitmap.rows,slot->bitmap_left,slot->bitmap_top,slot->bitmap.pitch};
     return true;
 }
+bool ttf_render_styled(ttf_mono_face_t *face,uint32_t cp,float scale,int weight,int steps,bool gray,unsigned style,ttf_mono_bitmap_t *out) {
+    return render_stroke(face,cp,scale,weight,steps,gray,style,out);
+}
 bool ttf_mono_render_stroke(ttf_mono_face_t *f,uint32_t cp,float scale,int weight,int steps,ttf_mono_bitmap_t *out) {
-    return render_stroke(f,cp,scale,weight,steps,false,out);
+    return render_stroke(f,cp,scale,weight,steps,false,0,out);
 }
 bool ttf_gray_render_stroke(ttf_mono_face_t *f,uint32_t cp,float scale,int weight,int steps,ttf_mono_bitmap_t *out) {
-    return render_stroke(f,cp,scale,weight,steps,true,out);
+    return render_stroke(f,cp,scale,weight,steps,true,0,out);
 }
 bool ttf_mono_render(ttf_mono_face_t *f,uint32_t cp,float scale,int weight,ttf_mono_bitmap_t *out) {
     return ttf_mono_render_stroke(f,cp,scale,weight,0,out);

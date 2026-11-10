@@ -311,6 +311,10 @@ static bool book_layout_build_blocks(const char* text,size_t len,const void* blo
     (void)text;(void)len;(void)blocks;(void)count;(void)px;assert(test_draw_locked);test_reflows++;test_reflow_rect=rect;
     if(test_reflow_failures){--test_reflow_failures;return false;}return true;
 }
+static __attribute__((unused)) bool reader_build_current_layout(int px){
+ return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
 static size_t book_layout_page_for_offset(size_t off){return off/100;}
 static bool app_settings_reader_power_turn(void){return test_power_turn;}
 static void app_settings_set_reader_power_turn(bool on){test_power_turn=on;}

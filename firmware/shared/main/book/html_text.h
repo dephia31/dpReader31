@@ -17,12 +17,16 @@
 #define HTML_TEXT_MAX_BYTES (4u * 1024u * 1024u)
 #define HTML_TEXT_MAX_BLOCKS 16384u
 #define HTML_RUN_MAX 32768u
+#define HTML_FONT_BOLD 0x40u
+#define HTML_FONT_ITALIC 0x80u
+#define HTML_FONT_SLOT_MASK 0x3fu
 
 /// 块内一段同字体的字节区间。/ A same-face byte span inside one block.
 typedef struct {
     size_t offset; ///< 相对块起点的字节偏移 / Byte offset from the block start
     size_t len; ///< 字节数 / Byte count
     uint8_t slot; ///< 字体槽，0 为系统字体 / Font slot, 0 for the system face
+    uint8_t source_font; ///< 原始字体/样式，用于换字体后重绑 / Original face/style for rebinding after a family change
 } html_run_t;
 
 /// 把 CSS font-family 的名字解析成字体槽；返回 0 表示用系统字体。

@@ -716,6 +716,12 @@ static EpdRect body_rect_for_tracking(int tracking_index) {
 static EpdRect body_rect(void) {
     return body_rect_for_tracking(app_settings_book_tracking());
 }
+
+static bool reader_build_current_layout(int px) {
+    book_prepare_font_runs(s_runs,s_run_count);
+    return book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),px);
+}
+
 static int reader_margin_width(int margin, int px, int tracking_px) {
     (void)px; (void)tracking_px;
     return UI_LOCK_WIDTH - 2 * margin;
@@ -2609,7 +2615,7 @@ static void draw_font_settings(uint8_t* fb) {
     bool prior_aa=ttf_get_antialias();ttf_set_antialias(true);
     draw_sheet(fb, reader_font_top(), "Cài đặt phông chữ");
     draw_reader_choice(fb,reader_slider_rect(0),READ_PICK_SIZE,"Cỡ chữ đọc sách");
-    draw_font_pair(fb, s_font_card, "Phông chữ đọc sách", ttf_font_display_name());
+    draw_font_pair(fb, s_font_card, "Bộ phông chữ đọc sách", ttf_font_display_name());
     char weight_value[20];reader_weight_value(weight_value,sizeof(weight_value),app_settings_book_weight_fine());
     draw_font_pair(fb, s_weight_card, "Độ đậm chữ", weight_value);
     draw_font_pair(fb, s_layout_card, "Bố cục dàn trang", "Căn lề · Giãn dòng");
@@ -3110,13 +3116,13 @@ static EpdRect reader_font_pick_rect(int slot) {
 }
 static void draw_font_picker(uint8_t* fb) {
     const int top = reader_font_picker_top();
-    draw_sheet(fb, top, "Phông chữ");
+    draw_sheet(fb, top, "Bộ phông chữ");
 #if DPREADER_BOARD_METALIO47
     ui_online_fonts_draw_entry(fb,top+12);
 #endif
     epd_draw_line(55, top + 49, 64, top + 58, UI_GRAY_BLACK, fb);
     epd_draw_line(64, top + 58, 73, top + 49, UI_GRAY_BLACK, fb);
-    int count = ttf_font_count();
+    int count = ttf_font_family_count();
     int pages = count > 0 ? (count + BOOK_FONT_PAGE - 1) / BOOK_FONT_PAGE : 1;
     char current[96];
     snprintf(current, sizeof(current), "Đang chọn · %s  %d/%d", ttf_font_display_name(), s_font_page + 1, pages);
@@ -3129,13 +3135,13 @@ static void draw_font_picker(uint8_t* fb) {
     /* Restore the exact built-in face as well as external faces. */
 #endif
     for (int slot = 0; slot < BOOK_FONT_PAGE && start + slot < count; ++slot) {
-        const ttf_font_item_t* item = ttf_font_item(start + slot);
+        const ttf_font_item_t* item = ttf_font_family_item(start + slot);
         EpdRect card = reader_font_pick_rect(slot);
         bool selected = !strcmp(active, item->path);
         ui_fill_round_rect(fb, card, 18, selected ? 0xc2 : 0xe4);
         ui_draw_control_frame(fb, card, 18, selected ? 0x48 : 0x98);
         char label[TTF_FONT_NAME_MAX];
-        copy_text(label, sizeof(label), font_friendly_name(item));
+        ttf_font_family_name(item->path,label,sizeof(label));
 #if DPREADER_BOARD_METALIO47
         if (!ttf_font_draw_preview(item->path, fb, card.x + card.width/2, card.y + 63,
                                     ui_text_effective_px(25), label, card.width-32)) {
@@ -5305,7 +5311,7 @@ static bool load_chapter_at(app_ctx_t* ctx, size_t chapter, size_t offset,
         s_chapter_lead_width = old_lead_width;
         book_layout_set_chapter_lead(old_lead_skip, old_lead_height);
         book_layout_set_chapter_lead_width(old_lead_width);
-        bool restored = s_text && book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        bool restored = s_text && reader_build_current_layout(s_px);
         unlock_draw();
         if (!restored) {
             free_book();
@@ -6160,8 +6166,8 @@ static app_redraw_t resize_text(app_ctx_t* ctx, int dir) {
     lock_draw();
     invalidate_prep();
     int old = s_px;
-    if (!book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), next)) {
-        bool restored = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), old);
+    if (!reader_build_current_layout(next)) {
+        bool restored = reader_build_current_layout(old);
         unlock_draw();
         if (!restored) {
             free_book();
@@ -6201,7 +6207,7 @@ static app_redraw_t apply_reader_layout(app_ctx_t* ctx, int next_px, int next_ma
     // 正文带随字号与边距变了，题头的预留跟着重算。
     // The body band moved with the size and margin, so the heading's reservation follows.
     refresh_chapter_lead();
-    bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+    bool ok = reader_build_current_layout(s_px);
     if (ok) s_page = book_layout_page_for_offset(off);
     else {
         s_px = old_px;
@@ -6209,7 +6215,7 @@ static app_redraw_t apply_reader_layout(app_ctx_t* ctx, int next_px, int next_ma
         s_line_spacing = old_line;
         book_layout_set_spacing(old_line, old_para);
         refresh_chapter_lead();
-        (void)book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        (void)reader_build_current_layout(s_px);
     }
     unlock_draw();
     if (!ok) return APP_REDRAW_NONE;
@@ -6231,12 +6237,12 @@ static app_redraw_t toggle_reader_bar(bool status) {
     invalidate_prep();
     *layout_override = enabled;
     refresh_chapter_lead();
-    bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+    bool ok = reader_build_current_layout(s_px);
     *layout_override = -1;
     if (ok) ok = status ? app_settings_set_book_status_enabled(enabled) : app_settings_set_book_footer_enabled(enabled);
     if (!ok) {
         refresh_chapter_lead();
-        (void)book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        (void)reader_build_current_layout(s_px);
     }
     s_page = book_layout_page_for_offset(offset);
     s_jump_page = s_page;
@@ -6269,7 +6275,7 @@ static app_redraw_t apply_reader_typography(app_ctx_t* ctx, int tracking_index) 
     if (ok) s_page = book_layout_page_for_offset(off);
     else {
         book_layout_set_typography(old_index + APP_BOOK_TRACK_MIN);
-        (void)book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        (void)reader_build_current_layout(s_px);
     }
     unlock_draw();
     if (!ok) return APP_REDRAW_NONE;
@@ -6290,12 +6296,12 @@ static app_redraw_t apply_reader_indent(app_ctx_t* ctx, int em, int adjustment) 
     invalidate_prep();
     book_layout_set_first_line_indent((unsigned)em);
     book_layout_set_first_line_indent_adjust(adjustment);
-    bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+    bool ok = reader_build_current_layout(s_px);
     if (ok) s_page = book_layout_page_for_offset(off);
     else {
         book_layout_set_first_line_indent(old_em);
         book_layout_set_first_line_indent_adjust(old_adjustment);
-        (void)book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        (void)reader_build_current_layout(s_px);
     }
     unlock_draw();
     if (!ok) return APP_REDRAW_NONE;
@@ -6370,9 +6376,9 @@ static app_redraw_t apply_reader_word_spacing(app_ctx_t *ctx,int value) {
     int old=app_settings_book_word_spacing();if(value==old)return APP_REDRAW_NONE;
     size_t off=book_layout_page_start_offset(s_page);lock_draw();invalidate_prep();
     book_layout_set_word_spacing(value);
-    bool ok=book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),s_px);
+    bool ok=reader_build_current_layout(s_px);
     if(ok)ok=app_settings_set_book_word_spacing(value);
-    if(!ok){book_layout_set_word_spacing(old);(void)book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),s_px);}
+    if(!ok){book_layout_set_word_spacing(old);(void)reader_build_current_layout(s_px);}
     s_page=book_layout_page_for_offset(off);unlock_draw();
     if(!ok)return APP_REDRAW_NONE;
     save_progress();return APP_REDRAW_PAGE;
@@ -6523,7 +6529,7 @@ static app_redraw_t apply_reader_option(app_ctx_t* ctx, int kind) {
     // vertically, rows at the top horizontally.
     apply_chapter_lead(s_chapter_heading_title, s_chapter_heading_label, s_chapter_lead_skip,
                        s_chapter_lead_row_height);
-    bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+    bool ok = reader_build_current_layout(s_px);
     if (ok) s_page = book_layout_page_for_offset(off);
     else {
         if (kind == 2) {
@@ -6535,7 +6541,7 @@ static app_redraw_t apply_reader_option(app_ctx_t* ctx, int kind) {
         }
         apply_chapter_lead(s_chapter_heading_title, s_chapter_heading_label, s_chapter_lead_skip,
                        s_chapter_lead_row_height);
-        (void)book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        (void)reader_build_current_layout(s_px);
         copy_text(s_reader_notice, sizeof(s_reader_notice), "Dàn trang lỗi, vui lòng thử lại");
         s_reader_notice_until = esp_timer_get_time() / 1000 + 1800;
     }
@@ -6605,7 +6611,7 @@ static app_redraw_t select_reading_font_item(app_ctx_t* ctx, const ttf_font_item
     // Join prepainting before reloading; commit the choice only after load/layout/persistence succeed.
     esp_err_t err = ttf_font_open(item->path);
     bool ok = err == ESP_OK && !strcmp(ttf_font_path(), item->path) &&
-        book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        reader_build_current_layout(s_px);
     const char *failure = err == ESP_OK ? "Dàn trang lỗi, vui lòng thử lại" : "Tải phông chữ thất bại, hãy kiểm tra tệp";
     if (ok) {
         app_settings_set_font_path(item->path);
@@ -6624,13 +6630,13 @@ static app_redraw_t select_reading_font_item(app_ctx_t* ctx, const ttf_font_item
 #else
     lock_draw();
     invalidate_prep();
-    bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+    bool ok = reader_build_current_layout(s_px);
     if (ok) s_page = book_layout_page_for_offset(off);
     else if (previous[0]) {
 #endif
         (void)ttf_font_open(previous);
 #if DPREADER_BOARD_METALIO47
-        bool restored = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        bool restored = reader_build_current_layout(s_px);
         if (restored) {
             s_page = book_layout_page_for_offset(off);
             copy_text(s_font_path, sizeof(s_font_path), ttf_font_path());
@@ -6642,7 +6648,7 @@ static app_redraw_t select_reading_font_item(app_ctx_t* ctx, const ttf_font_item
         }
         ESP_LOGW(TAG, "reader font rejected: %s err=%d restored=%d", item->path, (int)err, restored);
 #else
-        (void)book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        (void)reader_build_current_layout(s_px);
 #endif
     }
     unlock_draw();
@@ -7113,10 +7119,10 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
         if (ui_rect_hit(font, x, y)) {
             ttf_font_scan();
             s_font_page = 0;
-            int count = ttf_font_count();
+            int count = ttf_font_family_count();
             const char* active = ttf_font_path();
             for (int i = 0; i < count; ++i) {
-                const ttf_font_item_t* item = ttf_font_item(i);
+                const ttf_font_item_t* item = ttf_font_family_item(i);
                 if (item && !strcmp(active, item->path)) { s_font_page = i / BOOK_FONT_PAGE; break; }
             }
             s_reader_panel = READER_PANEL_FONT_PICKER;
@@ -7254,10 +7260,10 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
             s_reader_panel = READER_PANEL_FONT_SETTINGS;
             return APP_REDRAW_PAGE;
         }
-        int count = ttf_font_count(), start = s_font_page * BOOK_FONT_PAGE;
+        int count = ttf_font_family_count(), start = s_font_page * BOOK_FONT_PAGE;
         for (int slot = 0; slot < BOOK_FONT_PAGE && start + slot < count; ++slot) {
             EpdRect card = reader_font_pick_rect(slot);
-            if (ui_rect_hit(card, x, y)) return select_reading_font_item(ctx, ttf_font_item(start + slot));
+            if (ui_rect_hit(card, x, y)) return select_reading_font_item(ctx, ttf_font_family_item(start + slot));
         }
         return APP_REDRAW_NONE;
     }
@@ -7278,11 +7284,11 @@ static app_redraw_t adjust_spacing(app_ctx_t* ctx, int control) {
     lock_draw();
     invalidate_prep();
     book_layout_set_spacing(line, para);
-    bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+    bool ok = reader_build_current_layout(s_px);
     if (ok) s_page = book_layout_page_for_offset(off);
     else {
         book_layout_set_spacing(old_line, old_para);
-        (void)book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+        (void)reader_build_current_layout(s_px);
     }
     unlock_draw();
     if (!ok) return APP_REDRAW_NONE;
@@ -7323,7 +7329,7 @@ static app_redraw_t select_reading_font(app_ctx_t* ctx, int style) {
     save_progress();
     lock_draw();
     invalidate_prep();
-    bool ok = book_layout_build_blocks(s_text, s_text_len, s_blocks, s_block_count, body_rect(), s_px);
+    bool ok = reader_build_current_layout(s_px);
     if (ok) s_page = book_layout_page_for_offset(off);
     copy_text(s_font_path, sizeof(s_font_path), ttf_font_path());
     unlock_draw();
@@ -8560,7 +8566,7 @@ static app_redraw_t gesture_event(app_ctx_t* ctx, const ui_gesture_event_t* ev) 
     }
     if (s_view == READING && s_reader_panel == READER_PANEL_FONT_PICKER &&
         (ev->type == UI_GESTURE_SWIPE_U || ev->type == UI_GESTURE_SWIPE_D)) {
-        int count = ttf_font_count();
+        int count = ttf_font_family_count();
         int pages = count > 0 ? (count + BOOK_FONT_PAGE - 1) / BOOK_FONT_PAGE : 1;
         if (ev->type == UI_GESTURE_SWIPE_U && s_font_page + 1 < pages) ++s_font_page;
         else if (ev->type == UI_GESTURE_SWIPE_D && s_font_page > 0) --s_font_page;
@@ -9074,7 +9080,7 @@ static bool reader_reflow_font(void) {
     save_progress();
     lock_draw();
     invalidate_prep();
-    bool ok=book_layout_build_blocks(s_text,s_text_len,s_blocks,s_block_count,body_rect(),s_px);
+    bool ok=reader_build_current_layout(s_px);
     if(ok)s_page=book_layout_page_for_offset(off);
     copy_text(s_font_path,sizeof(s_font_path),ttf_font_path());
     unlock_draw();

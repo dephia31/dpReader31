@@ -79,3 +79,6 @@ esp_err_t book_epub_chapter_markup(book_epub_t *book,size_t chapter,char **marku
 
 /* False if linked styles can change CRE text normalization/DOM boundaries. */
 bool book_epub_sync_style_safe(book_epub_t *book,size_t chapter,const char *markup,size_t len);
+
+/// 换字体后重绑原文样式。/ Rebind source styles after changing the selected family.
+void book_epub_prepare_font_runs(book_epub_t *book, html_run_t *runs, size_t count);

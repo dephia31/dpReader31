@@ -13,3 +13,5 @@ void ttf_font_close_embedded(void);
 /// 宿主替身：一律拒绝，书内字体在测试里回退系统字体。
 /// Host shim: always declines, so embedded faces fall back to the system face under test.
 int ttf_font_open_mem(uint8_t* data, size_t len, const char* label);
+
+static inline int ttf_font_family_style(int base, unsigned style) { (void)style; return base; }

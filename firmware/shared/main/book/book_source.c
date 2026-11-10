@@ -154,3 +154,7 @@ esp_err_t book_resume_io(void) {
 }
 #else
 #endif
+
+void book_prepare_font_runs(html_run_t *runs, size_t count) {
+    if (s_epub) book_epub_prepare_font_runs(s_epub,runs,count);
+}
