@@ -1,3 +1,8 @@
+## dpReader 1.4.2RC5-vn / 1.4.2RC5-love-vn · thử cục bộ · 2026-11-10
+
+- Dùng I²C 100 kHz theo bo gốc cho RTC PCF8563. Thử lại khi ghi hoặc đọc xác minh bị lỗi và ghi rõ bước lỗi trong log.
+- S31 xác minh thời gian đã ghi ngay trong driver RTC và phục hồi giờ lúc khởi động từ RTC hợp lệ.
+
 ## dpReader 1.4.2RC4-vn / 1.4.2RC4-love-vn · thử cục bộ · 2026-11-10
 
 - Học tối đa sáu phím cho mỗi phụ kiện BLE. Chọn tác vụ trước khi học và có thể dùng một tác vụ cho nhiều phím.

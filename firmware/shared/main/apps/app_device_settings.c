@@ -749,7 +749,9 @@ static bool time_save(void) {
     uint8_t payload[4] = {(uint8_t)epoch, (uint8_t)(epoch >> 8),
                           (uint8_t)(epoch >> 16), (uint8_t)(epoch >> 24)};
     esp_err_t err = read_pico_pmu_cmd(PMU_CMD_TIME_SYNC, payload, sizeof(payload));
+#if !DPREADER_BOARD_METALIO47
     if (err == ESP_OK) err = read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0);
+#endif
     const pmu_snapshot_t *pmu = read_pico_pmu_get();
     if (err != ESP_OK || !pmu || !pmu->time_synced) {
         snprintf(s_notice, sizeof(s_notice), "Đã đặt giờ hệ thống nhưng đồng bộ PMU thất bại");
@@ -2888,15 +2890,18 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
     if (network_time_received) {
         // 临时 WiFi 收尾可能耗时；写入 PMU 时取当前 S3 时间，避免回写旧秒数。
         // Temporary WiFi teardown takes time; seed the PMU from the current S3 clock.
-        utc = (uint32_t)time(NULL);
+        const time_t current=time(NULL);
+        if (current>=utc && current-utc<=60) utc=(uint32_t)current;
         uint8_t payload[4] = {(uint8_t)utc, (uint8_t)(utc >> 8), (uint8_t)(utc >> 16), (uint8_t)(utc >> 24)};
         err = read_pico_pmu_cmd(PMU_CMD_TIME_SYNC, payload, sizeof(payload));
+#if !DPREADER_BOARD_METALIO47
         if (err == ESP_OK) err = read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0);
         if (err == ESP_OK) {
             const pmu_snapshot_t *pmu = read_pico_pmu_get();
             if (!pmu || !pmu->time_synced || pmu->unix_sec < utc || pmu->unix_sec - utc > 10)
                 err = ESP_ERR_INVALID_RESPONSE;
         }
+#endif
     }
     ESP_LOGI(TAG, "time sync network=%d ready=%d utc=%lu result=%s",
              network.mode, network.network_ready, (unsigned long)utc, esp_err_to_name(err));

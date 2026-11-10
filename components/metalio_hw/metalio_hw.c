@@ -77,7 +77,9 @@ fca9555_handle_t metalio_ioe(void) { return ioe; }
 #endif
 #define METALIO_I2C_SLOW_HZ 100000
 static uint32_t device_speed_hz(uint8_t address) {
-    return (address==0x68||address==0x6b) ? METALIO_I2C_SLOW_HZ : METALIO_I2C_FAST_HZ;
+    // RTC 按板厂速率访问，不改变触摸或按键总线速率。
+    // Use the board vendor's RTC speed without slowing touch or key sampling.
+    return (address==0x51||address==0x68||address==0x6b) ? METALIO_I2C_SLOW_HZ : METALIO_I2C_FAST_HZ;
 }
 static esp_err_t get_device(uint8_t address, i2c_master_dev_handle_t *dev) {
     if (!bus || address>=128) return ESP_ERR_INVALID_STATE;

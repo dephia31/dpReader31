@@ -37,8 +37,15 @@ static unsigned bcd(unsigned v) { return (v/10<<4)|(v%10); }
 static esp_err_t rtc_read(void) {
     uint8_t regs[9]; esp_err_t err=metalio_read(0x51,0,regs,sizeof(regs)); state.time_ok=false; state.time_synced=0;
     const uint8_t *r=regs+2;
-    if (err!=ESP_OK) return err;
-    if ((regs[0]&0x20) || (r[0]&0x80)) return ESP_ERR_INVALID_STATE;
+    if (err!=ESP_OK) {
+        ESP_LOGW("metalio_rtc","read registers failed: %s",esp_err_to_name(err));
+        return err;
+    }
+    if ((regs[0]&0x20) || (r[0]&0x80)) {
+        ESP_LOGW("metalio_rtc","untrusted clock: STOP=%d VL=%d",
+                 (regs[0]&0x20)!=0,(r[0]&0x80)!=0);
+        return ESP_ERR_INVALID_STATE;
+    }
     struct tm t={.tm_sec=unbcd(r[0]&0x7f),.tm_min=unbcd(r[1]&0x7f),.tm_hour=unbcd(r[2]&0x3f),
         .tm_mday=unbcd(r[3]&0x3f),.tm_mon=unbcd(r[5]&0x1f)-1,.tm_year=100+unbcd(r[6]),.tm_isdst=0};
     if (t.tm_sec>59 || t.tm_min>59 || t.tm_hour>23 || t.tm_mday<1 || t.tm_mday>31 || t.tm_mon<0 || t.tm_mon>11) return ESP_ERR_INVALID_RESPONSE;
@@ -51,20 +58,46 @@ static esp_err_t rtc_read(void) {
     state.unix_sec=(uint32_t)sec; state.time_synced=1; state.time_ok=true; return ESP_OK;
 }
 static esp_err_t rtc_write(uint32_t sec) {
-    time_t seconds=sec; struct tm t; gmtime_r(&seconds,&t);
-    if (t.tm_year<100 || t.tm_year>199) return ESP_ERR_INVALID_ARG;
-    uint8_t bytes[]={bcd(t.tm_sec),bcd(t.tm_min),bcd(t.tm_hour),bcd(t.tm_mday),t.tm_wday,bcd(t.tm_mon+1),bcd(t.tm_year-100)};
-    uint8_t ctrl;
-    esp_err_t err=metalio_read(0x51,0,&ctrl,1); if(err!=ESP_OK) return err;
-    // 写时暂时停表，完成或失败都恢复振荡器；保留其他控制位。
-    // Stop briefly for the write, then restore the oscillator on success or failure, preserving other control bits.
-    err=metalio_write8(0x51,0,ctrl|0x20); if(err!=ESP_OK) return err;
-    esp_err_t written=metalio_write(0x51,2,bytes,sizeof(bytes));
-    esp_err_t resumed=metalio_write8(0x51,0,ctrl&~0x20);
-    err=written!=ESP_OK?written:resumed;
-    if(err==ESP_OK) err=rtc_read();
-    ESP_LOGI("metalio_rtc","sync utc=%lu oscillator=%s result=%s",(unsigned long)sec,
-        resumed==ESP_OK?"running":"unknown",esp_err_to_name(err));
+    time_t seconds=sec;
+    struct tm t;
+    if (!gmtime_r(&seconds,&t) || t.tm_year<100 || t.tm_year>199) return ESP_ERR_INVALID_ARG;
+    const uint8_t bytes[]={bcd(t.tm_sec),bcd(t.tm_min),bcd(t.tm_hour),bcd(t.tm_mday),
+                           t.tm_wday,bcd(t.tm_mon+1),bcd(t.tm_year-100)};
+    esp_err_t err=ESP_FAIL;
+    for (unsigned attempt=0; attempt<3; ++attempt) {
+        const char *stage="read-control";
+        uint8_t ctrl;
+        err=metalio_read(0x51,0,&ctrl,1);
+        if (err==ESP_OK) {
+            stage="stop";
+            err=metalio_write8(0x51,0,ctrl|0x20);
+            if (err==ESP_OK) {
+                stage="write-time";
+                err=metalio_write(0x51,2,bytes,sizeof(bytes));
+            }
+            // 即使停止或写入返回错误，也尝试恢复时钟。/ Resume even if stop or data write reports an error.
+            esp_err_t resumed=metalio_write8(0x51,0,ctrl&~0x20);
+            if (resumed!=ESP_OK) { stage="resume"; err=resumed; }
+            if (err==ESP_OK) {
+                stage="verify";
+                err=rtc_read();
+                if (err==ESP_OK && (state.unix_sec<sec || state.unix_sec-sec>2)) {
+                    state.time_ok=false;
+                    state.time_synced=0;
+                    err=ESP_ERR_INVALID_RESPONSE;
+                }
+            }
+        }
+        if (err==ESP_OK) {
+            ESP_LOGI("metalio_rtc","verified utc=%lu attempt=%u",(unsigned long)sec,attempt+1);
+            return ESP_OK;
+        }
+        ESP_LOGW("metalio_rtc","sync stage=%s attempt=%u result=%s",
+                 stage,attempt+1,esp_err_to_name(err));
+        if (attempt<2) vTaskDelay(pdMS_TO_TICKS(15));
+    }
+    state.time_ok=false;
+    state.time_synced=0;
     return err;
 }
 static void keys(void) {

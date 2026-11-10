@@ -69,7 +69,15 @@ extern const app_desc_t app_boot_recovery;
 static void restore_time_from_pmu(void) {
     struct timeval current;
     if (gettimeofday(&current,NULL)==0 && current.tv_sec>=1704067200 && current.tv_sec<=4102444799U) return;
-    if (read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0) != ESP_OK) return;
+    esp_err_t err=read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0);
+    if (err!=ESP_OK && err!=ESP_ERR_INVALID_STATE) {
+        vTaskDelay(pdMS_TO_TICKS(15));
+        err=read_pico_pmu_cmd(PMU_CMD_TIME_GET, NULL, 0);
+    }
+    if (err!=ESP_OK) {
+        ESP_LOGW(TAG,"RTC boot restore failed: %s",esp_err_to_name(err));
+        return;
+    }
     const pmu_snapshot_t *pmu = read_pico_pmu_get();
     if (!pmu || !pmu->time_ok || !pmu->time_synced || pmu->unix_sec < 1704067200 || pmu->unix_sec > 4102444799U) return;
     struct timeval tv = {.tv_sec = (time_t)pmu->unix_sec, .tv_usec = 0};

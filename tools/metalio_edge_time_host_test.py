@@ -139,10 +139,27 @@ int main(void){
 '''
 
 rtc=common+r'''
+#undef ESP_LOGW
+#define ESP_LOGW(tag, ...) do { if (0) printf(__VA_ARGS__); } while (0)
+static const char *esp_err_to_name(esp_err_t err){(void)err;return "mock";}
+#define pdMS_TO_TICKS(ms) (ms)
+static unsigned retries;
+static void vTaskDelay(unsigned ticks){assert(ticks==15);++retries;}
 static struct {bool time_ok;unsigned time_synced;uint32_t unix_sec;} state;
-static uint8_t regs[9];static int fail_write;
-static esp_err_t metalio_read(unsigned addr,unsigned reg,uint8_t *out,size_t n){assert(addr==0x51&&reg+n<=9);memcpy(out,regs+reg,n);return ESP_OK;}
-static esp_err_t metalio_write(unsigned addr,unsigned reg,const uint8_t *in,size_t n){assert(addr==0x51&&reg+n<=9);if(fail_write&&reg==2)return ESP_FAIL;memcpy(regs+reg,in,n);return ESP_OK;}
+static uint8_t regs[9];
+static int fail_write, fail_stop, fail_resume;
+static bool stale_clock;
+static esp_err_t metalio_read(unsigned addr,unsigned reg,uint8_t *out,size_t n){
+ assert(addr==0x51&&reg+n<=9);memcpy(out,regs+reg,n);return ESP_OK;
+}
+static esp_err_t metalio_write(unsigned addr,unsigned reg,const uint8_t *in,size_t n){
+ assert(addr==0x51&&reg+n<=9);
+ if(fail_write&&reg==2){--fail_write;return ESP_FAIL;}
+ if(fail_resume&&reg==0&&!(in[0]&0x20)){--fail_resume;return ESP_FAIL;}
+ if(reg!=2||!stale_clock)memcpy(regs+reg,in,n);
+ if(fail_stop&&reg==0&&(in[0]&0x20)){--fail_stop;return ESP_FAIL;}
+ return ESP_OK;
+}
 static esp_err_t metalio_write8(unsigned addr,unsigned reg,uint8_t v){return metalio_write(addr,reg,&v,1);}
 '''
 for name in ('unbcd','bcd','rtc_read','rtc_write'):
@@ -154,7 +171,13 @@ int main(void){
  regs[0]|=0x20;assert(rtc_read()==ESP_ERR_INVALID_STATE&&!state.time_ok&&!state.time_synced);
  regs[0]=2;regs[2]|=0x80;assert(rtc_read()==ESP_ERR_INVALID_STATE&&!state.time_ok);
  assert(rtc_write(utc)==ESP_OK&&state.unix_sec==utc&&!(regs[2]&0x80));
- fail_write=1;assert(rtc_write(utc)==ESP_FAIL&&regs[0]==2);
+ fail_write=1;assert(rtc_write(utc)==ESP_OK&&regs[0]==2&&retries==1);
+ fail_stop=1;assert(rtc_write(utc)==ESP_OK&&regs[0]==2&&retries==2);
+ fail_resume=1;assert(rtc_write(utc)==ESP_OK&&regs[0]==2&&retries==3);
+ fail_write=3;assert(rtc_write(utc)==ESP_FAIL&&regs[0]==2&&retries==5&&!state.time_ok);
+ stale_clock=true;
+ assert(rtc_write(utc+30)==ESP_ERR_INVALID_RESPONSE&&!state.time_ok);
+ stale_clock=false;
  assert(rtc_write(0)==ESP_ERR_INVALID_ARG);
  fail_write=0;assert(rtc_write(utc)==ESP_OK);
  regs[3]=0x1a;assert(rtc_read()==ESP_ERR_INVALID_RESPONSE&&!state.time_ok);
