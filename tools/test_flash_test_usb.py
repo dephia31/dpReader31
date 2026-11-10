@@ -23,6 +23,14 @@ class UsbPackageTest(unittest.TestCase):
                     version='1.1.7RC1-vn', size=len(data), sha256=hashlib.sha256(data).hexdigest(),
                     partitions={k: [0, 0, *v] for k, v in usb.EXPECTED.items()})
         (folder / 'verification.json').write_text(json.dumps(info))
+        table = bytearray(b'\xff' * 4096)
+        for i, (name, (offset, size)) in enumerate(usb.EXPECTED.items()):
+            struct.pack_into('<HBBII16sI', table, i*32, 0x50aa, *usb.PARTITION_TYPES[name], offset, size, name.encode(), 0)
+        (folder / 'partitions.bin').write_bytes(table)
+        for name in ('nvs256_migrate.py', 'fatfs_runtime.zip'):
+            (folder / name).write_bytes(b'test fixture')
+        (folder / 'SHA256SUMS.txt').write_text(''.join(
+            f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in folder.iterdir()))
         return data
 
     def test_bundle_rejects_damage_wrong_chip_and_version(self):

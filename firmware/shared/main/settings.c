@@ -445,10 +445,46 @@ static void simple_mode_load(void) {
     if(err==ESP_OK)(void)nvs_commit(h);
     nvs_close(h);
 }
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+#include "esp_partition.h"
+static void nvs_layout_check_and_report(bool report) {
+    const esp_partition_t *part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "nvs");
+    // 旧布局禁止启动，避免误用TF/OTA迁移。/ Reject old layouts; migration requires the USB installer.
+    ESP_ERROR_CHECK(part && part->address == 0xfb0000 && part->size == 0x40000 ? ESP_OK : ESP_ERR_INVALID_STATE);
+    if (!report) return;
+    nvs_stats_t stats;
+    if (nvs_get_stats("nvs", &stats) == ESP_OK)
+        ESP_LOGI(TAG, "NVS256 used=%u free=%u total=%u namespaces=%u", (unsigned)stats.used_entries,
+                 (unsigned)stats.free_entries, (unsigned)stats.total_entries, (unsigned)stats.namespace_count);
+    nvs_iterator_t it = NULL;
+    esp_err_t err = nvs_entry_find("nvs", NULL, NVS_TYPE_ANY, &it);
+    char previous[16] = {0};
+    while (err == ESP_OK) {
+        nvs_entry_info_t info;
+        if (nvs_entry_info(it, &info) != ESP_OK) break;
+        if (strcmp(previous, info.namespace_name)) {
+            nvs_handle_t handle;
+            size_t used = 0;
+            if (nvs_open(info.namespace_name, NVS_READONLY, &handle) == ESP_OK) {
+                if (nvs_get_used_entry_count(handle, &used) == ESP_OK)
+                    ESP_LOGI(TAG, "NVS namespace=%s entries=%u", info.namespace_name, (unsigned)used);
+                nvs_close(handle);
+            }
+            snprintf(previous, sizeof(previous), "%s", info.namespace_name);
+        }
+        err = nvs_entry_next(&it);
+    }
+    nvs_release_iterator(it);
+}
+#endif
+
 void app_settings_init(void) {
 #if CONFIG_DPREADER_AUTO_BACKUP
     memset(&s_auto_backup, 0, sizeof(s_auto_backup));
     s_auto_backup.enabled = true;
+#endif
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+    nvs_layout_check_and_report(false);
 #endif
     esp_err_t err = nvs_flash_init();
     // 设置分区异常时保留原数据供恢复，绝不因空间不足自动擦除用户资料。
@@ -462,6 +498,9 @@ void app_settings_init(void) {
         return;
     }
 
+#if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
+    nvs_layout_check_and_report(true);
+#endif
     simple_mode_load();
 #if CONFIG_DPREADER_AUTO_BACKUP
     // Persist quarantine before migrations recreate defaults on an erased device.

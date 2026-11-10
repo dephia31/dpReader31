@@ -88,7 +88,7 @@ esp_err_t read_pico_sd_get_info(read_pico_sd_info_t* out) {
 esp_err_t esp_vfs_fat_spiflash_mount_rw_wl(const char* path, const char* label,
     const esp_vfs_fat_mount_config_t* config, wl_handle_t* out) {
     assert(!strcmp(path, "/flash") && !strcmp(label, "storage"));
-    assert(config->format_if_mount_failed && config->max_files == 4 && config->allocation_unit_size == 4096);
+    assert(!config->format_if_mount_failed && config->max_files == 4 && config->allocation_unit_size == 4096);
     ++mount_calls; if (!mount_error) *out = 1; return mount_error;
 }
 esp_err_t esp_vfs_fat_info(const char* path, uint64_t* total, uint64_t* free_bytes) {

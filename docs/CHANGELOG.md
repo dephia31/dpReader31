@@ -1,3 +1,10 @@
+## dpReader 1.4.2RC1-vn / 1.4.2RC1-love-vn · thử cục bộ · 2026-11-10
+
+- Tăng NVS chung lên 256 KiB tại `0xFB0000`; giữ vùng NVS cũ tại `0x9000` và địa chỉ OTA.
+- Bộ cài USB sao lưu NVS và storage, dựng lại FAT 5.625 MiB, đối chiếu dữ liệu và ghi bảng phân vùng cuối cùng. Hỗ trợ tiếp tục từ backup nếu USB gián đoạn.
+- Firmware từ chối bố cục cũ và không tự định dạng `/flash` khi mount thất bại. Ghi thống kê NVS/namespace vào log khởi động, không ghi giá trị khóa.
+- Chỉ cài chuyển đổi bằng USB; chưa xác nhận trên thiết bị. Xem [quy trình NVS256](NVS256_MIGRATION.md).
+
 ## dpReader 1.4.1-vn / 1.4.1-love-vn · 2026-11-10
 
 - Sửa lỗi nút Bluetooth đã học có thể lật hai trang trong một lần bấm.

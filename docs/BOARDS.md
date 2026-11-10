@@ -6,6 +6,10 @@ Kho hiện tại build cho `metalio47`. Cấu hình, phân vùng và mã phần 
 
 Build mặc định tạo cả Full và Love Book, với cấu hình và thư mục đầu ra riêng cho từng bản. Xem [hai bản firmware](FIRMWARE_EDITIONS.md).
 
+## NVS chung 256 KiB (RC cục bộ)
+
+Từ 1.4.2RC1, S31 dùng bố cục `nvs256-v1`; cần chuyển đổi USB một lần theo [NVS256_MIGRATION.md](NVS256_MIGRATION.md). Không dùng TF/OTA để chuyển từ bố cục cũ.
+
 ## Định danh phần cứng
 
 | Thuộc tính | dpReader Metalio 4.7 | Pico để đối chiếu lịch sử |

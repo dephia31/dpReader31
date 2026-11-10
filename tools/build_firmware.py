@@ -87,14 +87,14 @@ cd -- "$(dirname -- "$0")" || exit 1
 shopt -s nullglob
 PYTHON_USB=""
 for candidate in "$PWD/.usb-python/bin/python" "$HOME"/.espressif/python_env/*/bin/python; do
-  if [ -x "$candidate" ] && "$candidate" -c 'import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
+  if [ -x "$candidate" ] && "$candidate" -c 'import esptool, serial, construct; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
     PYTHON_USB="$candidate"
     break
   fi
 done
 if [ -z "$PYTHON_USB" ] && command -v python3 >/dev/null 2>&1; then
   candidate="$(command -v python3)"
-  if "$candidate" -c 'import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
+  if "$candidate" -c 'import esptool, serial, construct; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
     PYTHON_USB="$candidate"
   fi
 fi
@@ -141,7 +141,7 @@ exit 0
     (output / 'FLASH_USB.command').chmod(0o755)
 
 
-def export(build, output, board, edition="full"):
+def export(build, output, board, edition="full", sdk=None):
     info = metadata(board, edition)
     app = build / (info['project'] + '.bin')
     identity = check_image(app.read_bytes(), board, edition)
@@ -274,6 +274,35 @@ def export(build, output, board, edition="full"):
         "Compilation does not establish peak internal SRAM usage or device acceptance.\n"
         "USB launchers preserve NVS/books and write only the app and OTA selection.\n"
         "This package has not been flashed or published by the build tool.\n")
+    if entries.get('nvs', (0, 0, 0, 0))[2:] == (0xfb0000, 0x40000):
+        if sdk is None:
+            raise ValueError('NVS256 bundles require the build SDK for FAT migration tools')
+        shutil.copyfile(ROOT / 'tools/nvs256_migrate.py', output / 'nvs256_migrate.py')
+        shutil.copyfile(ROOT / 'docs/NVS256_MIGRATION.md', output / 'NVS256_MIGRATION.md')
+        fatfs = sdk / 'components/fatfs'
+        with zipfile.ZipFile(output / 'fatfs_runtime.zip', 'w', zipfile.ZIP_DEFLATED) as runtime:
+            for path in sorted(fatfs.glob('*.py')) + sorted((fatfs / 'fatfs_utils').glob('*.py')):
+                runtime.write(path, str(path.relative_to(fatfs)))
+            runtime.write(sdk / 'LICENSE', 'ESP_IDF_LICENSE.txt')
+        for name in ('dpReader_metalio47_full.bin', 'flash_args', 'flash-command.txt', 'manifest.json'):
+            (output / name).unlink()
+        instructions = (
+            f"dpReader {identity['version']} — NVS chung 256 KiB\n"
+            "Cài lần đầu CHỈ bằng FLASH_USB.command (macOS) hoặc FLASH_USB.bat (Windows).\n"
+            "Python cần esptool >= 5.6, pyserial và construct. Không dùng TF/OTA để chuyển bố cục.\n"
+            "Bộ cài sao lưu NVS và /flash vào Migration Backups, kiểm tra rồi dựng lại storage.\n"
+            "Giữ thư mục sao lưu: có mật khẩu Wi-Fi và khóa Bluetooth riêng của máy.\n"
+            "NVS cũ, SD, bootloader và coredump không bị ghi. Không rút USB khi đang chuyển đổi.\n"
+            "Nếu gián đoạn: vào download mode và chạy launcher --resume <thư mục backup>.\n"
+            "Chỉ resume cùng gói firmware và thiết bị. Không boot firmware cũ giữa lần ghi dở.\n"
+            "Sau khi chuyển đổi, USB thông thường chỉ ghi app/OTA; OTA sau này dùng bố cục mới.\n"
+            "Chưa kiểm thử trên thiết bị: kiểm tra phiên bản, Wi-Fi, BLE, phím đã học, /flash.\n")
+        (output / 'HUONG_DAN_FLASH.txt').write_text(instructions)
+        (output / 'BUILD_NOTES.txt').write_text(instructions)
+        result.pop('full_bin', None)
+        result['storage_layout'] = 'nvs256-v1'
+        result['usb_migration_required_from_legacy'] = True
+        (output / 'verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     (output / 'SHA256SUMS.txt').write_text(''.join(
         f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
         for path in sorted(output.iterdir()) if path.is_file() and path.name != 'SHA256SUMS.txt'))
@@ -395,7 +424,7 @@ def build_one(board, args):
     if result.returncode:
         print((work / 'build.log').read_text(errors='replace')[-8000:])
         raise RuntimeError(f'{board} build failed; see {work / "build.log"}')
-    result = export(build, args.output.resolve() / 'packages' / board, board, args.edition)
+    result = export(build, args.output.resolve() / 'packages' / board, board, args.edition, sdk)
     if 'RC' in info['version'] and not getattr(args, 'no_test_export', False):
         destination = ROOT / 'Test Build' / info['version']
         export_test_bundle(args.output.resolve() / 'packages' / board, destination)

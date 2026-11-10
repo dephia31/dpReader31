@@ -11,3 +11,5 @@ typedef int esp_err_t;
 static inline const char* esp_err_to_name(int err) { (void)err; return "test"; }
 
 #define ESP_ERR_NO_MEM 6
+
+#define ESP_ERR_NOT_FOUND 7

@@ -84,7 +84,7 @@ esp_err_t book_store_mount_flash(void) {
 }
 
 static esp_err_t flash_root(book_store_root_t* out) {
-    esp_err_t err = mount_flash(true);
+    esp_err_t err = mount_flash(false);
     if (err != ESP_OK) return err;
     err = ensure_dir("/flash/books");
     if (err == ESP_OK) *out = (book_store_root_t){.path = "/flash/books", .is_flash = true};
