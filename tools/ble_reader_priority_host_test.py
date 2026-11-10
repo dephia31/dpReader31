@@ -6,7 +6,7 @@ fn=function('app_book_background_radio_ready',book)
 touch_gate=function('reader_touch_owns_input',book)
 tick=function('on_tick',book)
 assert tick.index('if (ble_enabled && touch_owns_input) ble_pt_discard_input();') < tick.index('book_reader_tap_tick(')
-assert 'if (ble_enabled && !touch_owns_input) {\n        int ble_dir = book_remote_direction(' in tick
+assert 'if (ble_enabled && !touch_owns_input) {\n        ble_pt_action_t action = book_remote_action(' in tick
 code='''#include <assert.h>
 #include <stdbool.h>
 enum{READING=1,SHELF};static char s_requested_open[20];static bool s_scan_pending,s_fonts_reload_pending,s_reader_display_ready;static const char *s_text;static int s_view,s_presented_view;

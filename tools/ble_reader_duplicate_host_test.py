@@ -24,7 +24,8 @@ code=r'''
 #define YXT_CODE_NEXT 2
 static uint32_t s_last_ble_remote_turn_ms,s_last_ble_learned_ms;
 static bool s_has_keyboard_page;
-static struct {ble_pt_frame_t frames[2];} s_bindings;
+static struct {ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];uint8_t actions[BLE_PT_MAX_BINDINGS];} s_bindings;
+static ble_pt_frame_t s_last_ble_frame;
 static ble_pt_event_t keys[32];static unsigned kh,kt;
 static ble_pt_raw_t raws[32];static unsigned rh,rt;
 static bool ble_pt_pop_key(ble_pt_event_t *out){if(kt==kh)return false;*out=keys[kt++];return true;}
@@ -34,38 +35,48 @@ static void raw(uint8_t value,uint32_t at,bool down){raws[rh++]=(ble_pt_raw_t){.
 '''
 # Public declarations in the actual header require non-static test implementations.
 code=code.replace('static bool ble_pt_pop_', 'bool ble_pt_pop_')
-for name in ('frame_same','ble_pt_binding','ble_pt_action_for_usage','ble_pt_action_for_frame'):
+for name in ('frame_same','ble_pt_binding_slot','ble_pt_has_bindings','ble_pt_action_for_usage','ble_pt_action_for_frame'):
     code+=function(ble,name)
-code+=function(book,'book_remote_direction')
+code+=function(book,'book_remote_action')
 code+=r'''
 int main(void){
+ s_bindings.actions[0]=BLE_PT_ACTION_PREV;
  s_bindings.frames[0]=(ble_pt_frame_t){.len=1,.bytes={0x91}};
+ s_bindings.actions[1]=BLE_PT_ACTION_NEXT;
  s_bindings.frames[1]=(ble_pt_frame_t){.len=1,.bytes={0x92}};
  raw(0x92,1000,true);key(0x4f);
- assert(book_remote_direction(1000)==1);
+ assert(book_remote_action(1000)==BLE_PT_ACTION_NEXT);
  // HID follow-up arrives while E-Ink draws; 436ms later it must not turn again.
  key(0x4f);key(0x51);raw(0x92,1030,true);raw(0x92,1300,true);raw(0x92,1600,true);
- assert(book_remote_direction(1800)==0&&kh==kt&&rh==rt);
+ assert(book_remote_action(1800)==BLE_PT_ACTION_NONE&&kh==kt&&rh==rt);
  // A separate press still responds immediately, without waiting on the display clock.
- raw(0x92,2000,true);assert(book_remote_direction(2000)==1);
- raw(0x92,2030,false);assert(book_remote_direction(2436)==0);
- raw(0x91,2500,true);assert(book_remote_direction(2500)==-1);
+ raw(0x92,2000,true);assert(book_remote_action(2000)==BLE_PT_ACTION_NEXT);
+ raw(0x92,2030,false);assert(book_remote_action(2436)==BLE_PT_ACTION_NONE);
+ raw(0x91,2500,true);assert(book_remote_action(2500)==BLE_PT_ACTION_PREV);
+ s_bindings.frames[4]=(ble_pt_frame_t){.len=1,.bytes={0xa1}};
+ s_bindings.frames[5]=(ble_pt_frame_t){.len=1,.bytes={0xa2}};
+ s_bindings.actions[4]=s_bindings.actions[5]=BLE_PT_ACTION_LIGHT_OFF;
+ raw(0xa1,2510,true);raw(0xa2,2520,true);
+ assert(book_remote_action(2800)==BLE_PT_ACTION_LIGHT_OFF);
+ assert(book_remote_action(2801)==BLE_PT_ACTION_LIGHT_OFF);
  // Built-in native frames cannot override a learned peer, including a partial binding.
  ble_pt_frame_t native={.len=1,.bytes={2}};
  assert(ble_pt_action_for_frame(&native)==BLE_PT_ACTION_NONE);
  s_bindings.frames[1].len=0;
- key(0x4f);raw(2,3000,true);assert(book_remote_direction(3000)==0);
- raw(0x91,3100,true);assert(book_remote_direction(3100)==-1);
+ key(0x4f);raw(2,3000,true);assert(book_remote_action(3000)==BLE_PT_ACTION_NONE);
+ raw(0x91,3100,true);assert(book_remote_action(3100)==BLE_PT_ACTION_PREV);
  // No learned bindings: preserve normal HID navigation and its existing repeat interval.
  memset(&s_bindings,0,sizeof(s_bindings));
- key(0x4f);assert(book_remote_direction(4000)==1);
- key(0x4f);assert(book_remote_direction(4100)==0);
- key(0x4f);assert(book_remote_direction(4500)==1);
+ key(0x4f);assert(book_remote_action(4000)==BLE_PT_ACTION_NEXT);
+ key(0x4f);assert(book_remote_action(4100)==BLE_PT_ACTION_NONE);
+ key(0x4f);assert(book_remote_action(4500)==BLE_PT_ACTION_NEXT);
  // Arrival-time arithmetic remains correct over timer wrap.
+ s_bindings.actions[1]=BLE_PT_ACTION_NEXT;
  s_bindings.frames[1]=(ble_pt_frame_t){.len=1,.bytes={0x92}};
  s_last_ble_learned_ms=UINT32_MAX-100;
- raw(0x92,20,true);assert(book_remote_direction(5000)==0);
- raw(0x92,500,true);assert(book_remote_direction(5500)==1);
+ s_last_ble_frame=s_bindings.frames[1];
+ raw(0x92,20,true);assert(book_remote_action(5000)==BLE_PT_ACTION_NONE);
+ raw(0x92,500,true);assert(book_remote_action(5500)==BLE_PT_ACTION_NEXT);
  puts("PASS learned BLE: delayed HID duplicates, queued raw bursts, release, next/previous presses, partial mapping, default HID/repeat, timer wrap");
 }
 '''

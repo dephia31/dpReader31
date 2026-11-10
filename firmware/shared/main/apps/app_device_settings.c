@@ -230,7 +230,8 @@ static bool s_scroll_drag_consumed, s_scroll_present_pending;
 // 蓝牙翻页器子页：滚动位置、正在学习哪个动作（0 未学，1 上一页，2 下一页）、提示行。
 // Bluetooth sub-page: scroll offset, which action is being learned (0 idle, 1 prev, 2 next),
 // and a notice line.
-static int s_ble_scroll, s_ble_learning;
+static int s_ble_scroll, s_ble_learning, s_ble_pick = -1;
+static ble_pt_action_t s_ble_learn_action;
 static char s_ble_notice[96];
 static char s_ble_feedback[96];
 static int s_font_page, s_wallpaper_page;
@@ -986,6 +987,27 @@ static void draw_controls_choices(uint8_t *fb) {
 // Rendering and hit testing both call this, so they see identical coordinates. Without it a
 // control ends up drawn in one place and tapped in another, which is exactly how this page was
 // broken before.
+static const char *const ble_actions[BLE_PT_ACTION_COUNT] = {
+    [BLE_PT_ACTION_NONE] = "Xóa gán phím",
+    [BLE_PT_ACTION_PREV] = "Trang trước",
+    [BLE_PT_ACTION_NEXT] = "Trang sau",
+    [BLE_PT_ACTION_PREV_CHAPTER] = "Chương trước",
+    [BLE_PT_ACTION_NEXT_CHAPTER] = "Chương sau",
+    [BLE_PT_ACTION_TOOLS] = "Menu đọc sách",
+    [BLE_PT_ACTION_HOME] = "Về Trang chủ",
+    [BLE_PT_ACTION_LIGHT_OFF] = "Tắt đèn nền",
+    [BLE_PT_ACTION_LIGHT_ON] = "Bật đèn nền",
+    [BLE_PT_ACTION_LIGHT_TOGGLE] = "Tắt / Mở đèn nền",
+    [BLE_PT_ACTION_REFRESH] = "Khử bóng mờ",
+    [BLE_PT_ACTION_QUICK_MENU] = "Menu thao tác nhanh",
+    [BLE_PT_ACTION_KOSYNC] = "Đồng bộ KOSync",
+    [BLE_PT_ACTION_LOCK] = "Khóa màn hình",
+};
+
+static EpdRect ble_action_rect(unsigned action) {
+    return (EpdRect){36 + (action % 2) * 314, 248 + (action / 2) * 92, 298, 76};
+}
+
 typedef struct {
     int toggle_top;                  // 开关卡片顶；-1 表示被学习提示取代 / switch card top, -1 when the learn prompt replaces it
     int status_top;
@@ -995,7 +1017,7 @@ typedef struct {
     int bond_rows;
     int scan_entry_top;              // 「扫描设备 ›」入口行顶 / the "scan devices" entry row
     int learn_title_top;
-    int learn_top[2];
+    int learn_top[BLE_PT_MAX_BINDINGS];
     int footer_top;
     int content_bottom;              // 内容底，用于滚动上限 / content bottom, for the scroll limit
 } ble_layout_t;
@@ -1019,9 +1041,8 @@ static ble_layout_t ble_layout(void) {
     l.scan_entry_top = y + 16;
     y = l.scan_entry_top + BLE_ROW_H + 30;
     l.learn_title_top = y;
-    l.learn_top[0] = y + 38;
-    l.learn_top[1] = l.learn_top[0] + BLE_ROW_H;
-    l.footer_top = l.learn_top[1] + BLE_ROW_H + 25;
+    for (unsigned i = 0; i < BLE_PT_MAX_BINDINGS; ++i) l.learn_top[i] = y + 38 + i * BLE_ROW_H;
+    l.footer_top = l.learn_top[BLE_PT_MAX_BINDINGS - 1] + BLE_ROW_H + 25;
     l.content_bottom = l.footer_top + 66;
     return l;
 }
@@ -2232,6 +2253,20 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_navigation(fb);
         return;
     }
+    if (s_page == SETTINGS_BLUETOOTH && s_ble_pick >= 0) {
+        char title[32];
+        snprintf(title, sizeof(title), "Gán phím BLE %d", s_ble_pick + 1);
+        back_header(fb, title);
+        section(fb, 200, "Chọn chức năng cho nút muốn học");
+        ble_pt_action_t current = BLE_PT_ACTION_NONE;
+        bool bound = ble_pt_binding_slot((unsigned)s_ble_pick, &current, NULL);
+        for (unsigned i = 0; i < BLE_PT_ACTION_COUNT; ++i) {
+            if (i == BLE_PT_ACTION_NONE && !bound) continue;
+            ui_draw_button(fb, ble_action_rect(i), ble_actions[i], bound && current == i);
+        }
+        settings_navigation(fb);
+        return;
+    }
     if (s_page == SETTINGS_BLUETOOTH) {
         back_header(fb,"Điều khiển lật trang BLE");
         const ble_layout_t l = ble_layout();
@@ -2240,11 +2275,11 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         // While learning, the prompt is pinned to the top so the user need not scroll back.
         if (s_ble_learning || s_ble_feedback[0]) {
             settings_card(fb, (EpdRect){36, 202 - s_ble_scroll, 612, 126}, 22, 0xd0, 0x58);
+            char prompt[96];
+            snprintf(prompt, sizeof(prompt), "Nhấn nút cho tác vụ %s", ble_actions[s_ble_learn_action]);
             settings_center_line(fb, 342, 265 - s_ble_scroll, 24,
-                       !s_ble_learning ? s_ble_feedback :
-                       s_ble_learning == 1 ? "Hãy nhấn phím muốn dùng làm 'Trang trước' trên điều khiển"
-                                           : "Hãy nhấn phím muốn dùng làm 'Trang sau' trên điều khiển",
-                       EPD_DRAW_ALIGN_CENTER, false);
+                                 s_ble_learning ? prompt : s_ble_feedback,
+                                 EPD_DRAW_ALIGN_CENTER, false);
             if (!s_ble_learning)
                 settings_center_line(fb, 342, 305 - s_ble_scroll, 19, "Chạm vào đây để quay lại công tắc Bluetooth", EPD_DRAW_ALIGN_CENTER, false);
         } else {
@@ -2291,19 +2326,18 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         ui_draw_icon(fb,(624)-8,l.scan_entry_top + 38,26,UI_ICON_CHEVRON_RIGHT,UI_GRAY_BLACK);
 
         section(fb, l.learn_title_top, "Gán phím điều khiển");
-        static const char *const learn_names[] = {"Trang trước", "Trang sau"};
-        static const ble_pt_action_t learn_actions[] = {BLE_PT_ACTION_PREV, BLE_PT_ACTION_NEXT};
-        for (int i = 0; i < 2; ++i) {
-            // 学到的键直接显示出来；没学过就走内置映射。
-            // Show the learned key itself; with none, the built-in map applies.
-            char bound_label[40];
+        for (unsigned i = 0; i < BLE_PT_MAX_BINDINGS; ++i) {
+            if (l.learn_top[i] + BLE_ROW_H < 190 || l.learn_top[i] >= settings_viewport_end()) continue;
+            char label[80], bound_label[40] = "";
             ble_pt_frame_t bound;
-            if (ble_pt_binding(learn_actions[i], &bound)) format_bound_key(&bound, bound_label, sizeof(bound_label));
-            else snprintf(bound_label, sizeof(bound_label), "Phím mặc định");
-            ble_row(fb, l.learn_top[i], learn_names[i], bound_label);
-            ui_draw_button(fb, ble_button_rect(l.learn_top[i]), "Học phím", false);
+            ble_pt_action_t action;
+            bool learned = ble_pt_binding_slot(i, &action, &bound);
+            if (learned) format_bound_key(&bound, bound_label, sizeof(bound_label));
+            snprintf(label, sizeof(label), "%u. %s", i + 1, learned ? ble_actions[action] : "Chưa gán");
+            ble_row(fb, l.learn_top[i], label, bound_label);
+            ui_draw_button(fb, ble_button_rect(l.learn_top[i]), learned ? "Sửa" : "Học phím", false);
         }
-        settings_line(fb, 48, l.footer_top, 20, "Phím Lên/Xuống, Trái/Phải và PageUp/PageDown đều lật trang", EPD_DRAW_ALIGN_LEFT, false);
+        settings_line(fb, 48, l.footer_top, 20, "Chưa gán phím: dùng nút lật trang mặc định", EPD_DRAW_ALIGN_LEFT, false);
         settings_line(fb, 48, l.footer_top + 34, 20, "Hỗ trợ điều khiển lật trang BLE khi đang đọc sách", EPD_DRAW_ALIGN_LEFT, false);
         ui_fill_rect_fast((EpdRect){0, 0, UI_LOCK_WIDTH, 190}, UI_GRAY_WHITE, fb);
         ui_nav_status(fb);
@@ -2604,6 +2638,7 @@ static void on_enter(app_ctx_t *ctx) {
     s_setting_choice.open=false;
 #if DPREADER_BOARD_METALIO47
     s_control_pick=s_control_key=-1;
+    s_ble_pick=-1;
 #endif
     (void)ctx;
     pin_setup_close();
@@ -2647,12 +2682,11 @@ static bool ble_receive_feedback(void) {
     while (ble_pt_pop_raw(&raw)) {
         if (!raw.pressed || !ble_pt_connected()) continue;
         if (s_ble_learning) {
-            const ble_pt_action_t action = s_ble_learning == 1 ? BLE_PT_ACTION_PREV : BLE_PT_ACTION_NEXT;
-            const esp_err_t error = ble_pt_bind(action, &raw.frame);
+            const esp_err_t error = ble_pt_bind_slot((unsigned)(s_ble_learning - 1),
+                                                      s_ble_learn_action, &raw.frame);
             if (error != ESP_OK) ESP_LOGE(TAG, "BLE learned binding save failed: %s", esp_err_to_name(error));
             snprintf(s_ble_feedback, sizeof(s_ble_feedback), "%s",
-                     error == ESP_OK ? (action == BLE_PT_ACTION_PREV ? "Nhận diện thành công · Đã gán phím Trang trước" : "Nhận diện thành công · Đã gán phím Trang sau")
-                                     : "Nhận diện được; lưu thất bại, kiểm tra thẻ");
+                     error == ESP_OK ? "Đã lưu phím điều khiển" : "Lưu thất bại, kiểm tra thẻ SD");
             s_ble_learning = 0;
             s_ble_scroll = 0;
             changed = true;
@@ -2767,7 +2801,7 @@ static app_redraw_t on_tick(app_ctx_t *ctx) {
         return ui_keyboard_idle_tick(ctx->touch && ctx->touch->touched, ctx->now_ms) == UI_KEYBOARD_CHANGED
             ? profile_editor_paint(ctx, false) : APP_REDRAW_NONE;
     }
-    if (s_page == SETTINGS_BLUETOOTH && ble_receive_feedback()) return APP_REDRAW_PAGE;
+    if (s_page == SETTINGS_BLUETOOTH && s_ble_pick < 0 && ble_receive_feedback()) return APP_REDRAW_PAGE;
     // 蓝牙启动失败的原因转成提示。放在这里而不是 render()：render 必须是纯绘制，
     // 而 take_* 会清空状态。
     // Fold a Bluetooth start failure into the notice here rather than in render(), which must
@@ -3173,6 +3207,35 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
     if(s_page==SETTINGS_FACTORY_RESET)return reset_gesture(ctx,ev);
     if (s_page == SETTINGS_TEXT_EDIT) return profile_editor_gesture(ctx, ev);
+    if (s_page == SETTINGS_BLUETOOTH && s_ble_pick >= 0) {
+        if (ev->type != UI_GESTURE_TAP) return APP_REDRAW_NONE;
+        if (ev->y0 < 190 || !ble_pt_connected()) {
+            s_ble_pick = -1;
+            return APP_REDRAW_PAGE;
+        }
+        for (unsigned action = 0; action < BLE_PT_ACTION_COUNT; ++action) {
+            if (!ui_rect_hit(ble_action_rect(action), ev->x0, ev->y0)) continue;
+            unsigned slot = (unsigned)s_ble_pick;
+            if (action == BLE_PT_ACTION_NONE && !ble_pt_binding_slot(slot, NULL, NULL))
+                return APP_REDRAW_NONE;
+            s_ble_pick = -1;
+            if (action == BLE_PT_ACTION_NONE) {
+                const ble_pt_frame_t empty = {0};
+                esp_err_t err = ble_pt_bind_slot(slot, BLE_PT_ACTION_NONE, &empty);
+                snprintf(s_ble_notice, sizeof(s_ble_notice), "%s",
+                         err == ESP_OK ? "Đã xóa gán phím" : "Xóa thất bại, kiểm tra thẻ SD");
+            } else {
+                ble_pt_discard_input();
+                ble_pt_learn_begin();
+                s_ble_learn_action = action;
+                s_ble_learning = (int)slot + 1;
+                s_ble_scroll = 0;
+                s_ble_feedback[0] = s_ble_notice[0] = 0;
+            }
+            return APP_REDRAW_PAGE;
+        }
+        return APP_REDRAW_NONE;
+    }
     if (s_page == SETTINGS_MAIN || s_page == SETTINGS_BLUETOOTH || s_page == SETTINGS_BLE_SCAN) {
         int limit = SETTINGS_SCROLL_MAX;
         int *offset = &s_main_scroll;
@@ -3752,29 +3815,13 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
             s_page = SETTINGS_BLE_SCAN;
             return APP_REDRAW_PAGE;
         }
-        for (int i = 0; i < 2; ++i) {
-            const EpdRect btn = ble_button_rect(l.learn_top[i]);
-            // 命中判定必须同时比 x：按钮的纵向范围几乎覆盖整行，只比 y 会让整行都算按钮。
-            // The hit test needs the horizontal test too: the button's vertical span covers almost
-            // the whole row, so comparing y alone makes the entire row count as the button.
-            if (ev->x0 >= btn.x && ev->x0 < btn.x + btn.width && ty >= btn.y && ty < btn.y + btn.height) {
-                if (!ble_pt_connected()) {
-                    snprintf(s_ble_notice, sizeof(s_ble_notice), "Vui lòng kết nối thiết bị lật trang trước khi học phím");
-                    return APP_REDRAW_PAGE;
-                }
-                ble_pt_raw_t stale;
-                while (ble_pt_pop_raw(&stale)) {}
-                // 把此刻那一帧当基准：点「学习」时用户还没按键，外设发的就是静止帧。有些遥控器
-                // 的静止帧带着非零常量，不这样标一下，那串常量会被当成一次按下学进去。
-                // Pin the frame present now as the baseline: the user has not pressed yet, so what the
-                // remote sends is its resting frame. Some remotes keep non-zero constants there, and
-                // without this the constants get learned as if they were a press.
-                ble_pt_learn_begin();
-                s_ble_feedback[0] = s_ble_notice[0] = 0;
-                s_ble_learning = i + 1;
+        for (unsigned i = 0; i < BLE_PT_MAX_BINDINGS; ++i) {
+            if (!ui_rect_hit(ble_button_rect(l.learn_top[i]), ev->x0, ty)) continue;
+            if (!ble_pt_connected()) {
                 s_ble_scroll = 0;
-                return APP_REDRAW_PAGE;
-            }
+                snprintf(s_ble_notice, sizeof(s_ble_notice), "Kết nối điều khiển trước khi học phím");
+            } else s_ble_pick = (int)i;
+            return APP_REDRAW_PAGE;
         }
         // 已配对行：右侧按钮忘记，行本身连接。/ Bonded rows: the button forgets, the row connects.
         for (int i = 0; i < l.bond_rows && i < BLE_PT_MAX_BONDS; ++i) {
@@ -3923,6 +3970,11 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 }
 
 static app_redraw_t on_key(app_ctx_t *ctx, int key) {
+    if (s_page == SETTINGS_BLUETOOTH && (s_ble_pick >= 0 || s_ble_learning)) {
+        s_ble_pick = -1;
+        s_ble_learning = 0;
+        return APP_REDRAW_PAGE;
+    }
     if(s_setting_choice.open){s_setting_choice.open=false;return APP_REDRAW_PAGE;}
 #if DPREADER_BOARD_METALIO47
     if(app_sd_recovery_busy())return APP_REDRAW_NONE;
@@ -3996,7 +4048,7 @@ static void settings_exit(app_ctx_t *ctx) {
     pin_setup_close();
     s_collage_prepare_pending = false;
     s_upgrade_job = UPGRADE_JOB_NONE;
-    (void)ctx; ui_keyboard_end(); pico_online_cancel_join(); ble_pt_scan_stop(); s_ble_learning = 0;
+    (void)ctx; ui_keyboard_end(); pico_online_cancel_join(); ble_pt_scan_stop(); s_ble_learning = 0; s_ble_pick = -1;
 }
 static void on_before_lock(app_ctx_t *ctx) {
 #if DPREADER_BOARD_METALIO47
@@ -4012,7 +4064,7 @@ static void on_before_lock(app_ctx_t *ctx) {
     if (s_page == SETTINGS_PIN_ENTRY) { pin_setup_close(); s_page = SETTINGS_LOCK_PIN; }
 #endif
     s_upgrade_job = UPGRADE_JOB_NONE;
-    (void)ctx; pico_online_cancel_join(); ble_pt_scan_stop(); s_ble_learning = 0;
+    (void)ctx; pico_online_cancel_join(); ble_pt_scan_stop(); s_ble_learning = 0; s_ble_pick = -1;
     (void)ble_pt_stop(2000);
 }
 static bool no_menu_handle(app_ctx_t *ctx) { (void)ctx; return false; }

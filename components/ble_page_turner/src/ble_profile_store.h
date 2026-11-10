@@ -13,7 +13,13 @@
 #ifndef BLE_PROFILE_DIRECTORY
 #define BLE_PROFILE_DIRECTORY "/sdcard/DPRBLE"
 #endif
-#define BLE_PROFILE_MAGIC 0x31454c42u
+#define BLE_PROFILE_V1_MAGIC 0x31454c42u
+#define BLE_PROFILE_MAGIC 0x32454c42u
+
+typedef struct {
+    uint8_t actions[BLE_PT_MAX_BINDINGS];
+    ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];
+} ble_profile_map_t;
 
 typedef struct {
     uint32_t magic;
@@ -22,20 +28,47 @@ typedef struct {
     ble_pt_bond_t peers[BLE_PT_MAX_BONDS];
     ble_pt_bindings_backup_t bindings;
     uint32_t checksum;
+} ble_profile_v1_t;
+
+typedef struct {
+    uint32_t magic;
+    uint32_t sequence;
+    uint32_t count;
+    ble_pt_bond_t peers[BLE_PT_MAX_BONDS];
+    ble_pt_bindings_backup_t bindings;
+    ble_profile_map_t maps[BLE_PT_MAX_BONDS];
+    uint32_t checksum;
 } ble_profile_disk_t;
 
-static uint32_t profile_checksum(const ble_profile_disk_t *value) {
-    const uint8_t *bytes = (const uint8_t *)value;
+static uint32_t profile_hash(const void *record, size_t bytes) {
+    const uint8_t *data = record;
     uint32_t hash = 2166136261u;
-    for (size_t i = 0; i < offsetof(ble_profile_disk_t, checksum); ++i)
-        hash = (hash ^ bytes[i]) * 16777619u;
+    for (size_t i = 0; i < bytes; ++i) hash = (hash ^ data[i]) * 16777619u;
     return hash;
+}
+
+static uint32_t profile_checksum(const ble_profile_disk_t *value) {
+    return profile_hash(value, offsetof(ble_profile_disk_t, checksum));
 }
 
 static bool profile_valid(const ble_profile_disk_t *value) {
     if (value->magic != BLE_PROFILE_MAGIC || !value->sequence ||
         value->count > BLE_PT_MAX_BONDS || value->checksum != profile_checksum(value) ||
         !ble_pt_bindings_backup_valid(&value->bindings)) return false;
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i) {
+        const ble_profile_map_t *map = &value->maps[i];
+        for (unsigned j = 0; j < BLE_PT_MAX_BINDINGS; ++j) {
+            const ble_pt_frame_t *frame = &map->frames[j];
+            if (map->actions[j] >= BLE_PT_ACTION_COUNT ||
+                (frame->len != 0) != (map->actions[j] != BLE_PT_ACTION_NONE) ||
+                (frame->len && !value->bindings.entries[i].key[0]) ||
+                !binding_backup_frame_valid((const uint8_t *)frame)) return false;
+            for (unsigned k = 0; frame->len && k < j; ++k) {
+                if (frame->len == map->frames[k].len &&
+                    !memcmp(frame->bytes, map->frames[k].bytes, frame->len)) return false;
+            }
+        }
+    }
     for (unsigned i = 0; i < value->count; ++i) {
         const ble_pt_bond_t *peer = &value->peers[i];
         if (strnlen(peer->addr, sizeof(peer->addr)) != 17 ||
@@ -57,9 +90,25 @@ static esp_err_t profile_read_slot(unsigned slot, ble_profile_disk_t *value) {
     FILE *file = fopen(path, "rb");
     if (!file) return errno == ENOENT ? ESP_ERR_NOT_FOUND : ESP_FAIL;
     memset(value, 0, sizeof(*value));
-    bool ok = fread(value, 1, sizeof(*value), file) == sizeof(*value) &&
-              fgetc(file) == EOF && !ferror(file) && profile_valid(value);
+    size_t size = fread(value, 1, sizeof(*value), file);
+    bool complete = fgetc(file) == EOF && !ferror(file);
     fclose(file);
+    if (complete && size == sizeof(ble_profile_v1_t)) {
+        ble_profile_v1_t old;
+        memcpy(&old, value, sizeof(old));
+        if (old.magic != BLE_PROFILE_V1_MAGIC ||
+            old.checksum != profile_hash(&old, offsetof(ble_profile_v1_t, checksum)))
+            return ESP_ERR_INVALID_STATE;
+        memset(value, 0, sizeof(*value));
+        value->magic = BLE_PROFILE_MAGIC;
+        value->sequence = old.sequence;
+        value->count = old.count;
+        memcpy(value->peers, old.peers, sizeof(old.peers));
+        value->bindings = old.bindings;
+        value->checksum = profile_checksum(value);
+        size = sizeof(*value);
+    }
+    bool ok = complete && size == sizeof(*value) && profile_valid(value);
     return ok ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 

@@ -59,11 +59,15 @@ typedef enum { UI_GESTURE_SWIPE_L, UI_GESTURE_SWIPE_R, UI_GESTURE_SWIPE_U, UI_GE
 #define ESP_ERR_NOT_FINISHED 7
 typedef struct {uint8_t usage,mods;} ble_pt_event_t;
 typedef struct {uint8_t len;uint8_t bytes[16];} ble_pt_frame_t;
-typedef struct {ble_pt_frame_t frame;bool pressed;} ble_pt_raw_t;
+typedef struct {ble_pt_frame_t frame;bool pressed;uint32_t at_ms;} ble_pt_raw_t;
 typedef enum {BLE_PT_ACTION_NONE,BLE_PT_ACTION_PREV,BLE_PT_ACTION_NEXT} ble_pt_action_t;
 static ble_pt_event_t test_remote_keys[4];
 static ble_pt_raw_t test_remote_raw[4];
 static int test_remote_key_count,test_remote_raw_count;
+#define BLE_REMOTE_DEBOUNCE_MS 350
+static uint32_t s_last_ble_remote_turn_ms,s_last_ble_learned_ms;
+static ble_pt_frame_t s_last_ble_frame;
+static bool ble_pt_has_bindings(void){return false;}
 static bool ble_pt_pop_key(ble_pt_event_t *event){if(!test_remote_key_count)return false;*event=test_remote_keys[--test_remote_key_count];return true;}
 static bool ble_pt_pop_raw(ble_pt_raw_t *event){if(!test_remote_raw_count)return false;*event=test_remote_raw[--test_remote_raw_count];return true;}
 static ble_pt_action_t ble_pt_action_for_frame(const ble_pt_frame_t *frame){
@@ -408,7 +412,7 @@ unit += "static int reader_content_top(void){return 72;}\nstatic int reader_cont
 for name in ("inline_ink_gray", "reader_margin_width", "reader_margin_levels", "reader_margin_level_for", "reader_margin_for_level", "slider_index", "reader_margin_input", "reader_area", "body_rect_for_tracking", "body_rect", "progress_rect", "copy_text", "reader_footer_strip_number", "favorite_key", "favorite_read_handle", "shelf_hidden_key", "shelf_hidden_read_handle", "shelf_hidden_load", "shelf_hidden_save", "shelf_rows", "row_rect", "shelf_category_add", "shelf_category_init", "shelf_category_matches", "shelf_category_remember", "shelf_category_restore", "shelf_categories_recount", "shelf_matches", "compare_books", "sort_shelf", "shelf_reserve", "delete_retry_find", "delete_retry_reserve", "delete_retry_discard", "scan_shelf_dir", "shelf_backfill_visit", "shelf_backfill_read_books", "scan_shelf", "refresh_cached_progress",
              "pending_find", "pending_reserve", "pending_restore", "pending_discard", "pending_mark_latest", "pending_drop_invalidated", "pending_flush", "reader_page_offset", "save_progress", "retry_progress", "layout_name", "manage_panel", "manage_rect", "batch_rect", "manage_back_rect", "bulk_filter_rect", "bulk_nav_rect", "bulk_nav_hit", "leaves", "selected_count", "clear_selection", "toggle_selection", "select_page", "bookmark_compact", "search_begin", "refresh_search_matches", "search_finish", "refresh_capacity", "manage_apply", "manage_action", "batch_apply", "batch_action", "bulk_turn_page", "bulk_finish", "bulk_action", "bulk_control_at", "menu_handle_enabled", "reader_manual_refresh", "apply_reader_option", "reader_return", "reader_key_action", "on_key", "on_key_long", "draw_wrapped_name", "open_requested_book", "on_enter", "book_on_exit"):
     unit += function(name) + "\n"
-for name in ("book_remote_direction", "shelf_turn_page", "shelf_page_arrow_rect", "reader_swipe_direction"):
+for name in ("book_remote_action", "shelf_turn_page", "shelf_page_arrow_rect", "reader_swipe_direction"):
     unit += function(name) + "\n"
 unit += "static unsigned app_settings_system_font_size(void){return 100;}\nstatic unsigned ui_text_system_percent(void){return app_settings_system_font_size();}\n"
 for name in ("apply_reader_layout", "reader_ui_extra", "reader_slider_rect", "reader_slider_map", "reader_slider_begin", "reader_slider_move", "reader_slider_commit"):

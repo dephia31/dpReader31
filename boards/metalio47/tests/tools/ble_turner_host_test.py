@@ -44,6 +44,7 @@ static void metalio_ui_wake_post(unsigned bits){(void)bits;}
 #include <string.h>
 #include <stdint.h>
 #include "ble_page_turner.h"
+#define DPREADER_BOARD_METALIO47 1
 #define ESP_LOGI(...) ((void)0)
 #define ESP_LOGW(...) ((void)0)
 #define ESP_LOGE(...) ((void)0)
@@ -141,24 +142,32 @@ static char s_ble_feedback[64];
 void ble_pt_crumb(uint8_t id){(void)id;}
 bool ble_pt_connected(void){return s_connected;}
 static int binding_error;
-static struct {char addr[18];ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];} s_bindings;
+static ble_pt_action_t s_ble_learn_action;
+typedef struct {char addr[18];ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];uint8_t actions[BLE_PT_MAX_BINDINGS];} binding_set_t;
+static binding_set_t s_bindings;
 static ble_pt_frame_t persisted[BLE_PT_MAX_BINDINGS];
-typedef int nvs_handle_t;
-#define NVS_NS_BINDINGS "bindings"
-#define NVS_READWRITE 1
 #include "ble_pt_backup.h"
-static ble_pt_bindings_backup_t saved_bindings;
+typedef struct {ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];uint8_t actions[BLE_PT_MAX_BINDINGS];} test_map_t;
+typedef struct {
+ uint32_t count,sequence;
+ ble_pt_bond_t peers[BLE_PT_MAX_BONDS];
+ ble_pt_bindings_backup_t bindings;
+ test_map_t maps[BLE_PT_MAX_BONDS];
+} ble_profile_disk_t;
+static ble_profile_disk_t s_profiles;
+static int s_profiles_lock;
 static ble_pt_bond_t s_bonds[BLE_PT_MAX_BONDS];
 static const char *bond_key(char*k,size_t cap,const char*addr){assert(addr[0]);snprintf(k,cap,"b_12345678");return k;}
-esp_err_t ble_pt_bindings_backup_capture(ble_pt_bindings_backup_t *out){if(binding_error==1)return ESP_FAIL;*out=saved_bindings;return ESP_OK;}
-esp_err_t profiles_replace_bindings(const ble_pt_bindings_backup_t *in){if(binding_error)return ESP_FAIL;saved_bindings=*in;memcpy(persisted,in->entries[0].frames,sizeof(persisted));return ESP_OK;}
-
+static esp_err_t profiles_commit(ble_profile_disk_t *next){
+ if(binding_error)return ESP_FAIL;
+ ++next->sequence;memcpy(persisted,next->maps[0].frames,sizeof(persisted));return ESP_OK;
+}
 
 '''
 for name in ('lifecycle_take','lifecycle_give','ble_pt_input_serial','key_push','raw_push','frame_of','frame_same',
              'frame_idle','raw_release','raw_frame','extract_primary_code',
              'usage_to_special','emit_usage','ingest_report','ble_pt_pop_key','ble_pt_pop_raw',
-             'ble_pt_learn_begin','ble_pt_bind','ble_pt_binding','network_resume_peer','start_locked','stop_worker','stop_locked','ble_pt_start','ble_pt_stop',
+             'ble_pt_learn_begin','ble_pt_bind_slot','ble_pt_binding_slot','ble_pt_has_bindings','network_resume_peer','start_locked','stop_worker','stop_locked','ble_pt_start','ble_pt_stop',
              'ble_pt_network_acquire','ble_pt_network_release','ble_pt_suspend_for_sleep','ble_pt_resume_after_sleep','scan_cb','ble_pt_device_count',
              'ble_pt_device','ble_pt_action_for_frame','ble_pt_action_for_usage'):
     unit += '\n' + function(BLE, name)
@@ -174,7 +183,7 @@ static void reset_input(void){
  memset(&s_bindings,0,sizeof(s_bindings));memset(persisted,0,sizeof(persisted));
  s_rest_known=false;s_raw_down=false;s_raw_last_ms=0;
  s_held_usage=s_held_mods=s_emit_usage=0;s_emit_ms=0;s_connected=true;
- s_ble_feedback[0]=0;s_ble_learning=0;binding_error=0;s_ble_scroll=200;
+ s_ble_feedback[0]=0;s_ble_learning=0;s_ble_learn_action=BLE_PT_ACTION_PREV;binding_error=0;s_ble_scroll=200;
  snprintf(s_bindings.addr,sizeof(s_bindings.addr),"AA:BB:CC:DD:EE:FF");
 }
 // 8 字节帧的键码在第 2 字节；9 字节帧首字节是报告号，键码在第 3 字节。
@@ -212,10 +221,10 @@ int main(void){
  assert(ble_pt_action_for_frame(&yxt_prev)==BLE_PT_ACTION_PREV&&ble_pt_action_for_frame(&yxt_next)==BLE_PT_ACTION_NEXT);
  assert(ble_pt_action_for_frame(&unknown_frame)==BLE_PT_ACTION_NONE&&ble_pt_action_for_frame(&empty_frame)==BLE_PT_ACTION_NONE);
  assert(ble_pt_action_for_frame(NULL)==BLE_PT_ACTION_NONE&&ble_pt_action_for_frame(&report_id_frame)==BLE_PT_ACTION_NONE);
- s_bindings.frames[1]=yxt_prev;assert(ble_pt_action_for_frame(&yxt_prev)==BLE_PT_ACTION_NEXT);
+ s_bindings.frames[1]=yxt_prev;s_bindings.actions[1]=BLE_PT_ACTION_NEXT;assert(ble_pt_action_for_frame(&yxt_prev)==BLE_PT_ACTION_NEXT);
  memset(&s_bindings.frames[1],0,sizeof(s_bindings.frames[1]));
  s_has_keyboard_page=true;assert(ble_pt_action_for_frame(&yxt_prev)==BLE_PT_ACTION_NONE&&ble_pt_action_for_frame(&yxt_next)==BLE_PT_ACTION_NONE);
- s_bindings.frames[0]=yxt_prev;assert(ble_pt_action_for_frame(&yxt_prev)==BLE_PT_ACTION_PREV);
+ s_bindings.frames[0]=yxt_prev;s_bindings.actions[0]=BLE_PT_ACTION_PREV;assert(ble_pt_action_for_frame(&yxt_prev)==BLE_PT_ACTION_PREV);
  memset(&s_bindings.frames[0],0,sizeof(s_bindings.frames[0]));
  // 一字节报告：首按就是边沿，连发不算，松开会收尾。
  // A one-byte report: the first press is already an edge, repeats do not count, and the release closes it.
@@ -249,9 +258,9 @@ int main(void){
  // 第一次按下就学得会，不需要先来一条松开报告。
  // The very first press learns, with no release report before it.
  s_ble_learning=1;ingest_report(hw_prev,8);
- assert(ble_receive_feedback()&&!s_ble_learning&&strstr(s_ble_feedback,"Trang trước"));
+ assert(ble_receive_feedback()&&!s_ble_learning&&strstr(s_ble_feedback,"Đã lưu"));
  ble_pt_frame_t bound={0};
- assert(ble_pt_binding(BLE_PT_ACTION_PREV,&bound)&&bound.len==8&&bound.bytes[1]==0xb1);
+ assert(ble_pt_binding_slot(0,NULL,&bound)&&bound.len==8&&bound.bytes[1]==0xb1);
  assert(ble_pt_action_for_frame(&bound)==BLE_PT_ACTION_PREV);
  assert(persisted[0].len==8&&persisted[0].bytes[1]==0xb1);
  const ble_pt_frame_t hw_next_frame={.len=8,.bytes={0x06,0xb2}};
@@ -295,20 +304,20 @@ int main(void){
   report(len,len==9?7:0,0x4b);
   assert(ble_receive_feedback()&&!s_ble_learning&&s_ble_scroll==0);
   ble_pt_frame_t learned={0};
-  assert(ble_pt_binding(BLE_PT_ACTION_PREV,&learned)&&learned.len==len);
+  assert(ble_pt_binding_slot(0,NULL,&learned)&&learned.len==len);
   assert(learned.bytes[len==9?3:2]==0x4b&&learned.bytes[0]==(len==9?7:0));
   format_bound_key(&learned,label,sizeof(label));assert(!strcmp(label,len==9?"07 4B":"4B"));
-  assert(strstr(s_ble_feedback,"Nhận diện thành công")&&strstr(s_ble_feedback,"Trang trước"));
+  assert(strstr(s_ble_feedback,"Đã lưu"));
   report(len,len==9?7:0,0x4b);assert(!ble_receive_feedback());
   report(len,len==9?7:0,0);assert(!s_held_usage&&!ble_receive_feedback());
-  s_ble_feedback[0]=0;s_ble_learning=2;report(len,len==9?7:0,0x4e);
-  assert(ble_receive_feedback()&&!s_ble_learning&&strstr(s_ble_feedback,"Trang sau"));
+  s_ble_feedback[0]=0;s_ble_learning=2;s_ble_learn_action=BLE_PT_ACTION_NEXT;report(len,len==9?7:0,0x4e);
+  assert(ble_receive_feedback()&&!s_ble_learning&&strstr(s_ble_feedback,"Đã lưu"));
   ble_pt_frame_t learned_next={0};
-  assert(ble_pt_binding(BLE_PT_ACTION_NEXT,&learned_next)&&learned_next.bytes[len==9?3:2]==0x4e);
+  assert(ble_pt_binding_slot(1,NULL,&learned_next)&&learned_next.bytes[len==9?3:2]==0x4e);
  }
  reset_input();s_has_keyboard_page=false;s_preferred_byte=0xFF;
  s_ble_learning=2;binding_error=3;report(8,0,0x4e);
- assert(ble_receive_feedback()&&strstr(s_ble_feedback,"lưu thất bại")&&!s_ble_learning);
+ assert(ble_receive_feedback()&&strstr(s_ble_feedback,"Lưu thất bại")&&!s_ble_learning);
  reset_input();s_has_keyboard_page=false;s_preferred_byte=0xFF;
  report(8,0,0x4b);assert(ble_receive_feedback()&&strstr(s_ble_feedback,"Đã nhận"));
  // 有界队列、断连和松开不造成误绑定。/ Bound queues and ignore releases or disconnected input.
@@ -327,6 +336,22 @@ int main(void){
  free_internal=150*1024;largest_internal=60*1024;free_psram=2*1024*1024;
  task_error=1;assert(ble_pt_start()==ESP_ERR_NO_MEM && !s_running && task_count==1 && deinit_count==1);
  task_error=0;assert(ble_pt_start()==ESP_OK && s_running);
+ // Six separate physical buttons can share one task. Relearning a button moves it.
+ reset_input();
+ for(unsigned i=0;i<BLE_PT_MAX_BINDINGS;i++){
+  ble_pt_frame_t button={.len=1,.bytes={0x91+i}};
+  assert(ble_pt_bind_slot(i,BLE_PT_ACTION_NEXT_CHAPTER,&button)==ESP_OK);
+  assert(ble_pt_action_for_frame(&button)==BLE_PT_ACTION_NEXT_CHAPTER);
+ }
+ ble_pt_frame_t first={.len=1,.bytes={0x91}}, cleared={0};
+ assert(ble_pt_bind_slot(5,BLE_PT_ACTION_LIGHT_ON,&first)==ESP_OK);
+ assert(!ble_pt_binding_slot(0,NULL,NULL)&&ble_pt_action_for_frame(&first)==BLE_PT_ACTION_LIGHT_ON);
+ binding_error=1;
+ assert(ble_pt_bind_slot(5,BLE_PT_ACTION_NONE,&cleared)==ESP_FAIL);
+ assert(ble_pt_action_for_frame(&first)==BLE_PT_ACTION_LIGHT_ON);
+ binding_error=0;
+ assert(ble_pt_bind_slot(5,BLE_PT_ACTION_NONE,&cleared)==ESP_OK);
+ assert(ble_pt_action_for_frame(&first)==BLE_PT_ACTION_NONE);
  // SDK stop error quarantines the live stack until reboot; it must not be restarted.
  stop_error=1;assert(ble_pt_network_acquire()==ESP_FAIL&&s_running&&!atomic_load(&s_network_users)&&atomic_load(&s_stop_active));
  assert(ble_pt_start()==ESP_ERR_INVALID_STATE);
@@ -352,7 +377,7 @@ int main(void){
 '''
 # Active tick dispatch must consume reports before a state-only redraw can return.
 assert 'ble_receive_feedback()' in function(SETTINGS, 'on_tick')
-assert 'while (ble_pt_pop_raw(&stale))' in function(SETTINGS, 'on_gesture')
+assert 'ble_pt_discard_input();' in function(SETTINGS, 'on_gesture')
 transfer = (ROOT / 'components/read_pico_transfer/read_pico_transfer.c').read_text()
 for name in ('read_pico_transfer_start', 'read_pico_transfer_scan_wifi', 'sync_time_impl'):
     assert 'ble_pt_network_acquire()' in function(ROOT / 'components/read_pico_transfer/read_pico_transfer.c', name)

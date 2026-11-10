@@ -1,3 +1,8 @@
+## dpReader 1.4.2RC4-vn / 1.4.2RC4-love-vn · thử cục bộ · 2026-11-10
+
+- Học tối đa sáu phím cho mỗi phụ kiện BLE. Chọn tác vụ trước khi học và có thể dùng một tác vụ cho nhiều phím.
+- Giữ phím Trang trước/Trang sau đã học từ hồ sơ SD cũ. Hồ sơ SD lưu đủ sáu ô; bản sao lưu cấu hình v32 chỉ chứa cặp Trang trước/Trang sau.
+
 ## dpReader 1.4.2RC3-vn / 1.4.2RC3-love-vn · thử cục bộ · 2026-11-10
 
 - Bỏ phân vùng `nvs_old` và luồng chuyển dữ liệu. Bộ cài USB tạo NVS 256 KiB và `/flash` trống trong lần cài đầu.

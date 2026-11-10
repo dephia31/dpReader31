@@ -8928,38 +8928,76 @@ static app_redraw_t shelf_key_tick(app_ctx_t *ctx) {
 // produce a second action. Compare arrival times, not ticks delayed by E-Ink drawing.
 #define BLE_REMOTE_DEBOUNCE_MS 350
 static uint32_t s_last_ble_remote_turn_ms = 0;
-static uint32_t s_last_ble_learned_ms = 0;
+static uint32_t s_last_ble_learned_ms;
+static ble_pt_frame_t s_last_ble_frame;
 
-static int book_remote_direction(uint32_t now_ms) {
-    int direction = 0;
-    const bool learned = ble_pt_binding(BLE_PT_ACTION_PREV, NULL) ||
-                         ble_pt_binding(BLE_PT_ACTION_NEXT, NULL);
+static ble_pt_action_t book_remote_action(uint32_t now_ms) {
+    ble_pt_action_t action = BLE_PT_ACTION_NONE;
+    const bool learned = ble_pt_has_bindings();
     ble_pt_event_t event;
     while (ble_pt_pop_key(&event)) {
         if (learned) continue;
-        ble_pt_action_t action = ble_pt_action_for_usage(event.usage, event.mods);
-        if (action == BLE_PT_ACTION_PREV) direction = -1;
-        else if (action == BLE_PT_ACTION_NEXT) direction = 1;
+        ble_pt_action_t mapped = ble_pt_action_for_usage(event.usage, event.mods);
+        if (mapped != BLE_PT_ACTION_NONE) action = mapped;
     }
     ble_pt_raw_t raw;
     while (ble_pt_pop_raw(&raw)) {
         if (!raw.pressed) continue;
-        ble_pt_action_t action = ble_pt_action_for_frame(&raw.frame);
-        if (action == BLE_PT_ACTION_NONE) continue;
+        ble_pt_action_t mapped = ble_pt_action_for_frame(&raw.frame);
+        if (mapped == BLE_PT_ACTION_NONE) continue;
         if (learned) {
-            const bool duplicate = s_last_ble_learned_ms &&
+            const bool duplicate = s_last_ble_frame.len == raw.frame.len &&
+                !memcmp(s_last_ble_frame.bytes, raw.frame.bytes, raw.frame.len) &&
                 raw.at_ms - s_last_ble_learned_ms < BLE_REMOTE_DEBOUNCE_MS;
             s_last_ble_learned_ms = raw.at_ms;
-            if (duplicate) continue;
-        }
-        direction = action == BLE_PT_ACTION_PREV ? -1 : 1;
+            s_last_ble_frame = raw.frame;
+            if (!duplicate) return mapped;
+        } else action = mapped;
     }
-    if (!learned && direction != 0) {
+    if (!learned && action != BLE_PT_ACTION_NONE) {
         if (s_last_ble_remote_turn_ms &&
-            now_ms - s_last_ble_remote_turn_ms < BLE_REMOTE_DEBOUNCE_MS) return 0;
+            now_ms - s_last_ble_remote_turn_ms < BLE_REMOTE_DEBOUNCE_MS) return BLE_PT_ACTION_NONE;
         s_last_ble_remote_turn_ms = now_ms;
     }
-    return direction;
+    return action;
+}
+
+static app_redraw_t book_dispatch_remote(app_ctx_t *ctx, ble_pt_action_t action) {
+    switch (action) {
+        case BLE_PT_ACTION_LIGHT_OFF:
+        case BLE_PT_ACTION_LIGHT_ON:
+        case BLE_PT_ACTION_LIGHT_TOGGLE:
+#if DPREADER_BOARD_METALIO47
+            if (action == BLE_PT_ACTION_LIGHT_TOGGLE ||
+                metalio_frontlight_enabled() != (action == BLE_PT_ACTION_LIGHT_ON))
+                metalio_frontlight_toggle();
+#endif
+            return APP_REDRAW_NONE;
+        case BLE_PT_ACTION_HOME:
+            if (s_view == SHELF) { ui_nav_request(ctx, 0); return APP_REDRAW_NONE; }
+            break;
+        case BLE_PT_ACTION_PREV:
+        case BLE_PT_ACTION_NEXT:
+            if (s_view == SHELF)
+                return shelf_turn_page(ctx, action == BLE_PT_ACTION_PREV ? -1 : 1);
+            break;
+        default:
+            break;
+    }
+    if (s_view != READING || action == BLE_PT_ACTION_NONE) return APP_REDRAW_NONE;
+    static const app_reader_key_action_t keys[BLE_PT_ACTION_COUNT] = {
+        [BLE_PT_ACTION_PREV] = APP_READER_KEY_PREV,
+        [BLE_PT_ACTION_NEXT] = APP_READER_KEY_NEXT,
+        [BLE_PT_ACTION_PREV_CHAPTER] = APP_READER_KEY_PREV_CHAPTER,
+        [BLE_PT_ACTION_NEXT_CHAPTER] = APP_READER_KEY_NEXT_CHAPTER,
+        [BLE_PT_ACTION_TOOLS] = APP_READER_KEY_TOOLS,
+        [BLE_PT_ACTION_HOME] = APP_READER_KEY_HOME,
+        [BLE_PT_ACTION_REFRESH] = APP_READER_KEY_REFRESH,
+        [BLE_PT_ACTION_QUICK_MENU] = APP_READER_KEY_ACTION_MENU,
+        [BLE_PT_ACTION_KOSYNC] = APP_READER_KEY_KOSYNC,
+        [BLE_PT_ACTION_LOCK] = APP_READER_KEY_LOCK,
+    };
+    return reader_key_action(ctx, keys[action]);
 }
 
 #if DPREADER_BOARD_METALIO47
@@ -9117,14 +9155,8 @@ static app_redraw_t on_tick(app_ctx_t* ctx) {
     // 上/左为上一页，下/右为下一页；书架复用滑动的局部刷新，不闪动题头和底栏。
     // Up/left turn back, down/right turn forward; the shelf reuses swipe refresh without flashing chrome.
     if (ble_enabled && !touch_owns_input) {
-        int ble_dir = book_remote_direction(ctx->now_ms);
-        if (ble_dir && s_view == SHELF) {
-            app_redraw_t redraw = shelf_turn_page(ctx, ble_dir);
-            if (redraw != APP_REDRAW_NONE) return redraw;
-        } else if (ble_dir && s_view == READING) {
-            s_stats_activity_ms = ctx->now_ms;
-            return turn_page(ctx, ble_dir);
-        }
+        ble_pt_action_t action = book_remote_action(ctx->now_ms);
+        if (action != BLE_PT_ACTION_NONE) return book_dispatch_remote(ctx, action);
     }
     if(s_view==READING&&s_text&&reader_maintenance_ready(ctx)&&!s_toolbar&&s_reader_panel==READER_PANEL_NONE&&!s_clear_confirm&&
        app_settings_kosync_auto()&&!kosync_busy()) {

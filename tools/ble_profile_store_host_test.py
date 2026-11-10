@@ -25,11 +25,9 @@ with tempfile.TemporaryDirectory() as directory:
 #include <strings.h>
 #include <unistd.h>
 #include "esp_err.h"
-#define BLE_PT_MAX_BONDS 4
-#define BLE_PT_FRAME_MAX 16
-typedef struct {char addr[18];char name[32];uint8_t addr_type;} ble_pt_bond_t;
-typedef struct {uint8_t len,bytes[16];} ble_pt_frame_t;
+#include "ble_page_turner.h"
 #include "ble_pt_backup.h"
+#include <sys/stat.h>
 '''+function('binding_backup_frame_valid')+function('ble_pt_bindings_backup_valid')+function('profiles_merge_bindings')+r'''
 static bool fail_sync;
 static int test_sync(int fd){return fail_sync?-1:fsync(fd);}
@@ -55,11 +53,22 @@ int main(void){
  value.count=1;strcpy(value.peers[0].addr,"2a:07:98:4e:65:01");strcpy(value.peers[0].name,"P4");
  strcpy(value.bindings.entries[0].key,"b_12345678");
  value.bindings.entries[0].frames[0][0]=1;value.bindings.entries[0].frames[0][1]=0x51;
- assert(profile_write(&value)==ESP_OK&&value.sequence==1);
- assert(profile_read(&readback)==ESP_OK&&!memcmp(&value,&readback,sizeof(value)));
- value.bindings.entries[0].frames[0][1]=0x52;
+ assert(mkdir("profiles",0775)==0);
+ ble_profile_v1_t old={.magic=BLE_PROFILE_V1_MAGIC,.sequence=1,.count=1,.bindings=value.bindings};
+ memcpy(old.peers,value.peers,sizeof(old.peers));
+ old.checksum=profile_hash(&old,offsetof(ble_profile_v1_t,checksum));
+ FILE *legacy=fopen("profiles/PROFILE1.BIN","wb");assert(legacy);
+ assert(fwrite(&old,1,sizeof(old),legacy)==sizeof(old));assert(!fclose(legacy));
+ assert(profile_read(&readback)==ESP_OK&&readback.sequence==1&&readback.bindings.entries[0].frames[0][1]==0x51);
+ value=readback;
+ for(unsigned i=0;i<BLE_PT_MAX_BINDINGS;++i){
+  value.maps[0].actions[i]=i<2?BLE_PT_ACTION_NEXT_CHAPTER:BLE_PT_ACTION_LIGHT_OFF;
+  value.maps[0].frames[i]=(ble_pt_frame_t){.len=1,.bytes={i+1}};
+ }
  assert(profile_write(&value)==ESP_OK&&value.sequence==2);
- assert(profile_read(&readback)==ESP_OK&&readback.bindings.entries[0].frames[0][1]==0x52);
+ assert(profile_read(&readback)==ESP_OK&&!memcmp(&value,&readback,sizeof(value)));
+ value.maps[0].frames[5]=value.maps[0].frames[0];
+ assert(profile_write(&value)==ESP_ERR_INVALID_ARG);
  FILE *f=fopen("profiles/PROFILE0.BIN","wb");assert(f);fputs("broken",f);fclose(f);
  assert(profile_read(&readback)==ESP_OK&&readback.sequence==1&&readback.bindings.entries[0].frames[0][1]==0x51);
  value=readback;card_ready=false;
@@ -67,7 +76,7 @@ int main(void){
  assert(profile_read(&readback)==ESP_ERR_INVALID_STATE);card_ready=true;
  fail_sync=true;assert(profile_write(&value)==ESP_FAIL&&value.sequence==1);fail_sync=false;
  assert(profile_read(&readback)==ESP_OK);value=readback;
- value.count=0;memset(value.peers,0,sizeof(value.peers));memset(&value.bindings,0,sizeof(value.bindings));
+ value.count=0;memset(value.peers,0,sizeof(value.peers));memset(&value.bindings,0,sizeof(value.bindings));memset(value.maps,0,sizeof(value.maps));
  assert(profile_write(&value)==ESP_OK);
  assert(profile_read(&readback)==ESP_OK&&readback.count==0);
  value.count=5;assert(profile_write(&value)==ESP_ERR_INVALID_ARG);

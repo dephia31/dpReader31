@@ -307,7 +307,8 @@ static volatile uint32_t s_held_since, s_last_repeat;
 
 typedef struct {
     char addr[18];
-    ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];  // 槽位 0 = PREV，1 = NEXT / slot 0 = PREV, 1 = NEXT
+    ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];
+    uint8_t actions[BLE_PT_MAX_BINDINGS];
 } binding_set_t;
 
 static binding_set_t s_bindings;  // 当前连接外设的绑定 / bindings of the connected peer
@@ -329,6 +330,7 @@ static const char *bond_key(char *buf, size_t cap, const char *addr) {
 
 #if DPREADER_BOARD_METALIO47
 #include "ble_pt_backup.h"
+static bool binding_backup_frame_valid(const uint8_t bytes[17]);
 #include "ble_profile_store.h"
 static ble_profile_disk_t s_profiles;
 static bool s_profiles_ready;
@@ -420,31 +422,48 @@ static void bond_add(const char *addr, const char *name, uint8_t type) {
 }
 
 static void bindings_load(const char *addr) {
-    memset(&s_bindings, 0, sizeof(s_bindings));
-    if (!addr || !addr[0]) return;
-    snprintf(s_bindings.addr, sizeof(s_bindings.addr), "%s", addr);
+    binding_set_t loaded = {0};
+    if (addr && addr[0]) {
+        snprintf(loaded.addr, sizeof(loaded.addr), "%s", addr);
+        char key[16];
+        bond_key(key, sizeof(key), addr);
 #if DPREADER_BOARD_METALIO47
-    char key[16];
-    bond_key(key, sizeof(key), addr);
-    portENTER_CRITICAL(&s_profiles_lock);
-    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i)
-        if (!strcmp(key, s_profiles.bindings.entries[i].key))
-            memcpy(s_bindings.frames, s_profiles.bindings.entries[i].frames, sizeof(s_bindings.frames));
-    portEXIT_CRITICAL(&s_profiles_lock);
+        portENTER_CRITICAL(&s_profiles_lock);
+        for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i) {
+            if (strcmp(key, s_profiles.bindings.entries[i].key)) continue;
+            memcpy(loaded.frames, s_profiles.maps[i].frames, sizeof(loaded.frames));
+            memcpy(loaded.actions, s_profiles.maps[i].actions, sizeof(loaded.actions));
+            bool configured = false;
+            for (unsigned j = 0; j < BLE_PT_MAX_BINDINGS; ++j) configured |= loaded.frames[j].len != 0;
+            if (!configured) {
+                memcpy(loaded.frames, s_profiles.bindings.entries[i].frames,
+                       sizeof(s_profiles.bindings.entries[i].frames));
+                loaded.actions[0] = loaded.frames[0].len ? BLE_PT_ACTION_PREV : BLE_PT_ACTION_NONE;
+                loaded.actions[1] = loaded.frames[1].len ? BLE_PT_ACTION_NEXT : BLE_PT_ACTION_NONE;
+            }
+            break;
+        }
+        s_bindings = loaded;
+        portEXIT_CRITICAL(&s_profiles_lock);
+        return;
 #else
-    nvs_handle_t h;
-    if (nvs_open(NVS_NS_BINDINGS, NVS_READONLY, &h) != ESP_OK) return;
-    char key[16];
-    size_t len = sizeof(s_bindings.frames);
-    // 旧固件在这里存的是 4 个 32 位码值，长度对不上就当作没绑过：让用户重新学一次，比按一个
-    // 错误的身份翻页好。
-    // Older firmware stored four 32-bit codes here; a length mismatch counts as nothing bound,
-    // which beats turning pages on a wrong identity.
-    if (nvs_get_blob(h, bond_key(key, sizeof(key), addr), s_bindings.frames, &len) != ESP_OK ||
-        len != sizeof(s_bindings.frames))
-        memset(s_bindings.frames, 0, sizeof(s_bindings.frames));
-    nvs_close(h);
+        nvs_handle_t h;
+        if (nvs_open(NVS_NS_BINDINGS, NVS_READONLY, &h) == ESP_OK) {
+            binding_set_t stored;
+            size_t len = sizeof(stored);
+            if (nvs_get_blob(h, key, &stored, &len) == ESP_OK) {
+                if (len == sizeof(stored)) loaded = stored;
+                else if (len == 4 * sizeof(ble_pt_frame_t)) {
+                    memcpy(loaded.frames, &stored, 2 * sizeof(ble_pt_frame_t));
+                    loaded.actions[0] = loaded.frames[0].len ? BLE_PT_ACTION_PREV : BLE_PT_ACTION_NONE;
+                    loaded.actions[1] = loaded.frames[1].len ? BLE_PT_ACTION_NEXT : BLE_PT_ACTION_NONE;
+                }
+            }
+            nvs_close(h);
+        }
 #endif
+    }
+    s_bindings = loaded;
 }
 
 #if DPREADER_BOARD_METALIO47
@@ -499,7 +518,7 @@ static esp_err_t bindings_legacy_capture(ble_pt_bindings_backup_t *backup) {
         ble_pt_backup_entry_t *entry = &backup->entries[i];
         bond_key(entry->key, sizeof(entry->key), peer.addr);
         if (!have_bindings) continue;
-        ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];
+        ble_pt_frame_t frames[4];
         size = sizeof(frames);
         err = nvs_get_blob(bindings, entry->key, frames, &size);
         if (err == ESP_ERR_NVS_NOT_FOUND || err == ESP_ERR_NVS_INVALID_LENGTH) {
@@ -2371,8 +2390,11 @@ esp_err_t ble_pt_forget(const char *addr) {
     memset(&next.peers[--next.count], 0, sizeof(next.peers[0]));
     char key[16];
     bond_key(key, sizeof(key), saved_addr);
-    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i)
-        if (!strcmp(next.bindings.entries[i].key, key)) memset(&next.bindings.entries[i], 0, sizeof(next.bindings.entries[i]));
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i) {
+        if (strcmp(next.bindings.entries[i].key, key)) continue;
+        memset(&next.bindings.entries[i], 0, sizeof(next.bindings.entries[i]));
+        memset(&next.maps[i], 0, sizeof(next.maps[i]));
+    }
     esp_err_t err = profiles_commit(&next);
     if (err != ESP_OK) return err;
     if (!strcasecmp(saved_addr, s_conn_addr)) ble_pt_disconnect();
@@ -2386,6 +2408,7 @@ esp_err_t ble_pt_forget(const char *addr) {
         break;
     }
     s_profiles.bindings = next.bindings;
+    memcpy(s_profiles.maps, next.maps, sizeof(s_profiles.maps));
     s_profiles.sequence = next.sequence;
     bonds_save();
     portEXIT_CRITICAL(&s_profiles_lock);
@@ -2425,75 +2448,111 @@ void ble_pt_learn_begin(void) {
     s_rest_known = true;
 }
 
-esp_err_t ble_pt_bind(ble_pt_action_t action, const ble_pt_frame_t *frame) {
-    if (action != BLE_PT_ACTION_PREV && action != BLE_PT_ACTION_NEXT) return ESP_ERR_INVALID_ARG;
-    if (!s_bindings.addr[0]) return ESP_ERR_INVALID_STATE;  // 没连着外设 / no peer connected
-    if (!frame || frame->len > BLE_PT_FRAME_MAX) return ESP_ERR_INVALID_ARG;
-
-    ble_pt_frame_t frames[BLE_PT_MAX_BINDINGS];
-    memcpy(frames, s_bindings.frames, sizeof(frames));
-    const unsigned index = action == BLE_PT_ACTION_PREV ? 0 : 1;
-    if (!frame->len) {
-        // 空帧 = 清除这一条。/ An empty frame clears the slot.
-        memset(&frames[index], 0, sizeof(frames[0]));
+esp_err_t ble_pt_bind_slot(unsigned index, ble_pt_action_t action, const ble_pt_frame_t *frame) {
+    if (index >= BLE_PT_MAX_BINDINGS || !frame || frame->len > BLE_PT_FRAME_MAX ||
+        (frame->len && (action <= BLE_PT_ACTION_NONE || action >= BLE_PT_ACTION_COUNT)))
+        return ESP_ERR_INVALID_ARG;
+#if DPREADER_BOARD_METALIO47
+    portENTER_CRITICAL(&s_profiles_lock);
+#endif
+    binding_set_t updated = s_bindings;
+#if DPREADER_BOARD_METALIO47
+    portEXIT_CRITICAL(&s_profiles_lock);
+#endif
+    if (!ble_pt_connected() || !updated.addr[0]) return ESP_ERR_INVALID_STATE;
+    if (frame->len) {
+        bool nonzero = false;
+        for (unsigned i = 0; i < frame->len; ++i) nonzero |= frame->bytes[i] != 0;
+        if (!nonzero) return ESP_ERR_INVALID_ARG;
+        // 同一实体按键只占一个槽。/ One physical button owns one slot.
+        for (unsigned i = 0; i < BLE_PT_MAX_BINDINGS; ++i) {
+            if (i == index || !frame_same(frame, &updated.frames[i])) continue;
+            updated.frames[i] = (ble_pt_frame_t){0};
+            updated.actions[i] = BLE_PT_ACTION_NONE;
+        }
+        updated.frames[index] = *frame;
+        updated.actions[index] = action;
     } else {
-        bool all_zero = true;
-        for (size_t i = 0; i < frame->len && all_zero; ++i) all_zero = frame->bytes[i] == 0;
-        // 全零帧是「什么都没按」：拿它当身份，静止的外设就会一直翻页。
-        // An all-zero frame is "nothing pressed"; as an identity it would turn pages while the
-        // peripheral sits idle.
-        if (all_zero) return ESP_ERR_INVALID_ARG;
-        frames[index] = *frame;
-        // 同一个帧不能同时绑两个动作：先绑的那个让位，否则翻页方向由槽位顺序决定。
-        // One frame must not drive both actions: the earlier binding gives way, or the direction
-        // would depend on slot order.
-        if (frame_same(&frames[1 - index], &frames[index])) memset(&frames[1 - index], 0, sizeof(frames[0]));
+        updated.frames[index] = (ble_pt_frame_t){0};
+        updated.actions[index] = BLE_PT_ACTION_NONE;
     }
 
-#if DPREADER_BOARD_METALIO47
-    ble_pt_bindings_backup_t backup;
-    esp_err_t err = ble_pt_bindings_backup_capture(&backup);
-    if (err != ESP_OK) return err;
     char key[16];
-    bond_key(key, sizeof(key), s_bindings.addr);
-    int slot = -1;
-    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i)
-        if (!strcmp(backup.entries[i].key, key)) slot = i;
-    for (unsigned i = 0; slot < 0 && i < BLE_PT_MAX_BONDS; ++i)
-        if (!backup.entries[i].key[0]) slot = i;
-    if (slot < 0) {
-        for (unsigned i = 0; slot < 0 && i < BLE_PT_MAX_BONDS; ++i) {
-            bool retained = false;
-            for (unsigned j = 0; j < s_bond_count; ++j) {
-                char peer_key[16];
-                retained |= !strcmp(backup.entries[i].key, bond_key(peer_key, sizeof(peer_key), s_bonds[j].addr));
-            }
-            if (!retained) slot = i;
+    bond_key(key, sizeof(key), updated.addr);
+#if DPREADER_BOARD_METALIO47
+    esp_err_t err = profiles_load();
+    if (err != ESP_OK) return err;
+    portENTER_CRITICAL(&s_profiles_lock);
+    ble_profile_disk_t next = s_profiles;
+    next.count = s_bond_count;
+    memcpy(next.peers, s_bonds, sizeof(s_bonds));
+    portEXIT_CRITICAL(&s_profiles_lock);
+    int slot = -1, free_slot = -1;
+    for (unsigned i = 0; i < BLE_PT_MAX_BONDS; ++i) {
+        if (!strcmp(next.bindings.entries[i].key, key)) { slot = i; break; }
+        bool retained = false;
+        for (unsigned j = 0; j < next.count; ++j) {
+            char peer_key[16];
+            retained |= !strcmp(next.bindings.entries[i].key,
+                                bond_key(peer_key, sizeof(peer_key), next.peers[j].addr));
+        }
+        if (!retained && free_slot < 0) free_slot = i;
+    }
+    if (slot < 0) slot = free_slot;
+    if (slot < 0) return ESP_ERR_NO_MEM;
+    ble_pt_backup_entry_t *legacy = &next.bindings.entries[slot];
+    memset(legacy, 0, sizeof(*legacy));
+    memcpy(legacy->key, key, sizeof(legacy->key));
+    memcpy(next.maps[slot].frames, updated.frames, sizeof(updated.frames));
+    memcpy(next.maps[slot].actions, updated.actions, sizeof(updated.actions));
+    for (unsigned i = 0; i < BLE_PT_MAX_BINDINGS; ++i) {
+        unsigned mapped = updated.actions[i];
+        if (mapped == BLE_PT_ACTION_PREV || mapped == BLE_PT_ACTION_NEXT) {
+            uint8_t *previous = legacy->frames[mapped - BLE_PT_ACTION_PREV];
+            if (!previous[0]) memcpy(previous, &updated.frames[i], sizeof(ble_pt_frame_t));
         }
     }
-    if (slot < 0) return ESP_ERR_NO_MEM;
-    memcpy(backup.entries[slot].key, key, sizeof(backup.entries[slot].key));
-    memcpy(backup.entries[slot].frames, frames, sizeof(frames));
-    err = profiles_replace_bindings(&backup);
+    err = profiles_commit(&next);
+    if (err == ESP_OK) {
+        portENTER_CRITICAL(&s_profiles_lock);
+        s_profiles.bindings = next.bindings;
+        s_profiles.maps[slot] = next.maps[slot];
+        s_profiles.sequence = next.sequence;
+        if (!strcmp(s_bindings.addr, updated.addr)) s_bindings = updated;
+        portEXIT_CRITICAL(&s_profiles_lock);
+    }
 #else
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NS_BINDINGS, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
-    char key[16];
-    err = nvs_set_blob(h, bond_key(key, sizeof(key), s_bindings.addr), frames, sizeof(frames));
+    err = nvs_set_blob(h, key, &updated, sizeof(updated));
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
+    if (err == ESP_OK) s_bindings = updated;
 #endif
-    if (err == ESP_OK) memcpy(s_bindings.frames, frames, sizeof(frames));
     return err;
 }
 
-bool ble_pt_binding(ble_pt_action_t action, ble_pt_frame_t *out) {
-    if (action != BLE_PT_ACTION_PREV && action != BLE_PT_ACTION_NEXT) return false;
-    const ble_pt_frame_t *slot = &s_bindings.frames[action == BLE_PT_ACTION_PREV ? 0 : 1];
-    if (!slot->len) return false;
-    if (out) *out = *slot;
+bool ble_pt_binding_slot(unsigned slot, ble_pt_action_t *action, ble_pt_frame_t *out) {
+    if (slot >= BLE_PT_MAX_BINDINGS) return false;
+#if DPREADER_BOARD_METALIO47
+    portENTER_CRITICAL(&s_profiles_lock);
+#endif
+    const ble_pt_frame_t frame = s_bindings.frames[slot];
+    const ble_pt_action_t mapped = s_bindings.actions[slot];
+#if DPREADER_BOARD_METALIO47
+    portEXIT_CRITICAL(&s_profiles_lock);
+#endif
+    if (!frame.len) return false;
+    if (out) *out = frame;
+    if (action) *action = mapped;
     return true;
+}
+
+bool ble_pt_has_bindings(void) {
+    for (unsigned i = 0; i < BLE_PT_MAX_BINDINGS; ++i)
+        if (ble_pt_binding_slot(i, NULL, NULL)) return true;
+    return false;
 }
 
 // 内置映射：上/下、左右、PageUp/PageDown 都算翻页。市面上的翻页器按键五花八门，
@@ -2531,10 +2590,15 @@ ble_pt_action_t ble_pt_action_for_frame(const ble_pt_frame_t *frame) {
     if (!frame || !frame->len) return BLE_PT_ACTION_NONE;
     // 手动绑定优先：它更具体，也允许用户把内置映射覆盖掉。
     // Manual bindings win: they are more specific and let the user override the built-in map.
-    if (frame_same(frame, &s_bindings.frames[0])) return BLE_PT_ACTION_PREV;
-    if (frame_same(frame, &s_bindings.frames[1])) return BLE_PT_ACTION_NEXT;
-    // Once learned, only exact configured frames navigate this peer.
-    if (s_bindings.frames[0].len || s_bindings.frames[1].len) return BLE_PT_ACTION_NONE;
+    bool learned = false;
+    for (unsigned i = 0; i < BLE_PT_MAX_BINDINGS; ++i) {
+        ble_pt_frame_t stored;
+        ble_pt_action_t action;
+        if (!ble_pt_binding_slot(i, &action, &stored)) continue;
+        learned = true;
+        if (frame_same(frame, &stored)) return action;
+    }
+    if (learned) return BLE_PT_ACTION_NONE;
     // 阅星瞳协议：裸的一字节报告，报告号和字节下标都为 0，所以整帧就是 0x01 / 0x02。
     // 声明了键盘页的外设上，byte 0 是修饰键字节，那里的 0x01 是左 Ctrl；9 字节帧的 byte 0 是
     // 报告号。两者都不是键码，不能当成翻页。
