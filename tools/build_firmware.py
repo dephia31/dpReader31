@@ -87,14 +87,14 @@ cd -- "$(dirname -- "$0")" || exit 1
 shopt -s nullglob
 PYTHON_USB=""
 for candidate in "$PWD/.usb-python/bin/python" "$HOME"/.espressif/python_env/*/bin/python; do
-  if [ -x "$candidate" ] && "$candidate" -c 'import esptool, serial, construct; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
+  if [ -x "$candidate" ] && "$candidate" -c 'import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
     PYTHON_USB="$candidate"
     break
   fi
 done
 if [ -z "$PYTHON_USB" ] && command -v python3 >/dev/null 2>&1; then
   candidate="$(command -v python3)"
-  if "$candidate" -c 'import esptool, serial, construct; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
+  if "$candidate" -c 'import esptool, serial; assert tuple(int(x) for x in esptool.__version__.split(".")[:2]) >= (5, 6)' >/dev/null 2>&1; then
     PYTHON_USB="$candidate"
   fi
 fi
@@ -141,7 +141,7 @@ exit 0
     (output / 'FLASH_USB.command').chmod(0o755)
 
 
-def export(build, output, board, edition="full", sdk=None):
+def export(build, output, board, edition="full", sdk=None, python=None):
     info = metadata(board, edition)
     app = build / (info['project'] + '.bin')
     identity = check_image(app.read_bytes(), board, edition)
@@ -277,31 +277,28 @@ def export(build, output, board, edition="full", sdk=None):
     if entries.get('nvs', (0, 0, 0, 0))[2:] == (0xfb0000, 0x40000):
         if sdk is None:
             raise ValueError('NVS256 bundles require the build SDK for FAT migration tools')
-        shutil.copyfile(ROOT / 'tools/nvs256_migrate.py', output / 'nvs256_migrate.py')
+        # Generate an empty, mountable FAT/WL image on the build host.
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join((str(ROOT / 'tools'), str(sdk / 'components/fatfs'))))
+        subprocess.run([str(python or sys.executable), '-c',
+                        'from pathlib import Path; import sys; from nvs256_migrate import build_storage; '
+                        'Path(sys.argv[1]).write_bytes(build_storage({}, []))',
+                        str(output / 'storage-empty.bin')], env=env, check=True)
+        for obsolete in ('nvs256_migrate.py', 'fatfs_runtime.zip'):
+            (output / obsolete).unlink(missing_ok=True)
         shutil.copyfile(ROOT / 'docs/NVS256_MIGRATION.md', output / 'NVS256_MIGRATION.md')
-        fatfs = sdk / 'components/fatfs'
-        with zipfile.ZipFile(output / 'fatfs_runtime.zip', 'w', zipfile.ZIP_DEFLATED) as runtime:
-            for path in sorted(fatfs.glob('*.py')) + sorted((fatfs / 'fatfs_utils').glob('*.py')):
-                runtime.write(path, str(path.relative_to(fatfs)))
-            runtime.write(sdk / 'LICENSE', 'ESP_IDF_LICENSE.txt')
         for name in ('dpReader_metalio47_full.bin', 'flash_args', 'flash-command.txt', 'manifest.json'):
             (output / name).unlink()
         instructions = (
             f"dpReader {identity['version']} — NVS chung 256 KiB\n"
             "Cài lần đầu CHỈ bằng FLASH_USB.command (macOS) hoặc FLASH_USB.bat (Windows).\n"
-            "Python cần esptool >= 5.6, pyserial và construct. Không dùng TF/OTA để chuyển bố cục.\n"
-            "Bộ cài sao lưu NVS và /flash vào Migration Backups, kiểm tra rồi dựng lại storage.\n"
-            "Giữ thư mục sao lưu: có mật khẩu Wi-Fi và khóa Bluetooth riêng của máy.\n"
-            "NVS cũ, SD, bootloader và coredump không bị ghi. Không rút USB khi đang chuyển đổi.\n"
-            "Nếu gián đoạn: vào download mode và chạy launcher --resume <thư mục backup>.\n"
-            "Chỉ resume cùng gói firmware và thiết bị. Không boot firmware cũ giữa lần ghi dở.\n"
-            "Sau khi chuyển đổi, USB thông thường chỉ ghi app/OTA; OTA sau này dùng bố cục mới.\n"
-            "Chưa kiểm thử trên thiết bị: kiểm tra phiên bản, Wi-Fi, BLE, phím đã học, /flash.\n")
+            "Python cần esptool >= 5.6 và pyserial. Cài sạch từ bố cục cũ bằng USB.\n"
+            "Nhập XOA để xác nhận mất cài đặt và tệp trong /flash. Thẻ SD giữ nguyên.\n"
+            "USB trên bố cục mới chỉ ghi app và vùng chọn boot.\n")
         (output / 'HUONG_DAN_FLASH.txt').write_text(instructions)
         (output / 'BUILD_NOTES.txt').write_text(instructions)
         result.pop('full_bin', None)
-        result['storage_layout'] = 'nvs256-v1'
-        result['usb_migration_required_from_legacy'] = True
+        result['storage_layout'] = 'nvs256-clean'
+        result['usb_clean_install_required_from_legacy'] = True
         (output / 'verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     (output / 'SHA256SUMS.txt').write_text(''.join(
         f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
@@ -424,7 +421,7 @@ def build_one(board, args):
     if result.returncode:
         print((work / 'build.log').read_text(errors='replace')[-8000:])
         raise RuntimeError(f'{board} build failed; see {work / "build.log"}')
-    result = export(build, args.output.resolve() / 'packages' / board, board, args.edition, sdk)
+    result = export(build, args.output.resolve() / 'packages' / board, board, args.edition, sdk, python)
     if 'RC' in info['version'] and not getattr(args, 'no_test_export', False):
         destination = ROOT / 'Test Build' / info['version']
         export_test_bundle(args.output.resolve() / 'packages' / board, destination)

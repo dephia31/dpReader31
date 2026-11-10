@@ -8,7 +8,7 @@ Build mặc định tạo cả Full và Love Book, với cấu hình và thư m�
 
 ## NVS chung 256 KiB (RC cục bộ)
 
-Từ 1.4.2RC1, S31 dùng bố cục `nvs256-v1`; cần chuyển đổi USB một lần theo [NVS256_MIGRATION.md](NVS256_MIGRATION.md). Không dùng TF/OTA để chuyển từ bố cục cũ.
+Từ 1.4.2RC3, lần cài USB từ bố cục cũ tạo NVS và bộ nhớ trong trống. Xem [hướng dẫn cài sạch](NVS256_MIGRATION.md).
 
 ## Định danh phần cứng
 

@@ -20,7 +20,8 @@ EXPECTED = {'nvs': (0x9000, 0x4000), 'otadata': (0xd000, 0x2000),
 
 
 LEGACY = dict(EXPECTED)
-EXPECTED = {**LEGACY, 'nvs_old': LEGACY['nvs'], 'nvs': (0xfb0000, 0x40000), 'storage': (0xa10000, 0x5a0000)}
+EXPECTED = {**LEGACY, 'nvs': (0xfb0000, 0x40000), 'storage': (0xa10000, 0x5a0000)}
+RC_LAYOUT = {**EXPECTED, 'nvs_old': LEGACY['nvs']}
 PARTITION_TYPES['nvs_old'] = (1, 2)
 
 
@@ -36,12 +37,16 @@ def validate_bundle(folder):
         raise ValueError('Wrong board/version or damaged firmware. No flash performed.')
     if {name: tuple(value[2:4]) for name, value in info['partitions'].items()} != EXPECTED:
         raise ValueError('Bundle partition layout is not the approved Metalio S31 layout.')
+    checked = set()
     for line in (folder / 'SHA256SUMS.txt').read_text().splitlines():
         digest, name = line.split('  ', 1)
         if Path(name).name != name or hashlib.sha256((folder / name).read_bytes()).hexdigest() != digest:
             raise ValueError('Bundle checksum mismatch: ' + name)
-    if not all((folder / name).is_file() for name in ('nvs256_migrate.py', 'fatfs_runtime.zip', 'partitions.bin')):
-        raise ValueError('Incomplete migration bundle')
+        checked.add(name)
+    if not {APP_NAME, 'storage-empty.bin', 'bootloader.bin', 'partitions.bin'} <= checked:
+        raise ValueError('Incomplete USB bundle')
+    if (folder / 'storage-empty.bin').stat().st_size != 0x5a0000:
+        raise ValueError('Incorrect storage image size')
     validate_partitions((folder / 'partitions.bin').read_bytes().ljust(0x1000, b'\xff'), allow_legacy=False)
     return info
 
@@ -68,8 +73,13 @@ def validate_partitions(data, allow_legacy=True):
     if found == expected:
         return 'new'
     legacy = {name: (*PARTITION_TYPES[name], *shape, 0) for name, shape in LEGACY.items()}
-    if allow_legacy and found == legacy:
-        return 'legacy'
+    if allow_legacy:
+        if data == b'\xff' * 0x1000:
+            return 'blank'
+        if found == legacy:
+            return 'legacy'
+        if found == {name: (*PARTITION_TYPES[name], *shape, 0) for name, shape in RC_LAYOUT.items()}:
+            return 'rc'
     raise ValueError('Device partition layout differs. No flash performed.')
 
 
@@ -80,18 +90,14 @@ def validate_port(port):
 
 
 def command(port, *args, after='no-reset', before='default-reset'):
-    # USB ROM reads can stall mid-transfer on S31. Load the RAM stub only
-    # for reads. --after no-reset returns to ROM before subsequent writes.
-    read_only = args[0] == 'read-flash'
     return [sys.executable, '-m', 'esptool', '--chip', 'esp32s31', '--port', port,
-            '--baud', '115200', *([] if read_only else ['--no-stub']),
-            '--before', before, '--after', after, *args]
+            '--baud', '115200', '--no-stub', '--before', before,
+            '--after', after, *args]
 
 
 def main():
     parser = argparse.ArgumentParser(description='Metalio E-ink 4 Plus / S31 USB app flash')
     parser.add_argument('--port')
-    parser.add_argument('--resume', help='Resume interrupted migration from its verified backup folder')
     args = parser.parse_args()
     folder = Path(__file__).resolve().parent
     info = validate_bundle(folder)
@@ -112,37 +118,47 @@ def main():
         port = ports[0].device if len(ports) == 1 else ports[int(input('Select port number: ')) - 1].device
     validate_port(port)
     print(f'Metalio E-ink 4 Plus / ESP32-S31 | {info["version"]} | {port}', flush=True)
-    print('Checking chip and layout. Legacy layouts require verified NVS/storage migration.', flush=True)
+    print('Checking chip and partition table.', flush=True)
     identity = subprocess.check_output(command(port, 'read-mac'), text=True, stderr=subprocess.STDOUT)
     print(identity)
     match = re.search(r'MAC:\s*([0-9a-f:]{17})', identity, re.I)
     if not match:
         raise RuntimeError('Cannot verify device MAC. No flash performed.')
     mac = match[1].lower()
-    # 先只读分区表，旧布局由迁移器备份。/ Read the table first; the migration helper backs up legacy data.
     with tempfile.TemporaryDirectory(prefix='metalio-usb-') as tmp:
-        table = Path(tmp) / 'partitions.bin'
+        scratch = Path(tmp)
+        table = scratch / 'partitions.bin'
         subprocess.run(command(port, 'read-flash', '--flash-size', '16MB', '--no-progress',
-                               '0x8000', '0x1000', str(table), after='no-reset'), check=True)
-        try:
-            layout = validate_partitions(table.read_bytes())
-        except ValueError:
-            if not args.resume:
-                raise
-            layout = 'interrupted'
+                               '0x8000', '0x1000', str(table), before='no-reset'), check=True)
+        layout = validate_partitions(table.read_bytes())
+        if layout != 'new':
+            print('CÀI SẠCH: xóa cài đặt/PIN/khóa BLE và toàn bộ tệp trong bộ nhớ trong /flash.')
+            print('Dữ liệu trên thẻ SD được giữ nguyên.')
+            if input(f'Nhập XOA để xác nhận cài sạch trên {mac}: ').strip() != 'XOA':
+                raise ValueError('Đã hủy cài sạch trước khi ghi flash.')
 
-        again = subprocess.check_output(command(port, 'read-mac', after='no-reset'), text=True, stderr=subprocess.STDOUT)
+        again = subprocess.check_output(command(port, 'read-mac', before='no-reset'),
+                                        text=True, stderr=subprocess.STDOUT)
         if not re.search(r'MAC:\s*' + re.escape(mac) + r'\b', again, re.I):
             raise RuntimeError('Device identity changed. No flash performed.')
-        if layout == 'legacy' or args.resume:
-            from nvs256_migrate import migrate_device
-            migrate_device(folder, port, mac, table.read_bytes(), info, command, args.resume)
-        else:
-            clear = Path(tmp) / 'ota-select-ota0.bin'
-            clear.write_bytes(b'\xff' * 0x2000)
-            print(f'Installing {info["version"]} on migrated layout.', flush=True)
-            subprocess.run(command(port, 'write-flash', '0x10000', str(folder / APP_NAME),
-                                   '0xd000', str(clear), after='no-reset'), check=True)
+
+        clear = scratch / 'ota-select-ota0.bin'
+        clear.write_bytes(b'\xff' * 0x2000)
+        writes = ['0x10000', str(folder / APP_NAME), '0xd000', str(clear)]
+        if layout != 'new':
+            empty_old = scratch / 'erase-legacy.bin'
+            empty_new = scratch / 'erase-nvs.bin'
+            empty_old.write_bytes(b'\xff' * 0x4000)
+            empty_new.write_bytes(b'\xff' * 0x40000)
+            writes += ['0x9000', str(empty_old), '0xa10000', str(folder / 'storage-empty.bin'),
+                       '0xfb0000', str(empty_new)]
+            if layout == 'blank':
+                writes += ['0x2000', str(folder / 'bootloader.bin')]
+        subprocess.run(command(port, 'write-flash', '--flash-size', '16MB', *writes,
+                               before='no-reset'), check=True)
+        if layout != 'new':
+            subprocess.run(command(port, 'write-flash', '0x8000', str(folder / 'partitions.bin'),
+                                   before='no-reset'), check=True)
     # S31 USB Serial/JTAG can remain in ROM after an RTS-only reset. Use the
     # supported transient watchdog reset after verification; never run on failure.
     print('Verified USB write. Restarting the device into firmware...', flush=True)

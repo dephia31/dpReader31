@@ -144,7 +144,7 @@ def extract_fat(data, metadata=None):
 def build_storage(files, dirs, size=NEW_STORAGE_SIZE, metadata=None):
     """Build FAT12 with exact UTF-16 LFN bytes; SDK supplies boot/WL geometry."""
     from wl_fatfsgen import WLFATFS
-    fs = WLFATFS(size=size, sector_size=4096, long_names_enabled=True, volume_label='DPREADER')
+    fs = WLFATFS(size=size, sector_size=4096, long_names_enabled=True, volume_label='DPREADER', device_id=0x44505231)
     raw = fs.plain_fatfs.state.binary_image
     bps = 4096
     reserved = struct.unpack_from('<H', raw, 14)[0]
@@ -256,82 +256,3 @@ def rebuild_storage(data, directory):
     after, after_dirs = extract_fat(logical_fat(result), after_metadata)
     require(after == files and after_dirs == dirs and after_metadata == metadata, 'Rebuilt filesystem differs from original')
     return result, {name: hashlib.sha256(content).hexdigest() for name, content in files.items()}
-
-
-def migrate_device(folder, port, mac, table_data, info, command, resume=None):
-    import json
-    import os
-    import subprocess
-    import tempfile
-    import time
-    import re
-    sys.path.insert(0, str(folder / 'fatfs_runtime.zip'))
-    from wl_fatfsgen import WLFATFS  # Verify migration dependencies before large reads.
-    # 先生成并验证备份，再写任何分区。/ Seal and verify backups before writing any partition.
-    root = Path(resume).resolve() if resume else folder / 'Migration Backups' / mac.replace(':', '')
-    if not resume:
-        root.parent.mkdir(parents=True, exist_ok=True)
-        for candidate in (root, *root.parent.glob(root.name + '-retry-*')):
-            require(not (candidate / 'migration.json').exists(),
-                    f'Migration backup already sealed; resume with --resume "{candidate}"')
-        try:
-            root.mkdir(mode=0o700)
-        except FileExistsError:
-            require(root.is_dir() and not root.is_symlink(), 'Invalid migration backup directory')
-            # Before the manifest is sealed, no device flash writes have started.
-            root = Path(tempfile.mkdtemp(prefix=root.name + '-retry-', dir=root.parent))
-    def save(name, data):
-        path = root / name
-        with path.open('wb') as file:
-            file.write(data)
-            file.flush()
-            os.fsync(file.fileno())
-        return path
-    def read(address, size, name):
-        path = root / name
-        subprocess.run(command(port, 'read-flash', '--flash-size', '16MB', hex(address), hex(size), str(path), after='no-reset'), check=True)
-        data = path.read_bytes()
-        require(len(data) == size, 'Incomplete USB read')
-        return data
-    def write_verified(address, path):
-        identity = subprocess.check_output(command(port, 'read-mac', after='no-reset'), text=True, stderr=subprocess.STDOUT)
-        require(re.search(r'MAC:\s*' + re.escape(mac) + r'\b', identity, re.I), 'Device identity changed before write')
-        subprocess.run(command(port, 'write-flash', hex(address), str(path), after='no-reset'), check=True)
-        require(read(address, path.stat().st_size, 'verify.bin') == path.read_bytes(), f'USB readback mismatch at {address:#x}')
-    if resume:
-        record = json.loads((root / 'migration.json').read_text())
-        require(record['mac'] == mac and record['firmware'] == info['sha256'], 'Resume device/firmware mismatch')
-        require(not (root / 'COMPLETE').exists(), 'Migration already complete; use normal USB update')
-        for name, digest in record['sha256'].items():
-            require(hashlib.sha256((root / name).read_bytes()).hexdigest() == digest, 'Backup checksum mismatch: ' + name)
-        require(read(0x9000, 0x4000, 'legacy-check.bin') == (root / 'nvs-old.bin').read_bytes(), 'Legacy NVS changed since backup; do not resume')
-    else:
-        save('partitions-old.bin', table_data)
-        old_nvs = read(0x9000, 0x4000, 'nvs-old.bin')
-        old_storage = read(0xa10000, OLD_STORAGE_SIZE, 'storage-old.bin')
-        save('otadata-old.bin', read(0xd000, 0x2000, 'otadata-read.bin'))
-        require(read(0x9000, 0x4000, 'nvs-check.bin') == old_nvs, 'NVS readback changed')
-        require(read(0xa10000, OLD_STORAGE_SIZE, 'storage-check.bin') == old_storage, 'Storage readback changed')
-        new_nvs = expand_nvs(old_nvs)
-        new_storage, files = rebuild_storage(old_storage, root / 'flash-files')
-        save('nvs-new.bin', new_nvs)
-        save('storage-new.bin', new_storage)
-        save('files-sha256.json', (json.dumps(files, ensure_ascii=False, indent=2) + '\n').encode())
-        names = ('partitions-old.bin', 'nvs-old.bin', 'storage-old.bin', 'otadata-old.bin', 'nvs-new.bin', 'storage-new.bin', 'files-sha256.json')
-        record = {'mac': mac, 'firmware': info['sha256'], 'created': time.time(),
-                  'sha256': {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in names}}
-        save('migration.json', (json.dumps(record, indent=2) + '\n').encode())
-    require(len((root / 'storage-old.bin').read_bytes()) == OLD_STORAGE_SIZE, 'Wrong legacy storage length')
-    require(len((root / 'storage-new.bin').read_bytes()) == NEW_STORAGE_SIZE, 'Wrong resized storage length')
-    require((root / 'nvs-new.bin').read_bytes() == expand_nvs((root / 'nvs-old.bin').read_bytes()), 'NVS migration bytes differ')
-    print(f'Verified migration backup: {root}', flush=True)
-    print('Keep this backup. It contains private Wi-Fi/Bluetooth credentials.', flush=True)
-    # 分区表最后写，失败保持下载模式，可用原备份续传。/ Write the table last; failures stay in ROM for resume.
-    for address, path in ((0xa10000, root / 'storage-new.bin'), (0xfb0000, root / 'nvs-new.bin'),
-                          (0x10000, folder / 'dpReader_metalio47_firmware.bin')):
-        write_verified(address, path)
-    require(read(0x9000, 0x4000, 'legacy-final.bin') == (root / 'nvs-old.bin').read_bytes(), 'Legacy NVS was modified')
-    clear = save('ota-select-ota0.bin', b'\xff' * 0x2000)
-    write_verified(0xd000, clear)
-    write_verified(0x8000, folder / 'partitions.bin')
-    save('COMPLETE', b'USB migration verified; device boot acceptance still pending.\n')

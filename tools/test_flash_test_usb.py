@@ -27,8 +27,8 @@ class UsbPackageTest(unittest.TestCase):
         for i, (name, (offset, size)) in enumerate(usb.EXPECTED.items()):
             struct.pack_into('<HBBII16sI', table, i*32, 0x50aa, *usb.PARTITION_TYPES[name], offset, size, name.encode(), 0)
         (folder / 'partitions.bin').write_bytes(table)
-        for name in ('nvs256_migrate.py', 'fatfs_runtime.zip'):
-            (folder / name).write_bytes(b'test fixture')
+        (folder / 'storage-empty.bin').write_bytes(b'\xff' * 0x5a0000)
+        (folder / 'bootloader.bin').write_bytes(b'test fixture')
         (folder / 'SHA256SUMS.txt').write_text(''.join(
             f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in folder.iterdir()))
         return data
@@ -116,6 +116,42 @@ class UsbPackageTest(unittest.TestCase):
                 calls[:]=successful
             self.assertEqual(len(calls), 3)
             self.assertFalse((folder/'USB Backups').exists())
+
+    def test_clean_install_requires_confirmation_and_writes_table_last(self):
+        import types
+        mac = 'MAC: 1c:29:04:d0:46:64'
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            self.fixture(folder)
+            for layout in (usb.LEGACY, usb.RC_LAYOUT, {}):
+                table = bytearray(b'\xff' * 4096)
+                for i, (name, (offset, size)) in enumerate(layout.items()):
+                    struct.pack_into('<HBBII16sI', table, i * 32, 0x50aa, *usb.PARTITION_TYPES[name],
+                                     offset, size, name.encode(), 0)
+                writes = []
+                def run(cmd, **kwargs):
+                    self.assertIn('--no-stub', cmd)
+                    self.assertEqual(cmd[cmd.index('--before')+1], 'no-reset')
+                    if 'read-flash' in cmd:
+                        Path(cmd[-1]).write_bytes(table)
+                    if 'write-flash' in cmd:
+                        writes.append({item for item in cmd[cmd.index('write-flash')+1:] if item.startswith('0x')})
+                modules = {'esptool': types.SimpleNamespace(__version__='5.6.0'),
+                           'serial.tools': types.SimpleNamespace(list_ports=None)}
+                with patch.dict('sys.modules', modules), patch.object(usb, '__file__', str(folder/'flash_usb.py')), \
+                        patch('sys.argv', ['flash_usb.py', '--port', 'COM7']), \
+                        patch.object(usb.subprocess, 'check_output', return_value=mac), \
+                        patch.object(usb.subprocess, 'run', side_effect=run):
+                    with patch('builtins.input', return_value=''):
+                        with self.assertRaisesRegex(ValueError, 'hủy'):
+                            usb.main()
+                    self.assertEqual(writes, [])
+                    with patch('builtins.input', return_value='XOA'):
+                        usb.main()
+                first = {'0x9000', '0xd000', '0x10000', '0xa10000', '0xfb0000'}
+                if not layout:
+                    first.add('0x2000')
+                self.assertEqual(writes, [first, {'0x8000'}])
 
     def test_invalid_bundle_never_opens_device(self):
         with patch.object(usb, 'validate_bundle', side_effect=ValueError('invalid')), \
