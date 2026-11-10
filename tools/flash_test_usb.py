@@ -132,10 +132,7 @@ def main():
                                '0x8000', '0x1000', str(table), before='no-reset'), check=True)
         layout = validate_partitions(table.read_bytes())
         if layout != 'new':
-            print('CÀI SẠCH: xóa cài đặt/PIN/khóa BLE và toàn bộ tệp trong bộ nhớ trong /flash.')
-            print('Dữ liệu trên thẻ SD được giữ nguyên.')
-            if input(f'Nhập XOA để xác nhận cài sạch trên {mac}: ').strip() != 'XOA':
-                raise ValueError('Đã hủy cài sạch trước khi ghi flash.')
+            print('CÀI SẠCH: đang chuẩn bị tạo lại NVS và bộ nhớ trong /flash. Thẻ SD giữ nguyên.', flush=True)
 
         again = subprocess.check_output(command(port, 'read-mac', before='no-reset'),
                                         text=True, stderr=subprocess.STDOUT)

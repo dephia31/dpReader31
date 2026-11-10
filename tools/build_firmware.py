@@ -292,7 +292,7 @@ def export(build, output, board, edition="full", sdk=None, python=None):
             f"dpReader {identity['version']} — NVS chung 256 KiB\n"
             "Cài lần đầu CHỈ bằng FLASH_USB.command (macOS) hoặc FLASH_USB.bat (Windows).\n"
             "Python cần esptool >= 5.6 và pyserial. Cài sạch từ bố cục cũ bằng USB.\n"
-            "Nhập XOA để xác nhận mất cài đặt và tệp trong /flash. Thẻ SD giữ nguyên.\n"
+            "Launcher tự cài sạch từ bố cục cũ, xóa cài đặt và tệp trong /flash. Thẻ SD giữ nguyên.\n"
             "USB trên bố cục mới chỉ ghi app và vùng chọn boot.\n")
         (output / 'HUONG_DAN_FLASH.txt').write_text(instructions)
         (output / 'BUILD_NOTES.txt').write_text(instructions)

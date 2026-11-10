@@ -1,6 +1,6 @@
 ## dpReader 1.4.2RC3-vn / 1.4.2RC3-love-vn · thử cục bộ · 2026-11-10
 
-- Bỏ phân vùng `nvs_old` và luồng chuyển dữ liệu. Bộ cài USB tạo NVS 256 KiB và `/flash` trống sau khi người dùng xác nhận.
+- Bỏ phân vùng `nvs_old` và luồng chuyển dữ liệu. Bộ cài USB tạo NVS 256 KiB và `/flash` trống trong lần cài đầu.
 
 ## dpReader 1.4.2RC2-vn / 1.4.2RC2-love-vn · thử cục bộ · 2026-11-10
 

@@ -117,7 +117,7 @@ class UsbPackageTest(unittest.TestCase):
             self.assertEqual(len(calls), 3)
             self.assertFalse((folder/'USB Backups').exists())
 
-    def test_clean_install_requires_confirmation_and_writes_table_last(self):
+    def test_clean_install_is_unattended_and_writes_table_last(self):
         import types
         mac = 'MAC: 1c:29:04:d0:46:64'
         with tempfile.TemporaryDirectory() as tmp:
@@ -142,11 +142,7 @@ class UsbPackageTest(unittest.TestCase):
                         patch('sys.argv', ['flash_usb.py', '--port', 'COM7']), \
                         patch.object(usb.subprocess, 'check_output', return_value=mac), \
                         patch.object(usb.subprocess, 'run', side_effect=run):
-                    with patch('builtins.input', return_value=''):
-                        with self.assertRaisesRegex(ValueError, 'hủy'):
-                            usb.main()
-                    self.assertEqual(writes, [])
-                    with patch('builtins.input', return_value='XOA'):
+                    with patch('builtins.input', side_effect=AssertionError('Unexpected prompt')):
                         usb.main()
                 first = {'0x9000', '0xd000', '0x10000', '0xa10000', '0xfb0000'}
                 if not layout:
