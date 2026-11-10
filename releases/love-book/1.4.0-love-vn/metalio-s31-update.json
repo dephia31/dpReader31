@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.4.0-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "sha256": "3986f9695054b55cd3a10b3c94a9fafff8965626a676a11fc9294823477f4e26",
+  "size": 4673360,
+  "notes": "Sửa lỗi NVS đầy khi đổi font hoặc mở sách. Lưu tiến độ và trình bày riêng từng cuốn trên thẻ nhớ.",
+  "previous_version": "1.3.9-love-vn"
+}
