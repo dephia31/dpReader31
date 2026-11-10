@@ -1,3 +1,8 @@
+## dpReader 1.4.2RC2-vn / 1.4.2RC2-love-vn · thử cục bộ · 2026-11-10
+
+- Sửa lỗi bộ cài USB ngừng đọc NVS trên S31. Dùng stub trong RAM để đọc, giữ ROM cho thao tác ghi flash.
+- Khi sao lưu chưa hoàn tất, chạy lại launcher sẽ lưu vào thư mục mới và giữ bản sao lưu dở.
+
 ## dpReader 1.4.2RC1-vn / 1.4.2RC1-love-vn · thử cục bộ · 2026-11-10
 
 - Tăng NVS chung lên 256 KiB tại `0xFB0000`; giữ vùng NVS cũ tại `0x9000` và địa chỉ OTA.

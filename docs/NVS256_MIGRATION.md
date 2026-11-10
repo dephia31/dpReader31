@@ -1,4 +1,4 @@
-# NVS chung 256 KiB — bản thử 1.4.2RC1
+# NVS chung 256 KiB — bản thử 1.4.2RC2
 
 Worktree `codex/nvs256-rc`, nền `588f798` (1.4.1). Full và Love Book cùng dùng bố cục này. Đây là bản thử cục bộ, chưa phát hành và chưa nạp lên thiết bị.
 
@@ -20,7 +20,7 @@ Worktree `codex/nvs256-rc`, nền `588f798` (1.4.1). Full và Love Book cùng d�
 3. Bộ cài kiểm tra chip S31, MAC, SHA-256, version và bảng phân vùng. Máy dùng layout mới chỉ nhận app và chọn boot OTA; máy layout cũ đi qua chuyển đổi bên dưới. Không có thao tác xóa toàn flash, ghi bootloader, eFuse, TPS hoặc SD.
 4. Sau khi máy khởi động, kiểm tra phiên bản, font, PIN, Wi-Fi, kết nối lại BLE, các phím đã học và sách/font trong `/flash`. Giữ nguyên thẻ SD cũ.
 
-Lần chuyển đổi đọc/ghi và đọc lại nhiều MiB bằng ROM `--no-stub` ở 115200 baud nên lâu hơn cài app thông thường. Không ngắt cáp. Bộ cài không xác nhận thiết bị đã boot đúng chỉ từ kết quả ghi USB.
+Lần chuyển đổi đọc và đối chiếu nhiều MiB bằng stub chạy trong RAM. Các bước ghi vẫn chạy qua ROM với `--no-stub`. Quá trình này lâu hơn cài app thông thường. Không ngắt cáp. Bộ cài không xác nhận thiết bị đã boot đúng chỉ từ kết quả ghi USB.
 
 ## Chuyển dữ liệu
 
@@ -34,7 +34,7 @@ Ghi storage, NVS mới và app rồi đọc lại so từng byte; kiểm tra NVS
 
 ## Khi gián đoạn
 
-Giữ nguyên gói và backup. Đưa máy vào download mode, chạy cùng launcher với `--resume "đường dẫn Migration Backups/<MAC>"`. Bộ cài xác minh MAC, firmware, checksum backup và NVS cũ rồi ghi lại từ dữ liệu đã chuẩn bị; cho phép tiếp tục nếu bảng phân vùng bị ghi dở. Không khởi động firmware cũ trong lúc chuyển đổi dở, vì nó có thể sửa dữ liệu gốc. Backup chưa có `migration.json` là bước chuẩn bị chưa hoàn tất, chưa có ghi dữ liệu thiết bị; giữ bản đó riêng rồi thử chuẩn bị lại.
+Giữ nguyên gói và backup. Đưa máy vào download mode, chạy cùng launcher với `--resume "đường dẫn Migration Backups/<MAC>"`. Bộ cài xác minh MAC, firmware, checksum backup và NVS cũ rồi ghi lại từ dữ liệu đã chuẩn bị; cho phép tiếp tục nếu bảng phân vùng bị ghi dở. Không khởi động firmware cũ trong lúc chuyển đổi dở, vì nó có thể sửa dữ liệu gốc. Backup chưa có `migration.json` là bước chuẩn bị chưa hoàn tất, chưa có ghi dữ liệu thiết bị; chạy lại launcher bình thường để sao lưu vào thư mục mới. Bộ cài giữ lại bản dở.
 
 Bản `nvs_old` chỉ là snapshot thời điểm chuyển, không chứa cấu hình mới phát sinh sau chuyển đổi. Không hạ về layout cũ bằng app-only/TF/OTA. Phục hồi layout cũ cần khôi phục ảnh storage và NVS cũ cùng firmware/bảng phân vùng cũ tương ứng; bộ cài này không tự thực hiện rollback.
 

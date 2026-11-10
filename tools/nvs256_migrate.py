@@ -262,6 +262,7 @@ def migrate_device(folder, port, mac, table_data, info, command, resume=None):
     import json
     import os
     import subprocess
+    import tempfile
     import time
     import re
     sys.path.insert(0, str(folder / 'fatfs_runtime.zip'))
@@ -269,8 +270,16 @@ def migrate_device(folder, port, mac, table_data, info, command, resume=None):
     # 先生成并验证备份，再写任何分区。/ Seal and verify backups before writing any partition.
     root = Path(resume).resolve() if resume else folder / 'Migration Backups' / mac.replace(':', '')
     if not resume:
-        require(not root.exists(), f'Migration backup already exists; resume with --resume "{root}"')
-        root.mkdir(parents=True, mode=0o700)
+        root.parent.mkdir(parents=True, exist_ok=True)
+        for candidate in (root, *root.parent.glob(root.name + '-retry-*')):
+            require(not (candidate / 'migration.json').exists(),
+                    f'Migration backup already sealed; resume with --resume "{candidate}"')
+        try:
+            root.mkdir(mode=0o700)
+        except FileExistsError:
+            require(root.is_dir() and not root.is_symlink(), 'Invalid migration backup directory')
+            # Before the manifest is sealed, no device flash writes have started.
+            root = Path(tempfile.mkdtemp(prefix=root.name + '-retry-', dir=root.parent))
     def save(name, data):
         path = root / name
         with path.open('wb') as file:
@@ -280,7 +289,7 @@ def migrate_device(folder, port, mac, table_data, info, command, resume=None):
         return path
     def read(address, size, name):
         path = root / name
-        subprocess.run(command(port, 'read-flash', '--flash-size', '16MB', '--no-progress', hex(address), hex(size), str(path), after='no-reset'), check=True)
+        subprocess.run(command(port, 'read-flash', '--flash-size', '16MB', hex(address), hex(size), str(path), after='no-reset'), check=True)
         data = path.read_bytes()
         require(len(data) == size, 'Incomplete USB read')
         return data

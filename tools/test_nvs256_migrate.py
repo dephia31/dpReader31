@@ -85,12 +85,17 @@ class MigrationTest(unittest.TestCase):
             (folder / 'partitions.bin').write_bytes(b'TABLE')
             info = {'sha256': m.hashlib.sha256(app).hexdigest()}
             writes = []
+            incomplete = folder / 'Migration Backups' / '112233445566'
+            incomplete.mkdir(parents=True)
+            (incomplete / 'partitions-old.bin').write_bytes(b'incomplete')
             fail = [True]
             def run(cmd, **kwargs):
                 if 'read-flash' in cmd:
+                    self.assertNotIn('--no-stub', cmd)
                     addr, size = int(cmd[-3], 0), int(cmd[-2], 0)
                     Path(cmd[-1]).write_bytes(flash[addr:addr + size])
                 else:
+                    self.assertIn('--no-stub', cmd)
                     self.assertEqual(cmd[cmd.index('--after')+1], 'no-reset')
                     addr = int(cmd[-2], 0); data = Path(cmd[-1]).read_bytes()
                     writes.append(addr)
@@ -103,7 +108,10 @@ class MigrationTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     m.migrate_device(folder, 'COM7', mac, bytes(flash[0x8000:0x9000]), info, usb.command)
                 self.assertNotIn(0x8000, writes)
-                backup = folder / 'Migration Backups' / '112233445566'
+                backup, = incomplete.parent.glob(incomplete.name + '-retry-*')
+                self.assertEqual((incomplete / 'partitions-old.bin').read_bytes(), b'incomplete')
+                with self.assertRaisesRegex(ValueError, 'already sealed'):
+                    m.migrate_device(folder, 'COM7', mac, b'', info, usb.command)
                 self.assertTrue((backup / 'migration.json').exists())
                 fail[0] = False
                 m.migrate_device(folder, 'COM7', mac, b'', info, usb.command, backup)

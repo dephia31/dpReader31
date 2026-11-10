@@ -80,9 +80,12 @@ def validate_port(port):
 
 
 def command(port, *args, after='no-reset', before='default-reset'):
+    # USB ROM reads can stall mid-transfer on S31. Load the RAM stub only
+    # for reads. --after no-reset returns to ROM before subsequent writes.
+    read_only = args[0] == 'read-flash'
     return [sys.executable, '-m', 'esptool', '--chip', 'esp32s31', '--port', port,
-            '--baud', '115200', '--no-stub', '--before', before,
-            '--after', after, *args]
+            '--baud', '115200', *([] if read_only else ['--no-stub']),
+            '--before', before, '--after', after, *args]
 
 
 def main():
