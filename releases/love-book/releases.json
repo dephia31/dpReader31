@@ -2,6 +2,29 @@
   "schema": 1,
   "releases": [
     {
+      "version": "1.4.0-love-vn",
+      "source_commit": "c2018325bd3a6ea72ef0c933b0514562b68c541e",
+      "path": "releases/love-book/1.4.0-love-vn",
+      "files": {
+        "dpReader_metalio47_firmware.bin": {
+          "size": 4673360,
+          "sha256": "3986f9695054b55cd3a10b3c94a9fafff8965626a676a11fc9294823477f4e26"
+        },
+        "dpReader_metalio47_full.bin": {
+          "size": 4738896,
+          "sha256": "7d90aa4f172dc76cc80a3854a4c8f5e0fd3229defe59bda0d3bd455025326031"
+        },
+        "SHA256SUMS.txt": {
+          "size": 579,
+          "sha256": "f4bf43afd89cad517a59e8858d75335bc6d4cc234d1fb072c7f62da41f8c14aa"
+        },
+        "metalio-s31-update.json": {
+          "size": 607,
+          "sha256": "c9e4bb4e7b8ccfd7d5adba5a8ad60f433e2ce5acecc4e08599e1ce51dac1be07"
+        }
+      }
+    },
+    {
       "version": "1.3.9-love-vn",
       "source_commit": "277c9bb41e81a02de9ff4162b5fd56a32a62251c",
       "path": "releases/love-book/1.3.9-love-vn",
@@ -140,5 +163,5 @@
       }
     }
   ],
-  "previous_version": "1.3.9-love-vn"
+  "previous_version": "1.4.0-love-vn"
 }

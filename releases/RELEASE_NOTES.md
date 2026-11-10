@@ -1,8 +1,8 @@
-## dpReader 1.4.0-vn / 1.4.0-love-vn · 2026-11-09
+## dpReader 1.4.1-vn / 1.4.1-love-vn · 2026-11-10
 
-- Khắc phục lỗi NVS đầy làm đổi font thất bại hoặc chặn mở sách.
-- Lưu tiến độ và tùy chọn trình bày riêng từng cuốn vào thư mục ẩn trên thẻ. Tiếp tục đọc tiến độ cũ và hỗ trợ sao lưu, khôi phục.
+- Sửa lỗi nút Bluetooth đã học có thể lật hai trang trong một lần bấm.
+- Lưu tối đa bốn hồ sơ Bluetooth và phím đã học trên thẻ SD, hỗ trợ chuyển dữ liệu cũ và phục hồi từ bản sao có checksum. Khóa ghép đôi vẫn dùng NVS.
+- Rút thời gian hiện thông báo và nút quay lại sau khi nhảy trang hoặc chương xuống hai giây.
+- Bỏ trao đổi ghi chú KOReader tự động khỏi luồng đọc. Giữ ghi chú và highlight cục bộ cùng đồng bộ vị trí đọc KoSync.
 
-Bản dựng lại từ mã đã qua kiểm tra Font/AA trên GitHub. Số phiên bản và tính năng firmware vẫn như bản 1.4.0 ban đầu.
-
-Có hai bản **Full 1.4.0-vn** và **Love Book 1.4.0-love-vn**. Cập nhật qua Wi-Fi, gói TF đúng phiên bản hoặc [Web Flash dpReader](https://dephia31.github.io/dpReader31/). Web Flash giữ bản 1.3.9 để chọn lại.
+Có hai bản **Full 1.4.1-vn** và **Love Book 1.4.1-love-vn**. Chọn đúng bản khi cập nhật qua Wi-Fi, gói TF hoặc [Web Flash dpReader](https://dephia31.github.io/dpReader31/). Web Flash giữ bản 1.4.0 để chọn lại.
