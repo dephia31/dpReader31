@@ -74,11 +74,11 @@
       </div>
       <section id="nvs256-guide" class="risk-agreement">
         <h3>Cài dpReader 1.4.2 trực tiếp qua USB</h3>
-        <p>Sao lưu dữ liệu trong bộ nhớ trong <code>/flash</code> và cài đặt cần giữ. Chọn đúng Full hoặc Love Book, kết nối máy Metalio 4.7 S31 ở chế độ BOOT, rồi bấm <strong>Bắt đầu nạp</strong>.</p>
-        <ul>
-          <li><strong>Đang dùng 1.4.1 hoặc bố cục cũ:</strong> trang tự chọn cài sạch. Việc này xóa Wi-Fi, ghép đôi Bluetooth, cài đặt và dữ liệu <code>/flash</code>. Thẻ SD giữ nguyên.</li>
-          <li><strong>Đã có NVS 256 KiB:</strong> trang tự chọn cập nhật ứng dụng, giữ NVS và <code>/flash</code>.</li>
-        </ul>
+        <ol>
+          <li><strong>Trước khi nạp:</strong> Trên máy đọc sách, vào <strong>Cài đặt → Sao lưu &amp; Khôi phục</strong>, rồi chọn <strong>Sao lưu cấu hình hiện tại ra thẻ nhớ</strong>.</li>
+          <li><strong>Nạp firmware:</strong> Chọn đúng bản Full hoặc Love Book, kết nối Metalio 4.7 S31 ở chế độ BOOT và bấm <strong>Bắt đầu nạp firmware</strong>. Trang tự chọn cách nạp phù hợp với máy.</li>
+          <li><strong>Sau khi nạp:</strong> Vào lại <strong>Cài đặt → Sao lưu &amp; Khôi phục</strong>, rồi chọn <strong>Khôi phục cấu hình từ thẻ nhớ</strong> để lấy lại cài đặt đã sao lưu.</li>
+        </ol>
         <p>Trang sẽ hiện xác nhận nếu cần cài sạch. Nếu trình duyệt không đọc được thiết bị, tải bộ cài USB bên dưới, giải nén và chạy <code>FLASH_USB.command</code> trên macOS hoặc <code>FLASH_USB.bat</code> trên Windows.</p>
       </section>
       <div class="radio-cards" id="legacy-modes" hidden>
@@ -169,7 +169,7 @@
 
       <section class="risk-agreement" aria-labelledby="risk-title">
         <h3 id="risk-title">Xác nhận trước khi nạp</h3>
-        <p>Nạp firmware có thể làm mất thiết lập hoặc dữ liệu, khiến thiết bị không khởi động nếu chọn sai gói hoặc quá trình bị gián đoạn. Hãy sao lưu dữ liệu và giữ kết nối USB ổn định.</p>
+        <p>Nạp firmware có thể làm mất thiết lập hoặc dữ liệu, khiến thiết bị không khởi động nếu chọn sai gói hoặc quá trình bị gián đoạn. Hãy sao lưu cấu hình ra thẻ SD và giữ kết nối USB ổn định.</p>
         <label class="risk-check"><input type="checkbox" id="risk-accepted"><span>Tôi đã đọc, hiểu và tự chịu trách nhiệm về các rủi ro khi nạp firmware vào thiết bị của mình.</span></label>
       </section>
       <p id="flash-readiness" role="status" aria-live="polite">Kết nối thiết bị và tích chấp nhận rủi ro để bắt đầu.</p>
@@ -240,6 +240,6 @@
     </footer>
   </div>
 
-  <script type="module" src="red-studio-app.js?v=5"></script>
+  <script type="module" src="red-studio-app.js?v=6"></script>
 </body>
 </html>
