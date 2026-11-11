@@ -480,7 +480,7 @@ async function prepareNvs256Flash(release) {
     throw new Error("Gói này chỉ dành cho Metalio 4.7 ESP32-S31 16 MB.");
   const layout = await probeS31Layout();
   if (layout === "unknown") throw new Error("Bố cục thiết bị chưa được hỗ trợ. Hãy kiểm tra đúng model trước khi cài.");
-  if (layout !== "new" && !confirm("Cài sạch dpReader 1.4.2 sẽ xóa cài đặt, Wi-Fi, ghép đôi Bluetooth và toàn bộ /flash. Thẻ SD giữ nguyên. Bạn đã sao lưu dữ liệu cần giữ và muốn tiếp tục?")) return null;
+  if (layout !== "new" && !confirm("Sau khi cài sạch dpReader 1.4.2, bạn có thể khôi phục cài đặt đã sao lưu từ thẻ SD. Bạn đã sao lưu cấu hình ra thẻ SD và muốn tiếp tục?")) return null;
   const app = await fetchVerifiedPart("web-firmware.bin", release);
   const extra = [];
   let partitions = null;
@@ -500,7 +500,7 @@ async function prepareNvs256Flash(release) {
       extra.push({data:boot,address:0x2000,md5:release.usb_parts["bootloader.bin"].md5});
     }
   }
-  terminal.writeLine(layout === "new" ? "[*] Cập nhật ứng dụng, giữ NVS và /flash." : "[*] Cài sạch sang NVS 256 KiB.");
+  terminal.writeLine(layout === "new" ? "[*] Cập nhật ứng dụng, giữ nguyên cài đặt." : "[*] Cài sạch sang NVS 256 KiB.");
   return {app, extra, partitions};
 }
 
