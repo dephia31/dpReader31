@@ -4,6 +4,22 @@ from pathlib import Path
 import hashlib,json,re,struct,zipfile,tempfile
 from flash_test_usb import validate_bundle
 ROOT=Path(__file__).resolve().parents[1]
+def clean_image_identity(folder, app):
+    image = bytearray(b'\xff') * 0x1000000
+    for name, start, limit in (
+        ('bootloader.bin', 0x2000, 0x8000),
+        ('partitions.bin', 0x8000, 0x9000),
+        ('storage-empty.bin', 0xa10000, 0xfb0000),
+    ):
+        data = (folder/name).read_bytes()
+        assert start + len(data) <= limit
+        if name == 'storage-empty.bin':
+            assert start + len(data) == limit
+        image[start:start+len(data)] = data
+    assert len(app) <= 0x500000
+    image[0x10000:0x10000+len(app)] = app
+    return dict(sha256=hashlib.sha256(image).hexdigest(), md5=hashlib.md5(image).hexdigest())
+
 def verify(folder=None, edition="full"):
     folder=Path(folder or ROOT/'releases')
     manifest=json.loads((folder/'metalio-s31-update.json').read_text())
@@ -13,7 +29,9 @@ def verify(folder=None, edition="full"):
     info=json.loads((folder/'verification.json').read_text())
     usb_only=manifest.get('usb_only') is True
     app=(folder/('web-firmware.bin' if usb_only else 'dpReader_metalio47_firmware.bin')).read_bytes()
-    full=None if usb_only else (folder/'dpReader_metalio47_full.bin').read_bytes()
+    nvs256=bool(manifest.get('usb_parts'))
+    assert not usb_only or nvs256
+    full=None if nvs256 else (folder/'dpReader_metalio47_full.bin').read_bytes()
     assert app[0]==0xe9 and struct.unpack_from('<H',app,12)[0]==32
     assert app[48:80].split(b'\0')[0].decode()==version==info['version']
     assert app[80:112].split(b'\0')[0]==b'Kiikoread_Metalio_S31'
@@ -21,7 +39,15 @@ def verify(folder=None, edition="full"):
     assert digest==manifest['sha256']==info['sha256'] and len(app)==manifest['size']==info['size']
     if usb_only:
         assert manifest['minimum_base_version']=='999.0.0' and manifest['url'].endswith('/usb-required.bin')
-        assert not any((folder/name).exists() for name in ('usb-required.bin','dpReader_metalio47_firmware.bin','dpReader_metalio47_full.bin',f'dpReader-metalio47-{version}-TF.zip'))
+    if nvs256:
+        assert not any((folder/name).exists() for name in ('usb-required.bin','dpReader_metalio47_full.bin',f'dpReader-metalio47-{version}-TF.zip'))
+        if usb_only:
+            assert not (folder/'dpReader_metalio47_firmware.bin').exists()
+        else:
+            relative = 'releases/love-book/' if edition == 'love-book' else 'releases/'
+            assert manifest['minimum_base_version']=='1.4.2'
+            assert manifest['url']=='https://dephia31.github.io/dpReader31/'+relative+'dpReader_metalio47_firmware.bin'
+            assert manifest['clean_image']==clean_image_identity(folder,app)
         assert info['storage_layout']=='nvs256-clean' and hashlib.md5(app).hexdigest()==manifest['md5']
         assert set(manifest['usb_parts'])=={'bootloader.bin','partitions.bin','storage-empty.bin'}
         for name, part in manifest['usb_parts'].items():
@@ -39,11 +65,11 @@ def verify(folder=None, edition="full"):
     else:
         assert edition=='love-book', 'Full must retain a previous release'
 
-    for kind in (('USB',) if usb_only else ('USB','TF')):
+    for kind in (('USB',) if nvs256 else ('USB','TF')):
         with zipfile.ZipFile(folder/f'dpReader-metalio47-{version}-{kind}.zip') as z:
             assert not z.testzip() and all('/' not in n and '\\' not in n for n in z.namelist())
             assert z.read('dpReader_metalio47_firmware.bin')==app
-            if usb_only:
+            if nvs256:
                 with tempfile.TemporaryDirectory() as work:
                     z.extractall(work)
                     validate_bundle(Path(work))

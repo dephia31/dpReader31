@@ -106,11 +106,13 @@ static bool layout_valid(void) {
     const esp_partition_t *a = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
     const esp_partition_t *b = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_1, NULL);
     const esp_partition_t *data = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
-    const bool valid_addrs = a && b &&
-        ((a->address == 0x10000 && b->address == 0x510000) ||
-         (a->address == 0x80000 && b->address == 0x580000));
-    return valid_addrs && data &&
-        a->size == 0x500000 && b->size == 0x500000 && data->address == 0xd000 && data->size == 0x2000;
+    const esp_partition_t *nvs = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "nvs");
+    const esp_partition_t *storage = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, "storage");
+    return a && b && data && nvs && storage &&
+        a->address == 0x10000 && b->address == 0x510000 &&
+        a->size == 0x500000 && b->size == 0x500000 && data->address == 0xd000 && data->size == 0x2000 &&
+        nvs->address == 0xfb0000 && nvs->size == 0x40000 &&
+        storage->address == 0xa10000 && storage->size == 0x5a0000;
 }
 static bool online(bool *owned) {
     read_pico_transfer_prepare_network();
@@ -273,7 +275,7 @@ static bool check_feed(void) {
         s_target_love ? sizeof("0.0.0-love-vn") : sizeof("0.0.0-vn"));
     if (!project_matches || !target_matches || !layout_valid() ||
         pico_version_compare(running->version, release->minimum_base_version) < 0) {
-        state(PICO_UPDATE_FAILED, "Gói cơ sở không tương thích, cần nạp lại toàn bộ ROM"); goto failed;
+        state(PICO_UPDATE_FAILED, "Bố cục chưa tương thích. Nạp toàn phần tại " DPREADER_FLASH_PAGE); goto failed;
     }
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     memcpy(&s_status->release, release, sizeof(*release));
@@ -306,7 +308,7 @@ static bool download(void) {
     xSemaphoreTake(s_mutex, portMAX_DELAY); *release = s_status->release; xSemaphoreGive(s_mutex);
     const esp_partition_t *target = esp_ota_get_next_update_partition(NULL);
     if (!layout_valid() || !target || target == esp_ota_get_running_partition() || release->size > target->size) {
-        state(PICO_UPDATE_FAILED, "Gói cơ sở không tương thích, cần nạp lại toàn bộ ROM"); goto failed;
+        state(PICO_UPDATE_FAILED, "Bố cục chưa tương thích. Nạp toàn phần tại " DPREADER_FLASH_PAGE); goto failed;
     }
     // 两个允许的 HTTPS 源使用同一固定文件名和 SHA，连接失败才切换备用源。
     // Both trusted HTTPS origins use the same immutable name/hash; switch only after connection failure.

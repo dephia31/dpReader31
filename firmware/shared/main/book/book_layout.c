@@ -45,7 +45,8 @@ static void layout_geometry(void *ctx, size_t byte, size_t bytes, EpdRect cell) 
 static EpdRect s_rect;
 static int s_px;
 static unsigned s_line_percent = 150;
-static int s_paragraph_percent = 50;
+static int s_line_adjust_px;
+static int s_paragraph_gap_px = 20;
 static int s_tracking_px, s_word_spacing_px;
 static unsigned s_first_line_indent_em = 2;
 static int s_first_line_indent_adjust_px;
@@ -308,13 +309,14 @@ void book_layout_free(void) {
 }
 
 void book_layout_set_spacing(unsigned line_percent, unsigned paragraph_percent) {
-    /* Negative choices reduce the former 30% leading; 0 keeps that natural leading.
-     * Positive percentages retain the established line-height meaning. */
-    if(line_percent>=206&&line_percent<=246&&(line_percent-206)%10==0)s_line_percent=100+30*(100+(int)line_percent-256)/100;
-    else if(line_percent==0)s_line_percent=130;
-    else s_line_percent=line_percent>=100&&line_percent<=200?line_percent:130;
-    int paragraph=(int)(int8_t)(uint8_t)paragraph_percent;
-    s_paragraph_percent = paragraph>=-10&&paragraph<=100?paragraph:50;
+    // The signed menu uses 40 px as its reference. Older absolute pitches still decode.
+    const int line = (int)(int8_t)(uint8_t)line_percent;
+    const bool adjustment = line >= -70 && line <= 30 && line % 10 == 0;
+    s_line_percent = !adjustment && line_percent >= 100 && line_percent <= 200
+        ? line_percent : 130;
+    s_line_adjust_px = adjustment ? line * 40 / 100 : 0;
+    const int paragraph = (int)(int8_t)(uint8_t)paragraph_percent;
+    s_paragraph_gap_px = paragraph >= -70 && paragraph <= 100 ? paragraph * 40 / 100 : 20;
 }
 void book_layout_set_word_spacing(int px){s_word_spacing_px=px>=-10&&px<=20?px:0;}
 
@@ -450,7 +452,10 @@ int book_layout_page_image(size_t page) {
     return page_end == after ? block->image : -1;
 }
 
-static int line_height_for(int px) { return (int)((unsigned)px * s_line_percent / 100); }
+static int line_height_for(int px) {
+    const int pitch = (int)((uint64_t)px * s_line_percent / 100) + s_line_adjust_px;
+    return pitch > 0 ? pitch : 1;
+}
 // 只在完整行距放不下时测量末行；不同字体run也纳入下沿，避免越南语下行字形被切。
 // Measure only when a full pitch does not fit; include face runs so Vietnamese descenders stay inside the body.
 static int final_line_height(size_t off,int px) {
@@ -465,7 +470,8 @@ static int final_line_height(size_t off,int px) {
     return height>px?height:px;
 }
 static int gap_for(int height, bool heading) {
-    return height * (heading && s_paragraph_percent<0?0:s_paragraph_percent) / (heading ? 150 : 100);
+    if (heading && s_paragraph_gap_px < 0) return 0;
+    return s_paragraph_gap_px > -height ? s_paragraph_gap_px : 1 - height;
 }
 
 static bool append_page(size_t off) {
@@ -884,7 +890,8 @@ bool book_layout_build_blocks(const char* utf8, size_t len, const blk_t* blocks,
         line_height = line_height_for(line_px);
         if (line_height > rect.height) goto fail;
         int leading = used ? margin_before : 0;
-        if (used + leading + line_height > rect.height &&
+        const int fit_height = line_height > line_px ? line_height : line_px;
+        if (used + leading + fit_height > rect.height &&
             (used + leading >= rect.height || used + leading + final_line_height(off,line_px) > rect.height)) {
             if (!append_page(off)) goto fail;
             used = 0;
@@ -1129,7 +1136,8 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
                        &line_width, &indent, &align, &margin_before, &margin_after)) { if(s_idle_draw)s_idle_draw->failed=true; return; }
         int line_height = line_height_for(line_px);
         int leading = used ? margin_before : 0;
-        if (used + leading + line_height > rect.height &&
+        const int fit_height = line_height > line_px ? line_height : line_px;
+        if (used + leading + fit_height > rect.height &&
             (used + leading >= rect.height || used + leading + final_line_height(off,line_px) > rect.height)) return;
         used += leading;
         if (s_line[0]) {

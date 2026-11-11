@@ -4,6 +4,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdio.h>
+#include "online_font_names.h"
 
 // 文件名只决定同目录内的字体族；最长样式后缀优先。/ Match sibling families within one directory, longest style suffix first.
 static inline unsigned font_family_identity(const char *path, char *name, size_t cap) {
@@ -16,6 +17,11 @@ static inline unsigned font_family_identity(const char *path, char *name, size_t
     name[bytes]=0;
     char *dot = strrchr(name, '.');
     if (dot) *dot = 0;
+    const char *catalog_name = online_font_catalog_name(name);
+    if (catalog_name) {
+        snprintf(name, cap, "%s", catalog_name);
+        return 0;
+    }
     static const struct { const char *suffix; unsigned style; } suffixes[] = {
         {"SemiBoldItalic",3},{"BoldItalic",3},{"BoldOblique",3},{"Bold-Italic",3},{"Bold_Italic",3},{"Bold Italic",3},
         {"Regular",0},{"Roman",0},{"Book",0},

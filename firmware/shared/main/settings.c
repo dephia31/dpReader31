@@ -480,6 +480,11 @@ static void nvs_layout_check_and_report(bool report) {
 }
 #endif
 
+static bool book_line_adjustment_valid(uint8_t value) {
+    const int percent = (int)(int8_t)value;
+    return percent >= -70 && percent <= 30 && percent % 10 == 0;
+}
+
 void app_settings_init(void) {
 #if CONFIG_DPREADER_AUTO_BACKUP
     memset(&s_auto_backup, 0, sizeof(s_auto_backup));
@@ -795,7 +800,7 @@ void app_settings_init(void) {
     if (nvs_get_u8(h, NVS_KEY_BOOK_FOOTER_PCT, &ft_pct) == ESP_OK) s_book_footer_pct = ft_pct == 1;
     uint8_t line = 130, para = 50, margin = 24;
     if (nvs_get_u8(h, NVS_KEY_BOOK_LINE, &line) == ESP_OK) {
-        if((line>=206&&line<=246&&(line-206)%10==0)||line==0||(line>=100&&line<=130&&line%10==0))s_book_line=line;
+        if(book_line_adjustment_valid(line)||(line>=100&&line<=130&&line%10==0))s_book_line=line;
         else if(line>=110&&line<=150)s_book_line=line>130?130:((line+5)/10)*10;
         else if (line == 180) s_book_line = 130;
     }
@@ -1566,9 +1571,13 @@ void app_settings_set_book_reading_line_offset(int8_t offset_px) {
     s_book_rule_offset = index;
     nvs_put_u8(NVS_KEY_BOOK_RULE_OFFSET, index);
 }
-uint8_t app_settings_book_line_spacing(void) { return s_book_line; }
+uint8_t app_settings_book_line_spacing(void) {
+    // Map old 100/110/120/130% pitches to the signed adjustment at 40 px.
+    if (s_book_line >= 100 && s_book_line <= 130) return (uint8_t)(s_book_line - 130);
+    return s_book_line;
+}
 void app_settings_set_book_line_spacing(uint8_t percent) {
-    if(!(percent>=206&&percent<=246&&(percent-206)%10==0)&&percent!=0&&percent!=100&&percent!=110&&percent!=120&&percent!=130)return;
+    if (!book_line_adjustment_valid(percent)) return;
     if (s_book_line == percent) return;
     s_book_line = percent;
     nvs_put_u8(NVS_KEY_BOOK_LINE, percent);
@@ -1581,7 +1590,7 @@ void app_settings_set_book_margin(uint8_t px) {
 }
 // 非线性段距保留旧档位，并将25%置于几何中点。/ Nonlinear gaps retain legacy stops with 25% at the geometric midpoint.
 uint8_t app_settings_book_paragraph_value(uint8_t level) {
-    static const uint8_t values[APP_BOOK_PARAGRAPH_COUNT]={(uint8_t)-10,(uint8_t)-5,0,5,10,15,20,25,30,40,50,75};
+    static const uint8_t values[APP_BOOK_PARAGRAPH_COUNT]={186,196,206,216,226,236,(uint8_t)-10,(uint8_t)-5,0,5,10,15,20,25,30,40,50,75};
     return values[level<APP_BOOK_PARAGRAPH_COUNT?level:APP_BOOK_PARAGRAPH_COUNT-1];
 }
 uint8_t app_settings_book_paragraph_level(uint8_t percent) {
@@ -1993,7 +2002,7 @@ static bool reader_backup_valid(const reader_backup_t *profile) {
         if(value<field->low||value>field->high)return false;
         if(!strcmp(field->key,NVS_KEY_BOOK_PX)&&valid_book_px(value)!=value)return false;
         if(!strcmp(field->key,NVS_KEY_READER_FULL)&&!reader_full_pages_valid(value))return false;
-        if(!strcmp(field->key,NVS_KEY_BOOK_LINE)&&!((value>=206&&value<=246&&(value-206)%10==0)||value==0||(value>=100&&value<=130&&value%10==0)))return false;
+        if(!strcmp(field->key,NVS_KEY_BOOK_LINE)&&!(book_line_adjustment_valid(value)||(value>=100&&value<=130&&value%10==0)))return false;
         if(!strcmp(field->key,NVS_KEY_BOOK_PARA)&&app_settings_book_paragraph_value(app_settings_book_paragraph_level(value))!=value)return false;
         if(!strcmp(field->key,"book_word_gap")&&!(value<=20||value>=246))return false;
     }
@@ -2684,7 +2693,7 @@ static bool backup_valid(const settings_backup_v1_t *backup) {
         f[BK_SHAKE] > 1 || !reader_full_pages_valid(f[BK_FULL_PAGES]) ||
         f[BK_TURN] > READER_TURN_EFFECT_MAX || f[BK_POWER_TURN] > 1 || f[BK_IMMERSIVE] > 1 ||
         f[BK_TRACKING] > (backup_version(backup)>=20 ? APP_BOOK_TRACK_COUNT-1 : backup_version(backup)==19 ? 20 : 4) || f[BK_READING_LINE] > 2 ||
-        (!(f[BK_LINE_SPACING]>=206&&f[BK_LINE_SPACING]<=246&&(f[BK_LINE_SPACING]-206)%10==0)&&f[BK_LINE_SPACING]!=0&&(f[BK_LINE_SPACING]<100||f[BK_LINE_SPACING]>150)) ||
+        (!book_line_adjustment_valid(f[BK_LINE_SPACING])&&(f[BK_LINE_SPACING]<100||f[BK_LINE_SPACING]>150)) ||
         f[BK_MARGIN] > 60 ||
         (backup_version(backup)>=20 ?
          (f[BK_PARAGRAPH]!=100 && app_settings_book_paragraph_value(app_settings_book_paragraph_level(f[BK_PARAGRAPH])) != f[BK_PARAGRAPH]) :

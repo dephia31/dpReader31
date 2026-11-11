@@ -14,7 +14,7 @@
 #define ONLINE_FONT_DIRECTORY "/sdcard/assets/fonts"
 
 typedef struct {
-    const char *name, *ascii_name, *filename, *url, *license;
+    const char *name, *ascii_name, *filename, *legacy_filename, *url, *license;
     uint32_t size, source_size, deflate_offset, deflate_size;
     uint8_t sha256[32], source_sha256[32];
 } online_font_item_t;

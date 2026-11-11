@@ -11,8 +11,9 @@ def main():
     def assets_for(feed, folder, prefix=''):
         ver=feed['version']
         files=['SHA256SUMS.txt','metalio-s31-update.json','verification.json',f'dpReader-metalio47-{ver}-USB.zip']
-        if feed.get('usb_only'):
-            files += ['web-firmware.bin', *feed['usb_parts']]
+        if feed.get('usb_parts'):
+            app = 'web-firmware.bin' if feed.get('usb_only') else 'dpReader_metalio47_firmware.bin'
+            files += [app, *feed['usb_parts']]
         else:
             files += ['dpReader_metalio47_firmware.bin','dpReader_metalio47_full.bin',f'dpReader-metalio47-{ver}-TF.zip']
         return [(n if ver in n else prefix+n, folder/n) for n in files]

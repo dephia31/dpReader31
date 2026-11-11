@@ -15,6 +15,8 @@
 void ui_nav_draw(uint8_t *fb, int active);
 void ui_nav_status(uint8_t *fb);
 EpdRect ui_nav_status_area(void);
+#define UI_NAV_READER_STATUS_HEIGHT 54
+void ui_nav_reader_status(uint8_t *fb);
 /// 电量/充电变化且状态栏可见时重画；调用方只差分推状态栏区域。
 /// Paint changed power state only when visible; callers present only the status-bar diff.
 bool ui_nav_refresh_power(uint8_t *fb);

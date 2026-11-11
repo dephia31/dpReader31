@@ -8,7 +8,8 @@ static const online_font_item_t s_fonts[ONLINE_FONT_COUNT] = {
     {
         .name="Literata",
         .ascii_name="Literata",
-        .filename="kiiko-literata-b41138c937.ttf",
+        .filename="Literata.ttf",
+        .legacy_filename="kiiko-literata-b41138c937.ttf",
         .url="https://raw.githubusercontent.com/google/fonts/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/literata/Literata%5Bopsz%2Cwght%5D.ttf",
         .license=font_license_0,
         .size=955132u,
@@ -21,7 +22,8 @@ static const online_font_item_t s_fonts[ONLINE_FONT_COUNT] = {
     {
         .name="Lora",
         .ascii_name="Lora",
-        .filename="kiiko-lora-822a6621cc.ttf",
+        .filename="Lora.ttf",
+        .legacy_filename="kiiko-lora-822a6621cc.ttf",
         .url="https://raw.githubusercontent.com/google/fonts/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/lora/Lora%5Bwght%5D.ttf",
         .license=font_license_1,
         .size=212196u,
@@ -34,7 +36,8 @@ static const online_font_item_t s_fonts[ONLINE_FONT_COUNT] = {
     {
         .name="Noto Serif",
         .ascii_name="Noto Serif",
-        .filename="kiiko-noto-serif-4d8e676142.ttf",
+        .filename="Noto Serif.ttf",
+        .legacy_filename="kiiko-noto-serif-4d8e676142.ttf",
         .url="https://raw.githubusercontent.com/google/fonts/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/notoserif/NotoSerif%5Bwdth%2Cwght%5D.ttf",
         .license=font_license_2,
         .size=1887192u,
@@ -47,7 +50,8 @@ static const online_font_item_t s_fonts[ONLINE_FONT_COUNT] = {
     {
         .name="Merriweather",
         .ascii_name="Merriweather",
-        .filename="kiiko-merriweather-d0ed0e359e.ttf",
+        .filename="Merriweather.ttf",
+        .legacy_filename="kiiko-merriweather-d0ed0e359e.ttf",
         .url="https://raw.githubusercontent.com/google/fonts/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/merriweather/Merriweather%5Bopsz%2Cwdth%2Cwght%5D.ttf",
         .license=font_license_3,
         .size=4628080u,
@@ -60,7 +64,8 @@ static const online_font_item_t s_fonts[ONLINE_FONT_COUNT] = {
     {
         .name="Source Serif 4",
         .ascii_name="Source Serif 4",
-        .filename="kiiko-source-serif-4-97b2d4da6e.ttf",
+        .filename="Source Serif 4.ttf",
+        .legacy_filename="kiiko-source-serif-4-97b2d4da6e.ttf",
         .url="https://raw.githubusercontent.com/google/fonts/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/sourceserif4/SourceSerif4%5Bopsz%2Cwght%5D.ttf",
         .license=font_license_4,
         .size=1209508u,

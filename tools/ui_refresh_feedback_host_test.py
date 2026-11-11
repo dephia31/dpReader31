@@ -343,8 +343,10 @@ enum {UI_ICON_WIFI,UI_ICON_BLUETOOTH,UI_ICON_ZAP};
 #define UI_INK_WHITE 15
 #define READ_PICO_TRANSFER_MODE_STA 1
 typedef struct {bool time_synced;time_t unix_sec;} pmu_snapshot_t;
-typedef struct {bool network_ready;int mode;} read_pico_transfer_status_t;
+typedef struct {bool network_ready;int mode,state;} read_pico_transfer_status_t;
+#define READ_PICO_TRANSFER_STOPPED 0
 static pmu_snapshot_t pmu;
+static int expected_center=40,s_power_signature;
 static int pct;
 static bool wifi,bluetooth,s_system_ttf;
 #define TTF_FONT_PATH_MAX 160
@@ -356,8 +358,10 @@ static char signature[96];
 static const pmu_snapshot_t *read_pico_pmu_get(void){return &pmu;}
 static int pmu_battery_percent(const pmu_snapshot_t *snapshot){(void)snapshot;return pct;}
 static bool pmu_battery_charging(const pmu_snapshot_t *snapshot){(void)snapshot;return false;}
-static void read_pico_transfer_get_status(read_pico_transfer_status_t *status){*status=(read_pico_transfer_status_t){wifi,READ_PICO_TRANSFER_MODE_STA};}
-static bool app_settings_ble_turner(void){return bluetooth;}
+static void read_pico_transfer_get_status(read_pico_transfer_status_t *status){*status=(read_pico_transfer_status_t){wifi,READ_PICO_TRANSFER_MODE_STA,wifi?1:READ_PICO_TRANSFER_STOPPED};}
+static bool ble_pt_running(void){return bluetooth;}
+static bool read_pico_transfer_network_background_busy(void){return false;}
+static void ui_status_mark_visible(uint8_t *fb){(void)fb;}
 static const char *app_settings_status_signature(void){return signature;}
 static int letters(const char *s){int n=0;for(;*s;++s)if(((unsigned char)*s&0xc0)!=0x80)++n;return n;}
 static bool ui_font_has_text(const char *s){(void)s;return true;}
@@ -376,9 +380,9 @@ static void draw_text(uint8_t *fb,int x,int baseline,int px,const char *s,enum E
 }
 static void ui_font_draw_text_px(uint8_t *f,int x,int y,int px,const char *s,enum EpdFontFlags a,int fg,int bg,bool bw){(void)bw;draw_text(f,x,y,px,s,a,fg,bg);}
 static void ttf_draw_text_px(uint8_t *f,int x,int y,int px,const char *s,enum EpdFontFlags a,int fg,int bg){draw_text(f,x,y,px,s,a,fg,bg);}
-static void ui_draw_icon(uint8_t *fb,int x,int y,int px,int icon,int gray){(void)fb;(void)gray;assert(y==40);if(icon==UI_ICON_ZAP)return;if(x-px/2<network_left)network_left=x-px/2;}
+static void ui_draw_icon(uint8_t *fb,int x,int y,int px,int icon,int gray){(void)fb;(void)gray;assert(y==expected_center);if(icon==UI_ICON_ZAP)return;if(x-px/2<network_left)network_left=x-px/2;}
 static void ui_nav_wifi_icon(uint8_t *fb,int x,int y,int px,int gray){ui_draw_icon(fb,x,y,px,UI_ICON_WIFI,gray);}
-static void ui_draw_round_rect(uint8_t *fb,EpdRect box,int radius,int gray){(void)fb;(void)radius;(void)gray;assert(box.y+box.height/2==40);}
+static void ui_draw_round_rect(uint8_t *fb,EpdRect box,int radius,int gray){(void)fb;(void)radius;(void)gray;assert(box.y+box.height/2==expected_center);}
 static void ui_fill_round_rect(uint8_t *fb,EpdRect box,int radius,int gray){(void)fb;(void)box;(void)radius;(void)gray;}
 '''
 status += defines + "\n"
@@ -388,7 +392,8 @@ for path, name in (("main/ui/ui_kit.c", "ui_text_fixed_context_width_px"),
                    ("main/ui/ui_kit.c", "ui_text_fixed_vc")):
     status += function(path, name) + "\n"
 status += nav[nav.index('static bool s_status_reading;'):nav.index('static const char *const labels[]')]
-for name in ('status_time','clock_text','ui_nav_status'):
+status += '#define UI_NAV_READER_STATUS_HEIGHT 54\n'
+for name in ('status_time','clock_text','draw_status','ui_nav_status','ui_nav_reader_status'):
     status += function('main/ui/ui_nav.c',name) + '\n'
 status += r'''
 int main(void){
@@ -409,7 +414,10 @@ int main(void){
    // 阅读字体变化不重算系统签名宽度；不同字体仍显示同一UTF8前缀并保持图标间距。
    // Reader face changes do not recompute system signature widths: retain the same UTF8 prefix and icon spacing.
    reading_context=true;s_system_ttf=false;ui_nav_status_font_context(true,true);text_count=0;network_left=1000;
-   ui_nav_status(&fb);assert(text_count==3&&!strcmp(texts[1].text,system_prefix)&&network_left==system_network_left);
+   expected_center=27;
+   ui_nav_reader_status(&fb);assert(text_count==3&&!strcmp(texts[1].text,system_prefix)&&network_left==system_network_left);
+   for(int i=0;i<3;++i)assert(texts[i].center>=26&&texts[i].center<=28);
+   expected_center=40;
    assert(texts[0].right+12<=texts[1].left&&texts[1].right+12<=(mask?network_left:texts[2].left));
  }
  reading_context=false;ui_nav_status_font_context(false,false);

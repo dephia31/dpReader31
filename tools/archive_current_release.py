@@ -17,7 +17,7 @@ def archive_s31_flat(folder: Path, commit: str) -> None:
     assert re.fullmatch(r'[a-f0-9]{40}',commit)
     sums={line.split()[1]:line.split()[0] for line in (folder/'SHA256SUMS.txt').read_text().splitlines() if line.strip()}
     app_name = 'web-firmware.bin' if manifest.get('usb_only') else 'dpReader_metalio47_firmware.bin'
-    images = (app_name, *manifest['usb_parts'], f'dpReader-metalio47-{version}-USB.zip') if manifest.get('usb_only') else (app_name, 'dpReader_metalio47_full.bin')
+    images = (app_name, *manifest['usb_parts'], f'dpReader-metalio47-{version}-USB.zip') if manifest.get('usb_parts') else (app_name, 'dpReader_metalio47_full.bin')
     names = (*images, 'SHA256SUMS.txt', 'metalio-s31-update.json')
     payloads={name:(folder/name).read_bytes() for name in names}
     for name in images:assert hashlib.sha256(payloads[name]).hexdigest()==sums[name],name

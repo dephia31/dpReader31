@@ -121,20 +121,24 @@ done:
     if(out){if(fflush(out)||fsync(fileno(out)))result=ESP_FAIL;if(fclose(out))result=ESP_FAIL;}
     return result;
 }
-static bool paths(const online_font_item_t *item,const char *dir,char font[256],char notice[256]){
-    if(!item||!dir||!item->filename||strchr(item->filename,'/')||strstr(item->filename,".."))return false;
-    int n=snprintf(font,256,"%s/%s",dir,item->filename);
+static bool paths(const char *filename,const char *dir,char font[256],char notice[256]){
+    if(!filename||!dir||strchr(filename,'/')||strstr(filename,".."))return false;
+    int n=snprintf(font,256,"%s/%s",dir,filename);
     return n>0&&n<240&&snprintf(notice,256,"%s.OFL.txt",font)<256;
 }
-bool online_font_store_installed(const online_font_item_t *item,const char *dir){
+static bool font_installed_at(const online_font_item_t *item,const char *dir,const char *filename){
     char font[256],notice[256];struct stat st,lic;
-    return paths(item,dir,font,notice)&&!stat(font,&st)&&S_ISREG(st.st_mode)&&
+    return paths(filename,dir,font,notice)&&!stat(font,&st)&&S_ISREG(st.st_mode)&&
         st.st_size==item->size&&!stat(notice,&lic)&&S_ISREG(lic.st_mode)&&lic.st_size==(off_t)strlen(item->license);
+}
+bool online_font_store_installed(const online_font_item_t *item,const char *dir){
+    return item && (font_installed_at(item,dir,item->filename) ||
+                    font_installed_at(item,dir,item->legacy_filename));
 }
 esp_err_t online_font_store_commit(const online_font_item_t *item,const char *dir,const char *source,
                                   online_font_cancel_t cancel,void *ctx){
     char target[256],notice[256],temp[256],license_temp[256];struct stat st;
-    if(!paths(item,dir,target,notice)||!source||item->size>FONT_MAX||item->source_size>FONT_MAX)return ESP_ERR_INVALID_ARG;
+    if(!item||!paths(item->filename,dir,target,notice)||!source||item->size>FONT_MAX||item->source_size>FONT_MAX)return ESP_ERR_INVALID_ARG;
     if(!stat(target,&st))return ESP_ERR_INVALID_STATE;
     if(snprintf(temp,sizeof(temp),"%s/.kiiko-font.unpack",dir)>=(int)sizeof(temp)||
        snprintf(license_temp,sizeof(license_temp),"%s/.kiiko-font.notice",dir)>=(int)sizeof(license_temp))return ESP_ERR_INVALID_SIZE;

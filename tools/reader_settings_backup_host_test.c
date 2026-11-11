@@ -5,9 +5,9 @@
 int main(void) {
     (void)mkdir("build",0700);(void)mkdir("build/book-tests",0700);(void)mkdir(APP_SETTINGS_BACKUP_ROOT,0700);
     app_settings_init();
-    s_book_px=72;s_book_tracking=23;s_book_weight_fine=-17;s_book_line=206;s_book_para=251;s_book_word_spacing=-10;
+    s_book_px=72;s_book_tracking=23;s_book_weight_fine=-17;s_book_line=186;s_book_para=251;s_book_word_spacing=-10;
     s_volume_keys[0]=APP_READER_KEY_TOOLS;s_reader_edge_warmth=false;
-    s_book_align=3;s_book_footer_pct=false;s_reader_keys[0]=APP_READER_KEY_HOME;
+    s_book_align=3;s_book_progress_style=APP_BOOK_PROGRESS_STYLE_BOTTOM;s_book_footer_pct=false;s_reader_keys[0]=APP_READER_KEY_HOME;
     assert(app_settings_backup_save()==ESP_OK);
     reader_backup_t original;reader_backup_capture(&original);assert(reader_backup_valid(&original));
     for(unsigned i=0;i<READER_BACKUP_FIELDS;++i)memset(s_reader_backup_fields[i].state,0,1);

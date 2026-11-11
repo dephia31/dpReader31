@@ -36,6 +36,7 @@ static inline int psa_hash_finish(psa_hash_operation_t *c,unsigned char *p,size_
     (w/'test.c').write_text(r'''
 #include "online_font_store.h"
 #include "online_font_catalog.inc"
+#include "font_family.h"
 #include "psa/crypto.h"
 #include <assert.h>
 #include <stdio.h>
@@ -67,6 +68,16 @@ int main(int argc,char **argv){
  esp_err_t err=online_font_store_commit(&item,dir,source,cancel,&budget);
  if(!strcmp(mode,"catalog")||!strcmp(mode,"valid")){
   assert(err==ESP_OK);assert(online_font_store_installed(&item,dir));assert(online_font_store_validate(target,item.size)==ESP_OK);
+  if (catalog) {
+   char legacy[512], legacy_notice[540], family[128];
+   snprintf(legacy,sizeof(legacy),"%s/%s",dir,item.legacy_filename);
+   snprintf(legacy_notice,sizeof(legacy_notice),"%s.OFL.txt",legacy);
+   assert(font_family_identity(target,family,sizeof(family))==0 && !strcmp(family,item.name));
+   assert(font_family_identity(legacy,family,sizeof(family))==0 && !strcmp(family,item.name));
+   assert(!rename(target,legacy) && !rename(notice,legacy_notice));
+   assert(online_font_store_installed(&item,dir));
+   assert(!rename(legacy,target) && !rename(legacy_notice,notice));
+  }
  }else{
   assert(err!=ESP_OK);assert(!online_font_store_installed(&item,dir));
   if(!strcmp(mode,"exists")){char s[5]={0};FILE *f=fopen(target,"rb");assert(f);assert(fread(s,1,4,f)==4);fclose(f);assert(!strcmp(s,"keep"));}

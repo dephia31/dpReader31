@@ -11,6 +11,7 @@ unit=r'''
 #include <stdio.h>
 #include <time.h>
 #define UI_LOCK_WIDTH 684
+#define UI_NAV_READER_STATUS_HEIGHT 54
 #define UI_GRAY_WHITE 0xf0
 #define UI_GRAY_BLACK 0
 #define UI_STATUS_TIME_PX 40
@@ -30,6 +31,7 @@ typedef struct {int x,y,width,height;} EpdRect;
 typedef struct {bool time_synced;unsigned unix_sec;} pmu_snapshot_t;
 typedef struct {bool network_ready;int mode,state;} read_pico_transfer_status_t;
 static pmu_snapshot_t state;
+static int expected_center=40;
 static int soc=65;static bool charging,network,network_job,bluetooth=true;
 static bool read_pico_transfer_network_background_busy(void){return network_job;}
 static bool ble_pt_running(void){return bluetooth;}
@@ -46,19 +48,19 @@ static void read_pico_transfer_get_status(read_pico_transfer_status_t *s){s->net
 
 static const char *app_settings_status_signature(void){return "S31";}
 static void ui_text_fixed_vc(uint8_t *p,int x,int y,int px,const char *s,int align,bool b){
- (void)p;(void)align;(void)b;assert(y==40&&px>0);
+ (void)p;(void)align;(void)b;assert(y==expected_center&&px>0);
  if(x==342)snprintf(center_label,sizeof(center_label),"%s",s);
 }
 static int ui_text_fixed_width_px(int px,const char *s){return px*(int)strlen(s)/2;}
-static void ui_draw_icon(uint8_t *p,int x,int y,int size,int icon,uint8_t gray){(void)p;(void)x;(void)size;assert(y==40);if(icon==UI_ICON_ZAP){assert(gray==0xf0&&bolt_wells>0);++bolts;}}
+static void ui_draw_icon(uint8_t *p,int x,int y,int size,int icon,uint8_t gray){(void)p;(void)x;(void)size;assert(y==expected_center);if(icon==UI_ICON_ZAP){assert(gray==0xf0&&bolt_wells>0);++bolts;}}
 static void ui_nav_wifi_icon(uint8_t *p,int x,int y,int size,uint8_t gray){ui_draw_icon(p,x,y,size,UI_ICON_WIFI,gray);}
-static void ui_draw_round_rect(uint8_t *p,EpdRect r,int radius,uint8_t gray){(void)p;(void)radius;(void)gray;assert(r.y>=12&&r.y+r.height<=68);}
+static void ui_draw_round_rect(uint8_t *p,EpdRect r,int radius,uint8_t gray){(void)p;(void)radius;(void)gray;assert(r.y>=expected_center-27&&r.y+r.height<=expected_center+27);}
 static void ui_fill_round_rect(uint8_t *p,EpdRect r,int radius,uint8_t gray){
  if(r.x==614&&r.width==26&&r.height==20){assert(gray==0);++bolt_wells;}
  ui_draw_round_rect(p,r,radius,gray);
 }
-static void epd_fill_rect(EpdRect r,uint8_t gray,uint8_t *p){assert(r.x==0&&r.y==12&&r.width==684&&r.height==56&&gray==0xf0);memset(p+12*342,0xff,56*342);++header_clears;}
-void ui_nav_status(uint8_t *fb);
+static void epd_fill_rect(EpdRect r,uint8_t gray,uint8_t *p){assert(r.x==0&&r.width==684&&gray==0xf0);assert(expected_center==40 ? r.y==12&&r.height==56 : r.y==0&&r.height==54);memset(p+r.y*342,0xff,r.height*342);++header_clears;}
+static void draw_status(uint8_t *fb, bool compact);
 '''
 nav=(root/'main/ui/ui_nav.c').read_text()
 unit+=r'''
@@ -70,7 +72,7 @@ static bool ui_font_has_text(const char *text){(void)text;return true;}
 static int ui_font_text_width_px(int px,const char *text){return ui_text_fixed_width_px(px,text);}
 '''
 unit+=nav[nav.index('static bool s_status_reading;'):nav.index('static const char *const labels[]')]
-for name,path in [('ui_status_mark_visible' ,'main/ui/ui_kit.c'),('ui_status_visible','main/ui/ui_kit.c'),('ui_clear_page','main/ui/ui_kit.c'),('power_signature','main/ui/ui_nav.c'),('ui_nav_status_area','main/ui/ui_nav.c'),('ui_nav_refresh_power','main/ui/ui_nav.c'),('status_time','main/ui/ui_nav.c'),('clock_text','main/ui/ui_nav.c'),('ui_nav_status','main/ui/ui_nav.c')]:
+for name,path in [('ui_status_mark_visible' ,'main/ui/ui_kit.c'),('ui_status_visible','main/ui/ui_kit.c'),('ui_clear_page','main/ui/ui_kit.c'),('power_signature','main/ui/ui_nav.c'),('ui_nav_status_area','main/ui/ui_nav.c'),('ui_nav_refresh_power','main/ui/ui_nav.c'),('status_time','main/ui/ui_nav.c'),('clock_text','main/ui/ui_nav.c'),('draw_status','main/ui/ui_nav.c'),('ui_nav_status','main/ui/ui_nav.c'),('ui_nav_reader_status','main/ui/ui_nav.c')]:
  unit+=function(name,root/path)+'\n'
 unit+=r'''
 int main(void){
@@ -91,7 +93,14 @@ int main(void){
  network_job=false;assert(ui_nav_refresh_power(fb)&&header_clears==before_radio+2);
  bluetooth=false;assert(ui_nav_refresh_power(fb)&&header_clears==before_radio+3);
  assert(!ui_nav_refresh_power(fb));
- puts("PASS: actual charge insertion/removal/SOC-change detection, zero repeated redraw, 684x56 header-only crop, low-SOC black well/white bolt outline, immersive/fullscreen suppression, offscreen preview isolation");
+ memset(fb,0xa5,sizeof(fb));
+ expected_center=27;ui_nav_reader_status(fb);
+ assert(ui_nav_status_area().y==0&&ui_nav_status_area().height==54);
+ charging=true;assert(ui_nav_refresh_power(fb));
+ for(unsigned i=54*342;i<sizeof(fb);i++)assert(fb[i]==0xa5);
+ expected_center=40;ui_nav_status(fb);
+ assert(ui_nav_status_area().y==12&&ui_nav_status_area().height==56);
+ puts("PASS: actual charge insertion/removal/SOC-change detection, zero repeated redraw, standard and compact reader header-only crops, low-SOC black well/white bolt outline, immersive/fullscreen suppression, offscreen preview isolation");
 }
 '''
 with tempfile.TemporaryDirectory() as d:

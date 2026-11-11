@@ -45,6 +45,7 @@
 #define UI_STATUS_TITLE_PX 40
 
 static bool s_status_reading;
+static bool s_status_compact;
 // 阅读页把状态栏中段让给书名：中段原本显示用户签名，阅读时书名更有用。
 // The reader lends the status bar's middle to the book title; that slot normally shows the
 // user's signature, and while reading the title is more useful.
@@ -172,12 +173,16 @@ static int power_signature(void) {
     return (pmu_battery_percent(pmu)+1)*8+(pmu_battery_charging(pmu)?4:0)+(wifi?2:0)+(ble_pt_running()?1:0);
 }
 
-EpdRect ui_nav_status_area(void) { return (EpdRect){0,12,UI_LOCK_WIDTH,56}; }
+EpdRect ui_nav_status_area(void) {
+    return s_status_compact ? (EpdRect){0,0,UI_LOCK_WIDTH,UI_NAV_READER_STATUS_HEIGHT}
+                            : (EpdRect){0,12,UI_LOCK_WIDTH,56};
+}
+static void draw_status(uint8_t *fb, bool compact);
 
 bool ui_nav_refresh_power(uint8_t *fb) {
     if (!ui_status_visible(fb) || s_power_signature==power_signature()) return false;
     epd_fill_rect(ui_nav_status_area(),UI_GRAY_WHITE,fb);
-    ui_nav_status(fb);
+    draw_status(fb, s_status_compact);
     return true;
 }
 
@@ -248,11 +253,12 @@ void ui_nav_clock_draw(uint8_t *fb) {
     char clock[12]; clock_text(clock,sizeof(clock));
     ui_text_fixed_vc(fb,36,40,UI_STATUS_TIME_PX,clock,EPD_DRAW_ALIGN_LEFT,false);
 }
-void ui_nav_status(uint8_t *fb) {
+static void draw_status(uint8_t *fb, bool compact) {
+    s_status_compact = compact;
     status_prepare_metrics();
     const pmu_snapshot_t *pmu = read_pico_pmu_get();
     char clock[12]; clock_text(clock,sizeof(clock));
-    const int status_center_y = 40;
+    const int status_center_y = compact ? UI_NAV_READER_STATUS_HEIGHT / 2 : 40;
     // 固定状态栏字号，让系统字体缩放时文字仍与图标共用中心线。
     // Keep status type fixed so text and glyphs share one centerline at every system font scale.
     ui_text_fixed_vc(fb, 36, status_center_y, UI_STATUS_TIME_PX, clock, EPD_DRAW_ALIGN_LEFT, false);
@@ -319,6 +325,9 @@ void ui_nav_status(uint8_t *fb) {
     ui_status_mark_visible(fb);
     s_power_signature=(gauge_percent+1)*8+(charging?4:0)+(wifi_visible?2:0)+(bluetooth_visible?1:0);
 }
+
+void ui_nav_status(uint8_t *fb) { draw_status(fb, false); }
+void ui_nav_reader_status(uint8_t *fb) { draw_status(fb, true); }
 
 int ui_nav_hit(uint16_t x, uint16_t y) {
     if (x >= UI_LOCK_WIDTH || y < UI_NAV_TOUCH_TOP || y >= UI_LOCK_HEIGHT) return -1;

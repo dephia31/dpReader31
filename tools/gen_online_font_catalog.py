@@ -18,9 +18,12 @@ def generate(data):
         if uri.scheme!='https' or uri.hostname not in {'github.com','raw.githubusercontent.com'} or uri.username or uri.password:
             raise ValueError('Unapproved author source')
         filename=item['filename']
-        if not re.fullmatch(r'kiiko-[a-z0-9-]+\.ttf',filename) or len(filename)>90 or filename in names:
+        legacy=item['legacy_filename']
+        if (filename != item['name']+'.ttf' or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 ]*\.ttf',filename)
+                or not re.fullmatch(r'kiiko-[a-z0-9-]+\.ttf',legacy)
+                or max(len(filename),len(legacy))>90 or {filename.lower(),legacy} & names):
             raise ValueError('Invalid managed filename')
-        names.add(filename)
+        names.update((filename.lower(),legacy))
         if not 1024<item['size']<=32*1024*1024 or not 1024<item['source_size']<=32*1024*1024:
             raise ValueError('Unbounded font')
         if not re.fullmatch('[0-9a-f]{64}',item['sha256']) or not re.fullmatch('[0-9a-f]{64}',item['source_sha256']):
@@ -33,7 +36,7 @@ def generate(data):
     lines.append('static const online_font_item_t s_fonts[ONLINE_FONT_COUNT] = {')
     for i,item in enumerate(data):
         lines.append('    {')
-        for field,key in [('name','name'),('ascii_name','ascii'),('filename','filename'),('url','url')]:
+        for field,key in [('name','name'),('ascii_name','ascii'),('filename','filename'),('legacy_filename','legacy_filename'),('url','url')]:
             lines.append('        .%s=%s,'%(field,json.dumps(item[key],ensure_ascii=False)))
         lines.append('        .license=font_license_%d,'%i)
         for field in ('size','source_size','deflate_offset','deflate_size'):
@@ -46,9 +49,10 @@ def generate(data):
 
 def generate_names(data):
     lines=['/* Generated font labels; no face data or network dependency. */','#pragma once',
-           '#include <string.h>','static inline const char *online_font_catalog_name(const char *stem) {']
+           '#include <stddef.h>','#include <strings.h>','static inline const char *online_font_catalog_name(const char *stem) {']
     for item in data:
-        lines.append('    if (!strcmp(stem,%s)) return %s;'%(json.dumps(item['filename'][:-4]),json.dumps(item['name'],ensure_ascii=False)))
+        for key in ('filename','legacy_filename'):
+            lines.append('    if (!strcasecmp(stem,%s)) return %s;'%(json.dumps(item[key][:-4]),json.dumps(item['name'],ensure_ascii=False)))
     return '\n'.join(lines+['    return NULL;','}'])+'\n'
 
 if __name__=='__main__':

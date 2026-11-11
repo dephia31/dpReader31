@@ -307,7 +307,7 @@ int main(void) {
         {.offset = 10, .len = 3, .heading = true, .chapter_start = true, .image = -1},
         {.offset = 14, .len = 4, .image = -1},
     };
-    EpdRect chapter_rect = {0, 0, 300, 120};
+    EpdRect chapter_rect = {0, 0, 300, 160};
     assert(book_layout_build_blocks(chapters, strlen(chapters), chapter_blocks, 4, chapter_rect, 10));
     // PR9 不包含后来追加的块级 chapter_start 强制分页；这里验证其原始流式行为。
     // PR9 excludes the later block-level forced chapter break; verify its original flow.
@@ -529,7 +529,7 @@ int main(void) {
     drawn[0] = 0; capture_lines = true; captured_count = 0;
     book_layout_draw_page(&fb, 0, r, 20);
     capture_lines = false;
-    assert(captured_count == 3 && captured_y[0] == 20 && captured_y[1] == 50 && captured_y[2] == 115);
+    assert(captured_count == 3 && captured_y[0] == 20 && captured_y[1] == 50 && captured_y[2] == 120);
     book_layout_free(); html_text_free(&split_title);
     const char separate_html[] = "<h2 style='margin-bottom:1.8em'>第一章</h2><h2>山边小村</h2>";
     assert(html_to_blocks(separate_html, strlen(separate_html), &split_title) == ESP_OK);
@@ -537,7 +537,7 @@ int main(void) {
                                     split_title.count, r, 20));
     drawn[0] = 0;
     book_layout_draw_page(&fb, 0, r, 20);
-    assert(last_draw_y - first_draw_y == 106);
+    assert(last_draw_y - first_draw_y == 112);
     book_layout_free(); html_text_free(&split_title);
     r = (EpdRect){0, 0, 100, 45};
     book_layout_set_chapter_lead(6, 20);

@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.4.2-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "999.0.0",
+  "usb_only": true,
+  "url": "https://dephia31.github.io/dpReader31/releases/usb-required.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.4.1-vn",
+  "notes": "Cập nhật qua USB tại dephia31.github.io/dpReader31/. Cài từ bố cục cũ sẽ xóa cài đặt và /flash, giữ thẻ SD.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "dd59211a8034371256c3422aba49566bfcbac2175a23aa4f5e5bc5bcd2912443",
+      "md5": "c926fde3a56a1d994ff9cc55ec8eab50"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "053d64e97f8da0346a92c846aa4532e6087b0c9ed50a1aa7b04072c5fa5d716a",
+      "md5": "6d3e7f384c2e6dd745558b0cd5e40694"
+    }
+  },
+  "size": 4741504,
+  "sha256": "e326c9f871c31dd4bee90204940a24bd5d67ba7f757718667be5758a42380787",
+  "md5": "f1494dd76496da02148df1eaae3944c0"
+}

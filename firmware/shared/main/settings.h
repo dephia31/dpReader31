@@ -329,7 +329,8 @@ void app_settings_set_book_align(uint8_t align);
 #define APP_BOOK_PROGRESS_STYLE_THIN 1
 #define APP_BOOK_PROGRESS_STYLE_THICK 2
 #define APP_BOOK_PROGRESS_STYLE_HAIRLINE 3
-#define APP_BOOK_PROGRESS_STYLE_COUNT 4
+#define APP_BOOK_PROGRESS_STYLE_BOTTOM 4
+#define APP_BOOK_PROGRESS_STYLE_COUNT 5
 uint8_t app_settings_book_progress_style(void);
 void app_settings_set_book_progress_style(uint8_t style);
 /// Chân trang hiển thị: số trang/chương (trái), tên chương (trên thanh tiến độ), % tiến độ sách (phải).
@@ -354,7 +355,7 @@ void app_settings_set_book_line_spacing(uint8_t percent);
 uint8_t app_settings_book_margin(void);
 void app_settings_set_book_margin(uint8_t px);
 /// Paragraph gaps -10,-5,0..75%; negative values use signed-byte encoding in storage.
-#define APP_BOOK_PARAGRAPH_COUNT 12
+#define APP_BOOK_PARAGRAPH_COUNT 18
 uint8_t app_settings_book_paragraph_value(uint8_t level);
 uint8_t app_settings_book_paragraph_level(uint8_t percent);
 uint8_t app_settings_book_paragraph_spacing(void);

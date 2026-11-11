@@ -1,3 +1,10 @@
+## dpReader 1.4.3-vn / 1.4.3-love-vn · 2026-11-11
+
+- Khôi phục lề và giãn dòng riêng của sách khi mở lại. Giãn dòng và giãn đoạn dùng mốc 40 px để mỗi 10% tương ứng 4 px.
+- Thu gọn thanh trạng thái trong trình đọc. Căn ba nhãn footer và mở rộng Thanh Đáy 12 px hết chiều ngang màn hình. Tên chương dài được cắt theo từ.
+- Font Google tải mới lưu theo tên bộ font. Font tải từ bản cũ hiển thị đúng tên trong danh sách.
+- Bật lại OTA trên bố cục NVS 256 KiB. Từ 1.4.2, nạp ứng dụng qua USB một lần để lên 1.4.3. Từ 1.4.1 trở xuống, nạp toàn phần qua Web Flash.
+
 ## dpReader 1.4.2RC5-vn / 1.4.2RC5-love-vn · thử cục bộ · 2026-11-10
 
 ## dpReader 1.4.2-vn · 2026-11-11

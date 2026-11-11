@@ -1,11 +1,11 @@
-# dpReader 1.4.2 · Full và Love Book
+## Cập nhật lên dpReader 1.4.3
 
-Cài qua USB tại [trang Flash chính thức](https://dephia31.github.io/dpReader31/). Chọn đúng Full hoặc Love Book, kết nối máy Metalio E-Ink4 Plus S31 ở chế độ BOOT và bấm **Bắt đầu nạp**.
+- **Từ 1.4.1 trở xuống hoặc từ firmware khác:** Sao lưu cấu hình ra thẻ SD rồi nạp toàn phần 16 MB. Sau khi nạp, khôi phục cấu hình từ thẻ nhớ. [Mở Web Flash](https://dephia31.github.io/dpReader31/)
+- **Từ 1.4.2:** Cập nhật ứng dụng qua Web Flash hoặc bộ cài USB một lần. Máy đã dùng NVS 256 KiB giữ cài đặt và dữ liệu khi nạp ứng dụng. OTA hoạt động trở lại từ 1.4.3.
+- Chọn đúng bản **Full** hoặc **Love Book**. Bộ cài tải về có launcher macOS và Windows.
 
-- Máy dùng bố cục cũ sẽ cài sạch sang NVS 256 KiB. Sao lưu Wi-Fi, cài đặt và dữ liệu `/flash` cần giữ trước khi xác nhận. Thẻ SD giữ nguyên.
-- Máy đã dùng NVS 256 KiB chỉ ghi ứng dụng và vùng chọn khởi động, giữ NVS và `/flash`.
-- Nếu trình duyệt gặp lỗi kết nối, tải ZIP USB đúng phiên bản, giải nén và chạy `FLASH_USB.command` trên macOS hoặc `FLASH_USB.bat` trên Windows. Cần Python với esptool >= 5.6 và pyserial.
+## Thay đổi
 
-Bản này phát hành qua USB. Firmware 1.4.2 hướng dẫn đến trang Flash khi bấm Kiểm tra cập nhật. Firmware cũ có thể hiện thông báo gói cơ sở không tương thích.
-
-Tính năng chính gồm sáu phím Bluetooth tùy chỉnh, font family giữ đậm/nghiêng trong EPUB, đảo màu với lật trang vi sai và gán Đảo màu cho phím cứng.
+- Giữ lề, giãn dòng và giãn đoạn khi mở lại sách. Mỗi 10% thay đổi 4 px.
+- Thu gọn thanh trạng thái trong trình đọc. Thanh Đáy chạy hết chiều ngang, dày 12 px. Số trang, tên chương và phần trăm cùng hàng. Tên dài được cắt theo từ.
+- Font Google hiển thị đúng tên bộ font và các lượt tải mới dùng tên đó cho tệp.

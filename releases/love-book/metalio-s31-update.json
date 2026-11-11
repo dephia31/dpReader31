@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.4.2-love-vn",
+  "version": "1.4.3-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
-  "minimum_base_version": "999.0.0",
-  "usb_only": true,
-  "url": "https://dephia31.github.io/dpReader31/releases/love-book/usb-required.bin",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.4.1-love-vn",
-  "notes": "Cập nhật qua USB tại dephia31.github.io/dpReader31/. Cài từ bố cục cũ sẽ xóa cài đặt và /flash, giữ thẻ SD.",
+  "previous_version": "1.4.2-love-vn",
+  "notes": "Từ 1.4.1 trở xuống: nạp toàn phần tại dephia31.github.io/dpReader31/. Bản 1.4.2 cập nhật ứng dụng qua USB một lần. OTA hoạt động từ 1.4.3.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,11 +24,15 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "e1e2b161c5c3853907325167e43f53b3f39c777ccebd37cfe700b5f1aa192de0",
-      "md5": "eaab1a55d3c6dc3c7a2211f1aa0b2a5d"
+      "sha256": "8e714baa29a15bfbb24f99c675a61c76988dd67e411cfa053012cc61dfe34d0b",
+      "md5": "c2bc7b9afee9a2a5a33ac86310746199"
     }
   },
-  "size": 4673504,
-  "sha256": "f1898ff9d1a3f9e1edcd4113d54ce355637d0d3e982a60c52273c9303c25f920",
-  "md5": "5292cbbeae6d902cc882ba1128dbee36"
+  "clean_image": {
+    "sha256": "faf564e8782354d2749718ec052af6845277c51029447ae358b84992cfdd0c30",
+    "md5": "51e053debb5c0718550a8498e02eccb1"
+  },
+  "size": 4691280,
+  "sha256": "a5b9253c610b6d83703de3a79baaa11a1128a65872bb3c804af73f22e039fb6d",
+  "md5": "17171e81396ae7ee47050b3d5a583a18"
 }

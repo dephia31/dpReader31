@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Stage both verified firmware editions in an ignored local Web Flash preview."""
 from pathlib import Path
-from stage_usb_only_release import identity, PARTS
+from stage_usb_only_release import APP, identity, PARTS
+from verify_metalio_release import clean_image_identity
 import argparse
 import hashlib
 import json
@@ -40,16 +41,21 @@ def stage(build_root, output):
         destination = output / relative
         destination.mkdir(parents=True, exist_ok=True)
         if info.get('storage_layout') == 'nvs256-clean':
-            shutil.copy2(package / 'dpReader_metalio47_firmware.bin', destination / 'web-firmware.bin')
+            usb_only = info['version'].removesuffix('-vn').removesuffix('-love') == '1.4.2'
+            app_name = 'web-firmware.bin' if usb_only else APP
+            shutil.copy2(package / APP, destination / app_name)
             for name in PARTS:
                 shutil.copy2(package / name, destination / name)
             zip_name = f"dpReader-metalio47-{info['version']}-USB.zip"
             shutil.copy2(package.parent / zip_name, destination / zip_name)
             feed = dict(schema=1, edition=edition, version=info['version'], project=info['project'],
                         board='Metalio-EINK4-Plus-S31', layout='metalio-s31-dual-5m-v1',
-                        minimum_base_version='999.0.0', usb_only=True, url='./usb-required.bin',
+                        minimum_base_version='999.0.0' if usb_only else '1.4.2', usb_only=usb_only,
+                        url='./usb-required.bin' if usb_only else f'./{relative}/{app_name}',
                         notes='Bản xem trước cài qua USB', usb_parts={n: identity(destination/n) for n in PARTS},
-                        **identity(destination/'web-firmware.bin'))
+                        **identity(destination/app_name))
+            if not usb_only:
+                feed['clean_image'] = clean_image_identity(destination,(destination/app_name).read_bytes())
             (destination / 'metalio-s31-update.json').write_text(json.dumps(feed, ensure_ascii=False, indent=2)+'\n')
             continue
         for name in ('dpReader_metalio47_firmware.bin', 'dpReader_metalio47_full.bin'):
