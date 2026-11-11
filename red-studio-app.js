@@ -456,10 +456,11 @@ async function verifyFlashRegion({data,address,md5}) {
       (await esploader.flashMd5sum(address, data.length)).toLowerCase() !== md5.toLowerCase())
     throw new Error(`Kiểm tra lại sau khi ghi thất bại tại 0x${address.toString(16)}.`);
 }
-// Match the entire sector against tables verified from the shipped USB bundles.
+// Match the entire sector against verified dpReader and CrossPoint tables.
 // The stub returns a small checksum response instead of streaming flash data.
 const S31_PARTITION_LAYOUTS = new Map([
   ["6ae59e64850377ee5470c854761551ea", "blank"],
+  ["c2c89587cec31dfd42c20bf837b3eb29", "crosspoint"],
   ["9f56f6078cbd6aac217fb84f364246de", "legacy"],
   ["c8d9169209a600d053b83659b33e0bb2", "rc"],
   ["98fd72a61b5952a549dd2a6f48b7c6fa", "new"],
@@ -480,7 +481,13 @@ async function prepareNvs256Flash(release) {
     throw new Error("Gói này chỉ dành cho Metalio 4.7 ESP32-S31 16 MB.");
   const layout = await probeS31Layout();
   if (layout === "unknown") throw new Error("Bố cục thiết bị chưa được hỗ trợ. Hãy kiểm tra đúng model trước khi cài.");
-  if (layout !== "new" && !confirm("Sau khi cài sạch dpReader 1.4.2, bạn có thể khôi phục cài đặt đã sao lưu từ thẻ SD. Bạn đã sao lưu cấu hình ra thẻ SD và muốn tiếp tục?")) return null;
+  if (layout === "crosspoint") terminal.writeLine("[*] Đã nhận diện bố cục CrossPoint. Cần cài toàn phần dpReader.");
+  if (layout !== "new") {
+    const prompt = layout === "crosspoint"
+      ? "Cài toàn phần dpReader sẽ thay thế CrossPoint và xóa cấu hình trong máy. Thẻ SD giữ nguyên. Bạn muốn tiếp tục?"
+      : "Sau khi cài sạch dpReader 1.4.2, bạn có thể khôi phục cài đặt đã sao lưu từ thẻ SD. Bạn đã sao lưu cấu hình ra thẻ SD và muốn tiếp tục?";
+    if (!confirm(prompt)) return null;
+  }
   const app = await fetchVerifiedPart("web-firmware.bin", release);
   const extra = [];
   let partitions = null;
@@ -494,7 +501,7 @@ async function prepareNvs256Flash(release) {
     extra.push({data:new Uint8Array(0x4000).fill(255), address:0x9000, md5:"92ab673d915a94dcf187720e8ac0d608"},
                {data:storage, address:0xa10000, md5:release.usb_parts["storage-empty.bin"].md5},
                {data:new Uint8Array(0x40000).fill(255), address:0xfb0000, md5:"09a1d434dbd7197e7c3af8a7c28ca38b"});
-    if (layout === "blank") {
+    if (layout === "blank" || layout === "crosspoint") {
       const boot = await fetchVerifiedPart("bootloader.bin", release.usb_parts?.["bootloader.bin"]);
       if (boot.length > 0x6000 || boot[0] !== 0xe9 || boot[12] !== 32 || boot[13] !== 0) throw new Error("Bootloader không hợp lệ.");
       extra.push({data:boot,address:0x2000,md5:release.usb_parts["bootloader.bin"].md5});
