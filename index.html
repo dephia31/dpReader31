@@ -74,26 +74,21 @@
       </div>
       <section id="nvs256-guide" class="risk-agreement">
         <h3>Cập nhật dpReader qua USB</h3>
-        <p><strong>Đang dùng 1.4.1 trở xuống hoặc firmware khác</strong> · Phải nạp toàn phần 16 MB. Trước khi nạp, sao lưu cấu hình ra thẻ SD. Nạp toàn phần xóa dữ liệu trong máy và giữ nguyên thẻ SD. Sau khi nạp, chọn <strong>Khôi phục cấu hình từ thẻ nhớ</strong> trong <strong>Cài đặt → Sao lưu &amp; Khôi phục</strong>.</p>
-        <p><strong>Đang dùng 1.4.2</strong> · Cập nhật lên 1.4.3 bằng Web Flash hoặc bộ cài USB một lần. Khi nhận diện đúng phân vùng NVS 256 KiB, trang chỉ nạp ứng dụng và giữ cài đặt. Từ 1.4.3 có thể cập nhật qua Wi-Fi.</p>
+        <p><strong>Đang dùng 1.4.1 trở xuống hoặc firmware khác</strong> · Chọn ô <strong>Nạp toàn phần</strong> để nạp ảnh 16 MB. Trước khi nạp, sao lưu cấu hình ra thẻ SD. Nạp toàn phần xóa dữ liệu trong máy và giữ nguyên thẻ SD. Sau khi nạp, chọn <strong>Khôi phục cấu hình từ thẻ nhớ</strong> trong <strong>Cài đặt → Sao lưu &amp; Khôi phục</strong>.</p>
+        <p><strong>Đang dùng 1.4.2</strong> · Chọn ô <strong>Cập nhật ứng dụng</strong> để lên 1.4.3 bằng Web Flash. Bạn cũng có thể dùng bộ cài USB. Khi nhận diện đúng phân vùng NVS 256 KiB, trang chỉ nạp ứng dụng và giữ cài đặt. Từ 1.4.3 có thể cập nhật qua Wi-Fi.</p>
         <p id="usb-only-guide" hidden>Bản 1.4.2 được chọn trong danh sách luôn cài sạch toàn phần.</p>
-        <label id="force-clean-option" class="risk-check"><input type="checkbox" id="force-clean"><span>Nạp toàn phần 16 MB cho máy từ 1.4.1 trở xuống, firmware khác hoặc máy cần cứu.</span></label>
         <p>Chọn Full hoặc Love Book, kết nối Metalio 4.7 S31 ở chế độ BOOT và bấm <strong>Bắt đầu nạp firmware</strong>. Với bộ cài tải về, chạy <code>FLASH_USB.command</code> trên macOS hoặc <code>FLASH_USB.bat</code> trên Windows.</p>
       </section>
-      <div class="radio-cards" id="legacy-modes" hidden>
-        <label class="radio-card radio-card-first-install active">
-          <input type="radio" name="flash-mode" id="mode-full" checked>
-          <span class="first-install-badge">CÀI MỚI / CÀI TỪ FIRMWARE KHÁC / CỨU MÁY</span>
+      <div class="radio-cards" id="flash-modes">
+        <label class="radio-card radio-card-first-install">
+          <input type="radio" name="flash-mode" id="mode-full">
           <h4>Nạp toàn phần</h4>
-          <p>Cài đầy đủ hệ thống cho máy chưa từng cài dpReader hoặc cần cứu máy. <strong>Nếu đây là lần đầu cài firmware, hãy chọn Nạp toàn phần.</strong></p>
-          <span id="release-tag-full" class="tag">MẶC ĐỊNH · Trọn gói</span>
+          <p id="mode-full-description">Ảnh 16 MB dành cho máy đang dùng 1.4.1 trở xuống, firmware khác hoặc cần cứu máy. Xóa dữ liệu trong máy, giữ thẻ SD.</p>
         </label>
-
-        <label class="radio-card">
-          <input type="radio" name="flash-mode" id="mode-app">
-          <h4>Nâng cấp Ứng dụng</h4>
-          <p>Dành cho máy đã cài dpReader. Cập nhật firmware, giữ nguyên sách, ghi chú và cài đặt Wi-Fi.</p>
-          <span id="release-tag-app" class="tag">Dành cho máy đã cài dpReader</span>
+        <label class="radio-card active">
+          <input type="radio" name="flash-mode" id="mode-app" checked>
+          <h4>Cập nhật ứng dụng</h4>
+          <p id="mode-app-description">Dành cho máy đã dùng dpReader 1.4.2 trở lên với NVS 256 KiB. Giữ cài đặt và dữ liệu.</p>
         </label>
       </div>
 
@@ -240,6 +235,6 @@
     </footer>
   </div>
 
-  <script type="module" src="red-studio-app.js?v=10"></script>
+  <script type="module" src="red-studio-app.js?v=11"></script>
 </body>
 </html>
