@@ -456,10 +456,29 @@ async function verifyFlashRegion({data,address,md5}) {
       (await esploader.flashMd5sum(address, data.length)).toLowerCase() !== md5.toLowerCase())
     throw new Error(`Kiểm tra lại sau khi ghi thất bại tại 0x${address.toString(16)}.`);
 }
+// Match the entire sector against tables verified from the shipped USB bundles.
+// The stub returns a small checksum response instead of streaming flash data.
+const S31_PARTITION_LAYOUTS = new Map([
+  ["6ae59e64850377ee5470c854761551ea", "blank"],
+  ["9f56f6078cbd6aac217fb84f364246de", "legacy"],
+  ["c8d9169209a600d053b83659b33e0bb2", "rc"],
+  ["98fd72a61b5952a549dd2a6f48b7c6fa", "new"],
+]);
+async function probeS31Layout() {
+  terminal.writeLine("[*] Đang kiểm tra bảng phân vùng trên thiết bị...");
+  let checksum;
+  try {
+    checksum = (await esploader.flashMd5sum(0x8000, 0x1000)).toLowerCase();
+  } catch (error) {
+    throw new Error(`Không đọc được checksum bảng phân vùng (${error.message || error}). Kết nối lại ở 115200 baud hoặc dùng bộ cài USB.`);
+  }
+  terminal.writeLine(`[*] Checksum bảng phân vùng: ${checksum}`);
+  return S31_PARTITION_LAYOUTS.get(checksum) || "unknown";
+}
 async function prepareNvs256Flash(release) {
   if (esploader.chip.CHIP_NAME !== "ESP32-S31" || !esploader.IS_STUB || await esploader.detectFlashSize() !== "16MB")
     throw new Error("Gói này chỉ dành cho Metalio 4.7 ESP32-S31 16 MB.");
-  const layout = classifyS31Partitions(await esploader.readFlash(0x8000, 0x1000));
+  const layout = await probeS31Layout();
   if (layout === "unknown") throw new Error("Bố cục thiết bị chưa được hỗ trợ. Hãy kiểm tra đúng model trước khi cài.");
   if (layout !== "new" && !confirm("Cài sạch dpReader 1.4.2 sẽ xóa cài đặt, Wi-Fi, ghép đôi Bluetooth và toàn bộ /flash. Thẻ SD giữ nguyên. Bạn đã sao lưu dữ liệu cần giữ và muốn tiếp tục?")) return null;
   const app = await fetchVerifiedPart("web-firmware.bin", release);
@@ -571,7 +590,7 @@ flashBtn.addEventListener("click", async () => {
     if (migration || !radioCustom.checked) await verifySelectedFirmware(binaryData, !migration && radioFull.checked ? 0x10000 : 0, currentReleaseInfo, editionSelect?.value || "full");
     if (!migration) {
       if (esploader.chip.CHIP_NAME !== "ESP32-S31") throw new Error("Sai dòng thiết bị.");
-      const layout = classifyS31Partitions(await esploader.readFlash(0x8000, 0x1000));
+      const layout = await probeS31Layout();
       if (layout !== "legacy" && !(layout === "blank" && radioFull.checked && !radioCustom.checked))
         throw new Error("Bản cũ chỉ cài trên bố cục cũ. Chọn 1.4.2 để cập nhật máy dùng NVS 256 KiB.");
       if (radioCustom.checked) throw new Error("Chọn gói chính thức để xác minh bố cục và phiên bản.");
