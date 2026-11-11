@@ -433,6 +433,7 @@ static void worker(void *unused) {
     vTaskDelete(NULL);
 }
 static esp_err_t start(bool downloading) {
+    if (DPREADER_USB_ONLY_RELEASE) return ESP_ERR_NOT_SUPPORTED;
     uint8_t edition = app_settings_ota_edition();
     if (edition > 1) return ESP_ERR_INVALID_STATE;
     if(kosync_busy())return ESP_ERR_INVALID_STATE;

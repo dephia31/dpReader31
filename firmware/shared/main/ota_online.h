@@ -70,3 +70,7 @@ bool pico_online_display_begin(void);
 void pico_online_display_end(bool held);
 /// 已验证镜像切换启动槽；失败不切换。/ Select a verified image; failures keep the existing boot slot.
 esp_err_t pico_online_commit(void);
+
+/* 1.4.2 changes the flash layout. Install through the USB bundle. */
+#define DPREADER_USB_ONLY_RELEASE 1
+#define DPREADER_FLASH_PAGE "dephia31.github.io/dpReader31/"

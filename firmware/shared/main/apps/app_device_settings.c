@@ -2085,6 +2085,21 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
         settings_card(fb, (EpdRect){36, 202, 612, 120}, 22, UI_GRAY_WHITE, 0x70);
         settings_line(fb, 60, 224, 22, "Phiên bản hiện tại", EPD_DRAW_ALIGN_LEFT, false);
         settings_line(fb, 60, 264, 29, esp_app_get_description()->version, EPD_DRAW_ALIGN_LEFT, false);
+#if DPREADER_BOARD_METALIO47 && DPREADER_USB_ONLY_RELEASE
+        settings_card(fb, (EpdRect){36, 356, 612, 340}, 22, UI_GRAY_WHITE, 0x70);
+        settings_line(fb, 60, 386, 27, "Cập nhật qua USB", EPD_DRAW_ALIGN_LEFT, false);
+        ui_draw_button(fb, (EpdRect){60, 550, 564, 62}, "Kiểm tra cập nhật", false);
+        if (s_upgrade_notice[0]) {
+            ui_text_caption(fb, (EpdRect){60, 443, 564, 94}, 22,
+                "Vào trang Flash trên máy tính để kiểm tra và tải bản cập nhật:", EPD_DRAW_ALIGN_LEFT, false);
+            settings_line(fb, 60, 646, 22, DPREADER_FLASH_PAGE, EPD_DRAW_ALIGN_LEFT, false);
+        } else {
+            ui_text_caption(fb, (EpdRect){60, 443, 564, 94}, 22,
+                "Bản này cập nhật bằng cáp USB. Nhấn Kiểm tra cập nhật để xem địa chỉ tải.", EPD_DRAW_ALIGN_LEFT, false);
+        }
+        settings_navigation(fb);
+        return;
+#endif
         if (s_upgrade_pick_edition) {
             settings_line(fb, 60, 362, 29, "Chọn firmware cho cập nhật OTA", EPD_DRAW_ALIGN_LEFT, false);
             ui_draw_button(fb, (EpdRect){60, 426, 564, 76}, "Full", false);
@@ -3149,6 +3164,13 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
     }
     if (s_page == SETTINGS_UPGRADE) {
         if (ev->type != UI_GESTURE_TAP || s_local_pending || s_upgrade_restart) return APP_REDRAW_NONE;
+#if DPREADER_BOARD_METALIO47 && DPREADER_USB_ONLY_RELEASE
+        if (ev->y0 >= 550 && ev->y0 < 612 && ev->x0 >= 60 && ev->x0 < 624) {
+            snprintf(s_upgrade_notice, sizeof(s_upgrade_notice), "%s", DPREADER_FLASH_PAGE);
+            return APP_REDRAW_PAGE;
+        }
+        if (ev->y0 >= 190 || ev->x0 >= 170) return APP_REDRAW_NONE;
+#endif
         int y = ev->y0;
         if (y < 190 && ev->x0 < 170) {
             s_upgrade_job = UPGRADE_JOB_NONE;

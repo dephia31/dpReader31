@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Stage both verified firmware editions in an ignored local Web Flash preview."""
 from pathlib import Path
+from stage_usb_only_release import identity, PARTS
 import argparse
 import hashlib
 import json
@@ -38,6 +39,19 @@ def stage(build_root, output):
         relative = 'releases' if edition == 'full' else 'releases/love-book'
         destination = output / relative
         destination.mkdir(parents=True, exist_ok=True)
+        if info.get('storage_layout') == 'nvs256-clean':
+            shutil.copy2(package / 'dpReader_metalio47_firmware.bin', destination / 'web-firmware.bin')
+            for name in PARTS:
+                shutil.copy2(package / name, destination / name)
+            zip_name = f"dpReader-metalio47-{info['version']}-USB.zip"
+            shutil.copy2(package.parent / zip_name, destination / zip_name)
+            feed = dict(schema=1, edition=edition, version=info['version'], project=info['project'],
+                        board='Metalio-EINK4-Plus-S31', layout='metalio-s31-dual-5m-v1',
+                        minimum_base_version='999.0.0', usb_only=True, url='./usb-required.bin',
+                        notes='Bản xem trước cài qua USB', usb_parts={n: identity(destination/n) for n in PARTS},
+                        **identity(destination/'web-firmware.bin'))
+            (destination / 'metalio-s31-update.json').write_text(json.dumps(feed, ensure_ascii=False, indent=2)+'\n')
+            continue
         for name in ('dpReader_metalio47_firmware.bin', 'dpReader_metalio47_full.bin'):
             shutil.copy2(package / name, destination / name)
         feed = dict(schema=1, edition=edition, version=info['version'],

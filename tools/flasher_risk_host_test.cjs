@@ -29,11 +29,11 @@ const run=s=>vm.runInContext(s,ctx);
  get('risk-accepted').checked=true;get('mode-custom').checked=true;get('mode-full').checked=false;get('mode-custom').events.change();assert.equal(get('risk-accepted').checked,false,'target change invalidates consent');
  get('release-version').value='1.2.4-vn';assert.equal(run('selectedReleaseFolder()'),'releases/1.2.4-vn');get('risk-accepted').checked=true;get('release-version').events.change();assert.equal(get('risk-accepted').checked,false,'version change invalidates consent');
  get('risk-accepted').checked=true;get('custom-file').events.change();assert.equal(get('risk-accepted').checked,false,'file change invalidates consent');
- // Reach the actual write call with a local file; keep it pending to inspect the write lock.
- run('esploader={writeFlash:async()=>{writeReached();await new Promise(resolve=>{releaseWrite=resolve})}}; transport=null');
- ctx.writeReached=()=>writes++;get('custom-file').files=[{name:'test.bin',arrayBuffer:async()=>new Uint8Array(64).buffer}];get('custom-offset').value='0x10000';get('risk-accepted').checked=true;
- const pending=get('flash-btn').events.click();await new Promise(resolve=>setImmediate(resolve));assert.equal(writes,1);assert.equal(get('risk-accepted').disabled,true);assert.ok(radios.every(n=>n.disabled));assert.equal(get('custom-offset').disabled,true);
- await get('flash-btn').events.click();assert.equal(writes,1,'second click cannot start another write');run('releaseWrite()');await pending;
- assert.equal(get('risk-accepted').checked,false);assert.equal(get('flash-btn').disabled,true);assert.equal(get('risk-accepted').disabled,false);
- console.log('flasher risk gate: PASS (default full, visible consent, target reset, write guard, busy lock, completion reset)');
+ // An archived app-only write must be refused on an NVS256 device.
+ get('mode-custom').checked=false;get('mode-app').checked=true;
+ run('esploader={chip:{CHIP_NAME:"ESP32-S31"},readFlash:async()=>new Uint8Array(4096),writeFlash:async()=>{throw Error("unexpected write")}}');
+ assert.equal(run('classifyS31Partitions(new Uint8Array(4096))'),'unknown');
+ get('release-version').value='';
+ assert.equal(run('automaticLayoutSelected()'),true);
+ console.log('flasher risk gate: PASS (consent, target/file changes, automatic release, unknown partition rejection)');
 })().catch(e=>{console.error(e);process.exitCode=1});

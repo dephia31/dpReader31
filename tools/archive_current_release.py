@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """中文：更新正式清单前归档当前版本，保留原字节。/ English: Archive the current release before replacing its manifest, retaining original bytes."""
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
@@ -14,9 +16,11 @@ def archive_s31_flat(folder: Path, commit: str) -> None:
     assert re.fullmatch(r'\d+\.\d+\.\d+(?:-love)?-vn',version)
     assert re.fullmatch(r'[a-f0-9]{40}',commit)
     sums={line.split()[1]:line.split()[0] for line in (folder/'SHA256SUMS.txt').read_text().splitlines() if line.strip()}
-    names=('dpReader_metalio47_firmware.bin','dpReader_metalio47_full.bin','SHA256SUMS.txt','metalio-s31-update.json')
+    app_name = 'web-firmware.bin' if manifest.get('usb_only') else 'dpReader_metalio47_firmware.bin'
+    images = (app_name, *manifest['usb_parts'], f'dpReader-metalio47-{version}-USB.zip') if manifest.get('usb_only') else (app_name, 'dpReader_metalio47_full.bin')
+    names = (*images, 'SHA256SUMS.txt', 'metalio-s31-update.json')
     payloads={name:(folder/name).read_bytes() for name in names}
-    for name in names[:2]:assert hashlib.sha256(payloads[name]).hexdigest()==sums[name],name
+    for name in images:assert hashlib.sha256(payloads[name]).hexdigest()==sums[name],name
     app=payloads[names[0]]
     assert len(app)==manifest['size'] and hashlib.sha256(app).hexdigest()==manifest['sha256']
     assert app[48:80].split(b'\0')[0].decode()==version and int.from_bytes(app[12:14],'little')==32

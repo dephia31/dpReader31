@@ -8,12 +8,17 @@ REPO='dephia31/dpReader31'
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--dry-run',action='store_true');args=parser.parse_args()
     manifest,love=verify_all();version=manifest['version'];tag='v'+version
-    names=['dpReader_metalio47_firmware.bin','dpReader_metalio47_full.bin','SHA256SUMS.txt','metalio-s31-update.json','verification.json',f'dpReader-metalio47-{version}-USB.zip',f'dpReader-metalio47-{version}-TF.zip']
-    assets=[(n,ROOT/'releases'/n) for n in names]
+    def assets_for(feed, folder, prefix=''):
+        ver=feed['version']
+        files=['SHA256SUMS.txt','metalio-s31-update.json','verification.json',f'dpReader-metalio47-{ver}-USB.zip']
+        if feed.get('usb_only'):
+            files += ['web-firmware.bin', *feed['usb_parts']]
+        else:
+            files += ['dpReader_metalio47_firmware.bin','dpReader_metalio47_full.bin',f'dpReader-metalio47-{ver}-TF.zip']
+        return [(n if ver in n else prefix+n, folder/n) for n in files]
+    assets=assets_for(manifest,ROOT/'releases')
     if love:
-        love_version=love['version']
-        love_names=['dpReader_metalio47_firmware.bin','dpReader_metalio47_full.bin','SHA256SUMS.txt','metalio-s31-update.json','verification.json',f'dpReader-metalio47-{love_version}-USB.zip',f'dpReader-metalio47-{love_version}-TF.zip']
-        assets.extend((n if love_version in n else 'love-book-'+n,ROOT/'releases/love-book'/n) for n in love_names)
+        assets+=assets_for(love,ROOT/'releases/love-book','love-book-')
     names=[n for n,_ in assets]
     assert len(names)==len(set(names)) and all(path.is_file() for _,path in assets)
     if args.dry_run:print('Ready to publish',tag,':',', '.join(names));return

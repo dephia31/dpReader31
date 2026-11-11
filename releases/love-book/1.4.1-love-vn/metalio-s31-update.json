@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.4.1-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.0.0",
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "sha256": "bf8342ea5bd410c56575f46e2e6cb9fafed46bb38f919d7e57e2839469094bd6",
+  "size": 4669120,
+  "notes": "Sửa lật đôi bằng phím Bluetooth đã học, lưu hồ sơ phím trên SD và rút thời gian thông báo nhảy trang.",
+  "previous_version": "1.4.0-love-vn"
+}

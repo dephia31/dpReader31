@@ -161,6 +161,7 @@ jobs:
           python3 tools/test_book_toc.py
           node tools/flasher_integrity_host_test.cjs
           node tools/flasher_risk_host_test.cjs
+          node tools/flasher_nvs256_host_test.cjs
           node tools/transfer_web_host_test.js
           python3 tools/vertical_punctuation_host_test.py
           python3 tools/vertical_number_host_test.py

@@ -30,12 +30,25 @@ let editionReady = false;
 const editionSelect = document.getElementById("firmware-edition");
 const riskAccepted = document.getElementById("risk-accepted");
 const flashReadiness = document.getElementById("flash-readiness");
+function automaticLayoutSelected() {
+  const version = document.getElementById("release-version")?.value ?? "";
+  return version === "" || /^1\.4\.2(?:-love)?-vn$/.test(version);
+}
+function syncInstallationGuide() {
+  const automatic = automaticLayoutSelected();
+  for (const id of ["legacy-modes", "legacy-downloads"]) document.getElementById(id).hidden = automatic;
+  for (const id of ["nvs256-guide", "nvs256-download"]) document.getElementById(id).hidden = !automatic;
+  if (automatic) {
+    const version = editionSelect?.value === "love-book" ? "1.4.2-love-vn" : "1.4.2-vn";
+    document.getElementById("release-installer-download").href = `./${selectedReleaseFolder()}/dpReader-metalio47-${version}-USB.zip`;
+  }
+}
 function updateFlashReadiness() {
-  flashBtn.disabled = !esploader || isFlashing || !riskAccepted.checked || (!radioCustom.checked && !editionReady);
+  flashBtn.disabled = !esploader || isFlashing || !riskAccepted.checked || ((automaticLayoutSelected() || !radioCustom.checked) && !editionReady);
   riskAccepted.disabled = isFlashing;
   flashReadiness.textContent = isFlashing ? "Đang nạp, hãy giữ kết nối USB."
     : !esploader ? "Kết nối thiết bị và tích chấp nhận rủi ro để bắt đầu."
-    : !radioCustom.checked && !editionReady ? "Chưa có gói firmware hợp lệ cho lựa chọn này."
+    : (automaticLayoutSelected() || !radioCustom.checked) && !editionReady ? "Chưa có gói firmware hợp lệ cho lựa chọn này."
     : !riskAccepted.checked ? "Đã kết nối. Tích chấp nhận rủi ro để bật nút Bắt đầu nạp."
     : "Đã kết nối và chấp nhận rủi ro. Sẵn sàng bắt đầu nạp.";
 }
@@ -174,6 +187,7 @@ function snapshotReleaseOptions() {
 }
 releaseOptions.set(previousEdition, snapshotReleaseOptions());
 function releaseSelectionChanged() {
+  syncInstallationGuide();
   resetRiskAgreement();
   const folder = selectedReleaseFolder();
   document.getElementById("release-tf-download").href = `./${folder}/dpReader_metalio47_firmware.bin`;
@@ -236,6 +250,7 @@ async function fetchLatestRelease() {
 
     if (requestedFolder !== selectedReleaseFolder()) return;
     if (data && typeof data.version === "string" && /^\d+\.\d+\.\d+(?:-love)?-vn$/.test(data.version) && Number.isSafeInteger(data.size) && data.size > 0 && /^[a-f0-9]{64}$/i.test(data.sha256 || "") && ((data.version.includes("-love-vn")) === (editionSelect?.value === "love-book"))) {
+      if (automaticLayoutSelected() && data.usb_only !== true) throw new Error("Thiếu thông tin cài đặt NVS 256 KiB");
       editionReady = true;
       currentReleaseInfo = data;
       if (latestVerName) latestVerName.textContent = `v${data.version}`;
@@ -395,6 +410,75 @@ async function verifySelectedFirmware(buffer, appOffset, release, edition) {
   if (digest !== release.sha256.toLowerCase()) throw new Error("SHA-256 firmware không khớp. Đã dừng trước khi ghi.");
 }
 
+// Validate exact partition geometry before any write, including archived releases.
+function classifyS31Partitions(raw) {
+  const data = new Uint8Array(raw);
+  if (data.length !== 0x1000) throw new Error("Không đọc đủ bảng phân vùng.");
+  if (data.every(value => value === 255)) return "blank";
+  const table = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const found = new Map();
+  let offset = 0;
+  for (; offset < data.length && table.getUint16(offset, true) === 0x50aa; offset += 32) {
+    const label = String.fromCharCode(...data.subarray(offset + 12, offset + 28)).split("\0")[0];
+    if (found.has(label) || table.getUint32(offset + 28, true) !== 0) return "unknown";
+    found.set(label, [data[offset+2], data[offset+3], table.getUint32(offset+4,true), table.getUint32(offset+8,true)].join(","));
+  }
+  if (offset + 32 <= data.length && table.getUint16(offset,true) === 0xebeb) offset += 32;
+  if (!data.subarray(offset).every(value => value === 255)) return "unknown";
+  const common = {otadata:[1,0,0xd000,0x2000], phy_init:[1,1,0xf000,0x1000],
+    ota_0:[0,16,0x10000,0x500000], ota_1:[0,17,0x510000,0x500000], coredump:[1,3,0xff0000,0x10000]};
+  if (Object.entries(common).some(([name, shape]) => found.get(name) !== shape.join(","))) return "unknown";
+  const legacyNvs = [1,2,0x9000,0x4000].join(",");
+  if (found.size === 7 && found.get("nvs") === legacyNvs && found.get("storage") === [1,129,0xa10000,0x5e0000].join(",")) return "legacy";
+  if (found.get("nvs") === [1,2,0xfb0000,0x40000].join(",") && found.get("storage") === [1,129,0xa10000,0x5a0000].join(",")) {
+    if (found.size === 7) return "new";
+    if (found.size === 8 && found.get("nvs_old") === legacyNvs) return "rc";
+  }
+  return "unknown";
+}
+async function fetchVerifiedPart(name, part) {
+  if (!part || !/^[a-f0-9]{32}$/i.test(part.md5 || "") || !Number.isSafeInteger(part.size) || part.size <= 0 || !/^[a-f0-9]{64}$/i.test(part.sha256))
+    throw new Error(`Thiếu thông tin xác minh ${name}.`);
+  const folder = selectedReleaseFolder();
+  const bytes = new Uint8Array(await fetchBinary(`./${folder}/${name}`, `https://raw.githubusercontent.com/dephia31/dpReader31/main/${folder}/${name}`));
+  const sha = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), n => n.toString(16).padStart(2,"0")).join("");
+  if (bytes.length !== part.size || sha !== part.sha256.toLowerCase()) throw new Error(`Sai checksum ${name}.`);
+  return bytes;
+}
+async function verifyFlashRegion({data,address,md5}) {
+  if (!/^[a-f0-9]{32}$/i.test(md5 || "") ||
+      (await esploader.flashMd5sum(address, data.length)).toLowerCase() !== md5.toLowerCase())
+    throw new Error(`Kiểm tra lại sau khi ghi thất bại tại 0x${address.toString(16)}.`);
+}
+async function prepareNvs256Flash(release) {
+  if (esploader.chip.CHIP_NAME !== "ESP32-S31" || !esploader.IS_STUB || await esploader.detectFlashSize() !== "16MB")
+    throw new Error("Gói này chỉ dành cho Metalio 4.7 ESP32-S31 16 MB.");
+  const layout = classifyS31Partitions(await esploader.readFlash(0x8000, 0x1000));
+  if (layout === "unknown") throw new Error("Bố cục thiết bị chưa được hỗ trợ. Hãy kiểm tra đúng model trước khi cài.");
+  if (layout !== "new" && !confirm("Cài sạch dpReader 1.4.2 sẽ xóa cài đặt, Wi-Fi, ghép đôi Bluetooth và toàn bộ /flash. Thẻ SD giữ nguyên. Bạn đã sao lưu dữ liệu cần giữ và muốn tiếp tục?")) return null;
+  const app = await fetchVerifiedPart("web-firmware.bin", release);
+  const extra = [];
+  let partitions = null;
+  if (layout !== "new") {
+    const storage = await fetchVerifiedPart("storage-empty.bin", release.usb_parts?.["storage-empty.bin"]);
+    partitions = await fetchVerifiedPart("partitions.bin", release.usb_parts?.["partitions.bin"]);
+    const table = new Uint8Array(0x1000).fill(255);
+    if (partitions.length > table.length || storage.length !== 0x5a0000) throw new Error("Sai kích thước phân vùng.");
+    table.set(partitions);
+    if (classifyS31Partitions(table) !== "new") throw new Error("Bảng phân vùng gói cài không hợp lệ.");
+    extra.push({data:new Uint8Array(0x4000).fill(255), address:0x9000, md5:"92ab673d915a94dcf187720e8ac0d608"},
+               {data:storage, address:0xa10000, md5:release.usb_parts["storage-empty.bin"].md5},
+               {data:new Uint8Array(0x40000).fill(255), address:0xfb0000, md5:"09a1d434dbd7197e7c3af8a7c28ca38b"});
+    if (layout === "blank") {
+      const boot = await fetchVerifiedPart("bootloader.bin", release.usb_parts?.["bootloader.bin"]);
+      if (boot.length > 0x6000 || boot[0] !== 0xe9 || boot[12] !== 32 || boot[13] !== 0) throw new Error("Bootloader không hợp lệ.");
+      extra.push({data:boot,address:0x2000,md5:release.usb_parts["bootloader.bin"].md5});
+    }
+  }
+  terminal.writeLine(layout === "new" ? "[*] Cập nhật ứng dụng, giữ NVS và /flash." : "[*] Cài sạch sang NVS 256 KiB.");
+  return {app, extra, partitions};
+}
+
 // Bắt đầu nạp Flash
 flashBtn.addEventListener("click", async () => {
   if (!esploader) {
@@ -402,7 +486,7 @@ flashBtn.addEventListener("click", async () => {
     return;
   }
 
-  if (isFlashing || (!radioCustom.checked && !editionReady)) return;
+  if (isFlashing || ((automaticLayoutSelected() || !radioCustom.checked) && !editionReady)) return;
   if (!riskAccepted.checked) {
     updateFlashReadiness();
     riskAccepted.focus();
@@ -436,7 +520,14 @@ flashBtn.addEventListener("click", async () => {
     let clearOtadata = false;
     const timestamp = Date.now();
 
-    if (radioApp.checked) {
+    let migration = null;
+    if (automaticLayoutSelected()) {
+      if (currentReleaseInfo?.usb_only !== true) throw new Error("Chưa có gói cài USB đã xác minh.");
+      migration = await prepareNvs256Flash(currentReleaseInfo);
+      if (!migration) { progressStatus.textContent = "Đã hủy cài sạch."; return; }
+      binaryData = migration.app;
+      clearOtadata = true;
+    } else if (radioApp.checked) {
       fileName = "dpReader_metalio47_firmware.bin";
       offset = 0x10000;
       clearOtadata = true;
@@ -471,13 +562,20 @@ flashBtn.addEventListener("click", async () => {
       binaryData = await file.arrayBuffer();
     }
 
-    if (!radioCustom.checked) await verifySelectedFirmware(binaryData, radioFull.checked ? 0x10000 : 0, currentReleaseInfo, editionSelect?.value || "full");
+    if (migration || !radioCustom.checked) await verifySelectedFirmware(binaryData, !migration && radioFull.checked ? 0x10000 : 0, currentReleaseInfo, editionSelect?.value || "full");
+    if (!migration) {
+      if (esploader.chip.CHIP_NAME !== "ESP32-S31") throw new Error("Sai dòng thiết bị.");
+      const layout = classifyS31Partitions(await esploader.readFlash(0x8000, 0x1000));
+      if (layout !== "legacy" && !(layout === "blank" && radioFull.checked && !radioCustom.checked))
+        throw new Error("Bản cũ chỉ cài trên bố cục cũ. Chọn 1.4.2 để cập nhật máy dùng NVS 256 KiB.");
+      if (radioCustom.checked) throw new Error("Chọn gói chính thức để xác minh bố cục và phiên bản.");
+    }
     terminal.writeLine(`[+] Kích thước tệp: ${binaryData.byteLength.toLocaleString()} bytes`);
     terminal.writeLine(`[*] Vị trí ghi (Offset): 0x${offset.toString(16).toUpperCase()}`);
     terminal.writeLine("[*] Đang chuẩn bị dữ liệu và bắt đầu nạp...");
 
     const fileData = binaryData instanceof Uint8Array ? binaryData : new Uint8Array(binaryData);
-    const fileArray = [{ data: fileData, address: offset }];
+    const fileArray = [{ data: fileData, address: offset, md5: currentReleaseInfo?.md5 }];
 
     // Xoá otadata (ghi 0xFF) để bootloader chọn ota_0 vừa nạp. Nếu otadata còn trỏ ota_1 từ một lần
     // cập nhật Wi-Fi trước đó, máy sẽ khởi động lại đúng bản cũ dù bản mới đã ghi xong.
@@ -485,9 +583,10 @@ flashBtn.addEventListener("click", async () => {
     // points at ota_1 from an earlier Wi-Fi update, the device reboots into the old image.
     if (clearOtadata) {
       terminal.writeLine("[*] Xoá otadata (0xD000) để khởi động vào phân vùng vừa nạp (ota_0)...");
-      fileArray.push({ data: new Uint8Array(0x2000).fill(0xff), address: 0xd000 });
+      fileArray.push({ data: new Uint8Array(0x2000).fill(0xff), address: 0xd000, md5: "84d04c9d6cc8ef35bf825d51a5277699" });
     }
 
+    if (migration) fileArray.push(...migration.extra);
     const startTime = Date.now();
 
     await esploader.writeFlash({
@@ -506,6 +605,16 @@ flashBtn.addEventListener("click", async () => {
       }
     });
 
+    if (migration) {
+      progressStatus.textContent = "Đang xác minh dữ liệu đã ghi...";
+      for (const region of fileArray) await verifyFlashRegion(region);
+    }
+    if (migration?.partitions) {
+      // Publish the new partition table only after the other regions are written.
+      await esploader.writeFlash({fileArray:[{data:migration.partitions,address:0x8000}],
+        flashSize:"keep",eraseAll:false,compress:true});
+      await verifyFlashRegion({data:migration.partitions,address:0x8000,md5:currentReleaseInfo.usb_parts["partitions.bin"].md5});
+    }
     terminal.writeLine("=======================================================");
     terminal.writeLine("🎉 NẠP FIRMWARE THÀNH CÔNG RỰC RỠ!");
     terminal.writeLine("=======================================================");
@@ -513,7 +622,7 @@ flashBtn.addEventListener("click", async () => {
 
     progressBarFill.style.backgroundColor = "var(--success-color)";
     progressPercent.textContent = "100%";
-    progressStatus.textContent = "Hoàn tất 100%! Thiết bị đang khởi động lại vào hệ điều hành mới.";
+    progressStatus.textContent = "Đã ghi xong. Kiểm tra phiên bản sau khi thiết bị khởi động.";
 
     let resetOk = false;
     try {
@@ -528,7 +637,7 @@ flashBtn.addEventListener("click", async () => {
     await releasePortAfterFlash();
 
     if (resetOk) {
-      alert("🎉 Nạp firmware thành công rực rỡ!\nThiết bị đang tự động khởi động lại.");
+      alert("Đã ghi firmware. Kiểm tra phiên bản sau khi máy khởi động. Nếu máy còn ở BOOT, rút cáp và nhấn giữ nút Nguồn để khởi động lại.");
     } else {
       alert("🎉 Nạp firmware thành công!\n\nKhông tự reset được thiết bị. Hãy rút cáp USB và nhấn giữ nút Nguồn khoảng 3 giây để khởi động lại.");
     }
@@ -541,7 +650,7 @@ flashBtn.addEventListener("click", async () => {
     alert(`Nạp thất bại: ${err.message || err}`);
   } finally {
     isFlashing = false;
-    document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = false);
+    document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = input === radioCustom);
     customFileInput.disabled = false;
     customOffsetInput.disabled = false;
     resetRiskAgreement();
@@ -555,3 +664,5 @@ flashBtn.addEventListener("click", async () => {
     }
   }
 });
+
+syncInstallationGuide();

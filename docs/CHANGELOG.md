@@ -1,5 +1,13 @@
 ## dpReader 1.4.2RC5-vn / 1.4.2RC5-love-vn · thử cục bộ · 2026-11-10
 
+## dpReader 1.4.2-vn · 2026-11-11
+
+- NVS chung 256 KiB, cài lần đầu qua USB khi chuyển từ bố cục cũ.
+- Sáu phím Bluetooth có thể học và gán chức năng riêng. Đọc EPUB hỗ trợ bộ phông Regular/Bold/Italic/BoldItalic.
+- Đảo màu trong Hiển thị, Quick Setting và gán phím cứng. Lật trang ở chế độ đảo màu dùng DU20/GL vi sai theo điểm ảnh thay đổi.
+- Kiểm tra cập nhật trên máy hướng dẫn vào trang Flash. Trang nhận diện bố cục và xác nhận trước khi cài sạch.
+
+
 - Dùng I²C 100 kHz theo bo gốc cho RTC PCF8563. Thử lại khi ghi hoặc đọc xác minh bị lỗi và ghi rõ bước lỗi trong log.
 - S31 xác minh thời gian đã ghi ngay trong driver RTC và phục hồi giờ lúc khởi động từ RTC hợp lệ.
 

@@ -35,7 +35,17 @@ jobs:
           mkdir -p public/releases
           cp -R source/releases/. public/releases/
           for name in dpReader_metalio47_firmware.bin dpReader_metalio47_full.bin metalio-s31-update.json SHA256SUMS.txt; do
-            cp "source/releases/$name" "public/$name"
+            if [ -f "source/releases/$name" ]; then
+              cp "source/releases/$name" "public/$name"
+            else
+              rm -f "public/$name"
+              rm -f "public/releases/$name"
+            fi
+          done
+          for name in dpReader_metalio47_firmware.bin dpReader_metalio47_full.bin; do
+            if [ ! -f "source/releases/love-book/$name" ]; then
+              rm -f "public/releases/love-book/$name"
+            fi
           done
           touch public/.nojekyll
           cd public
