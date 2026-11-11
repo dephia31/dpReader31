@@ -10,7 +10,7 @@ class Node {
   constructor(){this.checked=false;this.disabled=false;this.style={};this.events={};this.files=[];this.value='';this.classList={toggle(){}};this.options=[{value:''},{value:'1.4.1-vn'}];}
   addEventListener(k,fn){this.events[k]=fn;} focus(){}
 }
-async function run({confirmClean=true, corrupt=false, badMd5=false, wrongSize=false, love=false, archived=false, layout="new", forced=false}={}) {
+async function run({confirmClean=true, corrupt=false, badMd5=false, wrongSize=false, love=false, archived=false, layout="new", fullInstall=false}={}) {
   const nodes=new Map([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],new Node()]));
   const get=id=>nodes.get(id), radios=['mode-full','mode-app','mode-custom'].map(get);
   const base = love ? 'releases/love-book' : 'releases';
@@ -18,9 +18,8 @@ async function run({confirmClean=true, corrupt=false, badMd5=false, wrongSize=fa
   const feed = JSON.parse(fs.readFileSync(folder+'/metalio-s31-update.json','utf8'));
   get('firmware-edition').value=love?'love-book':'full';
   get('release-version').value=archived?feed.version:'';
-  get('force-clean').checked=forced;
-  // A stale radio choice from history must never change automatic layout behavior.
-  get('mode-app').checked=true;
+  get('mode-full').checked=fullInstall;
+  get('mode-app').checked=!fullInstall;
   const appName = archived ? 'web-firmware.bin' : 'dpReader_metalio47_firmware.bin';
   const parts = Object.fromEntries([appName,'partitions.bin','storage-empty.bin','bootloader.bin']
     .map(name => [name,fs.readFileSync(folder+'/'+name)]));
@@ -31,7 +30,7 @@ async function run({confirmClean=true, corrupt=false, badMd5=false, wrongSize=fa
     writeFlash:async({fileArray,eraseAll})=>{assert.equal(eraseAll,false);writes.push(Array.from(fileArray,x=>x.address));for(const x of fileArray)written.set(x.address,Buffer.from(x.data));},
     flashMd5sum:async(address,size)=>{
       if (!writes.length) {
-        assert.equal(archived || forced,false,'Explicit clean install skips partition probing');
+        assert.equal(archived || fullInstall,false,'Explicit clean install skips partition probing');
         assert.equal(address,0x8000);
         assert.equal(size,0x1000);
         return {new:'98fd72a61b5952a549dd2a6f48b7c6fa',legacy:'9f56f6078cbd6aac217fb84f364246de',
@@ -62,7 +61,7 @@ async function run({confirmClean=true, corrupt=false, badMd5=false, wrongSize=fa
     assert.equal(update.confirms,0);
     assert.deepEqual(update.writes,[[0x10000,0xd000]]);
     assert.ok(update.notices.some(message=>message.includes('thành công')));
-    for (const options of [{layout:'legacy'},{layout:'crosspoint'},{archived:true},{forced:true,layout:'unknown'}]) {
+    for (const options of [{fullInstall:true,layout:'legacy'},{fullInstall:true,layout:'crosspoint'},{archived:true},{fullInstall:true,layout:'unknown'}]) {
       const result = await run({love,...options});
       assert.equal(result.confirms,1);
       assert.deepEqual(result.writes,[[0]]);
@@ -70,7 +69,7 @@ async function run({confirmClean=true, corrupt=false, badMd5=false, wrongSize=fa
       assert.ok(result.notices.some(message=>message.includes('thành công')));
     }
   }
-  for (const options of [{layout:'legacy',confirmClean:false},{layout:'legacy',corrupt:true},{layout:'unknown'},{wrongSize:true}])
+  for (const options of [{fullInstall:true,confirmClean:false},{fullInstall:true,corrupt:true},{layout:'legacy'},{layout:'crosspoint'},{layout:'unknown'},{wrongSize:true}])
     assert.deepEqual((await run(options)).writes,[]);
   const corruptedWrite = await run({badMd5:true});
   assert.ok(corruptedWrite.notices.some(message=>message.includes('Kiểm tra lại sau khi ghi thất bại')));

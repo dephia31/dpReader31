@@ -3,9 +3,8 @@
  */
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const html=fs.readFileSync('web/index.html','utf8');
-assert.match(html, /id="mode-full" checked/);
-assert.doesNotMatch(html, /id="mode-app" checked/);
-assert.match(html, /CÀI MỚI \/ CÀI TỪ FIRMWARE KHÁC \/ CỨU MÁY/);
+assert.match(html, /id="mode-app" checked/);
+assert.doesNotMatch(html, /id="mode-full" checked/);
 assert.doesNotMatch(html.match(/<section class="risk-agreement"[\s\S]*?<\/section>/)[0], /\bhidden\b/);
 class Node {
  constructor(){this.checked=false;this.disabled=false;this.style={};this.events={};this.files=[];this.value='';this.classList={toggle(){}};this.options=[{value:''},{value:'1.2.4-vn'}];}

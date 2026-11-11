@@ -28,7 +28,6 @@ let esploader = null;
 let isFlashing = false;
 let editionReady = false;
 const editionSelect = document.getElementById("firmware-edition");
-const forceClean = document.getElementById("force-clean");
 const riskAccepted = document.getElementById("risk-accepted");
 const flashReadiness = document.getElementById("flash-readiness");
 function automaticLayoutSelected() {
@@ -39,16 +38,21 @@ function automaticLayoutSelected() {
 }
 function syncInstallationGuide() {
   const automatic = automaticLayoutSelected();
-  for (const id of ["legacy-modes", "legacy-downloads"]) document.getElementById(id).hidden = automatic;
+  const version = document.getElementById("release-version")?.value ||
+    (editionSelect?.value === "love-book" ? "1.4.3-love-vn" : "1.4.3-vn");
+  const archivedTransition = /^1\.4\.2(?:-love)?-vn$/.test(version);
+  document.getElementById("flash-modes").hidden = archivedTransition;
+  document.getElementById("legacy-downloads").hidden = automatic;
   for (const id of ["nvs256-guide", "nvs256-download"]) document.getElementById(id).hidden = !automatic;
-  if (automatic) {
-    const version = document.getElementById("release-version")?.value ||
-      (editionSelect?.value === "love-book" ? "1.4.3-love-vn" : "1.4.3-vn");
-    const archivedTransition = /^1\.4\.2(?:-love)?-vn$/.test(version);
-    document.getElementById("usb-only-guide").hidden = !archivedTransition;
-    document.getElementById("force-clean-option").hidden = archivedTransition;
+  document.getElementById("usb-only-guide").hidden = !archivedTransition;
+  document.getElementById("mode-full-description").textContent = automatic
+    ? "Ảnh 16 MB dành cho máy đang dùng 1.4.1 trở xuống, firmware khác hoặc cần cứu máy. Xóa dữ liệu trong máy, giữ thẻ SD."
+    : "Cài đầy đủ phiên bản cũ trên máy có bố cục phân vùng tương thích.";
+  document.getElementById("mode-app-description").textContent = automatic
+    ? "Dành cho máy đã dùng dpReader 1.4.2 trở lên với NVS 256 KiB. Giữ cài đặt và dữ liệu."
+    : "Chỉ nạp ứng dụng trên máy đang dùng bố cục phân vùng cũ tương thích.";
+  if (automatic)
     document.getElementById("release-installer-download").href = `./${selectedReleaseFolder()}/dpReader-metalio47-${version}-USB.zip`;
-  }
 }
 function updateFlashReadiness() {
   flashBtn.disabled = !esploader || isFlashing || !riskAccepted.checked || ((automaticLayoutSelected() || !radioCustom.checked) && !editionReady);
@@ -64,7 +68,6 @@ function resetRiskAgreement() {
   updateFlashReadiness();
 }
 riskAccepted.addEventListener("change", updateFlashReadiness);
-forceClean?.addEventListener("change", resetRiskAgreement);
 updateFlashReadiness();
 
 // Kiểm tra Web Serial API
@@ -195,7 +198,6 @@ function snapshotReleaseOptions() {
 }
 releaseOptions.set(previousEdition, snapshotReleaseOptions());
 function releaseSelectionChanged() {
-  if (forceClean) forceClean.checked = false;
   syncInstallationGuide();
   resetRiskAgreement();
   const folder = selectedReleaseFolder();
@@ -226,7 +228,6 @@ async function fetchLatestRelease() {
   const latestVerName = document.getElementById("latest-version-name");
   const latestVerSize = document.getElementById("latest-version-size");
   const latestVerNotes = document.getElementById("latest-version-notes");
-  const releaseTagApp = document.getElementById("release-tag-app");
 
   try {
     let data = null;
@@ -264,7 +265,6 @@ async function fetchLatestRelease() {
       editionReady = true;
       currentReleaseInfo = data;
       if (latestVerName) latestVerName.textContent = `v${data.version}`;
-      if (releaseTagApp) releaseTagApp.textContent = `Dành cho máy đã cài dpReader · v${data.version}`;
       if (latestVerNotes && data.notes) {
         latestVerNotes.textContent = data.notes.split("\n")[0] || data.notes;
       }
@@ -493,16 +493,14 @@ const CLEAN_IMAGE_DIGESTS = new Map([
 async function prepareNvs256Install(release) {
   if (esploader.chip.CHIP_NAME !== "ESP32-S31" || !esploader.IS_STUB || await esploader.detectFlashSize() !== "16MB")
     throw new Error("Gói này chỉ dành cho Metalio 4.7 ESP32-S31 16 MB.");
-  const fullInstall = release.usb_only === true || forceClean?.checked === true;
-  const layout = fullInstall ? null : await probeS31Layout();
-  if (layout === "unknown")
-    throw new Error("Chưa nhận diện được bố cục. Nếu cài từ firmware khác hoặc cần cứu máy, chọn Nạp toàn phần 16 MB.");
-  const clean = fullInstall || layout !== "new";
-  if (clean && !confirm("Nạp toàn phần dpReader sẽ ghi lại toàn bộ 16 MB và xóa firmware cùng dữ liệu trong máy. Thẻ SD giữ nguyên. Bạn muốn tiếp tục?")) return null;
+  const fullInstall = release.usb_only === true || radioFull.checked;
+  if (!fullInstall && await probeS31Layout() !== "new")
+    throw new Error("Máy chưa có bố cục NVS 256 KiB. Hãy chọn ô Nạp toàn phần.");
+  if (fullInstall && !confirm("Nạp toàn phần dpReader sẽ ghi lại toàn bộ 16 MB và xóa firmware cùng dữ liệu trong máy. Thẻ SD giữ nguyên. Bạn muốn tiếp tục?")) return null;
 
   const app = await fetchVerifiedPart(release.usb_only ? "web-firmware.bin" : "dpReader_metalio47_firmware.bin", release);
   await verifySelectedFirmware(app, 0, release, editionSelect?.value || "full");
-  if (!clean) {
+  if (!fullInstall) {
     terminal.writeLine("[*] Đã nhận diện NVS 256 KiB. Chỉ nạp ứng dụng và giữ cài đặt.");
     return {data:app, address:0x10000, md5:release.md5};
   }
@@ -545,7 +543,6 @@ flashBtn.addEventListener("click", async () => {
     isFlashing = true;
     updateFlashReadiness();
     document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = true);
-    if (forceClean) forceClean.disabled = true;
     customFileInput.disabled = true;
     customOffsetInput.disabled = true;
     if (releaseVersionSelect) releaseVersionSelect.disabled = true;
@@ -696,7 +693,6 @@ flashBtn.addEventListener("click", async () => {
   } finally {
     isFlashing = false;
     document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = input === radioCustom);
-    if (forceClean) forceClean.disabled = false;
     customFileInput.disabled = false;
     customOffsetInput.disabled = false;
     resetRiskAgreement();
