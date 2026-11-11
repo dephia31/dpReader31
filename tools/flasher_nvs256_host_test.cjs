@@ -30,7 +30,7 @@ class Node {
   constructor(){this.checked=false;this.disabled=false;this.style={};this.events={};this.files=[];this.value='';this.classList={toggle(){}};this.options=[{value:''},{value:'1.4.1-vn'}];}
   addEventListener(k,fn){this.events[k]=fn;} focus(){}
 }
-async function run(layout, {confirmClean=true, corrupt=false, badMd5=false, wrongSize=false, love=false}={}) {
+async function run(layout, {confirmClean=true, corrupt=false, badMd5=false, wrongSize=false, love=false, probeTimeout=false}={}) {
   const nodes=new Map([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],new Node()]));
   const get=id=>nodes.get(id), radios=['mode-full','mode-app','mode-custom'].map(get);
   const version=love?'1.4.2-love-vn':'1.4.2-vn';
@@ -45,9 +45,16 @@ async function run(layout, {confirmClean=true, corrupt=false, badMd5=false, wron
   const written=new Map(), writes=[], notices=[];
   let confirms=0;
   const loader={IS_STUB:true,chip:{CHIP_NAME:'ESP32-S31'},detectFlashSize:async()=>wrongSize?'8MB':'16MB',
-    readFlash:async(a,n)=>{assert.equal(a,0x8000);assert.equal(n,4096);return table(layout);},
+    readFlash:async()=>{throw Error("Unexpected streamed flash read");},
     writeFlash:async({fileArray,eraseAll})=>{assert.equal(eraseAll,false);writes.push(Array.from(fileArray,x=>x.address));for(const x of fileArray)written.set(x.address,Buffer.from(x.data));},
-    flashMd5sum:async(address,size)=>badMd5?'0'.repeat(32):hash('md5',written.get(address).subarray(0,size))};
+    flashMd5sum:async(address,size)=>{
+      if (!writes.length) {
+        assert.equal(address,0x8000);assert.equal(size,4096);
+        if (probeTimeout) throw Error('No serial data received.');
+        return {new:'98fd72a61b5952a549dd2a6f48b7c6fa',legacy:'9f56f6078cbd6aac217fb84f364246de',rc:'c8d9169209a600d053b83659b33e0bb2',blank:'6ae59e64850377ee5470c854761551ea'}[layout]||'f'.repeat(32);
+      }
+      return badMd5?'0'.repeat(32):hash('md5',written.get(address).subarray(0,size));
+    }};
   const context=vm.createContext({document:{getElementById:get,querySelectorAll:s=>s==='.radio-card'?[]:radios},navigator:{serial:{}},
     console:{...console,warn(){},error(){}},alert:m=>notices.push(m),confirm:()=>{++confirms;return confirmClean;},
     crypto:webcrypto,TextDecoder,Uint8Array,DataView,Date,setTimeout,loader,feed,
@@ -69,7 +76,7 @@ async function run(layout, {confirmClean=true, corrupt=false, badMd5=false, wron
   assert.deepEqual((await run('legacy')).writes,[[0x10000,0xd000,0x9000,0xa10000,0xfb0000],[0x8000]]);
   assert.deepEqual((await run('blank')).writes,[[0x10000,0xd000,0x9000,0xa10000,0xfb0000,0x2000],[0x8000]]);
   assert.deepEqual((await run('rc')).writes,[[0x10000,0xd000,0x9000,0xa10000,0xfb0000],[0x8000]]);
-  for(const [layout,options] of [['legacy',{confirmClean:false}],['legacy',{corrupt:true}],['unknown',{}],['legacy',{wrongSize:true}]])
+  for(const [layout,options] of [['legacy',{confirmClean:false}],['legacy',{corrupt:true}],['unknown',{}],['legacy',{wrongSize:true}],['legacy',{probeTimeout:true}]])
     assert.equal((await run(layout,options)).writes.length,0);
   assert.equal((await run('legacy',{badMd5:true})).writes.length,1,'Failed payload check must stop before publishing new partitions');
   console.log('PASS Web Flash: legacy/blank/RC migration, preserve NVS256, Love Book, cancellation, corruption, wrong layout/size, partition table last');
