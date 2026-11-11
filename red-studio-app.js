@@ -213,6 +213,7 @@ editionSelect?.addEventListener("change", () => {
 
 async function fetchLatestRelease() {
   const requestedFolder = selectedReleaseFolder();
+  const requestedVersion = document.getElementById("release-version")?.value || "";
   const latestVerName = document.getElementById("latest-version-name");
   const latestVerSize = document.getElementById("latest-version-size");
   const latestVerNotes = document.getElementById("latest-version-notes");
@@ -249,7 +250,7 @@ async function fetchLatestRelease() {
     }
 
     if (requestedFolder !== selectedReleaseFolder()) return;
-    if (data && typeof data.version === "string" && /^\d+\.\d+\.\d+(?:-love)?-vn$/.test(data.version) && Number.isSafeInteger(data.size) && data.size > 0 && /^[a-f0-9]{64}$/i.test(data.sha256 || "") && ((data.version.includes("-love-vn")) === (editionSelect?.value === "love-book"))) {
+    if (data && (!requestedVersion || data.version === requestedVersion) && typeof data.version === "string" && /^\d+\.\d+\.\d+(?:-love)?-vn$/.test(data.version) && Number.isSafeInteger(data.size) && data.size > 0 && /^[a-f0-9]{64}$/i.test(data.sha256 || "") && ((data.version.includes("-love-vn")) === (editionSelect?.value === "love-book"))) {
       if (automaticLayoutSelected() && data.usb_only !== true) throw new Error("Thiếu thông tin cài đặt NVS 256 KiB");
       editionReady = true;
       currentReleaseInfo = data;
@@ -289,9 +290,14 @@ async function fetchLatestRelease() {
       const link = document.getElementById(id);
       link.hidden = !editionReady;
     }
+    document.getElementById("release-installer-download").hidden = !editionReady || !automaticLayoutSelected();
     updateFlashReadiness();
   } catch (err) {
+    if (requestedFolder !== selectedReleaseFolder()) return;
     editionReady = false;
+    currentReleaseInfo = null;
+    for (const id of ["release-tf-download", "release-usb-download", "release-installer-download"])
+      document.getElementById(id).hidden = true;
     updateFlashReadiness();
     console.warn("Không thể tải thông tin release mới nhất:", err);
   }
