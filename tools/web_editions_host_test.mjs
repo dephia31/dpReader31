@@ -21,7 +21,8 @@ const context=vm.createContext({console, navigator:{}, document:{getElementById:
   fetch:async url=>{
     requested.push(url);
     const love=url.includes('/love-book/');
-    const data={version:love?'1.3.3-love-vn':'1.3.3-vn',notes:'Test',size:4710000,sha256:'0'.repeat(64),previous_version:love?'1.3.2-love-vn':'1.3.1-vn'};
+    const archived=url.match(/\/(\d+\.\d+\.\d+(?:-love)?-vn)\//)?.[1];
+    const data={version:archived||(love?'1.4.2-love-vn':'1.4.2-vn'),usb_only:!archived,notes:'Test',size:4710000,sha256:'0'.repeat(64),previous_version:love?'1.4.1-love-vn':'1.4.1-vn'};
     return {ok:!love||loveAvailable,json:async()=>data};
   },crypto:webcrypto,DataView,Date,Map,Array,ESPLoader:class{},Transport:class{},setTimeout,Uint8Array,TextDecoder});
 vm.runInContext(code, context);
@@ -33,7 +34,9 @@ await vm.runInContext('fetchLatestRelease()',context);
 assert.equal(vm.runInContext('selectedReleaseFolder()',context),'releases/love-book');
 assert.equal(get('release-tf-download').href,'./releases/love-book/dpReader_metalio47_firmware.bin');
 assert.equal(vm.runInContext('editionReady',context),true);
-assert.equal(get('release-version').options[1].value,'1.3.2-love-vn');
+assert.equal(get('release-version').options[1].value,'1.4.1-love-vn');
+assert.equal(get('release-installer-download').href,'./releases/love-book/dpReader-metalio47-1.4.2-love-vn-USB.zip');
+assert.equal(get('legacy-modes').hidden,true);
 get('release-version').value='1.3.2-love-vn';get('release-version').handlers.change();
 assert.equal(vm.runInContext('selectedReleaseFolder()',context),'releases/love-book/1.3.2-love-vn');
 get('firmware-edition').value='full';get('firmware-edition').handlers.change();
@@ -48,6 +51,7 @@ assert.equal(vm.runInContext('editionReady',context),false);
 assert.equal(get('flash-btn').disabled,true);
 assert.equal(get('release-tf-download').hidden,true);
 assert.equal(get('release-usb-download').hidden,true);
+assert.equal(get('release-installer-download').hidden,true);
 assert.ok(requested.every(url=>url.includes('/love-book/')));
 assert.equal(get('latest-version-name').textContent,'Chưa phát hành');
 console.log('PASS Web Flash: Full/Love Book independent URLs, app/full links, per-edition history, unavailable Love Book blocks flash/downloads without Full fallback');
