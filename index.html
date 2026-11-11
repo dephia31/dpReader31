@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>dpReader Metalio Plus Flasher - Trình Nạp Firmware Web</title>
-  <link rel="stylesheet" href="red-studio.css?v=4">
+  <link rel="stylesheet" href="red-studio.css?v=5">
 </head>
 <body>
   <div class="container">
@@ -72,7 +72,16 @@
           <option value="love-book">Love Book — I Love Book, mở sách bằng file, không TTS/kệ sách</option>
         </select>
       </div>
-      <div class="radio-cards">
+      <section id="nvs256-guide" class="risk-agreement">
+        <h3>Cài dpReader 1.4.2 trực tiếp qua USB</h3>
+        <p>Sao lưu dữ liệu trong bộ nhớ trong <code>/flash</code> và cài đặt cần giữ. Chọn đúng Full hoặc Love Book, kết nối máy Metalio 4.7 S31 ở chế độ BOOT, rồi bấm <strong>Bắt đầu nạp</strong>.</p>
+        <ul>
+          <li><strong>Đang dùng 1.4.1 hoặc bố cục cũ:</strong> trang tự chọn cài sạch. Việc này xóa Wi-Fi, ghép đôi Bluetooth, cài đặt và dữ liệu <code>/flash</code>. Thẻ SD giữ nguyên.</li>
+          <li><strong>Đã có NVS 256 KiB:</strong> trang tự chọn cập nhật ứng dụng, giữ NVS và <code>/flash</code>.</li>
+        </ul>
+        <p>Trang sẽ hiện xác nhận nếu cần cài sạch. Nếu trình duyệt không đọc được thiết bị, tải bộ cài USB bên dưới, giải nén và chạy <code>FLASH_USB.command</code> trên macOS hoặc <code>FLASH_USB.bat</code> trên Windows.</p>
+      </section>
+      <div class="radio-cards" id="legacy-modes" hidden>
         <label class="radio-card radio-card-first-install active">
           <input type="radio" name="flash-mode" id="mode-full" checked>
           <span class="first-install-badge">CÀI MỚI / CÀI TỪ FIRMWARE KHÁC / CỨU MÁY</span>
@@ -92,21 +101,23 @@
       <div class="form-group" style="margin-bottom:16px;">
         <label for="release-version">Phiên bản để nạp:</label>
         <select id="release-version">
-          <option value="" selected>1.4.1-vn — mới nhất</option>
+          <option value="" selected>1.4.2-vn — mới nhất</option>
           <option value="1.3.9-vn">1.3.9-vn — bản chính thức trước</option>
           <option value="1.3.8-vn">1.3.8-vn</option>
           <option value="1.3.7-vn">1.3.7-vn</option>
           <option value="1.3.5-vn">1.3.5-vn</option>
           <option value="1.3.4-vn">1.3.4-vn</option>
         </select>
-        <p><a id="release-tf-download" href="./releases/dpReader_metalio47_firmware.bin" download>Tải ứng dụng cập nhật qua thẻ TF</a> · <a id="release-usb-download" href="./releases/dpReader_metalio47_full.bin" download>Tải bản đầy đủ cho USB</a></p>
+        <p id="legacy-downloads" hidden><a id="release-tf-download" href="./releases/dpReader_metalio47_firmware.bin" download>Tải ứng dụng cập nhật qua thẻ TF</a> · <a id="release-usb-download" href="./releases/dpReader_metalio47_full.bin" download>Tải bản đầy đủ cho USB</a></p>
       </div>
+
+      <p id="nvs256-download"><a id="release-installer-download" href="./releases/dpReader-metalio47-1.4.2-vn-USB.zip" download>Tải bộ cài USB cho máy tính</a></p>
 
       <!-- Khung thông tin bản phát hành mới nhất tự động đồng bộ -->
       <div id="release-info-banner">
         <div>
           <span>
-            Phiên bản đã chọn: <span id="latest-version-name">v1.4.1-vn</span>
+            Phiên bản đã chọn: <span id="latest-version-name">v1.4.2-vn</span>
           </span>
           <span id="latest-version-size">Đang tải...</span>
         </div>
@@ -115,9 +126,9 @@
         </div>
       </div>
 
-      <div>
+      <div hidden>
         <label class="radio-card">
-          <input type="radio" name="flash-mode" id="mode-custom">
+          <input type="radio" name="flash-mode" id="mode-custom" disabled>
           <h4>Chọn tệp Firmware (.bin) từ máy tính</h4>
           <p>Tự chọn tệp nhị phân có sẵn trên máy của bạn.</p>
         </label>
@@ -228,6 +239,6 @@
     </footer>
   </div>
 
-  <script type="module" src="red-studio-app.js?v=2"></script>
+  <script type="module" src="red-studio-app.js?v=3"></script>
 </body>
 </html>

@@ -1,8 +1,11 @@
-## dpReader 1.4.1-vn / 1.4.1-love-vn · 2026-11-10
+# dpReader 1.4.2 · Full và Love Book
 
-- Sửa lỗi nút Bluetooth đã học có thể lật hai trang trong một lần bấm.
-- Lưu tối đa bốn hồ sơ Bluetooth và phím đã học trên thẻ SD, hỗ trợ chuyển dữ liệu cũ và phục hồi từ bản sao có checksum. Khóa ghép đôi vẫn dùng NVS.
-- Rút thời gian hiện thông báo và nút quay lại sau khi nhảy trang hoặc chương xuống hai giây.
-- Bỏ trao đổi ghi chú KOReader tự động khỏi luồng đọc. Giữ ghi chú và highlight cục bộ cùng đồng bộ vị trí đọc KoSync.
+Cài qua USB tại [trang Flash chính thức](https://dephia31.github.io/dpReader31/). Chọn đúng Full hoặc Love Book, kết nối máy Metalio E-Ink4 Plus S31 ở chế độ BOOT và bấm **Bắt đầu nạp**.
 
-Có hai bản **Full 1.4.1-vn** và **Love Book 1.4.1-love-vn**. Chọn đúng bản khi cập nhật qua Wi-Fi, gói TF hoặc [Web Flash dpReader](https://dephia31.github.io/dpReader31/). Web Flash giữ bản 1.4.0 để chọn lại.
+- Máy dùng bố cục cũ sẽ cài sạch sang NVS 256 KiB. Sao lưu Wi-Fi, cài đặt và dữ liệu `/flash` cần giữ trước khi xác nhận. Thẻ SD giữ nguyên.
+- Máy đã dùng NVS 256 KiB chỉ ghi ứng dụng và vùng chọn khởi động, giữ NVS và `/flash`.
+- Nếu trình duyệt gặp lỗi kết nối, tải ZIP USB đúng phiên bản, giải nén và chạy `FLASH_USB.command` trên macOS hoặc `FLASH_USB.bat` trên Windows. Cần Python với esptool >= 5.6 và pyserial.
+
+Bản này phát hành qua USB. Firmware 1.4.2 hướng dẫn đến trang Flash khi bấm Kiểm tra cập nhật. Firmware cũ có thể hiện thông báo gói cơ sở không tương thích.
+
+Tính năng chính gồm sáu phím Bluetooth tùy chỉnh, font family giữ đậm/nghiêng trong EPUB, đảo màu với lật trang vi sai và gán Đảo màu cho phím cứng.

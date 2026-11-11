@@ -107,3 +107,5 @@ header h1{font-size:29px}
 .community-link-google:hover{background:#493b1d;color:#fff0c6}
 .community-stars{font-size:18px;line-height:1.2;letter-spacing:3px;color:#ffd167}
 @media(max-width:740px){.community-actions{flex:1 0 100%;width:100%}.community-actions .community-link{margin-top:0}}
+
+[hidden]{display:none!important}
