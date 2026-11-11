@@ -28,6 +28,7 @@ let esploader = null;
 let isFlashing = false;
 let editionReady = false;
 const editionSelect = document.getElementById("firmware-edition");
+const cleanInstall = document.getElementById("clean-install");
 const riskAccepted = document.getElementById("risk-accepted");
 const flashReadiness = document.getElementById("flash-readiness");
 function automaticLayoutSelected() {
@@ -476,15 +477,21 @@ async function probeS31Layout() {
   terminal.writeLine(`[*] Checksum bảng phân vùng: ${checksum}`);
   return S31_PARTITION_LAYOUTS.get(checksum) || "unknown";
 }
-async function prepareNvs256Flash(release) {
+// Digests of the 16 MiB images assembled from the official 1.4.2 USB components.
+const CLEAN_IMAGE_DIGESTS = new Map([
+  ["1.4.2-vn", {sha256:"9a72c8876c144c7b516e0441aee9ec5e68a92e0af880d6b86d948c71bade8f4f", md5:"931de619005c692837839cb3de85fb98"}],
+  ["1.4.2-love-vn", {sha256:"42b805d93ce4b9e78486afbe8ead7392b6c888021cf3c6b9a2429e7c0d26d4ea", md5:"ab7f46d09ee6e2f35c2891e26a59624a"}],
+]);
+async function prepareNvs256Flash(release, forceClean) {
   if (esploader.chip.CHIP_NAME !== "ESP32-S31" || !esploader.IS_STUB || await esploader.detectFlashSize() !== "16MB")
     throw new Error("Gói này chỉ dành cho Metalio 4.7 ESP32-S31 16 MB.");
-  const layout = await probeS31Layout();
+  const layout = forceClean ? "clean" : await probeS31Layout();
+  const fullInstall = layout === "clean" || layout === "crosspoint";
   if (layout === "unknown") throw new Error("Bố cục thiết bị chưa được hỗ trợ. Hãy kiểm tra đúng model trước khi cài.");
   if (layout === "crosspoint") terminal.writeLine("[*] Đã nhận diện bố cục CrossPoint. Cần cài toàn phần dpReader.");
   if (layout !== "new") {
-    const prompt = layout === "crosspoint"
-      ? "Cài toàn phần dpReader sẽ thay thế CrossPoint và xóa cấu hình trong máy. Thẻ SD giữ nguyên. Bạn muốn tiếp tục?"
+    const prompt = fullInstall
+      ? "Nạp toàn phần dpReader sẽ ghi lại toàn bộ 16 MB và xóa firmware cùng dữ liệu trong máy. Thẻ SD giữ nguyên. Bạn muốn tiếp tục?"
       : "Sau khi cài sạch dpReader 1.4.2, bạn có thể khôi phục cài đặt đã sao lưu từ thẻ SD. Bạn đã sao lưu cấu hình ra thẻ SD và muốn tiếp tục?";
     if (!confirm(prompt)) return null;
   }
@@ -498,10 +505,25 @@ async function prepareNvs256Flash(release) {
     if (partitions.length > table.length || storage.length !== 0x5a0000) throw new Error("Sai kích thước phân vùng.");
     table.set(partitions);
     if (classifyS31Partitions(table) !== "new") throw new Error("Bảng phân vùng gói cài không hợp lệ.");
+    if (fullInstall) {
+      const boot = await fetchVerifiedPart("bootloader.bin", release.usb_parts?.["bootloader.bin"]);
+      const digests = CLEAN_IMAGE_DIGESTS.get(release.version);
+      if (!digests || boot.length > 0x6000 || boot[0] !== 0xe9 || boot[12] !== 32 || boot[13] !== 0 || app.length > 0x500000)
+        throw new Error("Các thành phần của ảnh cài toàn phần không hợp lệ.");
+      const data = new Uint8Array(0x1000000).fill(255);
+      data.set(boot, 0x2000);
+      data.set(partitions, 0x8000);
+      data.set(app, 0x10000);
+      data.set(storage, 0xa10000);
+      const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)), n => n.toString(16).padStart(2, "0")).join("");
+      if (sha256 !== digests.sha256) throw new Error("Sai checksum ảnh cài toàn phần.");
+      terminal.writeLine("[*] Nạp một ảnh cài sạch 16 MB từ 0x0.");
+      return {app, fullImage:{data, address:0, md5:digests.md5}};
+    }
     extra.push({data:new Uint8Array(0x4000).fill(255), address:0x9000, md5:"92ab673d915a94dcf187720e8ac0d608"},
                {data:storage, address:0xa10000, md5:release.usb_parts["storage-empty.bin"].md5},
                {data:new Uint8Array(0x40000).fill(255), address:0xfb0000, md5:"09a1d434dbd7197e7c3af8a7c28ca38b"});
-    if (layout === "blank" || layout === "crosspoint") {
+    if (layout === "blank") {
       const boot = await fetchVerifiedPart("bootloader.bin", release.usb_parts?.["bootloader.bin"]);
       if (boot.length > 0x6000 || boot[0] !== 0xe9 || boot[12] !== 32 || boot[13] !== 0) throw new Error("Bootloader không hợp lệ.");
       extra.push({data:boot,address:0x2000,md5:release.usb_parts["bootloader.bin"].md5});
@@ -528,6 +550,7 @@ flashBtn.addEventListener("click", async () => {
     isFlashing = true;
     updateFlashReadiness();
     document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = true);
+    if (cleanInstall) cleanInstall.disabled = true;
     customFileInput.disabled = true;
     customOffsetInput.disabled = true;
     if (releaseVersionSelect) releaseVersionSelect.disabled = true;
@@ -555,10 +578,11 @@ flashBtn.addEventListener("click", async () => {
     let migration = null;
     if (automaticLayoutSelected()) {
       if (currentReleaseInfo?.usb_only !== true) throw new Error("Chưa có gói cài USB đã xác minh.");
-      migration = await prepareNvs256Flash(currentReleaseInfo);
+      migration = await prepareNvs256Flash(currentReleaseInfo, cleanInstall?.checked === true);
       if (!migration) { progressStatus.textContent = "Đã hủy cài sạch."; return; }
       binaryData = migration.app;
-      clearOtadata = true;
+      clearOtadata = !migration.fullImage;
+      if (migration.fullImage) offset = migration.fullImage.address;
     } else if (radioApp.checked) {
       fileName = "dpReader_metalio47_firmware.bin";
       offset = 0x10000;
@@ -602,12 +626,13 @@ flashBtn.addEventListener("click", async () => {
         throw new Error("Bản cũ chỉ cài trên bố cục cũ. Chọn 1.4.2 để cập nhật máy dùng NVS 256 KiB.");
       if (radioCustom.checked) throw new Error("Chọn gói chính thức để xác minh bố cục và phiên bản.");
     }
-    terminal.writeLine(`[+] Kích thước tệp: ${binaryData.byteLength.toLocaleString()} bytes`);
+    const payloadSize = migration?.fullImage?.data.length ?? binaryData.byteLength;
+    terminal.writeLine(`[+] Kích thước tệp: ${payloadSize.toLocaleString()} bytes`);
     terminal.writeLine(`[*] Vị trí ghi (Offset): 0x${offset.toString(16).toUpperCase()}`);
     terminal.writeLine("[*] Đang chuẩn bị dữ liệu và bắt đầu nạp...");
 
     const fileData = binaryData instanceof Uint8Array ? binaryData : new Uint8Array(binaryData);
-    const fileArray = [{ data: fileData, address: offset, md5: currentReleaseInfo?.md5 }];
+    const fileArray = [migration?.fullImage ?? { data: fileData, address: offset, md5: currentReleaseInfo?.md5 }];
 
     // Xoá otadata (ghi 0xFF) để bootloader chọn ota_0 vừa nạp. Nếu otadata còn trỏ ota_1 từ một lần
     // cập nhật Wi-Fi trước đó, máy sẽ khởi động lại đúng bản cũ dù bản mới đã ghi xong.
@@ -618,7 +643,7 @@ flashBtn.addEventListener("click", async () => {
       fileArray.push({ data: new Uint8Array(0x2000).fill(0xff), address: 0xd000, md5: "84d04c9d6cc8ef35bf825d51a5277699" });
     }
 
-    if (migration) fileArray.push(...migration.extra);
+    if (migration?.extra) fileArray.push(...migration.extra);
     const startTime = Date.now();
 
     await esploader.writeFlash({
@@ -683,6 +708,7 @@ flashBtn.addEventListener("click", async () => {
   } finally {
     isFlashing = false;
     document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = input === radioCustom);
+    if (cleanInstall) cleanInstall.disabled = false;
     customFileInput.disabled = false;
     customOffsetInput.disabled = false;
     resetRiskAgreement();
