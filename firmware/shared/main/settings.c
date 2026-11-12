@@ -152,6 +152,7 @@ static esp_err_t backup_nvs_set_str(nvs_handle_t h, const char *key, const char 
 #define NVS_KEY_BOOK_WEIGHT "bk_weight"
 #define NVS_KEY_BOOK_WEIGHT_FINE "bk_wfine"
 #define NVS_KEY_BOOK_AA "bk_aa"
+#define NVS_KEY_BOOK_TEXT_CONTRAST "bk_txt_contrast"
 #define NVS_KEY_BOOK_DROP_CAP "bk_dropcap"
 #define NVS_KEY_BOOK_BACKGROUND "bk_bg"
 #define NVS_KEY_READER_FULL "rd_gc16"
@@ -284,6 +285,7 @@ static uint8_t s_book_px = BOOK_READER_PX_DEFAULT;
 static uint8_t s_book_weight = 2;
 static int8_t s_book_weight_fine;
 static bool s_book_antialias = true;
+static bool s_book_text_contrast;
 static bool s_book_drop_cap;
 static char s_book_background[288];
 static uint8_t s_reader_full_pages = 3;
@@ -696,6 +698,9 @@ void app_settings_init(void) {
         s_book_weight_fine=(int)fine-APP_BOOK_WEIGHT_FINE_MAX;
     uint8_t antialias = 1;
     s_book_antialias = nvs_get_u8(h, NVS_KEY_BOOK_AA, &antialias) != ESP_OK || antialias != 0;
+    uint8_t text_contrast = 0;
+    s_book_text_contrast = nvs_get_u8(h, NVS_KEY_BOOK_TEXT_CONTRAST, &text_contrast) == ESP_OK &&
+        text_contrast == 1;
     uint8_t drop_cap = 0;
     s_book_drop_cap = nvs_get_u8(h, NVS_KEY_BOOK_DROP_CAP, &drop_cap) == ESP_OK && drop_cap == 1;
     uint8_t book_px = BOOK_READER_PX_DEFAULT;
@@ -1242,6 +1247,17 @@ bool app_settings_set_book_antialias(bool enabled) {
     if (err == ESP_OK) err = settings_backup_commit(h);
     nvs_close(h);
     if (err == ESP_OK) s_book_antialias = enabled;
+    return err == ESP_OK;
+}
+bool app_settings_book_text_contrast(void) { return s_book_text_contrast; }
+bool app_settings_set_book_text_contrast(bool enabled) {
+    if (enabled == s_book_text_contrast) return true;
+    nvs_handle_t h;
+    if (backup_nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    esp_err_t err = backup_nvs_set_u8(h, NVS_KEY_BOOK_TEXT_CONTRAST, enabled);
+    if (err == ESP_OK) err = settings_backup_commit(h);
+    nvs_close(h);
+    if (err == ESP_OK) s_book_text_contrast = enabled;
     return err == ESP_OK;
 }
 bool app_settings_book_drop_cap(void) { return s_book_drop_cap; }
@@ -2087,6 +2103,10 @@ static bool backup_identity_valid(const backup_identity_t *identity, unsigned ve
         sum == backup_identity_checksum(identity);
 }
 
+// The V32 holds slot for the round button is unused on restore. Its previous
+// default sentinel preserves standard contrast when restoring an older backup.
+enum { BACKUP_TEXT_CONTRAST_SLOT = 4 };
+
 /* V32 appends user preferences without changing the earlier reader and account blocks. */
 typedef struct {
     uint8_t sleep_off_hours, wake_presses, wifi_timeout, ble_timeout, ota_edition;
@@ -2157,8 +2177,7 @@ static esp_err_t preferences_capture(settings_backup_preferences_t *p) {
     p->power_menu = s_power_action_menu;
     p->ai_short = s_ai_short;
     memcpy(p->holds, s_control_holds, sizeof(p->holds));
-    /* The round button is already stored in the reader block. */
-    p->holds[4] = APP_CONTROL_HOLD_DEFAULT;
+    p->holds[BACKUP_TEXT_CONTRAST_SLOT] = s_book_text_contrast ? 1 : APP_CONTROL_HOLD_DEFAULT;
     for (unsigned i = 0; i < 4; ++i) p->action_menu[i] = s_action_menu >> (8*i);
 #endif
 #if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
@@ -2196,10 +2215,11 @@ static esp_err_t preferences_stage(nvs_handle_t h, const settings_backup_prefere
     STAGE(NVS_KEY_PIN_GRACE, p->pin_grace);
 #endif
 #if DPREADER_BOARD_METALIO47
+    STAGE(NVS_KEY_BOOK_TEXT_CONTRAST, p->holds[BACKUP_TEXT_CONTRAST_SLOT] == 1);
     STAGE("power_menu", p->power_menu);
     STAGE("ai_short", p->ai_short);
     for (unsigned i = 0; i < sizeof(p->holds); ++i)
-        if (i != 4) STAGE(s_control_hold_names[i], p->holds[i]);
+        if (i != BACKUP_TEXT_CONTRAST_SLOT) STAGE(s_control_hold_names[i], p->holds[i]);
     if (err == ESP_OK) err = backup_nvs_set_u32(h, "action_menu", preferences_u32(p->action_menu));
 #endif
 #undef STAGE
@@ -2217,11 +2237,12 @@ static esp_err_t preferences_apply(const settings_backup_preferences_t *p) {
     s_pin_grace_code_v = p->pin_grace;
 #endif
 #if DPREADER_BOARD_METALIO47
+    s_book_text_contrast = p->holds[BACKUP_TEXT_CONTRAST_SLOT] == 1;
     s_power_action_menu = p->power_menu != 0;
     s_ai_short = (app_ai_action_t)p->ai_short;
     s_action_menu = preferences_u32(p->action_menu);
     for (unsigned i = 0; i < sizeof(p->holds); ++i)
-        if (i != 4) s_control_holds[i] = p->holds[i];
+        if (i != BACKUP_TEXT_CONTRAST_SLOT) s_control_holds[i] = p->holds[i];
 #endif
 #if defined(ESP_PLATFORM) && DPREADER_BOARD_METALIO47
     esp_err_t err = metalio_preferences_backup_restore(p->hardware);

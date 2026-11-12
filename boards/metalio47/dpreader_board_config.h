@@ -67,7 +67,7 @@
 #define DPREADER_BOARD_HAS_LOCK_SLEEP_POLICY 1
 /// Reader turn effect adds a fast monochrome mode on this panel.
 /// Tấm nền hỗ trợ chế độ lật trang đen trắng nhanh.
-#define DPREADER_BOARD_READER_TURN_EFFECT_MAX 2
+#define DPREADER_BOARD_READER_TURN_EFFECT_MAX 3
 
 /* ---- Sao lưu và tên thiết bị ---- */
 /// Values kept byte-identical to the standalone test31-test36 firmware so existing backups

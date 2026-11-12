@@ -19,6 +19,7 @@ app_main_refresh_mode_t app_settings_main_refresh_mode(void) {return test_fast?A
 // 所有真实推屏和欠载恢复都必须持有 OTA 互斥锁，包括递归兜底。
 // Every physical scan and underrun recovery must hold OTA exclusion, including recursive fallback.
 uint8_t app_settings_reader_turn_effect(void){return 0;}
+const EpdWaveform* display_reader_flash_waveform(void){assert(false);return NULL;}
 const EpdWaveform* display_reader_fast_text_waveform(void){return &E0470_WAVEFORM;}
 bool display_reader_fast_text_prepare(EpdiyHighlevelState*h,EpdRect a){(void)h;(void)a;assert(false);return false;}
 bool mock_radio_busy;
@@ -52,6 +53,7 @@ static const EpdWaveform reader_soft = {5};
 static const EpdWaveform quiet_nav = {6};
 const EpdWaveform* display_main_navigation_waveform(void){return &quiet_nav;}
 const EpdWaveform* display_reader_text_waveform(void) {return &reader_soft;}
+const EpdWaveform* display_reader_ripple_waveform(void) {return display_reader_text_waveform();}
 static enum EpdDrawError draw(EpdiyHighlevelState*,enum EpdDrawMode,int,bool);
 static int panel_entry_batches;
 enum EpdDrawError e0470_text_turn_with_waveform(EpdiyHighlevelState* hl,EpdRect area,
@@ -108,7 +110,7 @@ enum EpdDrawError e0470_page_turn_with_waveform_compact(EpdiyHighlevelState* hl,
     e0470_turn_dir_t dir,const EpdWaveform* waveform,unsigned bands) {
     assert(ota_display_depth);
     assert(hl&&area.width>0&&(dir==E0470_TURN_RTL||dir==E0470_TURN_LTR));
-    assert((waveform==&reader_soft||waveform==&quiet_nav)&&bands==E0470_TURN_FAST_BANDS);
+    assert((waveform==&reader_soft||waveform==&quiet_nav)&&bands==E0470_READER_RIPPLE_BANDS);
     ++water_calls;assert(last_scan==READ_PICO_EPD_SCAN_FAST);
     return water_result;
 }

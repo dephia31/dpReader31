@@ -14,6 +14,8 @@ const EpdWaveform* display_reader_fast_text_waveform(void);
 bool display_reader_fast_text_prepare(EpdiyHighlevelState* hl,EpdRect area);
 
 #if DPREADER_BOARD_METALIO47
+const EpdWaveform* display_reader_flash_waveform(void);
+const EpdWaveform* display_reader_ripple_waveform(void);
 /// 两个阅读设置面板的显式本地四灰实验，默认false。/ Explicit local four-gray experiment for the two primary reader settings; false by default.
 bool display_reader_fast_panels_enabled(void);
 /// UI目标映射0/5/10/15，近白控件底色保留浅灰，不改区域外正文/历史帧。

@@ -132,6 +132,8 @@ static unsigned book_layout_page_count(void){return 2;}
 static unsigned book_chapter_count(void){return 2;}
 static bool app_settings_reader_hide_images(void){return test_hide_images;}
 static uint8_t app_settings_reader_full_pages(void){return test_full_pages;}
+#define APP_READER_TURN_FLASH 3
+#define update_display_reader_flash(...) (assert(false), EPD_DRAW_SUCCESS)
 static int app_settings_reader_turn_effect(void){return test_effect;}
 static void save_progress(void){}
 static void skip_hidden_image_pages(app_ctx_t *ctx,int dir){(void)ctx;(void)dir;}

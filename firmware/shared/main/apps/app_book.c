@@ -2668,17 +2668,22 @@ static void draw_font_settings(uint8_t* fb) {
     ttf_set_antialias(prior_aa);
 }
 
-static const EpdRect s_drop_cap_card = {36, 990, 612, 94};
+enum { READER_CUSTOM_TOP = 430 };
+static const EpdRect s_custom_fonts_card = {36, 550, 612, 94};
+static const EpdRect s_custom_rule_card = {36, 660, 612, 94};
+static const EpdRect s_custom_aa_card = {36, 770, 612, 94};
+static const EpdRect s_drop_cap_card = {36, 880, 612, 94};
+static const EpdRect s_text_contrast_card = {36, 990, 612, 94};
 
 static void draw_custom_settings(uint8_t *fb) {
-    const int top = 540;
+    const int top = READER_CUSTOM_TOP;
     draw_sheet(fb, top, "Tùy chỉnh");
     draw_sheet_back(fb, top);
-    reader_panel_text_vc(fb, 342, 620, 21, "Cài đặt hiển thị nâng cao cho trang đọc", EPD_DRAW_ALIGN_CENTER, false);
+    reader_panel_text_vc(fb, 342, top + 80, 21, "Cài đặt hiển thị nâng cao cho trang đọc", EPD_DRAW_ALIGN_CENTER, false);
 
     // 1. Phông chữ nhúng trong sách
     const bool book_fonts = app_settings_book_fonts();
-    EpdRect card1 = {36, 660, 612, 94};
+    EpdRect card1 = s_custom_fonts_card;
     ui_fill_round_rect(fb, card1, 20, UI_GRAY_WHITE); ui_draw_control_frame(fb, card1, 20, 0x70);
     ui_text_box(fb, (EpdRect){card1.x+21, card1.y+12, card1.width-120, 32}, 24, "Phông chữ nhúng trong sách", EPD_DRAW_ALIGN_LEFT, false);
     ui_text_box(fb, (EpdRect){card1.x+21, card1.y+50, card1.width-120, 30}, 21, book_fonts ? "Ưu tiên phông chữ nhúng trong sách" : "Luôn dùng phông chữ bạn đã chọn", EPD_DRAW_ALIGN_LEFT, false);
@@ -2687,7 +2692,7 @@ static void draw_custom_settings(uint8_t *fb) {
     // 2. Đường dẫn dòng
     static const char *const rule_names[] = {"Không", "Nét đứt", "Đường chấm"};
     int selected_rule = app_settings_book_reading_line();
-    EpdRect card2 = {36, 770, 612, 94};
+    EpdRect card2 = s_custom_rule_card;
     ui_fill_round_rect(fb, card2, 20, UI_GRAY_WHITE); ui_draw_control_frame(fb, card2, 20, 0x70);
     ui_text_box(fb, (EpdRect){card2.x+21, card2.y+12, card2.width-120, 32}, 24, "Đường dẫn dòng", EPD_DRAW_ALIGN_LEFT, false);
     ui_text_box(fb, (EpdRect){card2.x+21, card2.y+50, card2.width-180, 30}, 21, rule_names[selected_rule < 3 ? selected_rule : 0], EPD_DRAW_ALIGN_LEFT, false);
@@ -2695,7 +2700,7 @@ static void draw_custom_settings(uint8_t *fb) {
 
     // 3. Khử răng cưa
     bool aa = app_settings_book_antialias();
-    EpdRect card3 = {36, 880, 612, 94};
+    EpdRect card3 = s_custom_aa_card;
     ui_fill_round_rect(fb, card3, 20, UI_GRAY_WHITE); ui_draw_control_frame(fb, card3, 20, 0x70);
     ui_text_box(fb, (EpdRect){card3.x+21, card3.y+12, card3.width-120, 32}, 24, "Khử răng cưa", EPD_DRAW_ALIGN_LEFT, false);
     ui_text_box(fb, (EpdRect){card3.x+21, card3.y+50, card3.width-120, 30}, 21, aa ? "Làm mịn nét chữ (Anti-aliasing)" : "Nét chữ sắc cạnh gốc (Monochrome)", EPD_DRAW_ALIGN_LEFT, false);
@@ -2710,6 +2715,16 @@ static void draw_custom_settings(uint8_t *fb) {
                 "Đầu chương EPUB khi đọc ngang", EPD_DRAW_ALIGN_LEFT, false);
     draw_reading_switch(fb, (EpdRect){cap.x+cap.width-89, cap.y+cap.height/2-19, 69, 39},
                         app_settings_book_drop_cap());
+
+    EpdRect contrast = s_text_contrast_card;
+    ui_fill_round_rect(fb, contrast, 20, UI_GRAY_WHITE);
+    ui_draw_control_frame(fb, contrast, 20, 0x70);
+    ui_text_box(fb, (EpdRect){contrast.x+21, contrast.y+12, contrast.width-120, 32}, 24,
+                "Tương phản chữ", EPD_DRAW_ALIGN_LEFT, false);
+    ui_text_box(fb, (EpdRect){contrast.x+21, contrast.y+50, contrast.width-120, 30}, 21,
+                "Làm tối viền chữ khi bật Khử răng cưa", EPD_DRAW_ALIGN_LEFT, false);
+    draw_reading_switch(fb, (EpdRect){contrast.x+contrast.width-89, contrast.y+contrast.height/2-19, 69, 39},
+                        app_settings_book_text_contrast());
 
     // Nút quay lại
     EpdRect back = {36, 1113, 612, 72};
@@ -2974,6 +2989,11 @@ static void draw_reading_toggle(uint8_t *fb, int index, const char *title,
         draw_reading_switch(fb,(EpdRect){row.x+209,row.y+3*row.height/4-19,69,39},on);
     }
 }
+static const char* reader_turn_effect_label(uint8_t effect) {
+    static const char* const labels[] = {"Thường", "Sóng nước", "Đen trắng nhanh", "Flash"};
+    return effect < sizeof(labels) / sizeof(labels[0]) ? labels[effect] : labels[0];
+}
+
 static void draw_reading_settings(uint8_t* fb) {
     draw_sheet(fb, reading_settings_top(), "Cài đặt đọc sách");
     char interval[24];
@@ -2985,8 +3005,8 @@ static void draw_reading_settings(uint8_t* fb) {
     else copy_text(interval, sizeof(interval), "Mặc định");
 #endif
     draw_reading_card(fb, 0, "Làm mới toàn trang", interval, true);
-    draw_reading_card(fb, 1, "Hiệu ứng lật trang", app_settings_reader_turn_effect()==2?"Đen trắng nhanh":
-        app_settings_reader_turn_effect()?"Sóng nước":"Thường",true);
+    draw_reading_card(fb, 1, "Hiệu ứng lật trang",
+                      reader_turn_effect_label(app_settings_reader_turn_effect()), true);
     const char *turn_label = app_settings_reader_turn_mode() == 1 ? "Lật trang trên/dưới" :
                              app_settings_reader_turn_mode() == 2 ? "Chuyển: Vuốt/Bấm · Lùi: Chỉ vuốt" : "Lật trang trái/phải";
     draw_reading_card(fb, 2, "Chế độ lật trang", turn_label, false);
@@ -4007,8 +4027,11 @@ static void draw_reader(uint8_t *fb,size_t page) {
     const uint32_t glyph_failures=ttf_font_glyph_failures();
 #endif
     ui_text_set_system_scale(false);ui_clear_page(fb);
-    if (!(s_zoom_active && page == s_page && reader_zoom_mode()))
+    if (!(s_zoom_active && page == s_page && reader_zoom_mode())) {
+        bool previous_contrast = ttf_set_text_contrast(app_settings_book_text_contrast());
         book_layout_draw_page(fb,page,body_rect(),s_px);
+        ttf_set_text_contrast(previous_contrast);
+    }
 #if DPREADER_BOARD_METALIO47
     s_reader_raster_failed=!ttf_font_ready() || glyph_failures!=ttf_font_glyph_failures();
     if(s_reader_raster_failed)return;
@@ -4052,7 +4075,9 @@ static int reader_prefetch_step(void) {
 #if DPREADER_BOARD_METALIO47
     const uint32_t glyph_failures=ttf_font_glyph_failures();
 #endif
+    bool previous_contrast = ttf_set_text_contrast(app_settings_book_text_contrast());
     int result=book_layout_draw_slice(s_next_fb,(size_t)s_prep_page,body_rect(),s_px,&s_prep_cursor);
+    ttf_set_text_contrast(previous_contrast);
 #if DPREADER_BOARD_METALIO47
     if(!ttf_font_ready() || glyph_failures!=ttf_font_glyph_failures()) {
         // Drop only the unfinished prefetch. Already validated frames remain reusable.
@@ -4588,6 +4613,10 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
         err=update_display_area_full_with(ctx->hl,&E0470_FULL_WAVEFORM,MODE_GC16,
                                          (EpdRect){0,0,UI_LOCK_WIDTH,UI_LOCK_HEIGHT});
 #if DPREADER_BOARD_METALIO47
+    else if (s_reader_turn_pending && app_settings_reader_turn_effect() == APP_READER_TURN_FLASH &&
+             s_view == READING && s_reader_panel == READER_PANEL_NONE &&
+             !s_toolbar && !s_clear_confirm && !s_reader_cleanup && redraw != APP_REDRAW_FULL)
+        err = update_display_reader_flash(ctx->hl, (EpdRect){0, 0, UI_LOCK_WIDTH, UI_LOCK_HEIGHT});
     else if ((image_gray_refresh || s_reader_image_exit_pending) &&
              s_view == READING && s_reader_panel == READER_PANEL_NONE &&
              !s_toolbar && !s_clear_confirm && !s_reader_cleanup && redraw != APP_REDRAW_FULL) {
@@ -4643,6 +4672,11 @@ static bool present(app_ctx_t* ctx, app_redraw_t redraw) {
         // 所有文字水波纹均合并页脚，包含完整波形及本次开机的降级路径，不在最后一带后追加刷新。
         // Fuse the footer for all text ripple paths, including full-waveform/boot-local fallback, without a scan after the last band.
         const bool fused_footer=s_reader_turn_pending||s_water_turn_pending;
+        if (s_water_turn_pending) {
+            // 顶部字形可越过正文边界；与正文一起扫描。/ Include glyph ink above the body boundary in the same scan.
+            turn_area.height += turn_area.y;
+            turn_area.y = 0;
+        }
 #else
         // 普通文字保留校准GL16完整擦除，正文与进度共用一次输出；图片、水波纹和清屏保留独立规则。
         // Retain calibrated GL16 erasure for ordinary text and present body/progress once; images, ripple and cleanup retain their own paths.
@@ -5992,6 +6026,10 @@ static app_redraw_t turn_page(app_ctx_t* ctx, int dir) {
 #endif
     s_reader_turn_pending = !chrome_changed && redraw == APP_REDRAW_AREA && from_text_frame &&
         book_layout_page_image_count(s_page) == 0 && !app_settings_book_background_path()[0];
+#if DPREADER_BOARD_METALIO47
+    if (app_settings_reader_turn_effect() == APP_READER_TURN_FLASH)
+        s_reader_turn_pending = redraw == APP_REDRAW_AREA;
+#endif
     s_water_turn_pending = !chrome_changed && redraw == APP_REDRAW_AREA && !s_reader_cleanup &&
                            app_settings_reader_turn_effect() == 1 && from_text_frame &&
                            book_layout_page_image_count(s_page) == 0 && !app_settings_book_background_path()[0];
@@ -6213,7 +6251,8 @@ static int reader_choice_count(int kind) {
     if(kind==READ_PICK_INDENT||kind==READ_PICK_ALIGN)return 4;
     if(kind==READ_PICK_INDENT_FINE)return 201;
     if(kind==READ_PICK_REFRESH)return 9;
-    if(kind==READ_PICK_EFFECT||kind==READ_PICK_FILTER)return 3;
+    if(kind==READ_PICK_EFFECT)return DPREADER_BOARD_READER_TURN_EFFECT_MAX + 1;
+    if(kind==READ_PICK_FILTER)return 3;
     if(kind==READ_PICK_FOOTER)return APP_BOOK_PROGRESS_STYLE_COUNT;
     if(kind==READ_PICK_SORT)return 2;
     if(kind==READ_PICK_RULE_OFFSET)return 9;
@@ -6249,7 +6288,7 @@ static void reader_choice_label(int kind,int index,char *out,size_t size) {
     else if(kind==READ_PICK_INDENT_FINE)snprintf(out,size,"%+d px",index-100);
     else if(kind==READ_PICK_ALIGN)snprintf(out,size,"%s",reader_align_name(index));
     else if(kind==READ_PICK_REFRESH){if(s_refresh_choices[index])snprintf(out,size,"%u trang",s_refresh_choices[index]);else snprintf(out,size,"Tắt");}
-    else if(kind==READ_PICK_EFFECT){static const char *const labels[]={"Thường","Sóng nước","Đen trắng nhanh"};snprintf(out,size,"%s",labels[index]);}
+    else if(kind==READ_PICK_EFFECT)snprintf(out,size,"%s",reader_turn_effect_label(index));
     else if(kind==READ_PICK_FOOTER)snprintf(out,size,"%s",reader_progress_style_name(index));
     else if(kind==READ_PICK_FILTER){static const char *const names[]={"Mọi nguồn","Thẻ nhớ","Máy"};snprintf(out,size,"%s",names[index]);}
     else if(kind==READ_PICK_SORT)snprintf(out,size,"%s",index?"Gần đây":"Theo tên");
@@ -7037,14 +7076,14 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
         return APP_REDRAW_NONE;
     }
     if (s_reader_panel == READER_PANEL_CUSTOM_SETTINGS) {
-        const int top = 540;
+        const int top = READER_CUSTOM_TOP;
         EpdRect back_icon = {36, top + 29, 56, 56};
         EpdRect back_button = {36, 1113, 612, 72};
         if (ui_rect_hit(back_icon, x, y) || ui_rect_hit(back_button, x, y)) {
             s_reader_panel = READER_PANEL_FONT_SETTINGS;
             return APP_REDRAW_PAGE;
         }
-        EpdRect card1 = {36, 660, 612, 94};
+        EpdRect card1 = s_custom_fonts_card;
         if (ui_rect_hit(card1, x, y)) {
             bool on = !app_settings_book_fonts();
             app_settings_set_book_fonts(on);
@@ -7054,12 +7093,12 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
             invalidate_prep();
             return APP_REDRAW_PAGE;
         }
-        EpdRect card2 = {36, 770, 612, 94};
+        EpdRect card2 = s_custom_rule_card;
         if (ui_rect_hit(card2, x, y)) {
             s_reader_panel = READER_PANEL_RULE_SETTINGS;
             return APP_REDRAW_PAGE;
         }
-        EpdRect card3 = {36, 880, 612, 94};
+        EpdRect card3 = s_custom_aa_card;
         if (ui_rect_hit(card3, x, y)) {
             bool on = !app_settings_book_antialias();
             bool ok = reader_apply_antialias(on);
@@ -7073,6 +7112,17 @@ static app_redraw_t reader_panel_action(app_ctx_t* ctx, uint16_t x, uint16_t y) 
             return APP_REDRAW_PAGE;
         }
         if (ui_rect_hit(s_drop_cap_card, x, y)) return toggle_reader_drop_cap();
+        if (ui_rect_hit(s_text_contrast_card, x, y)) {
+            lock_draw();
+            bool ok = app_settings_set_book_text_contrast(!app_settings_book_text_contrast());
+            if (ok) invalidate_prep();
+            unlock_draw();
+            if (!ok) {
+                copy_text(s_reader_notice, sizeof(s_reader_notice), "Lưu thất bại, vui lòng thử lại");
+                s_reader_notice_until = esp_timer_get_time() / 1000 + 1800;
+            }
+            return APP_REDRAW_PAGE;
+        }
         if (y < top) { s_reader_panel = READER_PANEL_NONE; return APP_REDRAW_PAGE; }
         return APP_REDRAW_NONE;
     }

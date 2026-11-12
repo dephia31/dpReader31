@@ -18,6 +18,7 @@
 const EpdWaveform E0470_WAVEFORM = {0}, E0470_FOLLOW_WAVEFORM = {1},
     E0470_FULL_WAVEFORM = {2}, E0470_GRAY8_WAVEFORM = {3};
 uint8_t app_settings_reader_turn_effect(void){return 0;}
+const EpdWaveform* display_reader_flash_waveform(void){assert(false);return NULL;}
 const EpdWaveform* display_reader_fast_text_waveform(void){return &E0470_WAVEFORM;}
 bool display_reader_fast_text_prepare(EpdiyHighlevelState*h,EpdRect a){(void)h;(void)a;assert(false);return false;}
 bool mock_radio_busy;
@@ -34,6 +35,7 @@ const EpdWaveform* display_main_switch_waveform(const EpdWaveform* source,enum E
     assert(source&&(mode==MODE_DU||mode==MODE_GL16));++switch_wave_calls;return source;
 }
 const EpdWaveform* display_reader_text_waveform(void) {return &reader_soft;}
+const EpdWaveform* display_reader_ripple_waveform(void) {return display_reader_text_waveform();}
 static app_main_refresh_mode_t main_mode=APP_MAIN_REFRESH_FAST;
 app_main_refresh_mode_t app_settings_main_refresh_mode(void) {return main_mode;}
 static int exit_calls;

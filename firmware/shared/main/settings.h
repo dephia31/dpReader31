@@ -202,6 +202,8 @@ bool app_settings_set_book_weight(int8_t level);
 /// 阅读抗锯齿默认开启；关闭只改变字形边缘，不改变排版或图片。/ Reading AA defaults on; disabling affects glyph edges, not layout or images.
 bool app_settings_book_antialias(void);
 bool app_settings_set_book_antialias(bool enabled);
+bool app_settings_book_text_contrast(void);
+bool app_settings_set_book_text_contrast(bool enabled);
 bool app_settings_book_drop_cap(void);
 bool app_settings_set_book_drop_cap(bool enabled);
 uint8_t app_settings_book_px(void);
@@ -216,6 +218,7 @@ bool app_settings_set_book_background_path(const char *path);
 uint8_t app_settings_reader_full_pages(void);
 void app_settings_set_reader_full_pages(uint8_t pages);
 /// 阅读翻页效果：0普通，1水波纹，2速读黑白；旧0/1配置不变。/ Reader effect:0 ordinary,1 ripple,2 fast BW; preserve legacy0/1 settings.
+enum { APP_READER_TURN_FLASH = 3 };
 uint8_t app_settings_reader_turn_effect(void);
 void app_settings_set_reader_turn_effect(uint8_t effect);
 /// 阅读正文里短按电源键翻下一页；默认关闭。/ Short power press turns forward only in reader body; off by default.

@@ -60,6 +60,8 @@ static bool prefetch_returned;
 static int64_t s_last_turn_ms;
 static void reader_prefetch_end(bool started){assert(!started);prefetch_returned=true;}
 static int calls,selected,fail,rendered,prepares,images,tick;static unsigned s_turns;
+#define APP_READER_TURN_FLASH 3
+static int app_settings_reader_turn_effect(void){return tick;}
 static bool background,immersive;
 static EpdRect last_water_area;
 static EpdRect last_gray_area;
@@ -96,6 +98,7 @@ static enum EpdDrawError update_display_full(void *h){return push_gray(h,&E0470_
 static enum EpdDrawError update_display_area_diff_with(void *h,const int *w,int m,EpdRect a){return push_gray(h,w,m,a,13);}
 static enum EpdDrawError update_display_area_full_with(void *h,const int *w,int m,EpdRect a){return push_gray(h,w,m,a,14);}
 static enum EpdDrawError update_display_gray_transition(void *h,EpdRect a){return push_gray(h,&E0470_FULL_WAVEFORM,MODE_GL16,a,22);}
+static enum EpdDrawError update_display_reader_flash(void *h,EpdRect a){return push_gray(h,NULL,MODE_GC16,a,23);}
 #define update_display_area_with(...) push(15)
 #define update_display_with(...) push(16)
 #define update_display_mode_diff(...) push(17)
@@ -110,7 +113,9 @@ static EpdRect reader_fast_panel_rect(void){return(EpdRect){0};}
 static bool reader_slider_feedback_present(app_ctx_t *ctx,app_redraw_t redraw){(void)ctx;(void)redraw;return false;}
 '''
 unit+='static bool reader_panel_short_ready(app_redraw_t r){return test_panel_short&&r==APP_REDRAW_PAGE;}\nstatic bool reader_panel_fast_present(app_ctx_t *ctx,app_redraw_t redraw){(void)ctx;(void)redraw;return false;}\nstatic void reader_panel_record(enum EpdDrawError err){(void)err;}\nstatic bool display_page_prepare_begin(void){return false;}\nstatic void display_page_prepare_end(bool held){(void)held;}\n'
-unit += '#define READER_FOOTER_TOP (UI_LOCK_HEIGHT-96)\n#define READER_FOOTER_HEIGHT 94\n'
+unit += '#define READER_FOOTER_TEXT_INSET 36\n#define APP_BOOK_PROGRESS_STYLE_BOTTOM 4\n'
+unit += 'static int reader_footer_height(void){return 94;}\nstatic int reader_footer_top(void){return UI_LOCK_HEIGHT-reader_footer_height()-2;}\n'
+unit += 'static int app_settings_book_progress_style(void){return 0;}\n'
 unit += '#define READER_FOOTER_BOTTOM_GAP 2\nstatic int s_footer_layout_override=-1;\nstatic bool app_settings_book_footer_enabled(void){return true;}\n'
 unit += 'static int reader_content_top(void){return 72;}\n'
 for name in ('reader_content_bottom','reader_area','progress_rect'):
@@ -161,11 +166,18 @@ int main(void){
   reset();s_water_turn_pending=true;
   s_area=(EpdRect){0,80,684,900};
   present(&ctx,APP_REDRAW_AREA);assert(selected==18&&calls==1&&!s_water_turn_pending);
-  assert(last_water_area.y==80&&last_water_area.y+last_water_area.height==1214);
+  assert(last_water_area.y==0&&last_water_area.height==1214);
  }
  s_area=(EpdRect){0,0,684,1216};
  reset();fail=1;s_water_turn_pending=true;
  present(&ctx,APP_REDRAW_AREA);assert(selected==18&&calls==1&&!s_reader_text_frame);
+ for(int image=0;image<2;++image)for(int cleanup=0;cleanup<2;++cleanup){
+  reset();tick=APP_READER_TURN_FLASH;images=image;s_reader_image_refresh_pending=image;
+  s_reader_cleanup=cleanup;
+  present(&ctx,APP_REDRAW_AREA);
+  assert(calls==1&&selected==(cleanup?12:23)&&!s_reader_turn_pending);
+  assert(last_gray_area.x==0&&last_gray_area.y==0&&last_gray_area.width==684&&last_gray_area.height==1216);
+ }
  // Ordinary/ripple/FastBW keep all image tones; entering/changing/leaving images fuse progress in one platform gray transition.
  for(int effect=0;effect<3;++effect)for(int hide_status=0;hide_status<2;++hide_status)for(int kind=0;kind<3;++kind){
   reset();tick=effect;immersive=hide_status;s_reader_footer_pending=true;s_reader_turn_pending=false;

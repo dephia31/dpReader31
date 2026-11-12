@@ -197,6 +197,7 @@ int ttf_get_stroke_adjust(void);
 void ttf_set_stroke_adjust_fine(int steps);
 int ttf_get_stroke_adjust_fine(void);
 /// 灰阶与二值共用LRU预算；S31二值使用独立hinting缓存键，不改变排版度量。/ Gray/binary share the LRU budget; S31 binary hinting has separate cache keys and preserves layout metrics.
+bool ttf_set_text_contrast(bool enabled);
 void ttf_set_antialias(bool enabled);
 bool ttf_get_antialias(void);
 int ttf_get_weight(void);

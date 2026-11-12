@@ -3242,6 +3242,12 @@ int ttf_text_left_bearing_px(int pixel_height, const char* text) {
 
 // 线性抗锯齿的中间灰在这块屏上偏亮。按 TTF_COVER_GAMMA 抬覆盖率，半透明边缘更深。
 static uint8_t s_cover[256];
+static bool s_text_contrast;
+bool ttf_set_text_contrast(bool enabled) {
+    bool previous = s_text_contrast;
+    s_text_contrast = enabled;
+    return previous;
+}
 void ttf_set_antialias(bool enabled) { s_antialias = enabled; }
 bool ttf_get_antialias(void) { return s_antialias; }
 
@@ -3268,6 +3274,7 @@ static uint8_t mix_ink(uint8_t alpha, uint8_t fg, uint8_t bg) {
     // Round the final luminance, not a signed delta: truncation toward the
     // background weakens contrast for both dark and inverted glyph edges.
     unsigned coverage = s_cover[alpha];
+    if (s_text_contrast) coverage = ttf_aa_boost((uint8_t)coverage);
     return (uint8_t)((bg * (255u - coverage) + fg * coverage + 127u) / 255u);
 }
 
@@ -3275,6 +3282,7 @@ static uint8_t mix_glyph_ink(const glyph_entry_t *glyph,uint8_t alpha,uint8_t fg
 #if DPREADER_BOARD_METALIO47
     if(glyph->hinted_gray) {
         unsigned coverage=ttf_aa_coverage(alpha);
+        if (s_text_contrast) coverage = ttf_aa_boost((uint8_t)coverage);
         return (uint8_t)((bg*(255u-coverage)+fg*coverage+127u)/255u);
     }
 #else

@@ -95,13 +95,15 @@ esp_err_t nvs_open(const char *ns, int mode, nvs_handle_t *h) {
 void nvs_close(nvs_handle_t h) { (void)h; }
 static uint8_t stored_utilities[4],stored_utility_labels=1,stored_utility_border=1;
 static bool has_tracking,has_para;static uint8_t loaded_tracking,loaded_para;
-static int loaded_turn=-1;
+static int loaded_turn=-1, loaded_text_contrast=-1;
 esp_err_t nvs_get_u8(nvs_handle_t h, const char *key, uint8_t *value) {
  if(h==2){if(ui_get_fails)return ESP_FAIL;if(strcmp(key,"mode")||stored_ui_choice<0)return ESP_ERR_NVS_NOT_FOUND;*value=stored_ui_choice;return ESP_OK;}
  if(!strcmp(key,"simple_labels")||!strcmp(key,"simple_border")){int v=!strcmp(key,"simple_labels")?loaded_simple_labels:loaded_simple_border;if(v<0)return ESP_ERR_NVS_NOT_FOUND;*value=v;return ESP_OK;}
  for(unsigned i=0;i<2;++i)if(!strcmp(key,s_simple_utility_keys[i])){if(loaded_simple_utilities[i]<0)return ESP_ERR_NVS_NOT_FOUND;*value=loaded_simple_utilities[i];return ESP_OK;}
+ if(!strcmp(key,NVS_KEY_BOOK_TEXT_CONTRAST)&&loaded_text_contrast>=0){*value=(uint8_t)loaded_text_contrast;return ESP_OK;}
  if(!strcmp(key,"simple_ui")){if(loaded_simple_ui<0)return ESP_ERR_NVS_NOT_FOUND;*value=(uint8_t)loaded_simple_ui;return ESP_OK;} if(!strcmp(key,"home_util_bdr")){*value=stored_utility_border;return ESP_OK;} if(!strcmp(key,"home_util_lbl")){*value=stored_utility_labels;return ESP_OK;} for(unsigned i=0;i<4;++i)if(!strcmp(key,s_home_utility_keys[i])){*value=stored_utilities[i];return ESP_OK;} (void)h; if(test_full_storage&&!strcmp(key,NVS_KEY_READER_FULL)){*value=loaded_full_pages;return ESP_OK;} if(!strcmp(key,NVS_KEY_READER_TURN)&&loaded_turn>=0){*value=(uint8_t)loaded_turn;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_PARA)&&has_para){*value=loaded_para;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_TRACK)&&has_tracking){*value=loaded_tracking;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_WEIGHT_FINE)&&has_fine){*value=loaded_fine;return ESP_OK;} if(!strcmp(key,NVS_KEY_HOME_COMPONENT)&&loaded_home>=0){*value=(uint8_t)loaded_home;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_AA)&&has_aa){*value=loaded_aa;return ESP_OK;} if(!strcmp(key,NVS_KEY_READER_KEYS_V2)&&keys_v2){*value=1;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_WEIGHT)&&has_weight){*value=loaded_weight;return ESP_OK;} if(!strcmp(key,NVS_KEY_BOOK_INDENT_ADJUST)&&has_adjust){*value=loaded_adjust;return ESP_OK;} if(!strcmp(key,NVS_KEY_SHELF_STYLE)&&loaded_shelf>=0){*value=(uint8_t)loaded_shelf;return ESP_OK;} if(!strcmp(key,NVS_KEY_SHELF_V22)&&loaded_shelf_v22){*value=1;return ESP_OK;} if(!strcmp(key,NVS_KEY_LOCK_STYLE)&&loaded_lock>=0){*value=(uint8_t)loaded_lock;return ESP_OK;} if(!strcmp(key,NVS_KEY_HOLD_ACTION)&&has_hold){*value=loaded_hold;return ESP_OK;} for(unsigned i=0;i<3;++i) if(!strcmp(key,s_reader_key_names[i])&&has_keys[i]){*value=loaded_keys[i];return ESP_OK;} if (!strcmp(key, NVS_KEY_MAIN_REFRESH) && has_main_mode) { *value=loaded_main_mode;return ESP_OK; } if (!strcmp(key, "ui_fast")) { *value = test_loaded_fast; return ESP_OK; } if (!strcmp(key, NVS_KEY_SYS_SIZE) && test_loaded_system_size) { *value = test_loaded_system_size; return ESP_OK; } return ESP_FAIL; }
 esp_err_t nvs_set_u8(nvs_handle_t h, const char *key, uint8_t value) {
+ if(!strcmp(key,NVS_KEY_BOOK_TEXT_CONTRAST)){if(!commit_fails)loaded_text_contrast=value;return ESP_OK;}
  if(h==2){if(!strcmp(key,"mode")&&!commit_fails)stored_ui_choice=value;return ESP_OK;}
  if(!commit_fails){if(!strcmp(key,"simple_labels"))loaded_simple_labels=value;if(!strcmp(key,"simple_border"))loaded_simple_border=value;}
  for(unsigned i=0;i<2;++i)if(!strcmp(key,s_simple_utility_keys[i])&&!commit_fails)loaded_simple_utilities[i]=value;
@@ -132,13 +134,13 @@ int main(void) {
     char unterminated[32];memset(unterminated,'x',sizeof(unterminated));
     assert(!backup_font_path_valid(unterminated,sizeof(unterminated)));
     assert(!strcmp(app_settings_font_path(),"/builtin/Bitter-Regular.ttf"));
-    for(int effect=0;effect<=2;++effect) {
+    for(int effect=0;effect<=READER_TURN_EFFECT_MAX;++effect) {
         loaded_turn=effect;s_reader_turn_effect=99;app_settings_init();
         assert(app_settings_reader_turn_effect()==effect);
-        app_settings_set_reader_turn_effect((effect+1)%3);
-        assert(loaded_turn==(effect+1)%3);
+        app_settings_set_reader_turn_effect((effect+1)%(READER_TURN_EFFECT_MAX+1));
+        assert(loaded_turn==(effect+1)%(READER_TURN_EFFECT_MAX+1));
         s_reader_turn_effect=99;app_settings_init();
-        assert(app_settings_reader_turn_effect()==(effect+1)%3);
+        assert(app_settings_reader_turn_effect()==(effect+1)%(READER_TURN_EFFECT_MAX+1));
     }
     loaded_turn=255;s_reader_turn_effect=0;app_settings_init();assert(!app_settings_reader_turn_effect());
     app_settings_set_reader_turn_effect(255);assert(!app_settings_reader_turn_effect());loaded_turn=-1;
@@ -728,11 +730,10 @@ int main(void) {
         int px=(int)old-4;if(px>15)px=15;
         assert(s_book_tracking==px-APP_BOOK_TRACK_MIN&&loaded_tracking==192+s_book_tracking);
     }
-    // 旧0/1与新2共用原备份字段，恢复和重启均保留选项。
-    // Legacy0/1 and new2 share the existing backup field and survive restore/reinitialization.
-    for(unsigned effect=0;effect<=2;++effect){
+    // Every supported effect survives backup restore and restart.
+    for(unsigned effect=0;effect<=READER_TURN_EFFECT_MAX;++effect){
         app_settings_set_reader_turn_effect(effect);assert(app_settings_backup_save()==ESP_OK);
-        app_settings_set_reader_turn_effect((effect+1)%3);assert(app_settings_backup_restore()==ESP_OK);
+        app_settings_set_reader_turn_effect((effect+1)%(READER_TURN_EFFECT_MAX+1));assert(app_settings_backup_restore()==ESP_OK);
         assert(app_settings_reader_turn_effect()==effect);
         s_reader_turn_effect=99;app_settings_init();assert(app_settings_reader_turn_effect()==effect);
     }

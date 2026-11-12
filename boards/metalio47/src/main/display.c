@@ -830,7 +830,7 @@ static enum EpdDrawError update_display_reader_turn_unlocked(EpdiyHighlevelState
     if(s_system_binary)system_normalize(hl);
     const EpdWaveform* turn_waveform = s_system_binary
         ? (system_navigation_gray_changed(hl)?display_main_navigation_waveform():display_main_bw_turn_waveform())
-        : display_reader_text_waveform();
+        : (bands > 1 ? display_reader_ripple_waveform() : display_reader_text_waveform());
     // 普通文字整轮在差分生成前预唤醒TPS，实际驱动仍由引擎按原顺序上电。
     // Pre-wake TPS before ordinary text differences; the engine still enables drive in the established sequence.
     const bool prepared=bands==1&&!s_system_binary&&epd_pipeline_enabled();
@@ -842,10 +842,7 @@ static enum EpdDrawError update_display_reader_turn_unlocked(EpdiyHighlevelState
     // Ordinary shares the22-phase text sequence in one synchronous band; ripple staggers bands and FastBW retains vendorDU20.
     const bool experimental = !s_system_binary && app_settings_reader_turn_effect()!=2 &&
         metalio_text_ripple_prepare(hl, area);
-    if (experimental) {
-        turn_waveform = metalio_text_ripple_waveform();
-        if(bands>1)bands = METALIO_TEXT_RIPPLE_BANDS;
-    }
+    if (experimental) turn_waveform = metalio_text_ripple_waveform();
 #endif
     if(s_system_binary)turn_waveform=main_switch_waveform(turn_waveform,MODE_GL16);
     // 阅读的同步/水波纹在此分流；主页面及侧滑使用各自的既有路径。
@@ -958,14 +955,15 @@ static bool display_inverted_crop(EpdRect *area,EpdRect *physical) {
     }
     return true;
 }
-static enum EpdDrawError display_inverted_output(EpdiyHighlevelState *hl,bool force_full,
-                                                const EpdRect *requested,bool page) {
+static enum EpdDrawError display_inverted_with(EpdiyHighlevelState *hl, bool force_full,
+        const EpdRect *requested, bool page, bool flash_turn) {
     if(!hl||!hl->front_fb||!hl->back_fb)return EPD_DRAW_INVALID_CROP;
     METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
     bool held=pico_online_display_begin();
     size_t bytes=(size_t)epd_width()*epd_height()/2;
     bool inverted=app_settings_screen_inverted();
-    bool full=force_full||s_full_refresh_requested||s_main_fault||inverted!=s_output_inverted;
+    const EpdWaveform *flash = flash_turn ? display_reader_flash_waveform() : NULL;
+    bool full=(flash_turn && !flash)||force_full||s_full_refresh_requested||s_main_fault||inverted!=s_output_inverted;
     EpdRect area=requested?*requested:epd_full_screen(),physical=epd_full_screen();
     if(!full&&!display_inverted_crop(&area,&physical)){pico_online_display_end(held);return EPD_DRAW_SUCCESS;}
     if(!s_inverted_front)s_inverted_front=heap_caps_aligned_alloc(16,bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
@@ -1007,11 +1005,11 @@ static enum EpdDrawError display_inverted_output(EpdiyHighlevelState *hl,bool fo
     hl->front_fb=s_inverted_front;
     continuous_du_reset();display_main_transition_cancel();
     // Existing vendor-derived DU20/GL48 tables hold every equal-value pair.
-    const EpdWaveform *wave=full?&E0470_FULL_WAVEFORM:
+    const EpdWaveform *wave=full?&E0470_FULL_WAVEFORM:flash?flash:
         gray?display_main_gray_waveform():display_main_bw_waveform();
-    enum EpdDrawMode mode=full?MODE_GC16:gray?MODE_GL16:MODE_DU;
+    enum EpdDrawMode mode=(full||flash)?MODE_GC16:gray?MODE_GL16:MODE_DU;
     use_scan_for(wave,mode);epd_poweron();epd_hl_waveform(hl,wave);
-    enum EpdDrawError result=full?epd_hl_update_screen_full(hl,mode,25):
+    enum EpdDrawError result=(full||flash)?epd_hl_update_screen_full(hl,mode,25):
         epd_hl_update_area(hl,mode,25,area);
     if(result==EPD_DRAW_SUCCESS?inverted:s_output_inverted)
         for(size_t i=0;i<bytes;++i)hl->back_fb[i]^=255;
@@ -1029,6 +1027,11 @@ static enum EpdDrawError display_inverted_output(EpdiyHighlevelState *hl,bool fo
 }
 
 // 统一硬件出口，递归调用也必须覆盖整个扫描过程。/ Guard complete scans, including recursive fallback paths.
+static enum EpdDrawError display_inverted_output(EpdiyHighlevelState *hl, bool force_full,
+                                                const EpdRect *requested, bool page) {
+    return display_inverted_with(hl, force_full, requested, page, false);
+}
+
 enum EpdDrawError update_display_mode(
     EpdiyHighlevelState* hl, enum EpdDrawMode mode
 ) {
@@ -1285,6 +1288,27 @@ enum EpdDrawError update_display_area_full_with(
     return result;
 }
 
+enum EpdDrawError update_display_reader_flash(EpdiyHighlevelState* hl, EpdRect area) {
+    if (app_settings_screen_inverted() || s_output_inverted)
+        return display_inverted_with(hl, false, NULL, false, true);
+    METALIO_CPU_GUARD_OR_RETURN(EPD_DRAW_FAILED_ALLOC);
+    LATENCY_DISPLAY_BEGIN();
+    bool held = pico_online_display_begin();
+    const bool binary = s_system_binary;
+    s_system_binary = false;
+    const EpdWaveform* waveform = display_reader_flash_waveform();
+    enum EpdDrawError result;
+    if (display_needs_full() || !waveform) result = update_display_full_unlocked(hl);
+    else if (s_main_fault || ui_page_changed(hl))
+        result = update_display_area_full_with_unlocked(hl, waveform, MODE_GC16, area);
+    else result = EPD_DRAW_SUCCESS;
+    s_system_binary = binary;
+    s_main_fault = result != EPD_DRAW_SUCCESS;
+    pico_online_display_end(held);
+    LATENCY_DISPLAY_END();
+    return result;
+}
+
 enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect area,
                                              e0470_turn_dir_t dir) {
     if(app_settings_screen_inverted() || s_output_inverted) {
@@ -1294,7 +1318,7 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
     LATENCY_DISPLAY_BEGIN();
     bool held = pico_online_display_begin();
     enum EpdDrawError result = display_needs_full()
-        ? update_display_full_unlocked(hl) : update_display_reader_turn_unlocked(hl, area, dir, E0470_TURN_FAST_BANDS);
+        ? update_display_full_unlocked(hl) : update_display_reader_turn_unlocked(hl, area, dir, E0470_READER_RIPPLE_BANDS);
     s_main_fault=result!=EPD_DRAW_SUCCESS;
     pico_online_display_end(held);
     LATENCY_DISPLAY_END();

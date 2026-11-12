@@ -1,3 +1,9 @@
+## dpReader 1.4.5-vn / 1.4.5-love-vn · 2026-11-12
+
+- Thêm **Flash** trong Hiệu ứng lật trang. Flash quét đồng thời toàn màn hình, hỗ trợ ảnh và Đảo Màu.
+- Sóng Nước trong trình đọc dùng 6 dải, quét sát mép trên để xử lý dấu tiếng Việt ở dòng đầu. Khi bật Khử răng cưa, tăng hai xung cho điểm ảnh chuyển sang đen và giữ 41 nhịp quét.
+- Thêm **Tương phản chữ** trong Phông chữ → Tùy chỉnh để làm tối viền chữ khi bật Khử răng cưa.
+
 ## dpReader 1.4.4-vn / 1.4.4-love-vn · 2026-11-12
 
 - Cài đặt đọc và phông chữ dùng chung cho mọi cuốn. Tiến độ vẫn lưu riêng.

@@ -90,7 +90,11 @@ static pthread_mutex_t row_lock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t row_cond=PTHREAD_COND_INITIALIZER;
 static bool gate_rows;
 static unsigned row_entries,row_permits;
+static bool text_contrast;
+static bool app_settings_book_text_contrast(void){return true;}
+static bool ttf_set_text_contrast(bool enabled){bool old=text_contrast;text_contrast=enabled;return old;}
 static int book_layout_draw_slice(uint8_t *fb,size_t page,EpdRect area,int px,book_layout_draw_cursor_t *cursor){
+    assert(text_contrast);
  (void)area;assert(px==48&&(page==s_page+1||page==s_page));if(fail_draw)return -1;
  if(cursor->generation&&cursor->generation!=generation)return -1;
  if(cursor->offset==36)return 1;

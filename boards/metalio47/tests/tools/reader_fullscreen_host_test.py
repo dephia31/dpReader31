@@ -84,6 +84,7 @@ static void set_reader_view(int view){s_view=view;}
 static void skip_hidden_image_pages(app_ctx_t *ctx,int dir){(void)ctx;(void)dir;}
 static uint8_t app_settings_reader_full_pages(void){return full_pages;}
 static int effect=1;
+#define APP_READER_TURN_FLASH 3
 static int app_settings_reader_turn_effect(void){return effect;}
 static int test_images;
 static int book_layout_page_image_count(size_t page){(void)page;return test_images;}
@@ -148,6 +149,10 @@ int main(void){
  for(int tools=0;tools<2;++tools)for(int full=0;full<2;++full)for(int prior=0;prior<2;++prior){
   reset(full,tools,2,0);s_reader_text_frame=prior;full_pages=5;s_turns=4;
   assert(turn_page(&ctx,1)!=APP_REDRAW_NONE&&!s_water_turn_pending&&s_reader_cleanup);
+ }
+ for(int direction=-1;direction<=1;direction+=2){
+  reset(true,false,2,0);effect=APP_READER_TURN_FLASH;test_images=1;
+  assert(turn_page(&ctx,direction)==APP_REDRAW_AREA&&s_reader_turn_pending&&!s_water_turn_pending);
  }
  reset(true,false,2,0);test_images=1;assert(turn_page(&ctx,1)==APP_REDRAW_AREA);
  test_images=0;effect=1;

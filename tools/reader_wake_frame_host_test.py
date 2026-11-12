@@ -43,7 +43,11 @@ static cursor_t s_prep_cursor;
 static uint32_t ttf_font_glyph_failures(void){return glyph_failures;}
 static bool ttf_font_ready(void){return face_ready;}
 static EpdRect body_rect(void){return (EpdRect){0};}
+static bool text_contrast;
+static bool app_settings_book_text_contrast(void){return true;}
+static bool ttf_set_text_contrast(bool enabled){bool old=text_contrast;text_contrast=enabled;return old;}
 static int book_layout_draw_slice(uint8_t *fb,size_t page,EpdRect r,int px,cursor_t *cursor){
+    assert(text_contrast);
     (void)r;assert(fb==prep_pixels&&page==2&&px==74);
     if(inject_failure)++glyph_failures;
     cursor->generation=7;
@@ -90,9 +94,9 @@ int main(void) {
     ctx.now_ms=1400;assert(wake_tick(&ctx)==APP_REDRAW_PAGE);
     s_reader_raster_failed=false;assert(wake_tick(&ctx)==APP_REDRAW_NONE);
     inject_failure=true;
-    assert(reader_prefetch_step()==-1&&cancellations==1&&!finished&&s_next_page==-1);
+    assert(reader_prefetch_step()==-1&&!text_contrast&&cancellations==1&&!finished&&s_next_page==-1);
     inject_failure=false;s_next_fb=prep_pixels;
-    assert(reader_prefetch_step()==1&&finished==1&&s_next_page==2&&s_next_generation==7);
+    assert(reader_prefetch_step()==1&&!text_contrast&&finished==1&&s_next_page==2&&s_next_generation==7);
     puts("PASS: slow mount keeps lock pixels; font restores before first frame; changed face reflows; failed raster preserves visible frame and retries; failed prefetch is never promoted");
 }
 '''

@@ -22,10 +22,11 @@ unit = r'''
 #include "stb_truetype.h"
 #include "ttf_aa_tone.h"
 static uint8_t s_cover[256];
-static bool s_antialias = true;
+static bool s_antialias = true, s_text_contrast;
 '''
 unit += gamma + '\n'
 unit += function('ttf_cover_lut_init', font) + '\n'
+unit += function('ttf_set_text_contrast', font) + '\n'
 unit += function('mix_ink', font) + '\n'
 unit += r'''
 int main(int argc, char **argv) {
@@ -74,8 +75,22 @@ int main(int argc, char **argv) {
     }
     free(data);
     assert(corrected > 0);
+    assert(!ttf_set_text_contrast(true));
+    unsigned darker = 0;
+    for (int a = 0; a < 256; ++a) {
+        unsigned boosted = ttf_aa_boost(s_cover[a]);
+        unsigned ink = mix_ink(a, 0, 15);
+        assert(boosted >= s_cover[a] && ink <= (15u * (255u - s_cover[a]) + 127u) / 255u);
+        assert(ink + mix_ink(a, 15, 0) == 15);
+        if (a) assert(boosted >= ttf_aa_boost(s_cover[a-1]));
+        darker += boosted > s_cover[a];
+    }
+    assert(darker && mix_ink(0,0,15)==15 && mix_ink(255,0,15)==0);
+    assert(ttf_aa_boost(128) == 192);
+    assert((15u * (255u - ttf_aa_boost(128)) + 127u) / 255u == 4);
     s_antialias = false;
     for (int a = 0; a < 256; ++a) assert(mix_ink(a,0,15) == (a >= 128 ? 0 : 15));
+    assert(ttf_set_text_contrast(false));
     printf("PASS: 65536 ink combinations; real Vietnamese glyphs: %u/%u pixels corrected; binary unchanged\n", corrected, samples);
 }
 '''

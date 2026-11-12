@@ -37,6 +37,7 @@ static EpdRect difference_crop;
 static int scans, fail_at, differences, powerons;
 static int phase_hits[TEST_PHASES];
 static int test_bands=8, test_launch_step=1;
+static bool test_paired_tail;
 static int lut_builds;
 static int64_t now_us;
 static int scan_time_us=7000;
@@ -119,6 +120,25 @@ enum EpdDrawError epd_draw_base(EpdRect area, const uint8_t* data, EpdRect crop,
     for (int x = 0; x < WIDTH / 2; ++x)
         if (x < difference_crop.x / 2 || x >= (difference_crop.x + difference_crop.width + 1) / 2)
             assert(!columns[x]);
+    const int edge_pixels[] = {difference_crop.x, difference_crop.x + difference_crop.width - 1};
+    for (unsigned edge = 0; edge < 2; ++edge) {
+        int x = edge_pixels[edge];
+        bool active_edge = staged_lines != NULL;
+        if (staged_bands) {
+            unsigned covering = 0;
+            for (int b = 0; b < staged_count; ++b) {
+                if (x < staged_x0[b] || x >= staged_x1[b]) continue;
+                ++covering;
+                active_edge = staged_bands[b] >= 0;
+            }
+            assert(covering == 1);
+        }
+        const uint8_t mask = (x & 1) ? 0xf0 : 0x0f;
+        assert(((columns[x / 2] & mask) != 0) == active_edge);
+    }
+    if (difference_crop.x & 1) assert(!(columns[difference_crop.x / 2] & 0x0f));
+    const int end_x = difference_crop.x + difference_crop.width;
+    if (end_x & 1) assert(!(columns[end_x / 2] & 0xf0));
     int tick = scans++;
     int active = 0;
     bool phase_seen[TEST_PHASES] = {0};
@@ -142,15 +162,16 @@ enum EpdDrawError epd_draw_base(EpdRect area, const uint8_t* data, EpdRect crop,
             if (px < 0) { px = (staged_x0[b] + staged_x1[b]) / 2; py = HEIGHT / 2; }
         }
     }
+    const int launches = test_bands - test_paired_tail;
     int expected = 0;
-    for (int b = 0; b < test_bands; ++b)
+    for (int b = 0; b < launches; ++b)
         if (tick - b*test_launch_step >= 0 && tick - b*test_launch_step < TEST_PHASES) ++expected;
     if(active!=expected)fprintf(stderr,"phase mismatch tick=%d bands=%d stride=%d active=%d expected=%d\n",tick,test_bands,test_launch_step,active,expected);
     assert(active == expected);
     for(int p=0;p<TEST_PHASES;++p)phase_hits[p]+=phase_seen[p];
-    if(tick==(test_bands-1)*test_launch_step) {
+    if (tick == (launches - 1) * test_launch_step) {
         assert(phase_seen[0]);
-        if(test_launch_step==1)assert(expected==(test_bands<TEST_PHASES?test_bands:TEST_PHASES));
+        if(test_launch_step==1)assert(expected==(launches<TEST_PHASES?launches:TEST_PHASES));
         else assert(tick>=TEST_PHASES && expected<test_bands);
     }
     if (tick == 0 && check_direction) {
@@ -383,6 +404,23 @@ int main(void) {
             else for(size_t at=0;at<sizeof(back);++at)assert(back[at]==255);
         }
     }
+    test_bands = E0470_READER_RIPPLE_BANDS;
+    assert(test_bands == 6);
+    test_paired_tail = true;
+    for (int rot = 0; rot < 4; ++rot) for (int dir = 0; dir < 4; ++dir) {
+        rotation = (enum EpdRotation)rot;
+        direction = (e0470_turn_dir_t)dir;
+        EpdRect page = (rot & 1) ? (EpdRect){0, 0, HEIGHT, WIDTH} : (EpdRect){0, 0, WIDTH, HEIGHT};
+        page.height -= 2;
+        memset(back, 255, sizeof(back));
+        memset(phase_hits, 0, sizeof(phase_hits));
+        scans = differences = fail_at = 0;
+        assert(e0470_reader_ripple_with_waveform(&hl, page, direction, &soft_wave, test_bands) == EPD_DRAW_SUCCESS);
+        assert(scans == TEST_PHASES + 4 && differences == 1 && !staged_luts);
+        for (int phase = 0; phase < TEST_PHASES; ++phase) assert(phase_hits[phase] == 5);
+        check_crop_baseline(page);
+    }
+    puts("PASS: six-band reader ripple, paired tail, full pixel phases and four rotations/directions");
     puts("PASS: one-band ordinary turn, four rotations/directions, all phases once and every failed phase preserves history");
     printf("PASS: %d phases, %d compact reader ticks, four rotations/directions, every failure tick, preserved physical history, clipping, slow scans and OOM\n",TEST_PHASES,TEST_PHASES+7);
 }

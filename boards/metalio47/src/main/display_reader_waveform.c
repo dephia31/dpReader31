@@ -12,6 +12,7 @@
 #include "e0470_waveform_trim.h"
 #include "settings.h"
 #include <stddef.h>
+#include <string.h>
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
 #endif
@@ -97,6 +98,108 @@ const EpdWaveform* display_reader_text_waveform(void) {
         modes[0]=&mode;waveform=E0470_TEXTTURN_WAVEFORM;waveform.mode_data=modes;
         ready=true;
     }
+    return &waveform;
+}
+
+const EpdWaveform* display_reader_ripple_waveform(void) {
+    const EpdWaveform* base = display_reader_text_waveform();
+    if (!app_settings_book_antialias()) return base;
+
+    enum { PHASES = 37, LAST_DRIVE = PHASES - 4, EXTRA_BLACK = 2 };
+#ifdef ESP_PLATFORM
+    static EXT_RAM_BSS_ATTR uint8_t pixels[PHASES][16][4];
+#else
+    static uint8_t pixels[PHASES][16][4];
+#endif
+    static const EpdWaveformPhases phase = {PHASES, (const uint8_t*)pixels, NULL};
+    static const EpdWaveformPhases* ranges[] = {&phase};
+    static const EpdWaveformMode mode = {MODE_GL16, 1, ranges};
+    static const EpdWaveformMode* modes[] = {&mode};
+    static EpdWaveform waveform;
+    static bool ready, failed;
+    if (ready) return &waveform;
+    if (failed) return base;
+
+    const EpdWaveformPhases* source = e0470_waveform_phases(base, MODE_GL16);
+    if (!source || !source->luts || source->phase_times || source->phases != PHASES) return base;
+    for (int from = 1; from < 16; ++from) {
+        if (e0470_phase_action(source, 0, 0, from) ||
+            e0470_phase_action(source, 1, 0, from) ||
+            e0470_phase_action(source, LAST_DRIVE, 0, from) != 1) {
+            failed = true;
+            return base;
+        }
+    }
+
+    // Start transitions to black two phases earlier and extend their final
+    // black drive. Leave every other transition and the three tail holds intact.
+    memcpy(pixels, source->luts, sizeof(pixels));
+    for (int from = 1; from < 16; ++from) {
+        const int shift = 6 - 2 * (from % 4);
+        for (int f = 0; f <= LAST_DRIVE; ++f) {
+            const int action = f <= LAST_DRIVE - EXTRA_BLACK
+                ? e0470_phase_action(source, f + EXTRA_BLACK, 0, from) : 1;
+            uint8_t* entry = &pixels[f][0][from / 4];
+            *entry = (uint8_t)((*entry & ~(3u << shift)) | ((unsigned)action << shift));
+        }
+    }
+    waveform = *base;
+    waveform.mode_data = modes;
+    ready = true;
+    return &waveform;
+}
+
+const EpdWaveform* display_reader_flash_waveform(void) {
+    enum { FLASH_PHASES = 36 };
+#ifdef ESP_PLATFORM
+    static EXT_RAM_BSS_ATTR uint8_t pixels[E0470_FULL_GC16_FRAMES][16][4];
+#else
+    static uint8_t pixels[E0470_FULL_GC16_FRAMES][16][4];
+#endif
+    static const EpdWaveformPhases phase = {FLASH_PHASES, (const uint8_t*)pixels, NULL};
+    static const EpdWaveformPhases* ranges[] = {&phase};
+    static const EpdWaveformMode mode = {MODE_GC16, 1, ranges};
+    static const EpdWaveformMode* modes[] = {&mode};
+    static EpdWaveform waveform;
+    static bool ready, failed;
+    if (failed) return NULL;
+    if (ready) return &waveform;
+
+    extern const EpdWaveformPhases my_gc_25_0;
+    const e0470_trim_t trim = {.erase_max = 11, .sat_cut = 5, .white_sat_cut = 0, .hold = 3};
+    if (!my_gc_25_0.luts || my_gc_25_0.phase_times ||
+        my_gc_25_0.phases != E0470_FULL_GC16_FRAMES ||
+        e0470_waveform_trim(&my_gc_25_0, &trim, pixels) != FLASH_PHASES) {
+        failed = true;
+        return NULL;
+    }
+
+    // Match CrossPoint's fast GC endpoint treatment using the board's own GC table.
+    for (int f = 0; f < FLASH_PHASES; ++f) {
+        for (int gray = 0; gray < 16; ++gray)
+            pixels[f][gray][gray / 4] &= (uint8_t)~(3u << (6 - 2 * (gray % 4)));
+    }
+    for (int f = FLASH_PHASES - 3; f <= FLASH_PHASES - 2; ++f) {
+        pixels[f][0][0] |= 1u << 6;
+        pixels[f][15][3] |= 2u;
+    }
+    for (int f = FLASH_PHASES - 2; f >= 0; --f) {
+        if ((pixels[f][0][3] & 3u) == 1u) {
+            pixels[f][0][3] &= (uint8_t)~3u;
+            break;
+        }
+    }
+    for (int f = FLASH_PHASES - 3; f >= 0; --f) {
+        if ((pixels[f][15][0] >> 6) == 2u && !(pixels[f + 1][15][0] >> 6)) {
+            pixels[f + 1][15][0] |= 2u << 6;
+            break;
+        }
+    }
+
+    waveform = E0470_FULL_WAVEFORM;
+    waveform.num_modes = 1;
+    waveform.mode_data = modes;
+    ready = true;
     return &waveform;
 }
 

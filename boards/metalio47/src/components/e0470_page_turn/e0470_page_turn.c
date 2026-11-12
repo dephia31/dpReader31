@@ -8,8 +8,8 @@
  *       保留原始48相表及扫描/节拍下限。
  * English: S31 uses eight bands, one per tick: 55 ticks with the default full 48
  *          phases (44 for the trimmed 37), retaining scan timing and minimum pacing.
- * 普通文字单带整轮提交；阅读专用水波纹用8带，尾部两带同时启动，22相共28拍。
- * Ordinary text batches a single band; reader-only ripple uses eight bands with the final pair launched together, totaling28 ticks for22 phases.
+ * 普通文字单带整轮提交；阅读专用水波纹用6带，尾部两带同时启动，22相共26拍。
+ * Ordinary text batches a single band; reader-only ripple uses six bands with the final pair launched together, totaling 26 ticks for 22 phases.
  * 保留每个像素的完整有效驱动、准备相与尾相；主页及侧滑仍按原节拍逐带启动。
  * Retain every pixel's complete active, setup and tail phases; main pages and edge-back retain their original stagger schedule.
  */
@@ -332,6 +332,7 @@ static enum EpdDrawError page_turn_run(EpdiyHighlevelState* hl, EpdRect area,
     clip_rect(&phys, fb_w, fb_h);
     if (phys.width <= 0 || phys.height <= 0) return EPD_DRAW_SUCCESS;
 
+    const int x_end = phys.x + phys.width;
     const int y0 = phys.y;
     const int y1 = phys.y + phys.height;
     const bool lr = dir_is_lr(dir);
@@ -345,8 +346,10 @@ static enum EpdDrawError page_turn_run(EpdiyHighlevelState* hl, EpdRect area,
             s_band0, s_band1, bands, y0, y1, 1, false, origin, span, lr, reverse
         );
     } else {
-        const int x_lo = (phys.x + 15) & ~15;
-        const int x_hi = (phys.x + phys.width) & ~15;
+        // 条带向外对齐，输出掩码保留精确裁剪。/ Align bands outward and use the output mask for the exact crop.
+        const int x_lo = phys.x & ~15;
+        const int x_hi = (x_end + 15) & ~15;
+        if (x_hi > fb_w) return EPD_DRAW_INVALID_CROP;
         assign_bands(
             s_band0, s_band1, bands, x_lo, x_hi, 16, true, origin, span, lr, reverse
         );
@@ -388,7 +391,10 @@ static enum EpdDrawError page_turn_run(EpdiyHighlevelState* hl, EpdRect area,
                 memset(hl->dirty_lines + a, 1, (size_t)(b - a));
                 memset(s_line_phase + a, (int)(int8_t)phase, (size_t)(b - a));
             } else {
-                memset(hl->dirty_columns + a / 2, 0xFF, (size_t)((b - a) / 2));
+                const int first = a > phys.x ? a : phys.x;
+                const int end = b < x_end ? b : x_end;
+                if (first < end)
+                    memset(hl->dirty_columns + first / 2, 0xff, (size_t)((end + 1) / 2 - first / 2));
             }
             any = true;
         }
@@ -405,6 +411,9 @@ static enum EpdDrawError page_turn_run(EpdiyHighlevelState* hl, EpdRect area,
             memset(hl->dirty_lines + y0, 1, (size_t)(y1 - y0));
             epd_set_col_phase_luts(s_lut_ptr, s_band0, s_band1, s_band_phase, bands);
         }
+
+        if (phys.x & 1) hl->dirty_columns[phys.x / 2] &= 0xf0;
+        if (x_end & 1) hl->dirty_columns[x_end / 2] &= 0x0f;
 
         const int64_t t_draw = esp_timer_get_time();
         err = epd_draw_base(

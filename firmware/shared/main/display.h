@@ -149,6 +149,8 @@ enum EpdDrawError update_display_water_turn(EpdiyHighlevelState* hl, EpdRect are
 /// 同步普通文字翻页沿用水波纹的全部灰阶相位，单带同时输出并恢复原节拍。/ Ordinary text uses all ripple gray phases in one synchronous band and restores pacing.
 enum EpdDrawError update_display_text_turn(EpdiyHighlevelState* hl, EpdRect area, e0470_turn_dir_t dir);
 #if DPREADER_BOARD_METALIO47
+/// One synchronous reader scan using the shortened GC16 profile.
+enum EpdDrawError update_display_reader_flash(EpdiyHighlevelState* hl, EpdRect area);
 /// S31图文：同色保持，实际灰阶迁移用完整灰阶，黑白目标用原厂DU20，不量化图片。
 /// S31 images: hold equal pixels; retain complete gray transitions or native DU20 for actual BW changes, without quantization.
 enum EpdDrawError update_display_gray_transition(EpdiyHighlevelState* hl, EpdRect area);

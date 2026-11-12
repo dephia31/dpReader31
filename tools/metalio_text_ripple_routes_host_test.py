@@ -36,6 +36,8 @@ static bool reader_turn_chrome(app_ctx_t*c){(void)c;return chrome;}
 static void set_reader_view(int view){s_view=view;}
 static void skip_hidden_image_pages(app_ctx_t*c,int d){(void)c;(void)d;}
 static uint8_t app_settings_reader_full_pages(void){return full;}
+#define APP_READER_TURN_FLASH 3
+#define update_display_reader_flash(...) (assert(false), EPD_DRAW_SUCCESS)
 static int app_settings_reader_turn_effect(void){return effect;}
 static const char*app_settings_book_background_path(void){return background?"wall":"";}
 static app_redraw_t paint_reading(app_ctx_t*c,int mode){(void)c;assert(mode==MODE_GL16);return APP_REDRAW_AREA;}
@@ -73,7 +75,6 @@ typedef struct{int id;}EpdiyHighlevelState;
 typedef int e0470_turn_dir_t;
 enum EpdDrawError{EPD_DRAW_SUCCESS=0,EPD_DRAW_NO_PHASES_AVAILABLE=1,EPD_DRAW_EMPTY_LINE_QUEUE=2};
 enum{MODE_GL16,MODE_GC16,READ_PICO_EPD_SCAN_FAST,DISPLAY_PCLK_SAFE_MHZ};
-enum{METALIO_TEXT_RIPPLE_BANDS=8};
 static EpdWaveform E0470_WAVEFORM={1},E0470_FULL_WAVEFORM={2},normal={3},fast={4};
 static bool s_bulk_io,prepare,disabled,s_system_binary;
 static int effect,fast_prepares,prefill_at_scan,tps_prepares,tps_cancels;
@@ -83,6 +84,8 @@ static int metalio_tps_prepare(void){++tps_prepares;return 0;}
 static void metalio_tps_cancel_prepare(void){++tps_cancels;}
 static bool fast_available=true;
 static EpdWaveform native_fast={5};
+#define APP_READER_TURN_FLASH 3
+#define update_display_reader_flash(...) (assert(false), EPD_DRAW_SUCCESS)
 static int app_settings_reader_turn_effect(void){return effect;}
 static bool display_reader_fast_text_prepare(EpdiyHighlevelState*h,EpdRect a){(void)h;(void)a;++fast_prepares;return fast_available;}
 static const EpdWaveform*display_reader_fast_text_waveform(void){return &native_fast;}
@@ -94,6 +97,7 @@ static enum EpdDrawError result;
 #define ESP_LOGI(...) ((void)0)
 static bool main_before_update(EpdiyHighlevelState*h,enum EpdDrawError*r){(void)h;(void)r;return false;}
 static const EpdWaveform*display_reader_text_waveform(void){return &normal;}
+static const EpdWaveform* display_reader_ripple_waveform(void) {return display_reader_text_waveform();}
 static bool system_navigation_gray_changed(EpdiyHighlevelState*h){(void)h;return false;}
 static const EpdWaveform*display_main_navigation_waveform(void){return &normal;}
 static const EpdWaveform*display_main_bw_turn_waveform(void){return &normal;}

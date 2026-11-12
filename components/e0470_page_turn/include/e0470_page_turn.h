@@ -31,6 +31,7 @@ typedef enum {
 // PR17快档只缩短软件补等，不改变单次扫描或每像素相位。/ PR17 fast pacing changes only software padding, never a scan or a pixel's phases.
 #define E0470_TURN_FAST_TICK_US 11090
 #define E0470_TURN_FAST_BANDS 8
+#define E0470_READER_RIPPLE_BANDS 6
 
 const char* e0470_turn_dir_name(e0470_turn_dir_t dir);
 

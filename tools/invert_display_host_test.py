@@ -17,7 +17,7 @@ enum EpdDrawMode {MODE_GC16,MODE_GL16,MODE_DU};
 enum EpdRotation {EPD_ROT_LANDSCAPE,EPD_ROT_PORTRAIT,EPD_ROT_INVERTED_LANDSCAPE,EPD_ROT_INVERTED_PORTRAIT};
 typedef struct {int x,y,width,height;} EpdRect;
 typedef int EpdWaveform;
-static EpdWaveform E0470_FULL_WAVEFORM,E0470_WAVEFORM,bw_wave,gray_wave;
+static EpdWaveform E0470_FULL_WAVEFORM,E0470_WAVEFORM,bw_wave,gray_wave,flash_wave;
 typedef struct {uint8_t *front_fb,*back_fb;} EpdiyHighlevelState;
 #define METALIO_CPU_GUARD_OR_RETURN(x) ((void)0)
 #define MALLOC_CAP_SPIRAM 1
@@ -25,7 +25,7 @@ typedef struct {uint8_t *front_fb,*back_fb;} EpdiyHighlevelState;
 #define APP_UI_GC16_EVERY 4
 #define BYTES 128
 #define _swap_int(a,b) do{int v=(a);(a)=(b);(b)=v;}while(0)
-static bool enabled,fail,oom,full_seen;
+static bool enabled,fail,oom,full_seen,flash_available=true;
 static bool s_full_refresh_requested,s_main_fault,s_output_inverted;
 static uint8_t *s_inverted_front;
 static unsigned s_inverted_pages;
@@ -46,6 +46,7 @@ static void continuous_du_reset(void){}
 static void display_main_transition_cancel(void){}
 static const EpdWaveform *display_main_bw_waveform(void){return &bw_wave;}
 static const EpdWaveform *display_main_gray_waveform(void){return &gray_wave;}
+static const EpdWaveform *display_reader_flash_waveform(void){return flash_available?&flash_wave:NULL;}
 static void use_scan_for(const EpdWaveform *w,enum EpdDrawMode m){seen_wave=w;seen_mode=m;}
 static void epd_poweron(void){}
 static void epd_hl_waveform(EpdiyHighlevelState *h,const EpdWaveform *w){(void)h;(void)w;}
@@ -59,7 +60,8 @@ unit+=r'''
 static enum EpdDrawError scan(EpdiyHighlevelState *h,enum EpdDrawMode m,bool full,EpdRect a){
  ++scans;full_seen=full;seen_mode=m;seen_area=a;
  memcpy(captured,h->front_fb,BYTES);memcpy(old_physical,h->back_fb,BYTES);
- assert(seen_wave==(m==MODE_DU?&bw_wave:m==MODE_GL16?&gray_wave:&E0470_FULL_WAVEFORM));
+ assert(m==MODE_GC16?(seen_wave==&E0470_FULL_WAVEFORM||seen_wave==&flash_wave):
+        seen_wave==(m==MODE_DU?&bw_wave:&gray_wave));
  if(fail)return EPD_DRAW_FAILED_ALLOC;
  EpdRect p=full?epd_full_screen():_inverse_rotated_area(a.x,a.y,a.width,a.height);
  // Model real highlevel's aligned 32-column scan/copy. The adapter must freeze
@@ -71,7 +73,7 @@ static enum EpdDrawError scan(EpdiyHighlevelState *h,enum EpdDrawMode m,bool ful
 static enum EpdDrawError epd_hl_update_screen_full(EpdiyHighlevelState *h,enum EpdDrawMode m,int t){assert(m==MODE_GC16&&t==25);return scan(h,m,true,epd_full_screen());}
 static enum EpdDrawError epd_hl_update_area(EpdiyHighlevelState *h,enum EpdDrawMode m,int t,EpdRect a){assert(m!=MODE_GC16&&t==25);return scan(h,m,false,a);}
 '''
-unit+=function('display_inverted_crop',src)+'\n'+function('display_inverted_output',src)
+unit+=function('display_inverted_crop',src)+'\n'+function('display_inverted_with',src)+'\n'+function('display_inverted_output',src)
 unit+=r'''
 static void pixel(uint8_t *fb,int x,int y,unsigned v){int i=y*32+x/2,s=(x&1)*4;fb[i]=(fb[i]&~(15<<s))|(v<<s);}
 static unsigned value(const uint8_t *fb,int x,int y){return(fb[y*32+x/2]>>((x&1)*4))&15;}
@@ -98,6 +100,17 @@ int main(void){
  front[1]=255;assert(display_inverted_output(&h,false,NULL,true)==0&&seen_mode==MODE_GL16);
  int before=scans;unsigned count=s_inverted_pages;
  assert(display_inverted_output(&h,false,NULL,true)==0&&scans==before&&s_inverted_pages==count);
+ reset();front[0]=0x7e;before=scans;
+ assert(display_inverted_with(&h,false,NULL,false,true)==0&&scans==before+1);
+ assert(full_seen&&seen_wave==&flash_wave&&captured[0]==0x81&&back[0]==0x7e&&s_inverted_pages==0);
+ assert(display_inverted_with(&h,false,NULL,false,true)==0&&scans==before+1);
+ front[0]=0x19;fail=true;
+ assert(display_inverted_with(&h,false,NULL,false,true)==EPD_DRAW_FAILED_ALLOC&&back[0]==0x7e&&h.front_fb==front);
+ fail=false;
+ assert(display_inverted_with(&h,false,NULL,false,true)==0&&seen_wave==&E0470_FULL_WAVEFORM&&back[0]==0x19);
+ reset();front[0]=0;flash_available=false;
+ assert(display_inverted_with(&h,false,NULL,false,true)==0&&seen_wave==&E0470_FULL_WAVEFORM);
+ flash_available=true;
  // Exact logical crop through all rotations; outside pixel in the same packed
  // byte and additional pending pixels must never leak into this presentation.
  for(int r=0;r<4;r++){

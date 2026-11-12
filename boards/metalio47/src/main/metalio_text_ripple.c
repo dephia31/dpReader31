@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: LicenseRef-Kiikoread-Personal-Study-1.0
  * 中文：参考CrossLink观测到的22相/10带/四级文字分流，独立生成本地实验序列。
  * 黑白端点预算及中灰擦白次数来自本板GL48；中灰12相复位为实验参数，尚未光学校准。
- * 用户最新指定普通文字也复用22相，同步整页；水波纹沿用8带并合并尾带。
+ * 用户最新指定普通文字也复用22相，同步整页；水波纹使用6带并合并尾带。
  * 用户报告白底闪动后，所有等值像素保持，不再追加白底补推；变化的旧字仍擦白。图片不使用，默认构建关闭。
  * English: Independently build a local experiment inspired by CrossLink's observed
  * 22-phase/10-band/four-level text path. Endpoint budgets and gray erase counts
  * come from this board's GL48; the12-phase gray reset remains optically uncalibrated.
  * The latest user request shares these22 phases with synchronous ordinary text;
- * ripple uses eight bands with a paired tail. After reported background flicker,
+ * ripple uses six bands with a paired tail. After reported background flicker,
  * all equal pairs hold without white maintenance; changed old glyphs still erase.
  * Pictures and default builds exclude this path.
  * Do not copy binary tables or change VCOM/scanning/power.
@@ -81,7 +81,7 @@ const EpdWaveform* metalio_text_ripple_waveform(void) {
     s_waveform = E0470_TEXTTURN_WAVEFORM;
     s_waveform.mode_data = s_modes;
     s_ready = true;
-    ESP_LOGI("text_ripple", "%s", "LOCAL EXPERIMENT gray=4 phases=22 ordinary=1band ripple=8bands; panel power unchanged");
+    ESP_LOGI("text_ripple", "%s", "LOCAL EXPERIMENT gray=4 phases=22 ordinary=1band ripple=6bands; panel power unchanged");
     return &s_waveform;
 }
 

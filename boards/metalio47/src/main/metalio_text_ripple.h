@@ -7,7 +7,6 @@
 #include "epd_highlevel.h"
 
 #define METALIO_TEXT_RIPPLE_PHASES 22
-#define METALIO_TEXT_RIPPLE_BANDS 8
 #define METALIO_TEXT_RIPPLE_CLEAN_PAGES 10
 
 /// 仅量化目标区域，保留真实旧帧；失败扫描由原显示出口恢复。/ Quantize only the target crop, retaining real history and the display outlet's failure recovery.
