@@ -31,7 +31,7 @@ static unsigned s_unsaved;
 static uint32_t s_stats_pending_ms;
 static bool book_notes_active(void){return notes;}
 static bool app_settings_kosync_auto(void){return auto_sync;}
-static const char *ttf_font_path(void){return "font";}
+static bool reader_layout_font_changed(void){return strcmp(s_font_path,"font")!=0;}
 static const char *app_settings_book_background_path(void){return background?"bg":"";}
 static unsigned app_settings_lock_style(void){return 0;}
 static unsigned book_layout_page_image_count(size_t p){(void)p;return images;}

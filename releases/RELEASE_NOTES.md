@@ -1,11 +1,15 @@
-## Cập nhật lên dpReader 1.4.3
+## dpReader 1.4.4 cho Metalio E‑Ink4 Plus (ESP32-S31)
 
-- **Từ 1.4.1 trở xuống hoặc từ firmware khác:** Sao lưu cấu hình ra thẻ SD rồi nạp toàn phần 16 MB. Sau khi nạp, khôi phục cấu hình từ thẻ nhớ. [Mở Web Flash](https://dephia31.github.io/dpReader31/)
-- **Từ 1.4.2:** Cập nhật ứng dụng qua Web Flash hoặc bộ cài USB một lần. Máy đã dùng NVS 256 KiB giữ cài đặt và dữ liệu khi nạp ứng dụng. OTA hoạt động trở lại từ 1.4.3.
-- Chọn đúng bản **Full** hoặc **Love Book**. Bộ cài tải về có launcher macOS và Windows.
+- Cài đặt đọc và phông chữ dùng chung cho mọi cuốn. Tiến độ vẫn lưu riêng.
+- EPUB hiển thị tiêu đề chương từ sách, căn giữa số và tên chương khi sách tách hai phần, chừa thêm 8 px trước nội dung. Có tùy chọn chữ cái đầu đoạn lớn khi đọc ngang.
+- Sửa giãn đoạn với EPUB dùng hai thẻ xuống dòng liên tiếp. Khôi phục chữ đậm, nghiêng và đậm nghiêng sau khi mở khóa hoặc quay lại từ mục lục.
+- KoSync tra vị trí đọc mà vẫn giữ font của cuốn đang mở.
+- Pop menu của giao diện Love phủ sát hai mép và đáy. Sóng Nước áp dụng khi mở các mục, quay từ Cài đặt hoặc trình đọc về Đọc tiếp. Bật Khử răng cưa tự chọn Sóng Nước cho lật trang, người dùng có thể đổi sau.
 
-## Thay đổi
+Có hai bản Full và Love Book. Chọn đúng bản đang dùng khi cập nhật.
 
-- Giữ lề, giãn dòng và giãn đoạn khi mở lại sách. Mỗi 10% thay đổi 4 px.
-- Thu gọn thanh trạng thái trong trình đọc. Thanh Đáy chạy hết chiều ngang, dày 12 px. Số trang, tên chương và phần trăm cùng hàng. Tên dài được cắt theo từ.
-- Font Google hiển thị đúng tên bộ font và các lượt tải mới dùng tên đó cho tệp.
+- Từ **1.4.3** trên bố cục NVS 256 KiB, cập nhật qua OTA hoặc chọn nạp cập nhật trên Web Flash.
+- Từ **1.4.2**, nạp cập nhật qua USB một lần.
+- Từ **1.4.1 trở xuống** hoặc firmware khác, sao lưu cài đặt ra thẻ SD trước khi chọn nạp toàn phần. Sau khi cài xong, dùng chức năng khôi phục từ thẻ SD.
+
+[Web Flash](https://dephia31.github.io/dpReader31/)

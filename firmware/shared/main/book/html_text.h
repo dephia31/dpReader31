@@ -53,6 +53,8 @@ typedef struct {
     uint8_t margin_after_percent; ///< 段后距，相对字号百分比 / Trailing margin as a percentage of font size
     uint8_t heading_level; ///< 原文 h1–h6 层级，普通文字为零 / Original h1-h6 level, zero for ordinary text
     bool line_break_after; ///< 段内换行，下一块前不加段后距 / In-paragraph break, without a paragraph gap before the next block
+    bool drop_cap; ///< 原文首字下沉标记 / Authored drop-cap marker
+    uint32_t heading_split; ///< 标题内视觉换行偏移 / Visual break within a heading
     size_t run_first; ///< 本块第一个 run 的下标 / Index of this block's first run
     size_t run_count; ///< 本块的 run 数；零表示整块用系统字体 / Runs owned by this block; zero means the system face throughout
 } blk_t;

@@ -435,11 +435,6 @@ unit += function("book_layout_balanced_rect", layout_source) + "\n"
 unit += function("set_reader_view") + "\n"
 unit += function("ble_pt_action_for_usage", source.parents[2] / "components/ble_page_turner/src/ble_page_turner.c") + "\n"
 unit += r'''
-static char s_chapter_heading_title[128],s_chapter_heading_label[32];
-static size_t s_chapter_lead_skip;
-static unsigned s_chapter_lead_row_height;
-static void apply_chapter_lead(const char *title,const char *label,size_t skip,unsigned row){(void)title;(void)label;(void)skip;(void)row;}
-static void refresh_chapter_lead(void){}
 '''
 unit += "static int reader_content_top(void){return 72;}\nstatic int reader_content_bottom(void){return READER_FOOTER_TOP;}\n"
 for name in ("inline_ink_gray", "reader_margin_width", "reader_margin_levels", "reader_margin_level_for", "reader_margin_for_level", "slider_index", "reader_margin_input", "reader_area", "body_rect_for_tracking", "body_rect", "progress_rect", "copy_text", "reader_footer_strip_number", "favorite_key", "favorite_read_handle", "shelf_hidden_key", "shelf_hidden_read_handle", "shelf_hidden_load", "shelf_hidden_save", "shelf_rows", "row_rect", "shelf_category_add", "shelf_category_init", "shelf_category_matches", "shelf_category_remember", "shelf_category_restore", "shelf_categories_recount", "shelf_matches", "compare_books", "sort_shelf", "shelf_reserve", "delete_retry_find", "delete_retry_reserve", "delete_retry_discard", "scan_shelf_dir", "shelf_backfill_visit", "shelf_backfill_read_books", "scan_shelf", "refresh_cached_progress",

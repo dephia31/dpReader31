@@ -1,3 +1,11 @@
+## dpReader 1.4.4-vn / 1.4.4-love-vn · 2026-11-12
+
+- Cài đặt đọc và phông chữ dùng chung cho mọi cuốn. Tiến độ vẫn lưu riêng.
+- EPUB hiển thị tiêu đề chương từ sách, căn giữa số và tên chương khi sách tách hai phần, chừa thêm 8 px trước nội dung. Có tùy chọn chữ cái đầu đoạn lớn khi đọc ngang.
+- Sửa giãn đoạn với EPUB dùng hai thẻ xuống dòng liên tiếp. Khôi phục chữ đậm, nghiêng và đậm nghiêng sau khi mở khóa hoặc quay lại từ mục lục.
+- KoSync tra vị trí đọc mà vẫn giữ font của cuốn đang mở.
+- Pop menu của giao diện Love phủ sát hai mép và đáy. Sóng Nước áp dụng khi mở các mục, quay từ Cài đặt hoặc trình đọc về Đọc tiếp. Bật Khử răng cưa tự chọn Sóng Nước cho lật trang, người dùng có thể đổi sau.
+
 ## dpReader 1.4.3-vn / 1.4.3-love-vn · 2026-11-11
 
 - Khôi phục lề và giãn dòng riêng của sách khi mở lại. Giãn dòng và giãn đoạn dùng mốc 40 px để mỗi 10% tương ứng 4 px.

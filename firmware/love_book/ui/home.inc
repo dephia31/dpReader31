@@ -193,19 +193,45 @@ static app_redraw_t simple_add_action(app_ctx_t *ctx,int x,int y) {
     return APP_REDRAW_NONE;
 }
 
-static void render_pop_menu(uint8_t *fb) {
-    header(fb,"Pop menu");
-    simple_utility(fb,simple_import_rect(0),UI_ICON_FOLDER_OPEN,"Mở sách",false);
-    simple_utility(fb,simple_import_rect(1),UI_ICON_COPY,"Truyền file",false);
-    simple_utility(fb,simple_import_rect(2),UI_ICON_RADIO_TOWER,"Thư viện OPDS",false);
-    simple_utility(fb,simple_import_rect(3),UI_ICON_SLIDERS_HORIZONTAL,"Cài đặt",false);
+static EpdRect pop_menu_rect(void) {
+    return (EpdRect){0, 732, UI_LOCK_WIDTH, UI_LOCK_HEIGHT - 732};
 }
 
-static app_redraw_t simple_pop_menu_action(app_ctx_t *ctx,int x,int y) {
-    if(ui_rect_hit(simple_import_rect(0),x,y)) {ctx->request_app=app_at(5);return APP_REDRAW_NONE;}
-    if(ui_rect_hit(simple_import_rect(1),x,y))return utility_run(ctx,APP_HOME_UTIL_TRANSFER);
-    if(ui_rect_hit(simple_import_rect(2),x,y))return utility_run(ctx,APP_HOME_UTIL_OPDS);
-    if(ui_rect_hit(simple_import_rect(3),x,y))return utility_run(ctx,APP_HOME_UTIL_SETTINGS);
-    s_view=HOME_ROOT;
-    return APP_REDRAW_PAGE;
+static EpdRect pop_menu_row(unsigned i) {
+    EpdRect panel = pop_menu_rect();
+    return (EpdRect){panel.x + 24, panel.y + 28 + (int)i * 108, panel.width - 48, 108};
+}
+
+static void render_pop_menu(uint8_t *fb) {
+    static const ui_icon_t icons[] = {UI_ICON_FOLDER_OPEN, UI_ICON_COPY, UI_ICON_RADIO_TOWER, UI_ICON_SLIDERS_HORIZONTAL};
+    static const char *const labels[] = {"Mở sách", "Truyền file", "Thư viện OPDS", "Cài đặt"};
+    EpdRect panel = pop_menu_rect();
+    ui_fill_rect_fast(panel, UI_GRAY_WHITE, fb);
+    ui_fill_rect_fast((EpdRect){panel.x, panel.y, panel.width, 3}, 0x30, fb);
+    for (unsigned i = 0; i < 4; ++i) {
+        EpdRect row = pop_menu_row(i);
+        int cy = row.y + row.height / 2;
+        ui_draw_icon_normalized(fb, row.x + 40, cy, 34, icons[i], UI_GRAY_BLACK);
+        ui_text_caption(fb, (EpdRect){row.x + 84, row.y, row.width - 100, row.height},
+                        28, labels[i], EPD_DRAW_ALIGN_LEFT, false);
+        if (i < 3) ui_hairline(fb, row.y + row.height, row.x + 84, row.width - 100, UI_GRAY_LIGHT);
+    }
+}
+
+static app_redraw_t simple_pop_menu_action(app_ctx_t *ctx, int x, int y) {
+    static const unsigned utilities[] = {
+        APP_HOME_UTIL_TRANSFER, APP_HOME_UTIL_OPDS, APP_HOME_UTIL_SETTINGS,
+    };
+    for (unsigned i = 0; i < 4; ++i) {
+        if (!ui_rect_hit(pop_menu_row(i), x, y)) continue;
+#if DPREADER_BOARD_METALIO47
+        ctx->request_back_ripple = app_settings_main_refresh_mode() == APP_MAIN_REFRESH_WATER;
+#endif
+        if (i == 0) {
+            ctx->request_app = app_at(5);
+            return APP_REDRAW_NONE;
+        }
+        return utility_run(ctx, utilities[i - 1]);
+    }
+    return set_pop_menu_open(false);
 }

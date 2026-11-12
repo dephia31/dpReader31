@@ -29,10 +29,11 @@ enum {
     CSS_FAMILY = 1u << 4,
     CSS_BOLD = 1u << 5,
     CSS_ITALIC = 1u << 6,
+    CSS_DISPLAY = 1u << 7,
 };
 
 typedef struct {
-    uint8_t mask, align, indent, before, after, family, bold, italic;
+    uint8_t mask, align, indent, before, after, family, bold, italic, display_block;
 } css_style_t;
 
 typedef struct {
@@ -51,7 +52,8 @@ typedef struct {
     html_text_t text;
     size_t text_cap, block_cap, start;
     bool active, heading, block_heading, space;
-    bool block_linked, block_auxiliary;
+    bool block_linked, block_auxiliary, drop_cap;
+    size_t heading_split;
     uint8_t heading_level, block_heading_level;
     size_t depth, link_depth, auxiliary_depth;
     css_style_t current_style, block_style;
@@ -118,6 +120,7 @@ static void css_apply(css_style_t* dst, const css_style_t* src) {
     if (src->mask & CSS_FAMILY) dst->family = src->family;
     if (src->mask & CSS_BOLD) dst->bold = src->bold;
     if (src->mask & CSS_ITALIC) dst->italic = src->italic;
+    if (src->mask & CSS_DISPLAY) dst->display_block = src->display_block;
     dst->mask |= src->mask;
 }
 
@@ -185,6 +188,9 @@ static void css_declarations(writer_t* w, const char* at, const char* end, css_s
             style->align = vn == 6 && !strncasecmp(value, "center", 6) ? 1 :
                            vn == 5 && !strncasecmp(value, "right", 5) ? 2 : 0;
             style->mask |= CSS_ALIGN;
+        } else if (kn == 7 && !strncasecmp(key, "display", 7)) {
+            style->display_block = vn == 5 && !strncasecmp(value, "block", 5);
+            style->mask |= CSS_DISPLAY;
         } else if (kn == 11 && !strncasecmp(key, "text-indent", 11)) {
             style->indent = css_length_percent(value, vn); style->mask |= CSS_INDENT;
         } else if (kn == 10 && !strncasecmp(key, "margin-top", 10)) {
@@ -394,7 +400,7 @@ static css_style_t style_for(writer_t* w, const char* tag, const char* attrs, co
     css_style_t out = {0};
     if (!strcmp(tag,"b") || !strcmp(tag,"strong")) { out.bold=1; out.mask|=CSS_BOLD; }
     if (!strcmp(tag,"i") || !strcmp(tag,"em")) { out.italic=1; out.mask|=CSS_ITALIC; }
-    unsigned priorities[7] = {0};
+    unsigned priorities[8] = {0};
     for (size_t i = 0; i < w->rule_count; ++i) {
         const css_rule_t *rule = &w->rules[i];
         bool body = rule->length == 4 && !strncasecmp(rule->selector, "body", 4);
@@ -403,9 +409,9 @@ static css_style_t style_for(writer_t* w, const char* tag, const char* attrs, co
                                                tag, attrs, attrs_end, w->depth ? w->depth - 1 : 0, 8, &work);
         if (!matches) continue;
         css_style_t chosen = rule->style;
-        if (body && strcmp(tag,"body")) chosen.mask &= ~(CSS_BOLD|CSS_ITALIC);
+        if (body && strcmp(tag,"body")) chosen.mask &= ~(CSS_BOLD|CSS_ITALIC|CSS_DISPLAY);
         unsigned specificity = body ? 0 : rule->specificity;
-        for (unsigned bit = 0; bit < 7; ++bit) {
+        for (unsigned bit = 0; bit < 8; ++bit) {
             if (!(chosen.mask & (1u << bit))) continue;
             if (specificity < priorities[bit]) chosen.mask &= ~(1u << bit);
             else priorities[bit] = specificity;
@@ -478,9 +484,9 @@ static esp_err_t run_open(writer_t* w) {
 static esp_err_t finish_block(writer_t* w, bool line_break) {
     w->space = false;
     if (!w->active) {
-        // 段尾 br 没有后续文字时，结束标签仍需收回整段的段后距。
-        // A trailing br with no following text still keeps the paragraph's closing margin.
-        if (!line_break && w->text.count) {
+        // 连续 br 或段落闭合结束上一段；保留原有文本偏移。
+        // A second br or block closure ends the paragraph without changing text offsets.
+        if (w->text.count) {
             blk_t* last = &w->text.blocks[w->text.count - 1];
             if (last->line_break_after) {
                 last->line_break_after = false;
@@ -509,6 +515,8 @@ static esp_err_t finish_block(writer_t* w, bool line_break) {
         .margin_before_percent = w->block_style.before,
         .margin_after_percent = line_break ? 0 : w->block_style.after,
         .line_break_after = line_break,
+        .heading_split = w->heading_split < w->text.len - w->start ? w->heading_split : 0,
+        .drop_cap = w->drop_cap,
         .run_first = w->block_run_first,
         .run_count = w->text.run_count - w->block_run_first,
     };
@@ -539,6 +547,7 @@ static esp_err_t emit(writer_t* w, uint32_t cp) {
     if (!w->active) {
         if (separator) w->text.utf8[w->text.len++] = '\n';
         w->start = w->text.len;
+        w->heading_split = 0;
         w->active = true;
         w->block_heading = w->heading;
         w->block_heading_level = w->heading_level;
@@ -855,6 +864,15 @@ static esp_err_t html_to_blocks_core(const char* html, size_t len,
                     if (w.depth <= CSS_ANCESTOR_MAX) {
                         uint8_t parent = w.depth >= 2 ? w.family_at[w.depth - 2] : 0;
                         css_style_t level = style_for(&w, name, html + at, html + end);
+                        if (w.active && w.heading && !w.heading_split && name_equal(name, "span")) {
+                            const char *classes = NULL;
+                            size_t classes_len = 0;
+                            if (level.display_block ||
+                                (!(level.mask & CSS_DISPLAY) &&
+                                 attr_value(html + at, html + end, "class", &classes, &classes_len) &&
+                                 class_has(classes, classes_len, "chapter-name")))
+                                w.heading_split = w.text.len - w.start;
+                        }
                         uint8_t family = (level.mask & CSS_FAMILY) ? level.family : parent & HTML_FONT_SLOT_MASK;
                         bool bold = (level.mask & CSS_BOLD) ? level.bold : (parent & HTML_FONT_BOLD) != 0;
                         bool italic = (level.mask & CSS_ITALIC) ? level.italic : (parent & HTML_FONT_ITALIC) != 0;
@@ -910,6 +928,13 @@ static esp_err_t html_to_blocks_core(const char* html, size_t len,
                                                        .after = w.current_style.after};
                     else if (!closing && !self_closing) w.current_style = style_for(&w, name, html + at, html + end);
                     else w.current_style = (css_style_t){0};
+                    if (!line_break) {
+                        const char *classes = NULL;
+                        size_t classes_len = 0;
+                        w.drop_cap = !closing && name_equal(name, "p") &&
+                            attr_value(html + at, html + end, "class", &classes, &classes_len) &&
+                            class_has(classes, classes_len, "dropcap");
+                    }
                     if (name[0] == 'h' && name[1] >= '1' && name[1] <= '3' && !name[2]) w.heading = !closing && !self_closing;
                     if (name[0] == 'h' && name[1] >= '1' && name[1] <= '6' && !name[2])
                         w.heading_level = !closing && !self_closing ? (uint8_t)(name[1] - '0') : 0;

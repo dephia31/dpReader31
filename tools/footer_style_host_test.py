@@ -177,7 +177,6 @@ static int64_t s_reader_notice_until;
 static void lock_draw(void){assert(!locked);locked=true;}
 static void unlock_draw(void){assert(locked);locked=false;}
 static void invalidate_prep(void){assert(locked);}
-static void refresh_chapter_lead(void){assert(locked);}
 static EpdRect body_rect(void){return body_rect_for_tracking(0);}
 static size_t reader_page_offset(size_t page){assert(page==2);return 212;}
 static size_t book_layout_page_for_offset(size_t offset){assert(offset==212);return 2;}

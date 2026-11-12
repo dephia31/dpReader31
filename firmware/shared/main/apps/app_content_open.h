@@ -27,6 +27,7 @@ void app_book_request_manage(void);
 void app_book_request_opds(void);
 bool app_book_reader_body_visible(void);
 #if DPREADER_BOARD_METALIO47
+bool app_book_reader_open(void);
 #include "app/app.h"
 #include "settings.h"
 /// 共用看图入口，path可空以显示列表；透明书封只收PNG。/ Shared viewer entry; an empty path opens its list, while transparent covers accept PNG only.

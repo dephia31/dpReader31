@@ -145,7 +145,7 @@ Không đọc/ghi thiết bị thật.
 ## Dữ liệu theo cuốn trên S31
 
 Từ `1.4.0`, firmware tạo `/sdcard/.dpreader`, đặt thuộc tính Hidden trên FAT,
-và lưu tiến độ, tùy chọn trình bày theo đường dẫn sách trong `books/` (chia 16
+và lưu tiến độ theo đường dẫn sách trong `books/` (chia 16
 thư mục con để giới hạn số tệp mỗi thư mục). Tên tệp dùng hash 64-bit; bản ghi
 vẫn chứa đường dẫn đầy đủ để từ chối ghi đè khi xảy ra va chạm. Sách trong
 `/flash/books/` dùng `/flash/.dpreader` trên vùng lưu trữ nội bộ đã có.
@@ -156,11 +156,11 @@ hỏng bị loại. Cách này giữ bản trước khi một tệp ghi dở; kh
 nếu toàn bộ hệ thống file hoặc cả hai slot hỏng. Thẻ lỗi/đầy trả lỗi lưu, không
 xóa NVS hay tự định dạng. Các bộ đệm kiểm tra dùng PSRAM, cấp phát có giới hạn.
 
-Font, cỡ chữ, độ đậm, khử răng cưa, khoảng cách, căn lề, hình nền, hiển thị ảnh,
-font nhúng, thanh trạng thái và chân trang được lưu riêng khi chỉnh trong sách.
-Sách chưa có cấu hình kế thừa mặc định chung; thoát sách trả lại mặc định chung.
-Phím/gestures, Wi-Fi, Bluetooth và cấu hình hệ thống vẫn dùng cơ chế chung.
-Đổi đường dẫn hoặc đổi kích thước tệp không tự mang theo cấu hình/tiến độ cũ.
+Từ `1.4.4`, font, cỡ chữ, độ đậm, khử răng cưa, khoảng cách, căn lề,
+hình nền, hiển thị ảnh, font nhúng, thanh trạng thái và chân trang dùng chung.
+Khi nâng cấp, bộ đọc dùng cài đặt chung đang lưu trên máy. Các tệp trình bày
+cũ trên thẻ được giữ để tương thích với bản sao lưu và firmware cũ.
+Đổi đường dẫn hoặc đổi kích thước tệp không tự mang theo tiến độ cũ.
 
 Lật trang tiếp tục cập nhật tiến độ trong RAM; cơ chế lưu trì hoãn lúc rảnh,
 đóng sách và khóa máy được giữ nguyên. Chỉnh trình bày ghi khi thay đổi lựa chọn.
@@ -171,7 +171,7 @@ nhớ trong; nếu nơi lưu phiên mất kết nối thì không cho mở sách
 
 Tiến độ NVS và snapshot `.dpreader-progress/progress.bin` cũ được đọc khi chưa
 có bản ghi mới; các lượt lưu tiếp theo ghi theo cuốn, không xóa dữ liệu nguồn.
-Sao lưu xuất tiến độ có hiệu lực và cấu hình riêng từng cuốn, dùng phần lịch sử
+Sao lưu xuất tiến độ có hiệu lực và các bản ghi trình bày cũ còn trên thẻ, dùng phần lịch sử
 `RPHIST2`; firmware mới tiếp tục nhập `RPHIST1`. Firmware cũ không nhập được bản
 sao chứa phần lịch sử mới. Khôi phục là thay thế thư viện được lưu, không gộp;
 dữ liệu cũ ngoài bản sao được che bằng bản ghi xóa. Thao tác khôi phục nhiều tệp

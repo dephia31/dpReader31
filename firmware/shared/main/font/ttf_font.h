@@ -75,6 +75,7 @@ bool ttf_font_slot_has_text(int slot, const char* text);
 /// 关闭 0 号以外的所有槽并释放其字节，游标回到系统字体。
 /// Close every slot but 0, free its bytes, and put the cursor back on the system face.
 void ttf_font_close_embedded(void);
+uint32_t ttf_font_family_generation(void);
 
 /// 灰阶字覆盖率伽马。小于 1 抬中间覆盖率，抗锯齿边缘更深；满墨仍是 0。
 /// Coverage gamma for gray glyphs. Below 1 lifts mid coverage so AA edges are darker; full ink stays 0.

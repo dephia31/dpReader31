@@ -110,6 +110,7 @@ struct book_epub {
     epub_face_t *faces; ///< 书内字体表 / Embedded faces
     size_t face_count, face_capacity;
     bool fonts_scanned; ///< 已按文件名扫过包里的字体 / Font files already scanned by name
+    bool owns_font_slots;
     bool fonts_enabled; ///< 用户开关，默认开 / User toggle, on by default
     text_block_t* text_blocks; ///< 标题与锚点池 / Pool for titles and anchors
     text_block_t* text_last; ///< 池的尾块 / Tail block of the pool
@@ -965,8 +966,6 @@ esp_err_t book_epub_open(const char *path, book_epub_t **out) {
     *out = NULL; if (!path || !*path) return ESP_ERR_INVALID_ARG;
     book_epub_t *book = psram(sizeof(*book)); if (!book) return ESP_ERR_NO_MEM;
     memset(book, 0, sizeof(*book));
-    // 内嵌字体默认开启；读设置是阅读页的事，这里只给默认值。
-    // Embedded faces are on by default; reading the setting is the reader page's job.
     book->fonts_enabled = true;
     if (strlen(path) < sizeof(book->source_path)) strcpy(book->source_path, path);
     char (*paths)[EPUB_PATH_CAP] = psram(3 * EPUB_PATH_CAP);
@@ -1028,10 +1027,9 @@ esp_err_t book_epub_open(const char *path, book_epub_t **out) {
 void book_epub_close(book_epub_t *book) {
     if (!book) return;
     if (book->headings_dirty && book->source_path[0]) epub_cache_save(book->source_path, book);
-    // 书内字体装在全局槽里，关书必须还回去，否则下一本书会读到上一本的字形。
-    // Embedded faces live in global slots: closing the book must hand them back, or the next
-    // book would read the previous one's glyphs.
-    ttf_font_close_embedded();
+    // 只读同步、封面与元数据不能清理阅读器的字体槽。
+    // Sync, cover and metadata lookups must leave the live reader's font slots alone.
+    if (book->owns_font_slots) ttf_font_close_embedded();
     text_pool_free(book);
     zip_close(book->zip); free(book->visible_index); free(book->navigation);
     free(book->chapters); free(book->faces); free(book);
@@ -1680,6 +1678,7 @@ static uint8_t epub_load_face(book_epub_t* book, epub_face_t* face) {
         ESP_LOGW(TAG, "embedded face %s rejected (%u KB)", face->family, (unsigned)(size / 1024));
         return 0;
     }
+    book->owns_font_slots = true;
     ESP_LOGI(TAG, "embedded face %s -> slot %d (%u KB)", face->family, slot,
              (unsigned)(size / 1024));
     return (uint8_t)slot;
@@ -1971,7 +1970,9 @@ static uint8_t epub_style_slot(book_epub_t *book, uint8_t encoded) {
             face->failed=true;
         }
     }
-    return (uint8_t)ttf_font_family_style(base,style);
+    const int slot = ttf_font_family_style(base, style);
+    if (slot > 0 && slot != base) book->owns_font_slots = true;
+    return (uint8_t)slot;
 }
 
 void book_epub_prepare_font_runs(book_epub_t *book, html_run_t *runs, size_t count) {

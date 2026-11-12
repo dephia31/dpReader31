@@ -27,8 +27,8 @@
  * User revision 2026-11-04: Home tabs commit on release to allow full-screen downward Quick Settings swipes; other root-tab routing commits on initial contact; modal controls and reader gestures retain their owners.
  * 用户修订：系统页面切换使用 GL16，不再每次 GC16 全刷；锁屏、手动强刷和周期清残影仍可全刷。
  * User revision: system page changes use GL16 instead of GC16; lock, manual refresh and periodic ghost cleanup may still use full refresh.
- * 用户修订：设置可选普通/快刷/水波纹，默认普通；普通保留原灰阶路线，快刷采用确认的黑白主页面和亚克力灰阶。用户反馈残影和黑带后，书架退出只同向擦白，主页水波纹改白底/24窄带且端点单向推动，中灰保留校准序列；五行横条局部移动、图标固定，没有异步补刷。
- * User revision: settings offer ordinary/fast/water, default ordinary. Ordinary retains the original gray path; fast uses approved monochrome main screens and gray acrylic. Following reported ghosts and dark bands, shelf exit whitens directionally; main water uses white backgrounds, 24 narrow bands and directional endpoints, retaining calibrated midgrays. Move the five-row marker locally, retain icons, and schedule no asynchronous completion.
+ * 用户修订：设置可选普通/快刷/水波纹，S31默认水波纹；普通保留原灰阶路线，快刷采用确认的黑白主页面和亚克力灰阶。用户反馈残影和黑带后，书架退出只同向擦白，主页水波纹改白底/24窄带且端点单向推动，中灰保留校准序列；五行横条局部移动、图标固定，没有异步补刷。
+ * User revision: settings offer ordinary/fast/water, default water on S31. Ordinary retains the original gray path; fast uses approved monochrome main screens and gray acrylic. Following reported ghosts and dark bands, shelf exit whitens directionally; main water uses white backgrounds, 24 narrow bands and directional endpoints, retaining calibrated midgrays. Move the five-row marker locally, retain icons, and schedule no asynchronous completion.
  * 用户修订：普通模式也固定主页面底栏，仅局部移动横条；快刷亚克力采用规则一像素棋盘格，与已缓存封面一起输出。普通及水波纹保留灰阶，首次进入及解锁仍完整绘制底栏。
  * User revision: ordinary main screens also retain navigation and move only its marker locally; fast acrylic uses a regular one-pixel checkerboard in the same output as cached covers. Ordinary/water retain grays; initial entry and unlock still draw complete navigation.
  * 冻结：返回消费最近切页来源，恢复原页及菜单位置，不跳固定首页。
@@ -433,9 +433,11 @@ esp_err_t app_toggle_network(bool bluetooth) {
 }
 extern const app_desc_t app_dashboard;
 static bool main_page_ready(app_ctx_t* ctx, const app_desc_t* app);
+static bool home_covers_navigation(app_ctx_t *ctx, const app_desc_t *app) {
+    return app == &app_dashboard && app->navigation_enabled && !app->navigation_enabled(ctx);
+}
 static bool navigation_page_ready(app_ctx_t* ctx,const app_desc_t* app) {
-    // Fully simple Home paints into the former navigation band.
-    if(app==&app_dashboard&&app_settings_simple_full_ui()&&app->main_page_visible&&app->main_page_visible(ctx))return false;
+    if (home_covers_navigation(ctx, app)) return false;
     return app->persistent_navigation || main_page_ready(ctx,app);
 }
 static bool navigation_input_ready(app_ctx_t* ctx,const app_desc_t* app) {
@@ -455,6 +457,11 @@ void app_lock_ignore_for(int64_t ms) {
     s_lock_ignore_until_ms = esp_timer_get_time() / 1000 + ms;
 }
 
+static bool s_present_all_rows;
+#if DPREADER_BOARD_METALIO47
+static bool s_reader_to_home_water;
+static bool s_pop_menu_water;
+#endif
 static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t redraw) {
     // 已显示的覆盖层不得再交给底页present重绘。/ Never let the underlying page repaint an already presented overlay.
     if (redraw == APP_REDRAW_DONE) {
@@ -489,9 +496,12 @@ static void app_present_impl(app_ctx_t* ctx, const app_desc_t* app, app_redraw_t
         // 动画和高层区域都使用旋转后逻辑坐标；物理全屏会触发裁剪错误与整屏恢复。
         // Animation/high-level areas use rotated logical coordinates; a physical full screen causes crop failure and full recovery.
         const EpdRect screen={0,0,epd_rotated_display_width(),
-            navigation_page_ready(ctx,app)?UI_NAV_MARKER_SCAN_END:epd_rotated_display_height()};
+            !s_present_all_rows && navigation_page_ready(ctx,app)?UI_NAV_MARKER_SCAN_END:epd_rotated_display_height()};
+        e0470_turn_dir_t direction = returning ? E0470_TURN_LTR : E0470_TURN_RTL;
+        if (s_reader_to_home_water) direction = E0470_TURN_TTB;
+        if (s_pop_menu_water) direction = E0470_TURN_BTT;
         result = redraw == APP_REDRAW_FULL ? update_display_full(ctx->hl) : returning || root_water
-            ? update_display_water_turn(ctx->hl,screen,returning?E0470_TURN_LTR:E0470_TURN_RTL)
+            ? update_display_water_turn(ctx->hl, screen, direction)
             : update_display_area_diff_with(ctx->hl,display_main_bw_waveform(),MODE_DU,screen);
         if(redraw==APP_REDRAW_PAGE)display_page_prepare_end(prepared);
         guard_draw_result(ctx->hl, result);
@@ -875,6 +885,13 @@ static void switch_to(
     const int64_t probe_start=esp_timer_get_time();
     const int probe_from=app_index_of(*current);
 #endif
+    const bool restore_navigation = home_covers_navigation(ctx, *current);
+#if DPREADER_BOARD_METALIO47
+    const bool home_water = next == &app_dashboard &&
+        app_settings_main_refresh_mode() == APP_MAIN_REFRESH_WATER;
+    const bool reader_to_home_water = home_water && *current == &app_book && app_book_reader_open();
+    const bool settings_to_home_water = home_water && *current == &app_device_settings;
+#endif
     bool main_source = navigation_page_ready(ctx, *current);
     bool shelf_source = main_source && app_index_of(*current) == 1;
     display_main_transition_cancel();
@@ -892,7 +909,23 @@ static void switch_to(
     const int64_t probe_enter=esp_timer_get_time();
 #endif
     if (main_source && navigation_page_ready(ctx, next)) display_main_transition_arm(next, shelf_source, true);
-    app_present(ctx, next, next->enter_full ? APP_REDRAW_FULL : APP_REDRAW_PAGE);
+    bool enter_full = next->enter_full;
+    s_present_all_rows = restore_navigation;
+#if DPREADER_BOARD_METALIO47
+    s_pop_menu_water = restore_navigation && ctx->request_back_ripple;
+    if (s_pop_menu_water) enter_full = false;
+    s_reader_to_home_water = reader_to_home_water;
+    if (settings_to_home_water || reader_to_home_water) {
+        ctx->request_back_ripple = true;
+        s_present_all_rows = true;
+    }
+#endif
+    app_present(ctx, next, enter_full ? APP_REDRAW_FULL : APP_REDRAW_PAGE);
+    s_present_all_rows = false;
+#if DPREADER_BOARD_METALIO47
+    s_pop_menu_water = false;
+    s_reader_to_home_water = false;
+#endif
     display_main_transition_disarm();
 #ifdef DPREADER_LOCAL_LATENCY
     if(local_probe_contact_start_us){

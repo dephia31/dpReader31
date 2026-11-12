@@ -78,10 +78,10 @@ int main(void) {
     assert(wake_tick(&ctx)==APP_REDRAW_PAGE);
     assert(!admission(&ctx,&redraw)&&redraw==APP_REDRAW_FULL);
     assert(!s_reader_resume_pending&&font_loads==1&&reflows==1);
-    redraw=APP_REDRAW_PAGE;assert(!admission(&ctx,&redraw)&&font_loads==1&&reflows==1);
+    redraw=APP_REDRAW_PAGE;assert(!admission(&ctx,&redraw)&&font_loads==1&&reflows==2);
     // A late font replacement must reflow before painting a full refresh.
     changed_face=true;redraw=APP_REDRAW_FULL;
-    assert(!admission(&ctx,&redraw)&&redraw==APP_REDRAW_PAGE&&reflows==2);
+    assert(!admission(&ctx,&redraw)&&redraw==APP_REDRAW_FULL&&reflows==3);
     // Preserve the last pushed frame and retry an incomplete body on the idle tick.
     memset(target,0,4);s_reader_display_ready=s_reader_text_frame=s_reader_image_frame=s_reader_raster_failed=true;
     reader_defer_raster_retry(&ctx);
@@ -99,6 +99,6 @@ int main(void) {
 with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp) / 'test.c'
     path.write_text(unit)
-    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined',
+    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-DDPREADER_BOARD_METALIO47=1',
                     str(path),'-o',str(path.with_suffix(''))],check=True)
     subprocess.run([str(path.with_suffix(''))],check=True)

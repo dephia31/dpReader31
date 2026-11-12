@@ -312,6 +312,9 @@ static ttf_slot_t* s_cur = &s_slots[TTF_FONT_SLOT_SYSTEM];
 static int s_cur_index = TTF_FONT_SLOT_SYSTEM;
 
 static uint8_t s_family_variants[TTF_FONT_SLOTS][4];
+static uint32_t s_font_family_generation;
+
+uint32_t ttf_font_family_generation(void) { return s_font_family_generation; }
 static void close_system_family(void);
 
 // 下面这组宏让 2000 多行现有函数体一行不改地作用在“当前槽”上。新增代码请直接写
@@ -2830,6 +2833,7 @@ size_t ttf_font_reclaim_optional_cache(void) {
 #endif
 
 void ttf_font_close_embedded(void) {
+    ++s_font_family_generation;
     ttf_font_slots_init();
     int keep = s_cur_index;
     for (int i = TTF_FONT_SLOTS - 1; i > TTF_FONT_SLOT_SYSTEM; i--) {
@@ -2968,6 +2972,7 @@ static esp_err_t open_path_here(const char* path) {
 }
 
 static void close_system_family(void) {
+    ++s_font_family_generation;
     int keep=s_cur_index;
     for (unsigned style=1;style<4;++style) {
         unsigned slot=s_family_variants[0][style];
@@ -3013,7 +3018,7 @@ int ttf_font_family_style(int base, unsigned style) {
     if (base<0 || base>=TTF_FONT_SLOTS || !s_slots[base].f_ready) base=0;
     if (!style || style>3) return base;
     unsigned known=s_family_variants[base][style];
-    if (known) return known<TTF_FONT_SLOTS?known:base;
+    if (known) return known < TTF_FONT_SLOTS && s_slots[known].f_ready ? known : base;
     s_family_variants[base][style]=255;
     // 为插图和正文保留空间；此入口只在章节准备时调用。/ Reserve space for body/illustrations; called only during chapter preparation.
     if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)<2u*1024u*1024u) return base;
@@ -3841,10 +3846,12 @@ esp_err_t ttf_font_resume_io(void) {
         if (fd < 0 || fstat(fd, &now) || now.st_size != face->f_io_stat.st_size ||
             now.st_mtime != face->f_io_stat.st_mtime || lseek(fd, face->f_io_position, SEEK_SET) < 0) {
             if (fd >= 0) close(fd);
+            if (face->f_ready) ++s_font_family_generation;
             face->f_ready = false;
             result = ESP_FAIL;
             continue;
         }
+        if (face->f_ready != face->f_io_ready) ++s_font_family_generation;
         face->f_fd = fd; face->f_io_suspended = false; face->f_ready = face->f_io_ready;
     }
     return result;

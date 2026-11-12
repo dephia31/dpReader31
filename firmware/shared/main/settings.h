@@ -202,6 +202,8 @@ bool app_settings_set_book_weight(int8_t level);
 /// 阅读抗锯齿默认开启；关闭只改变字形边缘，不改变排版或图片。/ Reading AA defaults on; disabling affects glyph edges, not layout or images.
 bool app_settings_book_antialias(void);
 bool app_settings_set_book_antialias(bool enabled);
+bool app_settings_book_drop_cap(void);
+bool app_settings_set_book_drop_cap(bool enabled);
 uint8_t app_settings_book_px(void);
 /// 无效字号恢复 48。/ Invalid sizes fall back to 48.
 void app_settings_set_book_px(uint8_t px);
@@ -421,10 +423,6 @@ bool app_settings_reader_edge_brightness(void);
 bool app_settings_set_reader_edge_brightness(bool on);
 bool app_settings_reader_edge_warmth(void);
 bool app_settings_set_reader_edge_warmth(bool on);
-
-/* Scope appearance to one book; hardware bindings stay global. */
-void app_settings_book_profile_enter(const char *path, uint32_t file_size);
-void app_settings_book_profile_leave(void);
 
 // Output inversion; raster/cache coordinates and colors stay logical.
 bool app_settings_screen_inverted(void);

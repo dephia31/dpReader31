@@ -36,6 +36,8 @@ static void unlock_draw(void){assert(locked);locked=false;}
 static bool vertical_book;
 static bool app_settings_book_vertical(void){return vertical_book;}
 static bool app_settings_set_book_antialias(bool on){assert(locked);if(save_fail)return false;aa=on;return true;}
+static unsigned turn_effect;
+static void app_settings_set_reader_turn_effect(unsigned effect){turn_effect=effect;}
 static void ttf_set_antialias(bool on){assert(locked);raster_aa=on;}
 '''
 unit+=function('reader_tools_swipe',book)+'\n'+function('reader_swipe_direction',book)+'\n'+function('reader_apply_antialias',book)+'\n'
@@ -68,7 +70,7 @@ int main(void){
  assert(reader_apply_antialias(false)&&!aa&&!raster_aa&&!locked&&s_reader_cleanup&&s_turns==0);
  s_reader_cleanup=false;s_turns=7;save_fail=true;
  assert(!reader_apply_antialias(true)&&!aa&&!raster_aa&&!locked&&!s_reader_cleanup&&s_turns==7);
- save_fail=false;assert(reader_apply_antialias(true)&&aa&&raster_aa&&!locked&&s_reader_cleanup&&s_turns==0);
+ save_fail=false;assert(reader_apply_antialias(true)&&aa&&raster_aa&&!locked&&s_reader_cleanup&&s_turns==0&&turn_effect==1);
  puts("PASS: real AA application locks font changes, invalidates cache, preserves failed saves; bottom120px tools gestures and input/modal guards");
 }
 '''

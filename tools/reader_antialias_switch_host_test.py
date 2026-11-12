@@ -14,9 +14,16 @@ static void lock_draw(void){assert(!locks++);}
 static void unlock_draw(void){assert(locks--==1);}
 static void invalidate_prep(void){assert(locks==1);++invalidations;}
 static bool app_settings_set_book_antialias(bool on){assert(locks==1);if(fail)return false;saved=on;return true;}
+#if DPREADER_BOARD_METALIO47
+static unsigned turn_effect;
+static void app_settings_set_reader_turn_effect(unsigned effect){turn_effect=effect;}
+#endif
 static void ttf_set_antialias(bool on){assert(locks==1);active=on;}
 '''+function('reader_apply_antialias',R/'main/apps/app_book.c')+r'''
 int main(void){
+#if DPREADER_BOARD_METALIO47
+ turn_effect=2;
+#endif
  saved=active=true;s_turns=7;assert(reader_apply_antialias(false));assert(!saved&&!active&&!locks&&invalidations==1);
 #if DPREADER_BOARD_METALIO47
  assert(s_reader_cleanup&&s_turns==0);
@@ -24,9 +31,12 @@ int main(void){
  assert(!s_reader_cleanup&&s_turns==7);
 #endif
  s_reader_cleanup=false;s_turns=6;fail=true;assert(!reader_apply_antialias(true));assert(!saved&&!active&&!s_reader_cleanup&&s_turns==6&&!locks);
+#if DPREADER_BOARD_METALIO47
+ assert(turn_effect==2);
+#endif
  fail=false;assert(reader_apply_antialias(true));assert(saved&&active&&!locks&&invalidations==3);
 #if DPREADER_BOARD_METALIO47
- assert(s_reader_cleanup&&s_turns==0);
+ assert(s_reader_cleanup&&s_turns==0&&turn_effect==1);
 #endif
  puts("PASS actual AA switch: both directions, reset only after save, failed save preserves mode/count, locks balanced, board isolation");}
 '''

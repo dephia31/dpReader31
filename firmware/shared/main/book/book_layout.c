@@ -47,6 +47,15 @@ static int s_px;
 static unsigned s_line_percent = 150;
 static int s_line_adjust_px;
 static int s_paragraph_gap_px = 20;
+static bool s_drop_cap_enabled;
+static struct {
+    size_t start, glyph_offset, bytes, second;
+    int inset, px, ascent, height;
+    char glyph[24];
+} s_drop_cap;
+
+void book_layout_set_drop_cap(bool enabled) { s_drop_cap_enabled = enabled; }
+
 static int s_tracking_px, s_word_spacing_px;
 static unsigned s_first_line_indent_em = 2;
 static int s_first_line_indent_adjust_px;
@@ -547,7 +556,7 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
     *px = s_px + (*heading ? 8 : 0);
     bool first_line = block ? off == block->offset :
         off == 0 || s_text[off - 1] == '\n' || s_text[off - 1] == '\r';
-    *align = block ? block->align : 0;
+    *align = block ? (block->heading_split ? 1 : block->align) : 0;
     // 阅读设置的对齐只作用于书内未指定对齐的普通正文段：居中/右对齐时首行缩进会落错位置，
     // 因此这两种对齐下放弃缩进；左对齐与两端对齐仍按设置缩进。标题和书内对齐块保持原样。
     // The reader alignment applies only to ordinary body paragraphs the book leaves unaligned.
@@ -576,10 +585,18 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
     *margin_before = first_line && block ? (int)((unsigned)*px * block->margin_before_percent / 100) : 0;
     *margin_after = block ? (int)((unsigned)*px * block->margin_after_percent / 100) : 0;
     size_t limit = block ? block->offset + block->len : s_len;
+    if (block && block->heading_split && block->heading_split < block->len &&
+        off < block->offset + block->heading_split)
+        limit = block->offset + block->heading_split;
+    if (*heading && block + 1 < s_blocks + s_block_count &&
+        !block[1].heading_level && block[1].image < 0)
+        *margin_after += 8;
     // 纸书常把全角空格写进段首；统一由阅读设置决定缩进，原文偏移仍保留。
     // Printed-book source often contains leading spaces; the reader setting owns the visual indent.
     size_t visible_off = off;
-    if (first_line && !*heading && !*align) visible_off = visible_start(off, limit);
+    if ((first_line && !*heading && !*align) ||
+        (block && block->heading_split && off == block->offset + block->heading_split))
+        visible_off = visible_start(off, limit);
     if (first_line && !*heading && !*align) {
         if (visible_off < limit && *indent > 0) {
             size_t n = codepoint_size(s_text + visible_off, limit - visible_off);
@@ -595,6 +612,11 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
                 if (bearing > 0) *indent -= bearing;
             }
         }
+    }
+    if (s_drop_cap.bytes && (off == s_drop_cap.start || off == s_drop_cap.second)) {
+        *indent = s_drop_cap.inset;
+        if (off == s_drop_cap.start)
+            visible_off = s_drop_cap.glyph_offset + s_drop_cap.bytes;
     }
     int available = advance_limit - *indent;
     size_t end = visible_off;
@@ -728,6 +750,71 @@ static bool take_line(size_t off, int advance_limit, int hang_margin, size_t* ne
     return *next > off;
 }
 
+static void prepare_drop_cap(void) {
+    memset(&s_drop_cap, 0, sizeof(s_drop_cap));
+    s_drop_cap.second = SIZE_MAX;
+    if (!s_drop_cap_enabled || s_vertical || s_body_align >= 2) return;
+
+    const blk_t *candidate = NULL;
+    bool seen_heading = false;
+    for (size_t i = 0; i < s_block_count; ++i) {
+        const blk_t *block = &s_blocks[i];
+        if (block->image >= 0 || block->linked || block->auxiliary) continue;
+        if (block->heading_level || block->heading) {
+            seen_heading = true;
+            continue;
+        }
+        if (block->align) continue;
+        if (block->drop_cap) { candidate = block; break; }
+        if (!candidate && seen_heading) candidate = block;
+    }
+    if (!candidate) return;
+    size_t limit = candidate->offset + candidate->len;
+    size_t start = visible_start(candidate->offset, limit);
+    size_t bytes = codepoint_size(s_text + start, limit - start);
+    if (!bytes) return;
+    uint32_t cp = codepoint_value(s_text + start, bytes);
+    if (!((cp >= 'A' && cp <= 'Z') || (cp >= 'a' && cp <= 'z') ||
+          (cp >= 0xc0 && cp <= 0x24f && cp != 0xd7 && cp != 0xf7) ||
+          (cp >= 0x1e00 && cp <= 0x1eff))) return;
+    while (start + bytes < limit) {
+        size_t n = codepoint_size(s_text + start + bytes, limit - start - bytes);
+        if (!n) break;
+        uint32_t mark = codepoint_value(s_text + start + bytes, n);
+        if (mark < 0x300 || mark > 0x36f) break;
+        if (bytes + n >= sizeof(s_drop_cap.glyph)) return;
+        bytes += n;
+    }
+    if (start + bytes >= limit) return;
+
+    memcpy(s_drop_cap.glyph, s_text + start, bytes);
+    s_drop_cap.start = candidate->offset;
+    s_drop_cap.glyph_offset = start;
+    s_drop_cap.px = s_px * 2;
+    slot_select_for(start);
+    ttf_draw_set_runs(NULL, 0);
+    int descent = 0;
+    ttf_measure_line_px(s_drop_cap.px, s_drop_cap.glyph, &s_drop_cap.ascent, &descent);
+    const int pitch = line_height_for(s_px);
+    s_drop_cap.height = s_drop_cap.ascent + descent;
+    s_drop_cap.inset = ttf_text_width_px(s_drop_cap.px, s_drop_cap.glyph) + s_px / 5;
+    if (s_drop_cap.height <= 0 || s_drop_cap.height > 2 * pitch ||
+        s_drop_cap.inset <= 0 || s_drop_cap.inset > s_rect.width / 3 ||
+        2 * pitch + s_px > s_rect.height) return;
+
+    s_drop_cap.bytes = bytes;
+    size_t next;
+    bool paragraph_end, heading;
+    int px, width, indent, before, after;
+    uint8_t align;
+    if (!take_line(candidate->offset, s_rect.width, s_rect.x, &next, &paragraph_end,
+                   &px, &heading, &width, &indent, &align, &before, &after) || !s_line[0]) {
+        s_drop_cap.bytes = 0;
+        return;
+    }
+    if (next < limit) s_drop_cap.second = next;
+}
+
 /* ---- 竖排 / Vertical setting ---- */
 
 // 竖排分页：整页自右向左铺列，列内自上而下；插图独占一页，前后各断一次。
@@ -838,6 +925,7 @@ bool book_layout_build_blocks(const char* utf8, size_t len, const blk_t* blocks,
     s_line = heap_caps_malloc(s_line_capacity, PSRAM_CAPS);
     size_t off = s_lead_skip;
     if (!s_line) goto fail;
+    prepare_drop_cap();
     if (s_vertical) {
         if (!build_vertical(len)) goto fail;
         ttf_font_select(TTF_FONT_SLOT_SYSTEM);
@@ -890,15 +978,22 @@ bool book_layout_build_blocks(const char* utf8, size_t len, const blk_t* blocks,
         line_height = line_height_for(line_px);
         if (line_height > rect.height) goto fail;
         int leading = used ? margin_before : 0;
-        const int fit_height = line_height > line_px ? line_height : line_px;
+        const bool initial = s_drop_cap.bytes && off == s_drop_cap.start;
+        int fit_height = line_height > line_px ? line_height : line_px;
+        if (initial) fit_height += line_height;
         if (used + leading + fit_height > rect.height &&
-            (used + leading >= rect.height || used + leading + final_line_height(off,line_px) > rect.height)) {
+            (initial || used + leading >= rect.height || used + leading + final_line_height(off,line_px) > rect.height)) {
             if (!append_page(off)) goto fail;
             used = 0;
             leading = 0;
         }
         used += leading + line_height;
-        if (paragraph_end) used += gap_for(line_height, heading) + margin_after;
+        if (paragraph_end) {
+            int gap = gap_for(line_height, heading) + margin_after;
+            if (s_drop_cap.bytes && (initial || off == s_drop_cap.second) && gap < 0) gap = 0;
+            used += gap;
+        }
+        if (initial && s_drop_cap.second == SIZE_MAX) used += line_height;
         off = next;
     }
     // 整页只有一张插图时把它上下居中：贴顶会让插图页看起来像被裁掉了下半页。
@@ -1136,9 +1231,11 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
                        &line_width, &indent, &align, &margin_before, &margin_after)) { if(s_idle_draw)s_idle_draw->failed=true; return; }
         int line_height = line_height_for(line_px);
         int leading = used ? margin_before : 0;
-        const int fit_height = line_height > line_px ? line_height : line_px;
+        const bool initial = s_drop_cap.bytes && off == s_drop_cap.start;
+        int fit_height = line_height > line_px ? line_height : line_px;
+        if (initial) fit_height += line_height;
         if (used + leading + fit_height > rect.height &&
-            (used + leading >= rect.height || used + leading + final_line_height(off,line_px) > rect.height)) return;
+            (initial || used + leading >= rect.height || used + leading + final_line_height(off,line_px) > rect.height)) return;
         used += leading;
         if (s_line[0]) {
             // 阅读设置的对齐叠加在书内对齐之上：书内指定居中/右对齐的块优先，标题保持原样，
@@ -1158,7 +1255,16 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
             // 行基线整行共用，取行首那一段的字体，免得同一行上下浮动。
             // The baseline is shared by the whole line, so take it from the span the line
             // starts in and keep the line from floating.
-            slot_select_for(off);
+            if (initial) {
+                const size_t body_source = s_line_source;
+                s_line_source = s_drop_cap.glyph_offset;
+                slot_select_for(s_line_source);
+                ttf_draw_set_runs(NULL, 0);
+                ttf_draw_text_px(fb, rect.x, rect.y + (int)used + s_drop_cap.ascent,
+                                 s_drop_cap.px, s_drop_cap.glyph, EPD_DRAW_ALIGN_LEFT, 0, 15);
+                s_line_source = body_source;
+            }
+            slot_select_for(initial ? s_line_source : off);
             int baseline = rect.y + (int)used + ttf_ascender_px(line_px);
             const blk_t *line_block = block_at(off);
             bool final_line = paragraph_end || next >= s_len ||
@@ -1214,7 +1320,12 @@ void book_layout_draw_page(uint8_t* fb, size_t page, EpdRect rect, int px) {
             ttf_font_select(TTF_FONT_SLOT_SYSTEM);
         }
         used += line_height;
-        if (paragraph_end) used += gap_for(line_height, heading) + margin_after;
+        if (paragraph_end) {
+            int gap = gap_for(line_height, heading) + margin_after;
+            if (s_drop_cap.bytes && (initial || off == s_drop_cap.second) && gap < 0) gap = 0;
+            used += gap;
+        }
+        if (initial && s_drop_cap.second == SIZE_MAX) used += line_height;
         off = next;
         if (s_idle_draw && off < end) {
             s_idle_draw->offset=off;s_idle_draw->used=used;s_idle_draw->image_at=img_at;
