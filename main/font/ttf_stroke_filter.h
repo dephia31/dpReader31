@@ -1,1 +1,0 @@
-../../firmware/shared/main/font/ttf_stroke_filter.h

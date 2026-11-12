@@ -1,1 +1,0 @@
-../../firmware/shared/main/book/metalio_jpeg.h

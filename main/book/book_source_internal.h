@@ -1,1 +1,0 @@
-../../firmware/shared/main/book/book_source_internal.h

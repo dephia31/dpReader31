@@ -1,1 +1,0 @@
-../../firmware/shared/main/ui/ui_gesture.c

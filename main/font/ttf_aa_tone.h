@@ -1,1 +1,0 @@
-../../firmware/shared/main/font/ttf_aa_tone.h

@@ -1,1 +1,0 @@
-../../firmware/shared/main/book/zip_reader.c

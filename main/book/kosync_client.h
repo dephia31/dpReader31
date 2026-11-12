@@ -1,1 +1,0 @@
-../../firmware/shared/main/book/kosync_client.h

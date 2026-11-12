@@ -1,4 +1,0 @@
-dependencies:
-  mindreset/sy7636a:
-    version: "^1.0.0"
-    override_path: "../../.."

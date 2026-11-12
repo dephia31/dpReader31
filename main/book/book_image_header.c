@@ -1,1 +1,0 @@
-../../firmware/shared/main/book/book_image_header.c

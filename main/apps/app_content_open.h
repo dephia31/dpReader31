@@ -1,1 +1,0 @@
-../../firmware/shared/main/apps/app_content_open.h

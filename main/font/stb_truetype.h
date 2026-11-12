@@ -1,1 +1,0 @@
-../../firmware/shared/main/font/stb_truetype.h

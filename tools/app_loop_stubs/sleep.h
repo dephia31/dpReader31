@@ -1,7 +1,0 @@
-/* 中文：调度测试替身。/ English: Scheduler test shim. */
-#pragma once
-#include "common.h"
-
-#if DPREADER_BOARD_METALIO47
-bool app_sleep_media_ready(void);
-#endif

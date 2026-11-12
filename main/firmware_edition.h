@@ -1,1 +1,0 @@
-../firmware/shared/main/firmware_edition.h

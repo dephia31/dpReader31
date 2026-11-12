@@ -1,1 +1,0 @@
-../../firmware/shared/main/book/html_text.c
