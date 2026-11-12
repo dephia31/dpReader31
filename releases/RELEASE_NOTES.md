@@ -1,10 +1,8 @@
-## dpReader 1.4.4 cho Metalio E‑Ink4 Plus (ESP32-S31)
+## dpReader 1.4.5 cho Metalio E‑Ink4 Plus (ESP32-S31)
 
-- Cài đặt đọc và phông chữ dùng chung cho mọi cuốn. Tiến độ vẫn lưu riêng.
-- EPUB hiển thị tiêu đề chương từ sách, căn giữa số và tên chương khi sách tách hai phần, chừa thêm 8 px trước nội dung. Có tùy chọn chữ cái đầu đoạn lớn khi đọc ngang.
-- Sửa giãn đoạn với EPUB dùng hai thẻ xuống dòng liên tiếp. Khôi phục chữ đậm, nghiêng và đậm nghiêng sau khi mở khóa hoặc quay lại từ mục lục.
-- KoSync tra vị trí đọc mà vẫn giữ font của cuốn đang mở.
-- Pop menu của giao diện Love phủ sát hai mép và đáy. Sóng Nước áp dụng khi mở các mục, quay từ Cài đặt hoặc trình đọc về Đọc tiếp. Bật Khử răng cưa tự chọn Sóng Nước cho lật trang, người dùng có thể đổi sau.
+- Thêm **Flash** trong Hiệu ứng lật trang. Flash quét đồng thời toàn màn hình, hỗ trợ ảnh và Đảo Màu.
+- Sóng Nước trong trình đọc dùng 6 dải, quét sát mép trên để xử lý dấu tiếng Việt ở dòng đầu. Khi bật Khử răng cưa, tăng hai xung cho điểm ảnh chuyển sang đen và giữ 41 nhịp quét.
+- Thêm **Tương phản chữ** trong Phông chữ → Tùy chỉnh để làm tối viền chữ khi bật Khử răng cưa.
 
 Có hai bản Full và Love Book. Chọn đúng bản đang dùng khi cập nhật.
 
