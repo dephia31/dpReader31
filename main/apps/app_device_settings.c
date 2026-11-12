@@ -1,1 +1,0 @@
-../../firmware/shared/main/apps/app_device_settings.c

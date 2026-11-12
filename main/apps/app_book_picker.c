@@ -1,1 +1,0 @@
-../../firmware/love_book/apps/app_book_picker.c

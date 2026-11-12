@@ -1,1 +1,0 @@
-../../firmware/shared/main/book/opds_client.c

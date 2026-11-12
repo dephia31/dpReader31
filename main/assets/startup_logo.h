@@ -1,1 +1,0 @@
-../../firmware/shared/main/assets/startup_logo.h

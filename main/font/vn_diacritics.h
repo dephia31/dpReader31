@@ -1,1 +1,0 @@
-../../firmware/shared/main/font/vn_diacritics.h

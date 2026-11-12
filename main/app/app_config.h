@@ -1,1 +1,0 @@
-../../firmware/shared/main/app/app_config.h

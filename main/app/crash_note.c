@@ -1,1 +1,0 @@
-../../firmware/shared/main/app/crash_note.c

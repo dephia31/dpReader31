@@ -1,1 +1,0 @@
-../../firmware/full/library/book_lock_collage.c

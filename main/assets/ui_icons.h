@@ -1,1 +1,0 @@
-../../firmware/shared/main/assets/ui_icons.h

@@ -1,1 +1,0 @@
-../../firmware/shared/main/apps/usb_storage.h

@@ -1,1 +1,0 @@
-../../firmware/shared/main/book/metalio_cover_cache.c

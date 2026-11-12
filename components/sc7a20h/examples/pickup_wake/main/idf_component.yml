@@ -1,4 +1,0 @@
-dependencies:
-  mindreset/sc7a20h:
-    version: "^1.0.0"
-    override_path: "../../.."

@@ -1,1 +1,0 @@
-../firmware/shared/main/boot_state.c

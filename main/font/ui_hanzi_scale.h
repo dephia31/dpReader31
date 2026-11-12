@@ -1,1 +1,0 @@
-../../firmware/shared/main/font/ui_hanzi_scale.h

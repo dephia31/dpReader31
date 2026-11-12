@@ -1,1 +1,0 @@
-../firmware/shared/main/ota_update.c

@@ -1,1 +1,0 @@
-../firmware/shared/main/auto_lock.h

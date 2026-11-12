@@ -1,1 +1,0 @@
-../firmware/shared/main/lock_pin.h
