@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.4.3-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.4.2-vn",
+  "notes": "Từ 1.4.1 trở xuống: nạp toàn phần tại dephia31.github.io/dpReader31/. Bản 1.4.2 cập nhật ứng dụng qua USB một lần. OTA hoạt động từ 1.4.3.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "dd59211a8034371256c3422aba49566bfcbac2175a23aa4f5e5bc5bcd2912443",
+      "md5": "c926fde3a56a1d994ff9cc55ec8eab50"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "2fa1e082cba94f016137d7735ce6c2cb950b89f96a54ab3b6de9adad0ed0a9de",
+      "md5": "c0e7c584a19156248d0583a7923728ca"
+    }
+  },
+  "clean_image": {
+    "sha256": "918a1d3df2dc880ed0d9d1752fc6d176b1b5548ca1904d20e8e225a3fc0ddbb0",
+    "md5": "5c87e8d17772b0238ab463f31ec1f9e3"
+  },
+  "size": 4759344,
+  "sha256": "cc70a4b1ac6186625efc84a87dacf46d457a5e94d3998a0bc3a0e9b3802086d5",
+  "md5": "1f1b6161043b133a7017be13f7c40ab6"
+}
