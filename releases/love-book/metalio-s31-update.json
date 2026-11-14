@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.4.5-love-vn",
+  "version": "1.4.6-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,13 +9,13 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.4.4-love-vn",
-  "notes": "Từ 1.4.1 trở xuống: nạp toàn phần tại dephia31.github.io/dpReader31/. Bản 1.4.2 cập nhật ứng dụng qua USB một lần. OTA hoạt động từ 1.4.3.",
+  "previous_version": "1.4.5-love-vn",
+  "notes": "Cải thiện Sleep và đánh thức bằng phím, thêm chữ ký màn khóa, bổ sung chữ Hán và giảm làm mới màn hình trùng.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
-      "sha256": "388acd7b68fc2d724cf4fcabc690d490f44947476271db5ca5630cecd45b0a9f",
-      "md5": "eae87ea84478d44698793f1d4164b351"
+      "sha256": "7a8d4c570a9f3311be6eede6448df6497143d59a50f6251b63685198979f5270",
+      "md5": "136d0383cc1d6841d552505e3d3b640a"
     },
     "partitions.bin": {
       "size": 3072,
@@ -24,15 +24,15 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "d0f2abd10c4af13d91406338548618178dd9fb08b2255ae8d2452a4d306b8ce3",
-      "md5": "bc6f55bb992693c2c8f9794208a2205f"
+      "sha256": "b364d404cfef412791dfcf18c9e2482767f177a9d8b15b4695fd79207b65f1fa",
+      "md5": "b2a24b82fa5cdb6c9776c994da77145b"
     }
   },
   "clean_image": {
-    "sha256": "eaf79825481e1f548d5ef6d40157f378548b2528b4354e8a23c9a85aebb276b0",
-    "md5": "0a0fa9e6b03d124b0cbd5e795902ff79"
+    "sha256": "40aa4c5940ee9567e8b13ce77c15df716102c9b3cbdb2ab539d57db69cd25c33",
+    "md5": "cce7e4e2d6ef7fbc4a21f98876a49151"
   },
-  "size": 4692960,
-  "sha256": "41f36c7566af618f4aa68cec0600f353981adb9cff43bf2071668f93942ab9f4",
-  "md5": "5890f98e86d408d33494fa07f65d460a"
+  "size": 4924224,
+  "sha256": "ad5cc31c6a6711fb97930fc7d8689b339694796a0c821db8658ac05143b70fac",
+  "md5": "c33494d4a18ec66d1f47b8d1b37b6b3c"
 }
