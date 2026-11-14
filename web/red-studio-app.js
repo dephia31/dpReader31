@@ -270,6 +270,7 @@ async function fetchLatestRelease() {
       if (automaticLayoutSelected() && !data.usb_parts) throw new Error("Thiếu thông tin cài đặt NVS 256 KiB");
       editionReady = true;
       currentReleaseInfo = data;
+      document.getElementById("release-installer-download").href = `./${requestedFolder}/dpReader-metalio47-${data.version}-USB.zip`;
       if (latestVerName) latestVerName.textContent = `v${data.version}`;
       if (latestVerNotes && data.notes) {
         latestVerNotes.textContent = data.notes.split("\n")[0] || data.notes;

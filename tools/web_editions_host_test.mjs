@@ -17,18 +17,23 @@ get('firmware-edition').value='full';
 get('release-version').options=[{value:'',textContent:'Mới nhất'},{value:'1.3.1-vn',textContent:'Trước'},{value:'1.3.0-vn',textContent:'Cũ'}];
 const requested=[];
 let loveAvailable=true;
+let latestVersion="1.4.7";
 const context=vm.createContext({console, navigator:{}, document:{getElementById:get,querySelectorAll:()=>[],createElement:()=>element()},
   fetch:async url=>{
     requested.push(url);
     const love=url.includes('/love-book/');
     const archived=url.match(/\/(\d+\.\d+\.\d+(?:-love)?-vn)\//)?.[1];
-    const data={version:archived||(love?'1.4.7-love-vn':'1.4.7-vn'),usb_parts:!archived||/^1\.4\.[34]/.test(archived)?{}:undefined,usb_only:false,notes:'Test',size:4710000,sha256:'0'.repeat(64),previous_version:love?'1.4.5-love-vn':'1.4.5-vn'};
+    const data={version:archived||(latestVersion+(love?'-love-vn':'-vn')),usb_parts:!archived||/^1\.4\.[34]/.test(archived)?{}:undefined,usb_only:false,notes:'Test',size:4710000,sha256:'0'.repeat(64),previous_version:love?'1.4.5-love-vn':'1.4.5-vn'};
     return {ok:!love||loveAvailable,json:async()=>data};
   },crypto:webcrypto,DataView,Date,Map,Array,ESPLoader:class{},Transport:class{},setTimeout,Uint8Array,TextDecoder});
 vm.runInContext(code, context);
 await vm.runInContext('fetchLatestRelease()',context);
 assert.equal(vm.runInContext('editionReady',context),true);
 assert.equal(vm.runInContext('selectedReleaseFolder()',context),'releases');
+latestVersion='1.4.8';
+await vm.runInContext('fetchLatestRelease()',context);
+assert.equal(get('release-installer-download').href,'./releases/dpReader-metalio47-1.4.8-vn-USB.zip');
+latestVersion='1.4.7';
 get('firmware-edition').value='love-book';get('firmware-edition').handlers.change();
 await vm.runInContext('fetchLatestRelease()',context);
 assert.equal(vm.runInContext('selectedReleaseFolder()',context),'releases/love-book');
