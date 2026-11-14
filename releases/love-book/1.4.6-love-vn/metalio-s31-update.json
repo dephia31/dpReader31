@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.4.6-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.4.5-love-vn",
+  "notes": "Cải thiện Sleep và đánh thức bằng phím, thêm chữ ký màn khóa, bổ sung chữ Hán và giảm làm mới màn hình trùng.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "7a8d4c570a9f3311be6eede6448df6497143d59a50f6251b63685198979f5270",
+      "md5": "136d0383cc1d6841d552505e3d3b640a"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "b364d404cfef412791dfcf18c9e2482767f177a9d8b15b4695fd79207b65f1fa",
+      "md5": "b2a24b82fa5cdb6c9776c994da77145b"
+    }
+  },
+  "clean_image": {
+    "sha256": "40aa4c5940ee9567e8b13ce77c15df716102c9b3cbdb2ab539d57db69cd25c33",
+    "md5": "cce7e4e2d6ef7fbc4a21f98876a49151"
+  },
+  "size": 4924224,
+  "sha256": "ad5cc31c6a6711fb97930fc7d8689b339694796a0c821db8658ac05143b70fac",
+  "md5": "c33494d4a18ec66d1f47b8d1b37b6b3c"
+}
