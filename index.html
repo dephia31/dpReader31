@@ -124,11 +124,11 @@
         </div>
       </div>
 
-      <div hidden>
+      <div class="radio-cards">
         <label class="radio-card">
-          <input type="radio" name="flash-mode" id="mode-custom" disabled>
-          <h4>Chọn tệp Firmware (.bin) từ máy tính</h4>
-          <p>Tự chọn tệp nhị phân có sẵn trên máy của bạn.</p>
+          <input type="radio" name="flash-mode" id="mode-custom">
+          <h4>Nạp từ file .bin trên máy tính</h4>
+          <p>Xóa toàn bộ flash trong máy rồi ghi ảnh cài toàn phần từ 0x0. Thẻ SD giữ nguyên.</p>
         </label>
       </div>
 
@@ -140,7 +140,7 @@
           </div>
           <div class="form-group">
             <label for="custom-offset">Địa chỉ Offset (Hex):</label>
-            <input type="text" id="custom-offset" value="0x10000">
+            <input type="text" id="custom-offset" value="0x0" readonly>
           </div>
         </div>
       </div>

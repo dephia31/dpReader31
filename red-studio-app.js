@@ -20,7 +20,6 @@ const radioFull = document.getElementById("mode-full");
 const radioCustom = document.getElementById("mode-custom");
 const customFileContainer = document.getElementById("custom-file-container");
 const customFileInput = document.getElementById("custom-file");
-const customOffsetInput = document.getElementById("custom-offset");
 
 let device = null;
 let transport = null;
@@ -55,11 +54,12 @@ function syncInstallationGuide() {
     document.getElementById("release-installer-download").href = `./${selectedReleaseFolder()}/dpReader-metalio47-${version}-USB.zip`;
 }
 function updateFlashReadiness() {
-  flashBtn.disabled = !esploader || isFlashing || !riskAccepted.checked || ((automaticLayoutSelected() || !radioCustom.checked) && !editionReady);
+  flashBtn.disabled = !esploader || isFlashing || !riskAccepted.checked || (radioCustom.checked ? !customFileInput.files[0] : !editionReady);
   riskAccepted.disabled = isFlashing;
   flashReadiness.textContent = isFlashing ? "Đang nạp, hãy giữ kết nối USB."
     : !esploader ? "Kết nối thiết bị và tích chấp nhận rủi ro để bắt đầu."
-    : (automaticLayoutSelected() || !radioCustom.checked) && !editionReady ? "Chưa có gói firmware hợp lệ cho lựa chọn này."
+    : radioCustom.checked && !customFileInput.files[0] ? "Chọn ảnh cài toàn phần .bin."
+    : !radioCustom.checked && !editionReady ? "Chưa có gói firmware hợp lệ cho lựa chọn này."
     : !riskAccepted.checked ? "Đã kết nối. Tích chấp nhận rủi ro để bật nút Bắt đầu nạp."
     : "Đã kết nối và chấp nhận rủi ro. Sẵn sàng bắt đầu nạp.";
 }
@@ -105,7 +105,6 @@ document.querySelectorAll("input[name='flash-mode']").forEach(input => {
   });
 });
 customFileInput.addEventListener("change", resetRiskAgreement);
-customOffsetInput.addEventListener("input", resetRiskAgreement);
 
 // Kết nối USB Serial
 connectBtn.addEventListener("click", async () => {
@@ -457,6 +456,17 @@ function classifyS31Partitions(raw) {
   }
   return "unknown";
 }
+function validateCustomFullImage(data) {
+  if (data.length < 0x10000 + 288 || data.length > 0x1000000)
+    throw new Error("Cần ảnh cài toàn phần ESP32-S31 tối đa 16 MB.");
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const isS31Image = offset => data[offset] === 0xe9 && view.getUint16(offset + 12, true) === 32;
+  if (!isS31Image(0x2000) || !isS31Image(0x10000) ||
+      view.getUint32(0x10020, true) !== 0xabcd5432 ||
+      !["new", "legacy", "rc"].includes(classifyS31Partitions(data.subarray(0x8000, 0x9000))))
+    throw new Error("File không phải ảnh cài toàn phần S31 có bố cục dpReader tương thích.");
+}
+
 async function fetchVerifiedPart(name, part) {
   if (!part || !/^[a-f0-9]{32}$/i.test(part.md5 || "") || !Number.isSafeInteger(part.size) || part.size <= 0 || !/^[a-f0-9]{64}$/i.test(part.sha256))
     throw new Error(`Thiếu thông tin xác minh ${name}.`);
@@ -539,7 +549,7 @@ flashBtn.addEventListener("click", async () => {
     return;
   }
 
-  if (isFlashing || ((automaticLayoutSelected() || !radioCustom.checked) && !editionReady)) return;
+  if (isFlashing || (radioCustom.checked ? !customFileInput.files[0] : !editionReady)) return;
   if (!riskAccepted.checked) {
     updateFlashReadiness();
     riskAccepted.focus();
@@ -550,7 +560,6 @@ flashBtn.addEventListener("click", async () => {
     updateFlashReadiness();
     document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = true);
     customFileInput.disabled = true;
-    customOffsetInput.disabled = true;
     if (releaseVersionSelect) releaseVersionSelect.disabled = true;
     if (editionSelect) editionSelect.disabled = true;
     flashBtn.disabled = true;
@@ -574,7 +583,23 @@ flashBtn.addEventListener("click", async () => {
     const timestamp = Date.now();
 
     let nvsImage = null;
-    if (automaticLayoutSelected()) {
+    const customInstall = radioCustom.checked;
+    if (customInstall) {
+      const file = customFileInput.files[0];
+      if (!file || !/\.bin$/i.test(file.name) || file.size > 0x1000000)
+        throw new Error("Chọn ảnh cài toàn phần .bin tối đa 16 MB.");
+      if (esploader.chip.CHIP_NAME !== "ESP32-S31" || !esploader.IS_STUB ||
+          await esploader.detectFlashSize() !== "16MB")
+        throw new Error("Nạp trắng yêu cầu kết nối Metalio ESP32-S31 16 MB.");
+      progressStatus.textContent = `Đang đọc tệp ${file.name}...`;
+      binaryData = new Uint8Array(await file.arrayBuffer());
+      validateCustomFullImage(binaryData);
+      if (!confirm(`Nạp trắng "${file.name}" từ 0x0 sẽ xóa toàn bộ firmware, cài đặt và dữ liệu trong bộ nhớ máy. Thẻ SD giữ nguyên. Tiếp tục?`)) {
+        progressStatus.textContent = "Đã hủy nạp trắng.";
+        return;
+      }
+      offset = 0;
+    } else if (automaticLayoutSelected()) {
       if (!currentReleaseInfo?.usb_parts) throw new Error("Chưa có gói cài USB đã xác minh.");
       nvsImage = await prepareNvs256Install(currentReleaseInfo);
       if (!nvsImage) { progressStatus.textContent = "Đã hủy cài sạch."; return; }
@@ -598,31 +623,14 @@ flashBtn.addEventListener("click", async () => {
         `./${selectedReleaseFolder()}/${fileName}?t=${timestamp}`,
         `https://raw.githubusercontent.com/dephia31/dpReader31/main/${selectedReleaseFolder()}/${fileName}?t=${timestamp}`
       );
-    } else if (radioCustom.checked) {
-      const file = customFileInput.files[0];
-      if (!file) {
-        alert("Vui lòng chọn một tệp .bin từ máy tính của bạn!");
-        isFlashing = false;
-        updateFlashReadiness();
-        disconnectBtn.disabled = false;
-        return;
-      }
-      fileName = file.name;
-      offset = parseInt(customOffsetInput.value, 16) || 0x10000;
-      // 自选应用与默认应用共用启动槽处理；其他偏移不改OTA选择。
-      // Custom apps share the default app's boot-slot handling; other offsets retain OTA selection.
-      clearOtadata = offset === 0x10000;
-      progressStatus.textContent = `Đang đọc tệp ${fileName}...`;
-      binaryData = await file.arrayBuffer();
     }
 
-    if (!nvsImage && !radioCustom.checked) await verifySelectedFirmware(binaryData, radioFull.checked ? 0x10000 : 0, currentReleaseInfo, editionSelect?.value || "full");
-    if (!nvsImage) {
+    if (!nvsImage && !customInstall) await verifySelectedFirmware(binaryData, radioFull.checked ? 0x10000 : 0, currentReleaseInfo, editionSelect?.value || "full");
+    if (!nvsImage && !customInstall) {
       if (esploader.chip.CHIP_NAME !== "ESP32-S31") throw new Error("Sai dòng thiết bị.");
       const layout = await probeS31Layout();
-      if (layout !== "legacy" && !(layout === "blank" && radioFull.checked && !radioCustom.checked))
+      if (layout !== "legacy" && !(layout === "blank" && radioFull.checked))
         throw new Error("Bản cũ chỉ cài trên bố cục cũ. Chọn bản mới nhất để cập nhật máy dùng NVS 256 KiB.");
-      if (radioCustom.checked) throw new Error("Chọn gói chính thức để xác minh bố cục và phiên bản.");
     }
     const payloadSize = binaryData.byteLength;
     terminal.writeLine(`[+] Kích thước tệp: ${payloadSize.toLocaleString()} bytes`);
@@ -630,7 +638,7 @@ flashBtn.addEventListener("click", async () => {
     terminal.writeLine("[*] Đang chuẩn bị dữ liệu và bắt đầu nạp...");
 
     const fileData = binaryData instanceof Uint8Array ? binaryData : new Uint8Array(binaryData);
-    const fileArray = [nvsImage ?? { data: fileData, address: offset, md5: currentReleaseInfo?.md5 }];
+    const fileArray = [nvsImage ?? { data: fileData, address: offset, md5: customInstall ? undefined : currentReleaseInfo?.md5 }];
 
     // Xoá otadata (ghi 0xFF) để bootloader chọn ota_0 vừa nạp. Nếu otadata còn trỏ ota_1 từ một lần
     // cập nhật Wi-Fi trước đó, máy sẽ khởi động lại đúng bản cũ dù bản mới đã ghi xong.
@@ -646,7 +654,7 @@ flashBtn.addEventListener("click", async () => {
     await esploader.writeFlash({
       fileArray: fileArray,
       flashSize: "keep",
-      eraseAll: false,
+      eraseAll: customInstall,
       compress: true,
       reportProgress: (fileIndex, written, total) => {
         const percent = Math.floor((written / total) * 100);
@@ -698,9 +706,8 @@ flashBtn.addEventListener("click", async () => {
     alert(`Nạp thất bại: ${err.message || err}`);
   } finally {
     isFlashing = false;
-    document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = input === radioCustom);
+    document.querySelectorAll("input[name='flash-mode']").forEach(input => input.disabled = false);
     customFileInput.disabled = false;
-    customOffsetInput.disabled = false;
     resetRiskAgreement();
     if (releaseVersionSelect) releaseVersionSelect.disabled = false;
     if (editionSelect) editionSelect.disabled = false;
