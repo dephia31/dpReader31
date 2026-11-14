@@ -22,7 +22,7 @@ const context=vm.createContext({console, navigator:{}, document:{getElementById:
     requested.push(url);
     const love=url.includes('/love-book/');
     const archived=url.match(/\/(\d+\.\d+\.\d+(?:-love)?-vn)\//)?.[1];
-    const data={version:archived||(love?'1.4.6-love-vn':'1.4.6-vn'),usb_parts:!archived||/^1\.4\.[34]/.test(archived)?{}:undefined,usb_only:false,notes:'Test',size:4710000,sha256:'0'.repeat(64),previous_version:love?'1.4.5-love-vn':'1.4.5-vn'};
+    const data={version:archived||(love?'1.4.7-love-vn':'1.4.7-vn'),usb_parts:!archived||/^1\.4\.[34]/.test(archived)?{}:undefined,usb_only:false,notes:'Test',size:4710000,sha256:'0'.repeat(64),previous_version:love?'1.4.5-love-vn':'1.4.5-vn'};
     return {ok:!love||loveAvailable,json:async()=>data};
   },crypto:webcrypto,DataView,Date,Map,Array,ESPLoader:class{},Transport:class{},setTimeout,Uint8Array,TextDecoder});
 vm.runInContext(code, context);
@@ -36,7 +36,7 @@ assert.equal(get('release-tf-download').href,'./releases/love-book/dpReader_meta
 assert.equal(vm.runInContext('editionReady',context),true);
 assert.equal(get('release-version').options[1].value,'1.4.5-love-vn');
 assert.equal(get('release-version').options[2].value,'1.4.4-love-vn');
-assert.equal(get('release-installer-download').href,'./releases/love-book/dpReader-metalio47-1.4.6-love-vn-USB.zip');
+assert.equal(get('release-installer-download').href,'./releases/love-book/dpReader-metalio47-1.4.7-love-vn-USB.zip');
 assert.equal(get('flash-modes').hidden,false);
 get('release-version').value='1.4.2-love-vn';get('release-version').handlers.change();
 assert.equal(get('flash-modes').hidden,true);
