@@ -22,7 +22,7 @@ const context=vm.createContext({console, navigator:{}, document:{getElementById:
     requested.push(url);
     const love=url.includes('/love-book/');
     const archived=url.match(/\/(\d+\.\d+\.\d+(?:-love)?-vn)\//)?.[1];
-    const data={version:archived||(love?'1.4.5-love-vn':'1.4.5-vn'),usb_parts:!archived||/^1\.4\.[34]/.test(archived)?{}:undefined,usb_only:false,notes:'Test',size:4710000,sha256:'0'.repeat(64),previous_version:love?'1.4.4-love-vn':'1.4.4-vn'};
+    const data={version:archived||(love?'1.4.6-love-vn':'1.4.6-vn'),usb_parts:!archived||/^1\.4\.[34]/.test(archived)?{}:undefined,usb_only:false,notes:'Test',size:4710000,sha256:'0'.repeat(64),previous_version:love?'1.4.5-love-vn':'1.4.5-vn'};
     return {ok:!love||loveAvailable,json:async()=>data};
   },crypto:webcrypto,DataView,Date,Map,Array,ESPLoader:class{},Transport:class{},setTimeout,Uint8Array,TextDecoder});
 vm.runInContext(code, context);
@@ -34,9 +34,9 @@ await vm.runInContext('fetchLatestRelease()',context);
 assert.equal(vm.runInContext('selectedReleaseFolder()',context),'releases/love-book');
 assert.equal(get('release-tf-download').href,'./releases/love-book/dpReader_metalio47_firmware.bin');
 assert.equal(vm.runInContext('editionReady',context),true);
-assert.equal(get('release-version').options[1].value,'1.4.4-love-vn');
-assert.equal(get('release-version').options[2].value,'1.4.3-love-vn');
-assert.equal(get('release-installer-download').href,'./releases/love-book/dpReader-metalio47-1.4.5-love-vn-USB.zip');
+assert.equal(get('release-version').options[1].value,'1.4.5-love-vn');
+assert.equal(get('release-version').options[2].value,'1.4.4-love-vn');
+assert.equal(get('release-installer-download').href,'./releases/love-book/dpReader-metalio47-1.4.6-love-vn-USB.zip');
 assert.equal(get('flash-modes').hidden,false);
 get('release-version').value='1.4.2-love-vn';get('release-version').handlers.change();
 assert.equal(get('flash-modes').hidden,true);
@@ -74,11 +74,24 @@ context.release.version="1.3.3RC4-love-vn";await assert.rejects(vm.runInContext(
 
 // Use the release partition table to exercise the separate local full-image flow.
 const table = await fs.readFile(new URL('releases/partitions.bin', root));
-const localImage = new Uint8Array(0x10000 + app.length).fill(255);
+const bootImage = await fs.readFile(new URL('releases/bootloader.bin', root));
+const applicationImage = await fs.readFile(new URL('releases/dpReader_metalio47_firmware.bin', root));
+const localImage = new Uint8Array(0x10000 + applicationImage.length).fill(255);
 localImage.set(table, 0x8000);
-localImage.set(app, 0x10000);
-localImage[0x2000] = 0xe9;
-new DataView(localImage.buffer).setUint16(0x200c, 32, true);
+localImage.set(applicationImage, 0x10000);
+localImage.set(bootImage, 0x2000);
+context.customImage = localImage;
+await vm.runInContext('validateCustomFullImage(customImage)', context);
+// Headers alone must never qualify for an erase-all installation.
+for (const length of [0x10000 + 288, localImage.length - 1]) {
+  context.customImage = localImage.slice(0, length);
+  await assert.rejects(vm.runInContext('validateCustomFullImage(customImage)', context));
+}
+for (const offset of [0x2020, 0x10120, localImage.length - 1]) {
+  context.customImage = localImage.slice();
+  context.customImage[offset] ^= 1;
+  await assert.rejects(vm.runInContext('validateCustomFullImage(customImage)', context));
+}
 const writes = [];
 const alerts = [];
 let agreed = false;
@@ -102,6 +115,8 @@ assert.equal(writes.length, 0);
 agreed = true;
 await flashLocal(app);
 assert.match(alerts.at(-1), /ảnh cài toàn phần/);
+assert.equal(writes.length, 0);
+await flashLocal(localImage.slice(0, 0x10000 + 288));
 assert.equal(writes.length, 0);
 await flashLocal(localImage);
 assert.equal(writes.length, 1);

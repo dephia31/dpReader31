@@ -1,13 +1,11 @@
-## dpReader 1.4.5 cho Metalio E‑Ink4 Plus (ESP32-S31)
+## dpReader 1.4.6-vn / 1.4.6-love-vn · 2026-11-14
 
-- Thêm **Flash** trong Hiệu ứng lật trang. Flash quét đồng thời toàn màn hình, hỗ trợ ảnh và Đảo Màu.
-- Sóng Nước trong trình đọc dùng 6 dải, quét sát mép trên để xử lý dấu tiếng Việt ở dòng đầu. Khi bật Khử răng cưa, tăng hai xung cho điểm ảnh chuyển sang đen và giữ 41 nhịp quét.
-- Thêm **Tương phản chữ** trong Phông chữ → Tùy chỉnh để làm tối viền chữ khi bật Khử răng cưa.
+- Chọn nút AI và âm lượng để đánh thức từ Sleep. Màn khóa sau reboot có thể vào Light Sleep. Chỉ đặt timer khi có thời hạn ngủ hoặc hẹn tắt nguồn.
+- Dừng Wi-Fi và Bluetooth, yêu cầu hủy tác vụ tải trước khi hiện màn khóa. Nếu tài nguyên vẫn bận, máy giữ trang hiện tại.
+- Thêm chữ ký tùy chỉnh cho Thẻ đọc sách và ảnh khóa. Full dùng cùng bố cục thẻ với Love Book và giảm chiều cao thanh Acrylic.
+- Bổ sung chữ Hán thường dùng khi phông chính thiếu ký tự. Tăng nhẹ nét chữ khi bật Tương phản chữ trong chế độ đen trắng.
+- Làm mới màn hình khi từ trình đọc về Home để dọn bóng chữ và giảm lượt làm mới trùng khi thẻ đã sẵn sàng.
+- Sửa ghi vượt bộ đệm trong phần xem trước log và thêm mốc chẩn đoán heap khi xuất log hoặc mở Truyền file.
 
-Có hai bản Full và Love Book. Chọn đúng bản đang dùng khi cập nhật.
 
-- Từ **1.4.3** trên bố cục NVS 256 KiB, cập nhật qua OTA hoặc chọn nạp cập nhật trên Web Flash.
-- Từ **1.4.2**, nạp cập nhật qua USB một lần.
-- Từ **1.4.1 trở xuống** hoặc firmware khác, sao lưu cài đặt ra thẻ SD trước khi chọn nạp toàn phần. Sau khi cài xong, dùng chức năng khôi phục từ thẻ SD.
-
-[Web Flash](https://dephia31.github.io/dpReader31/)
+Mã nguồn: `633dd6eeb630eaa37a7fda1f4dcce9f66e3f9b69`.

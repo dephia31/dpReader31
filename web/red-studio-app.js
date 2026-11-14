@@ -38,7 +38,7 @@ function automaticLayoutSelected() {
 function syncInstallationGuide() {
   const automatic = automaticLayoutSelected();
   const version = document.getElementById("release-version")?.value ||
-    (editionSelect?.value === "love-book" ? "1.4.5-love-vn" : "1.4.5-vn");
+    (editionSelect?.value === "love-book" ? "1.4.6-love-vn" : "1.4.6-vn");
   const archivedTransition = /^1\.4\.2(?:-love)?-vn$/.test(version);
   document.getElementById("flash-modes").hidden = archivedTransition;
   document.getElementById("legacy-downloads").hidden = automatic;
@@ -198,7 +198,8 @@ function snapshotReleaseOptions() {
 releaseOptions.set(previousEdition, snapshotReleaseOptions());
 releaseOptions.set("love-book", [
   {value: "", text: "Mới nhất"},
-  {value: "1.4.4-love-vn", text: "1.4.4-love-vn — bản chính thức trước"},
+  {value: "1.4.5-love-vn", text: "1.4.5-love-vn — bản chính thức trước"},
+  {value: "1.4.4-love-vn", text: "1.4.4-love-vn"},
   {value: "1.4.3-love-vn", text: "1.4.3-love-vn"},
   {value: "1.4.2-love-vn", text: "1.4.2-love-vn"},
 ]);
@@ -456,7 +457,34 @@ function classifyS31Partitions(raw) {
   }
   return "unknown";
 }
-function validateCustomFullImage(data) {
+async function validateCustomEspImage(data, offset, limit) {
+  const invalid = () => new Error("Ảnh cài toàn phần bị thiếu hoặc hỏng dữ liệu firmware.");
+  const end = Math.min(data.length, limit);
+  if (offset + 24 > end) throw invalid();
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const segments = data[offset + 1], digestFlag = data[offset + 23];
+  if (data[offset] !== 0xe9 || view.getUint16(offset + 12, true) !== 32 ||
+      segments < 1 || segments > 16 || digestFlag > 1) throw invalid();
+  let cursor = offset + 24, checksum = 0xef;
+  for (let segment = 0; segment < segments; segment++) {
+    if (cursor + 8 > end) throw invalid();
+    const length = view.getUint32(cursor + 4, true);
+    cursor += 8;
+    if (length > end - cursor) throw invalid();
+    for (let i = cursor; i < cursor + length; i++) checksum ^= data[i];
+    cursor += length;
+  }
+  // ESP images place the XOR byte at the end of the next 16-byte block.
+  const checksumAt = offset + Math.floor((cursor - offset) / 16) * 16 + 15;
+  if (checksumAt >= end || data[checksumAt] !== checksum) throw invalid();
+  if (digestFlag) {
+    const digestAt = checksumAt + 1;
+    if (digestAt + 32 > end) throw invalid();
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", data.subarray(offset, digestAt)));
+    if (!digest.every((value, i) => value === data[digestAt + i])) throw invalid();
+  }
+}
+async function validateCustomFullImage(data) {
   if (data.length < 0x10000 + 288 || data.length > 0x1000000)
     throw new Error("Cần ảnh cài toàn phần ESP32-S31 tối đa 16 MB.");
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -465,6 +493,8 @@ function validateCustomFullImage(data) {
       view.getUint32(0x10020, true) !== 0xabcd5432 ||
       !["new", "legacy", "rc"].includes(classifyS31Partitions(data.subarray(0x8000, 0x9000))))
     throw new Error("File không phải ảnh cài toàn phần S31 có bố cục dpReader tương thích.");
+  await validateCustomEspImage(data, 0x2000, 0x8000);
+  await validateCustomEspImage(data, 0x10000, 0x510000);
 }
 
 async function fetchVerifiedPart(name, part) {
@@ -593,7 +623,7 @@ flashBtn.addEventListener("click", async () => {
         throw new Error("Nạp trắng yêu cầu kết nối Metalio ESP32-S31 16 MB.");
       progressStatus.textContent = `Đang đọc tệp ${file.name}...`;
       binaryData = new Uint8Array(await file.arrayBuffer());
-      validateCustomFullImage(binaryData);
+      await validateCustomFullImage(binaryData);
       if (!confirm(`Nạp trắng "${file.name}" từ 0x0 sẽ xóa toàn bộ firmware, cài đặt và dữ liệu trong bộ nhớ máy. Thẻ SD giữ nguyên. Tiếp tục?`)) {
         progressStatus.textContent = "Đã hủy nạp trắng.";
         return;
