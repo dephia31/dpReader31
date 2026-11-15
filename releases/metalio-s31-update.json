@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "full",
-  "version": "1.4.8-vn",
+  "version": "1.4.9-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,13 +9,13 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.4.7-vn",
-  "notes": "Tối ưu giao diện đọc: phản hồi nhanh hơn 30%, giảm tiêu thụ pin 60% theo đo đạc của tác giả. Menu chuyển mượt hơn, thêm chụp màn hình và cải thiện nét chữ.",
+  "previous_version": "1.4.8-vn",
+  "notes": "Hạ xung khi chờ, thêm Bù nét chữ cho Đơn sắc gốc, sao lưu thêm tùy chọn đọc và sửa gán phím âm lượng.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
-      "sha256": "b558e2462e3b7b61c457d43f5f3fe830e318615518df48dc2d403a1e6d057278",
-      "md5": "b9b40e8614ea61c670f31aa9b14797b0"
+      "sha256": "7a263a806c40bfcf3a4498a7391ca2ed2aef6fca8dfe0acf74b29871d6d1b425",
+      "md5": "b810649ccfd1d6f71325844b1a5493b0"
     },
     "partitions.bin": {
       "size": 3072,
@@ -24,15 +24,15 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "901b65d12fb7922c9538957f95944fd3837ac568f3b882b0798f246c0dbb1e2b",
-      "md5": "3d5b76798b67d0c4738ebc4eacf8f7fd"
+      "sha256": "f0280266a9efce082019b805db113abac826bf4a0b299657b9c66a3bbd352d99",
+      "md5": "838ee1bfb0b9a228b31baab8ee3ecd4a"
     }
   },
   "clean_image": {
-    "sha256": "8979c88e1ba69a35f3e12c1a5e2fe08dee68bbd51417307a3b9d54866be6bad4",
-    "md5": "00cadd09506de6ad96d431433e31eeec"
+    "sha256": "fec9b56b2eef54ce1cdafd6716be8bf72c9fd831cb4bf37198aca89a5c555fbe",
+    "md5": "24377bfec30f4c845416844ad8159a31"
   },
-  "size": 5042656,
-  "sha256": "3074d4c62564ddfb5cc15d875c67d28b3eca2ca383e548b0914fc617dc5833eb",
-  "md5": "4cc43671062a5878de2a1fa9630100ff"
+  "size": 5043232,
+  "sha256": "8d2aa3bf2c3ee10b2e48c55f7d192895ac6932695b511698ff79e0ed4ce6d6e3",
+  "md5": "d0cac5c5cb9556b2323183b4992d9c65"
 }
