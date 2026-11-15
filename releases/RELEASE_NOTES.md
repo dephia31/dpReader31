@@ -1,11 +1,11 @@
-## dpReader 1.4.6-vn / 1.4.6-love-vn · 2026-11-14
+## dpReader 1.4.8-vn / 1.4.8-love-vn · 2026-11-15
 
-- Chọn nút AI và âm lượng để đánh thức từ Sleep. Màn khóa sau reboot có thể vào Light Sleep. Chỉ đặt timer khi có thời hạn ngủ hoặc hẹn tắt nguồn.
-- Dừng Wi-Fi và Bluetooth, yêu cầu hủy tác vụ tải trước khi hiện màn khóa. Nếu tài nguyên vẫn bận, máy giữ trang hiện tại.
-- Thêm chữ ký tùy chỉnh cho Thẻ đọc sách và ảnh khóa. Full dùng cùng bố cục thẻ với Love Book và giảm chiều cao thanh Acrylic.
-- Bổ sung chữ Hán thường dùng khi phông chính thiếu ký tự. Tăng nhẹ nét chữ khi bật Tương phản chữ trong chế độ đen trắng.
-- Làm mới màn hình khi từ trình đọc về Home để dọn bóng chữ và giảm lượt làm mới trùng khi thẻ đã sẵn sàng.
-- Sửa ghi vượt bộ đệm trong phần xem trước log và thêm mốc chẩn đoán heap khi xuất log hoặc mở Truyền file.
+- **Tối ưu giao diện trình đọc sách:** theo kết quả tác giả tự đo, phản hồi nhanh hơn **30%**, thao tác nhẹ nhàng hơn và mức tiêu thụ pin giảm **60%**. Menu dùng cập nhật chênh lệch, giảm lượt vẽ và làm mới dư thừa khi mở/đóng thanh công cụ, cài đặt đọc, phông chữ và mục lục.
+- Thanh công cụ, Cài đặt đọc và Phông chữ mở bằng DU20. Quick Setting mở nhanh, đóng bằng khôi phục vùng bị che để hạn chế nháy toàn màn hình; bảng phủ thanh trạng thái, trải hết chiều ngang và chỉ bo hai góc dưới.
+- Đồng bộ style và nút Quay lại trong các menu đọc sách. Độ đậm chữ có khung xem trước và nút giảm/tăng dạng thẻ; sửa hàng Chụp ảnh màn hình bị nút Quay lại che trong gán phím hệ thống.
+- Thêm shortcut **Chụp ảnh màn hình**, lưu PNG trong thư mục screenshots trên thẻ SD.
+- Kiểu nét chữ giữ Đơn sắc gốc, tách Khử răng cưa với hai công tắc Khử răng cưa/Tương phản chữ và Đen trắng đậm với các ngưỡng **35%, 40%, 45%, 50%, 55%, 60%, 65%**. Tương phản chữ khi bật Khử răng cưa dùng lõi đen từ độ phủ 80%, giữ viền xám; không đổi cách chia trang.
+- Tăng cỡ chữ Xin Chào, Đã đọc …% và Đọc tiếp trên Home của I Love Book và Love Book; giới hạn độ rộng để tránh chồng chữ khi dùng phông rộng.
+- Bỏ đường đánh thức trực tiếp từ Light Sleep bằng nút AI và tùy chọn tương ứng; giữ nút nguồn và các nút âm lượng theo thiết lập. Dọn mã menu cũ và giảm công sao chép bộ đệm Quick Setting.
 
-
-Mã nguồn: `633dd6eeb630eaa37a7fda1f4dcce9f66e3f9b69`.
+Mã nguồn: `5e4b0e7a776f222de14aae4c5c8b9449f0ef3160`.
