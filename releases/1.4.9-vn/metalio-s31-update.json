@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.4.9-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.4.8-vn",
+  "notes": "Hạ xung khi chờ, thêm Bù nét chữ cho Đơn sắc gốc, sao lưu thêm tùy chọn đọc và sửa gán phím âm lượng.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "7a263a806c40bfcf3a4498a7391ca2ed2aef6fca8dfe0acf74b29871d6d1b425",
+      "md5": "b810649ccfd1d6f71325844b1a5493b0"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "f0280266a9efce082019b805db113abac826bf4a0b299657b9c66a3bbd352d99",
+      "md5": "838ee1bfb0b9a228b31baab8ee3ecd4a"
+    }
+  },
+  "clean_image": {
+    "sha256": "fec9b56b2eef54ce1cdafd6716be8bf72c9fd831cb4bf37198aca89a5c555fbe",
+    "md5": "24377bfec30f4c845416844ad8159a31"
+  },
+  "size": 5043232,
+  "sha256": "8d2aa3bf2c3ee10b2e48c55f7d192895ac6932695b511698ff79e0ed4ce6d6e3",
+  "md5": "d0cac5c5cb9556b2323183b4992d9c65"
+}
