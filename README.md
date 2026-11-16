@@ -11,7 +11,7 @@
 
 **dpReader** (`v1.5.0-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
 
-**Cập nhật 1.4.5.** Từ 1.4.1 trở xuống, sao lưu cấu hình ra thẻ SD rồi nạp toàn phần qua USB. Từ 1.4.2, dùng Web Flash hoặc bộ cài USB để cập nhật riêng ứng dụng và giữ cài đặt. Cập nhật qua Wi-Fi hoạt động trở lại từ 1.4.3. [Mở trang Flash](https://dephia31.github.io/dpReader31/)
+**Cập nhật lên 1.5.0.** Từ 1.4.1 trở xuống, sao lưu cấu hình ra thẻ SD rồi nạp toàn phần qua USB. Từ 1.4.2, dùng Web Flash hoặc bộ cài USB để cập nhật riêng ứng dụng và giữ cài đặt. Cập nhật qua Wi-Fi hoạt động trở lại từ 1.4.3. [Mở trang Flash](https://dephia31.github.io/dpReader31/)
 
 
 > ⚡ **Nạp Firmware Trực Tuyến 1-Click (Không cần cài phần mềm):**
