@@ -1,3 +1,15 @@
+## dpReader 1.5.2-vn / 1.5.2-love-vn
+
+- Thêm New Home và làm mới thanh điều hướng, Tủ sách bìa lớn và trang thống kê đọc.
+- Thêm giao diện Tiếng Việt / English và màn Welcome có logo dpReader khi cài mới.
+- Bổ sung README tiếng Anh và Web Flash song ngữ, có ảnh minh họa ba kiểu Home.
+
+Có hai gói Full và Love Book cho Metalio E‑Ink 4 Plus (ESP32‑S31). Nếu cần quay về 1.5.1, hãy dùng bản sao lưu tạo trước khi nâng cấp. Sao lưu có lựa chọn ngôn ngữ dùng định dạng V33.
+
+English highlights: New Home, a refreshed dock and large-cover library, English firmware UI, first-run language selection, and bilingual Web Flash.
+
+Mã nguồn: `5664b1714be63ed8f59d6ab66ea870fe46db676a`.
+
 ## dpReader 1.5.1-vn / 1.5.1-love-vn
 
 - Tối ưu hiệu năng máy, mở và đóng sách nhanh hơn.
