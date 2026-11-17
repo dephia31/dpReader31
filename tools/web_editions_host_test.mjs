@@ -40,7 +40,8 @@ assert.equal(vm.runInContext('selectedReleaseFolder()',context),'releases/love-b
 assert.equal(get('release-tf-download').href,'./releases/love-book/dpReader_metalio47_firmware.bin');
 assert.equal(vm.runInContext('editionReady',context),true);
 assert.equal(get('release-version').options[1].value,'1.4.5-love-vn');
-assert.equal(get('release-version').options[2].value,'1.4.4-love-vn');
+assert.equal(get('release-version').options[2].value,'1.4.9-love-vn');
+assert.equal(get('release-version').options[3].value,'1.4.4-love-vn');
 assert.equal(get('release-installer-download').href,'./releases/love-book/dpReader-metalio47-1.4.7-love-vn-USB.zip');
 assert.equal(get('flash-modes').hidden,false);
 get('release-version').value='1.4.2-love-vn';get('release-version').handlers.change();
