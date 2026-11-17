@@ -1,3 +1,15 @@
+## dpReader 1.5.1-vn / 1.5.1-love-vn
+
+- Tối ưu hiệu năng máy, mở và đóng sách nhanh hơn.
+- Tải ảnh bìa nhanh hơn trên Trang chủ và Tủ sách.
+- Tối ưu pin với Deep Sleep và quản lý Wi-Fi, Bluetooth khi ngủ.
+
+Có hai bản Full và Love Book cho Metalio E‑Ink 4 Plus. Hãy chọn cùng bản đang dùng để cập nhật.
+
+Bản sao lưu có mục Yêu thích hoặc Ẩn sách theo định dạng mới cần dpReader 1.5.1 trở lên để khôi phục.
+
+Mã nguồn: `b7046ca8a2b71dfc45c83026e697ac38bd8ab447`.
+
 ## dpReader 1.4.8-vn / 1.4.8-love-vn · 2026-11-15
 
 - **Tối ưu giao diện trình đọc sách:** theo kết quả tác giả tự đo, phản hồi nhanh hơn **30%**, thao tác nhẹ nhàng hơn và mức tiêu thụ pin giảm **60%**. Menu dùng cập nhật chênh lệch, giảm lượt vẽ và làm mới dư thừa khi mở/đóng thanh công cụ, cài đặt đọc, phông chữ và mục lục.

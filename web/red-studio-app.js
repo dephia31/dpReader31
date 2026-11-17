@@ -38,7 +38,7 @@ function automaticLayoutSelected() {
 function syncInstallationGuide() {
   const automatic = automaticLayoutSelected();
   const version = document.getElementById("release-version")?.value ||
-    (editionSelect?.value === "love-book" ? "1.5.0-love-vn" : "1.5.0-vn");
+    (editionSelect?.value === "love-book" ? "1.5.1-love-vn" : "1.5.1-vn");
   const archivedTransition = /^1\.4\.2(?:-love)?-vn$/.test(version);
   document.getElementById("flash-modes").hidden = archivedTransition;
   document.getElementById("legacy-downloads").hidden = automatic;
@@ -199,6 +199,7 @@ releaseOptions.set(previousEdition, snapshotReleaseOptions());
 releaseOptions.set("love-book", [
   {value: "", text: "Mới nhất"},
   {value: "1.4.5-love-vn", text: "1.4.5-love-vn — bản chính thức trước"},
+  {value: "1.4.9-love-vn", text: "1.4.9-love-vn"},
   {value: "1.4.4-love-vn", text: "1.4.4-love-vn"},
   {value: "1.4.3-love-vn", text: "1.4.3-love-vn"},
   {value: "1.4.2-love-vn", text: "1.4.2-love-vn"},

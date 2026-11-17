@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.5.0-love-vn",
+  "version": "1.5.1-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.4.9-love-vn",
-  "notes": "Tủ sách Bìa lớn, thanh công cụ Tủ sách chung, Thống kê đọc sách và vòng mục tiêu hôm nay. Nới điều kiện hạ xung trong trình đọc với remote BLE sẵn sàng.",
+  "previous_version": "1.5.0-love-vn",
+  "notes": "Tối ưu hiệu năng máy, tải ảnh bìa nhanh hơn và tối ưu pin.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,15 +24,15 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "96c98e46ff6ea2a3fc9c17c437f3e19faaa39d4f4fb07c0e168fafc58d988d1e",
-      "md5": "38550b90a3bc43b8128018cc862ce0dd"
+      "sha256": "7717c46dbc8440910dc0fd86853043c7451bb4f1225035eac2a3bb958dc8c8de",
+      "md5": "0dcec4573e2960de3f8c06ab2cacb3a5"
     }
   },
   "clean_image": {
-    "sha256": "1173d8295cd12f782db7bb8cda4e97c9f305f87552ee45b785910809e1ee7712",
-    "md5": "3e985de3308991146acf92e74b8a42b6"
+    "sha256": "e1d3a806f073f8dcc76a2c4af6b2e6abb1347f22ca556ba341f2ac2b7d42cc03",
+    "md5": "27c59326acd1c93c8599e6c45e7767e9"
   },
-  "size": 4979104,
-  "sha256": "827b452aa6944f6139af8112b790bbb9f0e4884ae8918ddde38ae99c2454b2cf",
-  "md5": "94d16ace2825ac872bb52b5abd8f498b"
+  "size": 4989088,
+  "sha256": "a3abac996c133bb19295cc7c4dc1a5f41dfb6837a780b083b351d8bb0321e95b",
+  "md5": "7b621e2aca6a913d4e60350f0c500e9c"
 }
