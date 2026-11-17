@@ -1,17 +1,28 @@
 # dpReader — Firmware Đọc Sách Tiếng Việt Chuyên Biệt cho Metalio E-ink 4 Plus (`metalio4.7`)
 
+**Tiếng Việt** · [English](README.en.md)
+
 <p align="center">
-  <img src="docs/screenshots/01_home_dashboard.png" alt="Trang chủ dpReader 1.2.5 — ảnh chụp từ thiết bị" width="320">
+  <a href="web/assets/home-new.webp"><img src="web/assets/home-new.webp" alt="Trang chủ dpReader" width="170"></a>
+  <a href="docs/screenshots/interface/library.png"><img src="docs/screenshots/interface/library.png" alt="Tủ sách dạng bìa lớn" width="170"></a>
+  <a href="docs/screenshots/interface/reading-statistics.png"><img src="docs/screenshots/interface/reading-statistics.png" alt="Thống kê đọc sách" width="170"></a>
+  <a href="docs/screenshots/interface/welcome.png"><img src="docs/screenshots/interface/welcome.png" alt="Màn Welcome chọn ngôn ngữ" width="142"></a>
 </p>
+<p align="center">
+  <a href="web/assets/home-full.webp"><img src="web/assets/home-full.webp" alt="Full Home" width="170"></a>
+  <a href="web/assets/home-love-book.webp"><img src="web/assets/home-love-book.webp" alt="I Love Book Home" width="170"></a>
+</p>
+
+*Ảnh minh họa các giao diện dpReader.*
 
 <p align="center">
   <a href="https://dephia31.github.io/dpReader31/"><img src="https://img.shields.io/badge/Web%20Flasher-C%E1%BA%ADp%20nh%E1%BA%ADt%20tr%E1%BB%B1c%20tuy%E1%BA%BFn%201--Click-success?style=for-the-badge&logo=googlechrome" alt="Web Flasher Trực Tuyến"></a>
-  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.5.1--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/latest"><img src="https://img.shields.io/badge/Phi%C3%AAn%20b%E1%BA%A3n%20m%E1%BB%9Bi%20nh%E1%BA%A5t-v1.5.2--vn-blue?style=for-the-badge&logo=github" alt="Phiên bản mới nhất"></a>
 </p>
 
-**dpReader** (`v1.5.1-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
+**dpReader** (`v1.5.2-vn`) là bản firmware đọc sách tùy biến và tối ưu hóa chuyên sâu cho máy đọc sách **Metalio E-ink 4 Plus (4.7 inch, 684×1216, SoC ESP32-S31 RISC-V, 16MB Flash + PSRAM)** dành riêng cho người dùng Việt Nam.
 
-**Cập nhật lên 1.5.1.** Từ 1.4.1 trở xuống, sao lưu cấu hình ra thẻ SD rồi nạp toàn phần qua USB. Từ 1.4.2, dùng Web Flash hoặc bộ cài USB để cập nhật riêng ứng dụng và giữ cài đặt. Cập nhật qua Wi-Fi hoạt động trở lại từ 1.4.3. [Mở trang Flash](https://dephia31.github.io/dpReader31/)
+**Cập nhật qua USB.** Từ 1.4.1 trở xuống, sao lưu cấu hình ra thẻ SD rồi nạp toàn phần qua USB. Từ 1.4.2, dùng Web Flash hoặc bộ cài USB để cập nhật riêng ứng dụng và giữ cài đặt. Cập nhật qua Wi-Fi hoạt động trở lại từ 1.4.3. [Mở trang Flash](https://dephia31.github.io/dpReader31/)
 
 
 > ⚡ **Nạp Firmware Trực Tuyến 1-Click (Không cần cài phần mềm):**
@@ -19,14 +30,19 @@
 
 ---
 
-## Hai thiết kế giao diện: Đầy đủ và I Love Book
+## Ngôn ngữ
 
-Hai giao diện dùng chung trình đọc TXT/EPUB, thiết lập chữ và tiến độ đọc.
+Màn **Welcome** cho chọn **Tiếng Việt** hoặc **English** khi cài mới. Đổi ngôn ngữ tại **Cài đặt → Cá nhân hóa → Ngôn ngữ**. Khi cần quay về 1.5.1, dùng bản sao lưu đã tạo trước khi nâng cấp.
+
+## Giao diện Home
+
+Các giao diện dùng chung trình đọc TXT/EPUB, thiết lập chữ và tiến độ đọc.
 
 | Giao diện | Home | Cách mở sách |
 |---|---|---|
 | Đầy đủ | Thẻ Đọc tiếp, Tiện Ích và sách gần đây | Tủ sách với bìa và công cụ quản lý |
 | I Love Book | Thẻ Đọc tiếp lớn, bìa sách hé mở và nền viền từ ảnh bìa | Chạm thẻ để đọc tiếp hoặc vuốt lên mở Pop menu |
+| New Home | Bìa nổi, tiến độ và số phút đọc hôm nay | Bấm Đọc tiếp hoặc mở thống kê từ vùng Hôm nay |
 
 Chọn tại **Cài đặt → Cá nhân hóa → Giao diện**. Chọn thành công sẽ về Home và làm sạch toàn màn hình. Lựa chọn được giữ qua khởi động lại, Sleep và khôi phục thiết lập thông thường. Lựa chọn Đơn giản hoặc Đơn giản hoàn toàn từ phiên bản cũ chuyển sang I Love Book.
 
@@ -132,8 +148,8 @@ Hai ảnh trên là bản xem trước dựng từ bố cục firmware 1.3.0 v�
 
 | Tệp nhị phân | Kích thước | Mục đích sử dụng | Địa chỉ / Đường dẫn |
 | :--- | :--- | :--- | :--- |
-| **[`releases/dpReader_metalio47_firmware.bin`](releases/dpReader_metalio47_firmware.bin)** | `4.82 MiB` | Dùng để **cập nhật qua thẻ nhớ MicroSD** trên dpReader có bố cục NVS 256 KiB, từ bản 1.4.2. | Thẻ nhớ SD hoặc `0x10000` |
-| **[Bộ cài USB 1.5.1](releases/dpReader-metalio47-1.5.1-vn-USB.zip)** | ZIP | Gói USB có hướng dẫn và các tệp nạp firmware. | USB-C |
+| **[`releases/dpReader_metalio47_firmware.bin`](releases/dpReader_metalio47_firmware.bin)** | `4.87 MiB` | Dùng để **cập nhật qua thẻ nhớ MicroSD** trên dpReader có bố cục NVS 256 KiB, từ bản 1.4.2. | Thẻ nhớ SD hoặc `0x10000` |
+| **[Bộ cài USB 1.5.2](releases/dpReader-metalio47-1.5.2-vn-USB.zip)** | ZIP | Gói USB có hướng dẫn và các tệp nạp firmware. | USB-C |
 | **[`releases/SHA256SUMS.txt`](releases/SHA256SUMS.txt)** | — | Mã kiểm tra toàn vẹn `SHA-256` của các bản build. | — |
 
 ---
@@ -210,7 +226,7 @@ Trang Web Flasher chính thức của dpReader được tích hợp sẵn công 
 
 #### Cách 5: Dùng bộ cài USB tải về
 
-Tải [bộ cài USB 1.5.1](releases/dpReader-metalio47-1.5.1-vn-USB.zip), giải nén và làm theo tệp `HUONG_DAN_FLASH.txt` trong gói.
+Tải [bộ cài USB 1.5.2](releases/dpReader-metalio47-1.5.2-vn-USB.zip), giải nén và làm theo tệp `HUONG_DAN_FLASH.txt` trong gói.
 
 ### Tải tệp và log từ trang local
 

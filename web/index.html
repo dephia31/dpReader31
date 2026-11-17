@@ -7,10 +7,14 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>dpReader Metalio Plus Flasher - Trình Nạp Firmware Web</title>
-  <link rel="stylesheet" href="red-studio.css?v=5">
+  <link rel="stylesheet" href="red-studio.css?v=6">
 </head>
 <body>
   <div class="container">
+    <nav id="language-switch" class="language-switch" aria-label="Ngôn ngữ trang">
+      <a id="language-vi" href="?lang=vi" lang="vi">Tiếng Việt</a>
+      <a id="language-en" href="?lang=en" lang="en">English</a>
+    </nav>
     <header>
       <div class="brand"><img class="brand-logo" src="assets/dpreader-logo-red-studio.png" width="512" height="176" alt="dpReader"><small>WEB FLASHER</small></div><div class="hero-eyebrow">MỘT KẾT NỐI. MỘT KHỞI ĐẦU MỚI.</div><h1>Sẵn sàng cho chương tiếp theo.</h1>
       <p>Trình nạp & Nâng cấp Firmware trực tiếp qua cổng USB cho máy đọc sách Metalio 4.7 (ESP32-S31)</p>
@@ -21,6 +25,15 @@
         ✓ Trình duyệt hỗ trợ nạp Web Serial trực tiếp
       </div>
     </header>
+
+    <section class="home-showcase" aria-labelledby="home-showcase-title">
+      <h2 id="home-showcase-title">Giao diện Home</h2>
+      <div class="home-showcase-grid">
+        <figure><img src="assets/home-full.webp" alt="" width="1024" height="1536" decoding="async"><figcaption>Đầy đủ</figcaption></figure>
+        <figure><img src="assets/home-love-book.webp" alt="" width="1024" height="1536" decoding="async"><figcaption>I Love Book</figcaption></figure>
+        <figure><img src="assets/home-new.webp" alt="" width="1024" height="1536" decoding="async"><figcaption>New Home</figcaption></figure>
+      </div>
+    </section>
 
     <!-- BƯỚC 1: KẾT NỐI -->
     <div class="card">
@@ -75,7 +88,7 @@
       <section id="nvs256-guide" class="risk-agreement">
         <h3>Cập nhật dpReader qua USB</h3>
         <p><strong>Đang dùng 1.4.1 trở xuống hoặc firmware khác</strong> · Chọn ô <strong>Nạp toàn phần</strong> để nạp ảnh 16 MB. Trước khi nạp, sao lưu cấu hình ra thẻ SD. Nạp toàn phần xóa dữ liệu trong máy và giữ nguyên thẻ SD. Sau khi nạp, chọn <strong>Khôi phục cấu hình từ thẻ nhớ</strong> trong <strong>Cài đặt → Sao lưu &amp; Khôi phục</strong>.</p>
-        <p><strong>Đang dùng 1.4.2</strong> · Chọn ô <strong>Cập nhật ứng dụng</strong> để lên 1.5.1 bằng Web Flash. Bạn cũng có thể dùng bộ cài USB. Khi nhận diện đúng phân vùng NVS 256 KiB, trang chỉ nạp ứng dụng và giữ cài đặt. Từ 1.4.3 có thể cập nhật qua Wi-Fi.</p>
+        <p><strong>Đang dùng 1.4.2</strong> · Chọn ô <strong>Cập nhật ứng dụng</strong> để cập nhật bằng Web Flash. Bạn cũng có thể dùng bộ cài USB. Khi nhận diện đúng phân vùng NVS 256 KiB, trang chỉ nạp ứng dụng và giữ cài đặt. Từ 1.4.3 có thể cập nhật qua Wi-Fi.</p>
         <p id="usb-only-guide" hidden>Bản 1.4.2 được chọn trong danh sách luôn cài sạch toàn phần.</p>
         <p>Chọn Full hoặc Love Book, kết nối Metalio 4.7 S31 ở chế độ BOOT và bấm <strong>Bắt đầu nạp firmware</strong>. Với bộ cài tải về, chạy <code>FLASH_USB.command</code> trên macOS hoặc <code>FLASH_USB.bat</code> trên Windows.</p>
       </section>
@@ -95,8 +108,9 @@
       <div class="form-group" style="margin-bottom:16px;">
         <label for="release-version">Phiên bản để nạp:</label>
         <select id="release-version">
-          <option value="" selected>1.5.1-vn — mới nhất</option>
-          <option value="1.5.0-vn">1.5.0-vn — bản chính thức trước</option>
+          <option value="" selected>1.5.2-vn — mới nhất</option>
+          <option value="1.5.1-vn">1.5.1-vn — bản chính thức trước</option>
+          <option value="1.5.0-vn">1.5.0-vn</option>
           <option value="1.4.9-vn">1.4.9-vn</option>
           <option value="1.4.8-vn">1.4.8-vn</option>
           <option value="1.4.7-vn">1.4.7-vn</option>
@@ -115,13 +129,13 @@
         <p id="legacy-downloads" hidden><a id="release-tf-download" href="./releases/dpReader_metalio47_firmware.bin" download>Tải ứng dụng cập nhật qua thẻ TF</a> · <a id="release-usb-download" href="./releases/dpReader_metalio47_full.bin" download>Tải bản đầy đủ cho USB</a></p>
       </div>
 
-      <p id="nvs256-download"><a id="release-installer-download" href="./releases/dpReader-metalio47-1.5.1-vn-USB.zip" download>Tải bộ cài USB cho máy tính</a></p>
+      <p id="nvs256-download"><a id="release-installer-download" href="./releases/dpReader-metalio47-1.5.2-vn-USB.zip" download>Tải bộ cài USB cho máy tính</a></p>
 
       <!-- Khung thông tin bản phát hành mới nhất tự động đồng bộ -->
       <div id="release-info-banner">
         <div>
           <span>
-            Phiên bản đã chọn: <span id="latest-version-name">v1.5.1-vn</span>
+            Phiên bản đã chọn: <span id="latest-version-name">v1.5.2-vn</span>
           </span>
           <span id="latest-version-size">Đang tải...</span>
         </div>
@@ -243,6 +257,7 @@
     </footer>
   </div>
 
-  <script type="module" src="red-studio-app.js?v=16"></script>
+  <script src="red-studio-language.js?v=1"></script>
+  <script type="module" src="red-studio-app.js?v=17"></script>
 </body>
 </html>
