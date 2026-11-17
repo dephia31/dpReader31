@@ -1,6 +1,13 @@
-# dpReader
+# dpReader — Give your Metalio a new chapter
 
 [Tiếng Việt](README.md) · **English**
+
+<p align="center">
+  <a href="https://dephia31.github.io/dpReader31/?lang=en"><img src="https://img.shields.io/badge/Web%20Flash-Install%20from%20your%20browser-D52843?style=for-the-badge&amp;logo=googlechrome&amp;logoColor=white" alt="Open Web Flash to install dpReader"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/tag/v1.5.2-vn"><img src="https://img.shields.io/badge/dpReader-1.5.2-222?style=for-the-badge&amp;logo=github" alt="dpReader 1.5.2"></a>
+</p>
+
+**Install or update dpReader directly in Chrome or Edge.** Connect your Metalio with a USB-C data cable and open Web Flash. No desktop installer is required.
 
 | <a href="web/assets/home-full.webp"><img src="docs/screenshots/interface/readme/home-full.png" width="170" height="255" alt="Full Home"></a> | <a href="web/assets/home-love-book.webp"><img src="docs/screenshots/interface/readme/home-love-book.png" width="170" height="255" alt="I Love Book"></a> | <a href="web/assets/home-new.webp"><img src="docs/screenshots/interface/readme/home-new.png" width="170" height="255" alt="New Home"></a> | <a href="docs/screenshots/interface/library.png"><img src="docs/screenshots/interface/readme/library.png" width="170" height="255" alt="Library"></a> |
 | :---: | :---: | :---: | :---: |

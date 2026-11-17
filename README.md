@@ -1,6 +1,13 @@
-# dpReader
+# dpReader — Chương mới cho máy đọc sách Metalio
 
 **Tiếng Việt** · [English](README.en.md) · [English overview](#english-overview)
+
+<p align="center">
+  <a href="https://dephia31.github.io/dpReader31/"><img src="https://img.shields.io/badge/Web%20Flash-C%C3%A0i%20ngay%20tr%C3%AAn%20tr%C3%ACnh%20duy%E1%BB%87t-D52843?style=for-the-badge&amp;logo=googlechrome&amp;logoColor=white" alt="Mở Web Flash để cài dpReader"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/tag/v1.5.2-vn"><img src="https://img.shields.io/badge/dpReader-1.5.2-222?style=for-the-badge&amp;logo=github" alt="dpReader 1.5.2"></a>
+</p>
+
+**Cài hoặc cập nhật dpReader ngay trên Chrome hoặc Edge.** Kết nối Metalio bằng cáp USB-C có truyền dữ liệu rồi mở Web Flash. Bạn có thể nạp trực tiếp từ trình duyệt.
 
 | <a href="web/assets/home-full.webp"><img src="docs/screenshots/interface/readme/home-full.png" width="170" height="255" alt="Đầy đủ"></a> | <a href="web/assets/home-love-book.webp"><img src="docs/screenshots/interface/readme/home-love-book.png" width="170" height="255" alt="I Love Book"></a> | <a href="web/assets/home-new.webp"><img src="docs/screenshots/interface/readme/home-new.png" width="170" height="255" alt="New Home"></a> | <a href="docs/screenshots/interface/library.png"><img src="docs/screenshots/interface/readme/library.png" width="170" height="255" alt="Tủ sách"></a> |
 | :---: | :---: | :---: | :---: |
