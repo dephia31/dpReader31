@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.5.1-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.5.0-vn",
+  "notes": "Tối ưu hiệu năng máy, tải ảnh bìa nhanh hơn và tối ưu pin.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "7a263a806c40bfcf3a4498a7391ca2ed2aef6fca8dfe0acf74b29871d6d1b425",
+      "md5": "b810649ccfd1d6f71325844b1a5493b0"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "23e6059cc2a471f8e2358865b959bad6ba21d2dd1f2dbcae9b4df295fe846564",
+      "md5": "7ffd14e1d28cd26ace4a0c0719b8f070"
+    }
+  },
+  "clean_image": {
+    "sha256": "f8caf9364aa8b57932717823c77f61d501a44e89672b7b43bd5aa87f1bd91528",
+    "md5": "3a9620c78b76f12a05eb8a7535a24f6a"
+  },
+  "size": 5058688,
+  "sha256": "883305be48fbf2c063e0ed84432f4784836d8630acdf7c78cb986356fbc7276d",
+  "md5": "45bb24a1d80649efe9bfd49d8107f04e"
+}
