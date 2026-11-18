@@ -1,3 +1,16 @@
+## dpReader 1.5.4-vn / 1.5.4-love-vn
+
+- Chân trang đọc sách hỗ trợ đồng hồ và phần trăm pin, tự chuyển thanh tiến độ xuống đáy khi cần thêm chỗ. Giữ cỡ chữ khi cập nhật và căn lại vùng đọc khi ẩn thanh trạng thái.
+- Giữ chế độ ngủ qua cập nhật, hỗ trợ Deep Sleep hẹn tắt nguồn và lưu chính sách nguồn ra thẻ nhớ.
+- Chọn Full hoặc Love Book rồi kiểm tra bản OTA mới nhất của nhánh đó. OTA chặn hạ phiên bản. Dịch thêm thông báo OTA sang tiếng Việt và tiếng Anh.
+- Sửa chữ tràn trong hộp thoại chọn phông và hỗ trợ hủy trước khi lưu. Chuyển Điều khiển vào Cá nhân hóa.
+
+Bản sao lưu cài đặt mới dùng định dạng V35. Nếu cần quay về 1.5.3 bằng bộ cài USB, dùng bản sao lưu đã tạo trước khi nâng cấp.
+
+English highlights: customizable reading footer, persistent sleep settings with timed shutdown after Deep Sleep, a simpler OTA flow, and a cancellable system-font dialog.
+
+Mã nguồn: `fb39d2a3071c4b0be298caa038b210acff183f09`.
+
 ## dpReader 1.5.3-vn / 1.5.3-love-vn
 
 - Bổ sung bản dịch tiếng Anh cho Cài đặt và thông báo. Tách mục **Nguồn & Khóa Màn Hình**.
