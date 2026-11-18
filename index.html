@@ -93,13 +93,13 @@
         <p>Chọn Full hoặc Love Book, kết nối Metalio 4.7 S31 ở chế độ BOOT và bấm <strong>Bắt đầu nạp firmware</strong>. Với bộ cài tải về, chạy <code>FLASH_USB.command</code> trên macOS hoặc <code>FLASH_USB.bat</code> trên Windows.</p>
       </section>
       <div class="radio-cards" id="flash-modes">
-        <label class="radio-card radio-card-first-install">
-          <input type="radio" name="flash-mode" id="mode-full">
+        <label class="radio-card radio-card-first-install active">
+          <input type="radio" name="flash-mode" id="mode-full" checked>
           <h4>Nạp toàn phần</h4>
           <p id="mode-full-description">Ảnh 16 MB dành cho máy đang dùng 1.4.1 trở xuống, firmware khác hoặc cần cứu máy. Xóa dữ liệu trong máy, giữ thẻ SD.</p>
         </label>
-        <label class="radio-card active">
-          <input type="radio" name="flash-mode" id="mode-app" checked>
+        <label class="radio-card">
+          <input type="radio" name="flash-mode" id="mode-app">
           <h4>Cập nhật ứng dụng</h4>
           <p id="mode-app-description">Dành cho máy đã dùng dpReader 1.4.2 trở lên với NVS 256 KiB. Giữ cài đặt và dữ liệu.</p>
         </label>
