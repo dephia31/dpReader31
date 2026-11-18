@@ -1,3 +1,16 @@
+## dpReader 1.5.3-vn / 1.5.3-love-vn
+
+- Bổ sung bản dịch tiếng Anh cho Cài đặt và thông báo. Tách mục **Nguồn & Khóa Màn Hình**.
+- Dùng hiệu ứng Quick Settings khi mở và đóng pop menu. Đồng bộ kiểu thông báo mở/đóng sách, KoSync, OPDS và đánh thức. Căn lại New Home trên Love Book.
+- Cho chọn Deep Sleep ngay hoặc sau 5/10 phút Light Sleep. Cải thiện phản hồi khi thức và khôi phục phông đọc.
+- Bộ cài USB ưu tiên kết nối với máy đã ở BOOT, có thông báo lỗi kết nối chi tiết.
+
+Bản chính thức giữ P1.4 trong lúc ngủ và giữ tùy chọn dùng nút âm lượng để đánh thức. Tùy chọn tắt nguồn sau 1 phút vẫn là chế độ thử nghiệm. Sau khi tắt nguồn hoàn toàn, cách bật máy phụ thuộc phần cứng.
+
+English highlights: more translated settings and notices, a faster pop menu, wake feedback and font recovery improvements, and improved USB installer diagnostics.
+
+Mã nguồn: `639ce1c9cbabbd4678fb24d16bb1f52885c64547`.
+
 ## dpReader 1.5.2-vn / 1.5.2-love-vn
 
 - Thêm New Home và làm mới thanh điều hướng, Tủ sách bìa lớn và trang thống kê đọc.

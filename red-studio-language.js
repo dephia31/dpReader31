@@ -53,7 +53,7 @@
   "Ảnh 16 MB dành cho máy đang dùng 1.4.1 trở xuống, firmware khác hoặc cần cứu máy. Xóa dữ liệu trong máy, giữ thẻ SD.": "16 MB image for 1.4.1 or earlier, other firmware or recovery. Erases internal data and preserves the SD card.",
   "Dành cho máy đã dùng dpReader 1.4.2 trở lên với NVS 256 KiB. Giữ cài đặt và dữ liệu.": "For dpReader 1.4.2 and later with 256 KiB NVS. Keeps settings and data.",
   "Phiên bản để nạp:": "Version to install:",
-  "1.5.2-vn — mới nhất": "1.5.2-vn — latest",
+  "1.5.3-vn — mới nhất": "1.5.3-vn — latest",
   "1.5.1-vn — bản chính thức trước": "1.5.1-vn — previous release",
   "Tải ứng dụng cập nhật qua thẻ TF": "Download the microSD update",
   "Tải bản đầy đủ cho USB": "Download the full USB image",
