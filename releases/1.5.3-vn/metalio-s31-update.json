@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.5.3-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.5.2-vn",
+  "notes": "Bổ sung bản dịch tiếng Anh, tách cài đặt nguồn và khóa, tăng tốc pop menu và cải thiện phản hồi khi thức từ Deep Sleep.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "7a263a806c40bfcf3a4498a7391ca2ed2aef6fca8dfe0acf74b29871d6d1b425",
+      "md5": "b810649ccfd1d6f71325844b1a5493b0"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "6d9bbc0d70def77f8cf2a4c02f18e9343bb1bba2a035d1c379a2e84fb2b11a3c",
+      "md5": "7b1da5954dffac575d57fd3fb0955002"
+    }
+  },
+  "clean_image": {
+    "sha256": "6ce0c34c3226cdff8879c42f24c0c149bd60244e5f44fef82236698e48039048",
+    "md5": "3c268cfae48eb144222b76d8340a20b2"
+  },
+  "size": 5110128,
+  "sha256": "74168274769f727e1b8b1e636eaa87e0dffcd230c8739df54358375f1c38839c",
+  "md5": "ce47df49fd8f0d7eaea4c6f4f6e68e27"
+}
