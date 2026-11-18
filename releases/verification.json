@@ -4,9 +4,9 @@
   "target": "esp32s31",
   "chip_id": 32,
   "project": "Kiikoread_Metalio_S31",
-  "version": "1.5.2-vn",
-  "size": 5106304,
-  "sha256": "ff363815057b1d428f992fa7d41ca38eb4585c768178812ed3371d33e1bb2c63",
+  "version": "1.5.3-vn",
+  "size": 5110128,
+  "sha256": "74168274769f727e1b8b1e636eaa87e0dffcd230c8739df54358375f1c38839c",
   "partitions": {
     "otadata": [
       1,
@@ -53,7 +53,7 @@
   },
   "bootloader_offset": 8192,
   "esptool_stub": false,
-  "free_app_bytes": 136576,
+  "free_app_bytes": 132752,
   "firmware_bin": "releases/dpReader_metalio47_firmware.bin",
   "experimental_pie_pixels": false,
   "experimental_text_ripple": false,
@@ -71,5 +71,5 @@
   "published": false,
   "storage_layout": "nvs256-clean",
   "usb_clean_install_required_from_legacy": true,
-  "source_commit": "5664b1714be63ed8f59d6ab66ea870fe46db676a"
+  "source_commit": "639ce1c9cbabbd4678fb24d16bb1f52885c64547"
 }

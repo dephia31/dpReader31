@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.5.2-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.5.1-love-vn",
+  "notes": "Thêm New Home, tủ sách bìa lớn, thanh điều hướng mới và tùy chọn Tiếng Việt / English với màn Welcome.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "24ab2c14f192340c632d90dea03337921dc8f5c7b286982c605569994824fb4e",
+      "md5": "22eef18355cc36cd40d041d9333af6f1"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "f5fa5839c855cb6042ed238d897405622c2a33158fc3f9ac12061d6ec1eb5729",
+      "md5": "4db4e8a6f56730a17b1ed6f7449dc1a9"
+    }
+  },
+  "clean_image": {
+    "sha256": "8a449c338688b88b7e878fe63e3afb6a5c08a6aa1f04b5923c815b1c86404d14",
+    "md5": "baeae092a7c8dcbe8e8b92aceab36e86"
+  },
+  "size": 5040848,
+  "sha256": "fd45479937dc18a9482a4c03aa57492786e57e5c4c9dbb0eee44d1fb658fc15a",
+  "md5": "e9b35603756bb7fffa73bd1fb53c3dd1"
+}
