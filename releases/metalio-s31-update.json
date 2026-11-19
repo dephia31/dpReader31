@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "full",
-  "version": "1.5.4-vn",
+  "version": "1.5.5-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.5.3-vn",
-  "notes": "Thêm đồng hồ và pin ở chân trang, giữ chế độ ngủ khi cập nhật, hỗ trợ Deep Sleep hẹn tắt nguồn và đơn giản hóa OTA.",
+  "previous_version": "1.5.4-vn",
+  "notes": "Tối ưu footer, tên chương tận dụng chỗ trống. Tủ sách Full mở nhanh hơn với cache hai trang đầu. Cải thiện hẹn tắt nguồn sau Deep Sleep và khôi phục giờ.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,15 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "07226b3343992a517129c5af85f961e82dba86d6a9c46e5b6011ef51d05c4543",
-      "md5": "f5393b22702241c5e4d83d13cd23d504"
+      "sha256": "b59184a9dd3e3facec9901e54abd1bc1dff70d55ab7bbde2faa2ee589f3fd7ea",
+      "md5": "d68e3fa0a90a4223d7aacbe1300ca98c"
     }
   },
   "clean_image": {
-    "sha256": "77a7d429d67998bfe22a653b0f76658d1d866220978ff37f83f7c439b25c8f91",
-    "md5": "bc86e6a810a15aade093605b5e3a3a08"
+    "sha256": "6b49f6ec062dfeb5e27bc0c2248579cfc876d11c72353bac07311ba498739fea",
+    "md5": "3f5eb6cf0b0eed90ba23af525e26d8c5"
   },
-  "size": 5116000,
-  "sha256": "feb172c245ff8e1f5d58da883cc57536b9cea5545b95d597bdd09465bdbb93b5",
-  "md5": "5d37571596986ee55191b7898107583d"
+  "size": 5122368,
+  "sha256": "92f53c58175821b15d24b40381cefbabe1fb2e8c8c101465f63617b43d96fa32",
+  "md5": "a832ed56c946875e0ccdc9943db23083",
+  "notes_en": "Improved reader footer and chapter titles. Faster Full library opening with cached covers for the first two pages. Improved Deep Sleep shutdown and clock recovery."
 }
