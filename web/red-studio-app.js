@@ -46,7 +46,7 @@ function automaticLayoutSelected() {
 function syncInstallationGuide() {
   const automatic = automaticLayoutSelected();
   const version = document.getElementById("release-version")?.value ||
-    (editionSelect?.value === "love-book" ? "1.5.4-love-vn" : "1.5.4-vn");
+    (editionSelect?.value === "love-book" ? "1.5.5-love-vn" : "1.5.5-vn");
   const archivedTransition = /^1\.4\.2(?:-love)?-vn$/.test(version);
   document.getElementById("flash-modes").hidden = archivedTransition;
   document.getElementById("legacy-downloads").hidden = automatic;
@@ -286,8 +286,10 @@ async function fetchLatestRelease() {
       currentReleaseInfo = data;
       document.getElementById("release-installer-download").href = `./${requestedFolder}/dpReader-metalio47-${data.version}-USB.zip`;
       if (latestVerName) latestVerName.textContent = `v${data.version}`;
-      if (latestVerNotes && data.notes) {
-        latestVerNotes.textContent = data.notes.split("\n")[0] || data.notes;
+      const notes = english && typeof data.notes_en === "string" && data.notes_en.trim()
+        ? data.notes_en : data.notes;
+      if (latestVerNotes) {
+        latestVerNotes.textContent = typeof notes === "string" ? notes.split("\n")[0] || notes : "";
       }
       if (latestVerSize && data.size) {
         latestVerSize.textContent = `${(data.size / 1024 / 1024).toFixed(2)} MB`;

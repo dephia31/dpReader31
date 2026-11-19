@@ -1,3 +1,21 @@
+## dpReader 1.5.5-vn / 1.5.5-love-vn
+
+### Tiếng Việt
+
+- Tối ưu footer đọc sách. Tên chương dùng phần trống cạnh số trang, đồng hồ, tiến độ và pin.
+- Tối ưu Tủ sách bản Full. Lưu danh mục xem nhanh và bìa hai trang đầu trong bộ nhớ trong.
+- Cải thiện hẹn tắt nguồn sau Deep Sleep và khôi phục đồng hồ khi thức máy.
+- Từ 1.5.5, ghi chú OTA hiển thị tiếng Anh khi giao diện chọn English và bản cập nhật có bản dịch.
+
+### English
+
+- Improved the reader footer. Chapter titles use available space beside the page count, clock, progress, and battery level.
+- Improved the Full library. Internal storage caches a quick preview and covers for the first two pages.
+- Improved timed shutdown after Deep Sleep and clock recovery on wake.
+- Starting with 1.5.5, OTA shows English release notes when English is selected and a translation is available.
+
+Mã nguồn: `0c2732e5aa68c714854c4fef144f5fdde3f14a5f`.
+
 ## dpReader 1.5.4-vn / 1.5.4-love-vn
 
 - Chân trang đọc sách hỗ trợ đồng hồ và phần trăm pin, tự chuyển thanh tiến độ xuống đáy khi cần thêm chỗ. Giữ cỡ chữ khi cập nhật và căn lại vùng đọc khi ẩn thanh trạng thái.

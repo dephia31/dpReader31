@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.5.4-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.5.3-vn",
+  "notes": "Thêm đồng hồ và pin ở chân trang, giữ chế độ ngủ khi cập nhật, hỗ trợ Deep Sleep hẹn tắt nguồn và đơn giản hóa OTA.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "7a263a806c40bfcf3a4498a7391ca2ed2aef6fca8dfe0acf74b29871d6d1b425",
+      "md5": "b810649ccfd1d6f71325844b1a5493b0"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "07226b3343992a517129c5af85f961e82dba86d6a9c46e5b6011ef51d05c4543",
+      "md5": "f5393b22702241c5e4d83d13cd23d504"
+    }
+  },
+  "clean_image": {
+    "sha256": "77a7d429d67998bfe22a653b0f76658d1d866220978ff37f83f7c439b25c8f91",
+    "md5": "bc86e6a810a15aade093605b5e3a3a08"
+  },
+  "size": 5116000,
+  "sha256": "feb172c245ff8e1f5d58da883cc57536b9cea5545b95d597bdd09465bdbb93b5",
+  "md5": "5d37571596986ee55191b7898107583d"
+}
