@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.5.6-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.5.5-love-vn",
+  "notes": "dpMetal Core mặc định khử răng cưa, lật Thường. Bảng xung nền trắng và đèn dpMetal. Rộng tên chương, sửa lỗi Wi-Fi và khởi động lại khi thiếu bộ nhớ.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "e61b75d8ae3a1ce3fdbf300b061181828ee696f2f98ee0010cf81d2168e6ff89",
+      "md5": "eb8f74897f14efed2aa35ccb2ab59ea6"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "a4812a886775357d79441d953226d61f603c9ed4befddead4a12cc04eab49322",
+      "md5": "418c01a57bb637e78cb1d2080e3e1ae9"
+    }
+  },
+  "clean_image": {
+    "sha256": "43935f70c7c3fdaed745521ebd951ed97fce7cc6f1e149facdd06b7f35ea218e",
+    "md5": "4a84bdb13ab56a02d5aa229c1f9a96fe"
+  },
+  "size": 4712336,
+  "sha256": "7e0010fb78faeef336491902822bc791e41640c8ae9dbcb42b2573a2c0964dd5",
+  "md5": "4cbe2bb7511a4cf94f4f86cb7397ba7e",
+  "notes_en": "dpMetal Core defaults to antialiasing and Normal turns. dpMetal white refresh and frontlight. Wider chapter titles and fixes for Wi-Fi and low-memory reboots."
+}
