@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "full",
-  "version": "1.5.6-vn",
+  "version": "1.5.7-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.5.5-vn",
-  "notes": "dpMetal Core mặc định khử răng cưa, lật Thường. Bảng xung nền trắng và đèn dpMetal. Rộng tên chương, giảm nháy Tủ sách, sửa lỗi Wi-Fi và khởi động lại khi thiếu bộ nhớ.",
+  "previous_version": "1.5.6-vn",
+  "notes": "Mở EPUB nhanh hơn, mục lục mở theo từng cấp. Chạm liên kết hoặc chú thích để xem popup, rồi xác nhận để đến đích và có thể quay về trang trước.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "4eef4d620b289e58ea8be7e7a619827b7905ff535341e3f30a64def31d3bce23",
-      "md5": "d62cd898a4cff64a4460e6d6e2b7fa45"
+      "sha256": "fb498f4849b118b4232f6f2540e4005a8785d71140b4d6cf07412180bb5b53c0",
+      "md5": "9da0440b35235211158a80e7f36b16e6"
     }
   },
   "clean_image": {
-    "sha256": "abc55b4ec6ce717925ea39f22c51d213809f2176e744e72f9a3998abd3d18a17",
-    "md5": "5ce24b7400639b10bcd35ab888cb4060"
+    "sha256": "588d423946ac961844a42cbf675b071e467930e79eee4fa28927447fc97168a2",
+    "md5": "30389979f37929c8061795007bc6bc37"
   },
-  "size": 4783552,
-  "sha256": "1f3b790b098e0a094307918f8e8a15c5d605d529a20b769dd8e174bd608d6d30",
-  "md5": "e4c063fdbbacf8b34f7a9f1d653e21e7",
-  "notes_en": "dpMetal Core defaults to antialiasing and Normal turns. dpMetal white refresh and frontlight. Wider chapter titles, fewer Library flashes, and fixes for Wi-Fi and low-memory reboots."
+  "size": 4792000,
+  "sha256": "90c073191b1ea2ea50815aea148c07a13db7fd288ea9a3be4362866cd8fd505f",
+  "md5": "6c1d98c4ab501068f9a040f6f651744b",
+  "notes_en": "Faster EPUB opening and a table of contents that opens one level at a time. Preview in-book links and footnotes, then confirm to go to the target. Return to the previous page when needed."
 }
