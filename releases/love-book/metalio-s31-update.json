@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.5.5-love-vn",
+  "version": "1.5.6-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,13 +9,13 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.5.4-love-vn",
-  "notes": "Tối ưu footer, tên chương tận dụng chỗ trống. Tủ sách Full mở nhanh hơn với cache hai trang đầu. Cải thiện hẹn tắt nguồn sau Deep Sleep và khôi phục giờ.",
+  "previous_version": "1.5.5-love-vn",
+  "notes": "dpMetal Core mặc định khử răng cưa, lật Thường. Bảng xung nền trắng và đèn dpMetal. Rộng tên chương, sửa lỗi Wi-Fi và khởi động lại khi thiếu bộ nhớ.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
-      "sha256": "24ab2c14f192340c632d90dea03337921dc8f5c7b286982c605569994824fb4e",
-      "md5": "22eef18355cc36cd40d041d9333af6f1"
+      "sha256": "e61b75d8ae3a1ce3fdbf300b061181828ee696f2f98ee0010cf81d2168e6ff89",
+      "md5": "eb8f74897f14efed2aa35ccb2ab59ea6"
     },
     "partitions.bin": {
       "size": 3072,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "1c51814cddda5977336ee2c0dec6fcc05101ac8716c03187dbdf0ce4a7afe510",
-      "md5": "bee06eee6b5a9c813877c70398592ad5"
+      "sha256": "a4812a886775357d79441d953226d61f603c9ed4befddead4a12cc04eab49322",
+      "md5": "418c01a57bb637e78cb1d2080e3e1ae9"
     }
   },
   "clean_image": {
-    "sha256": "f0a1274d05d4862a09e3ef5cbbe20ce4f18f25976390d0ecfe0391eaa7a0ec6c",
-    "md5": "7dae1065ed0a878608203b2aa96bd2de"
+    "sha256": "43935f70c7c3fdaed745521ebd951ed97fce7cc6f1e149facdd06b7f35ea218e",
+    "md5": "4a84bdb13ab56a02d5aa229c1f9a96fe"
   },
-  "size": 5051136,
-  "sha256": "6f73fe63d7c849675ddd539d98fb4473617e95a59116a821f99b44e373cd4497",
-  "md5": "3c9e6db3296902dd321097ee65e206dc",
-  "notes_en": "Improved reader footer and chapter titles. Faster Full library opening with cached covers for the first two pages. Improved Deep Sleep shutdown and clock recovery."
+  "size": 4712336,
+  "sha256": "7e0010fb78faeef336491902822bc791e41640c8ae9dbcb42b2573a2c0964dd5",
+  "md5": "4cbe2bb7511a4cf94f4f86cb7397ba7e",
+  "notes_en": "dpMetal Core defaults to antialiasing and Normal turns. dpMetal white refresh and frontlight. Wider chapter titles and fixes for Wi-Fi and low-memory reboots."
 }

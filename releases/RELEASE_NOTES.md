@@ -1,79 +1,21 @@
-## dpReader 1.5.5-vn / 1.5.5-love-vn
+## Tiếng Việt
 
-### Tiếng Việt
+- Thêm dpMetal Core với gợi nét tự động trên hai trục và tùy chọn khử răng cưa bốn mức mực. Mặc định dùng Core có khử răng cưa và hiệu ứng lật Thường khi chưa lưu lựa chọn. Kiểu Đen trắng đậm cũ chuyển sang Core.
+- Bật khử răng cưa sẽ chọn hiệu ứng Thường. Có thể chọn hiệu ứng khác sau đó.
+- Mở rộng ô tên chương và đưa hai cụm thông tin sát mép khi chân trang có hơn hai mục.
+- Dùng bảng xung dpMetal cho trang chữ nền trắng ở hiệu ứng Thường và Khử bóng mờ. Đèn nền dùng đường cong dpMetal và tắt kênh ấm ở mức 0%.
+- Giảm nháy màn hình khi vào Tủ sách bằng cách tăng số dòng nạp trước khi quét.
+- Sửa lỗi khởi động lại khi thiếu bộ nhớ gợi nét và lỗi thử lại kết nối Wi-Fi chưa lưu.
+- Giảm dung lượng bộ cài bằng cách bỏ ảnh khóa cũ.
 
-- Tối ưu footer đọc sách. Tên chương dùng phần trống cạnh số trang, đồng hồ, tiến độ và pin.
-- Tối ưu Tủ sách bản Full. Lưu danh mục xem nhanh và bìa hai trang đầu trong bộ nhớ trong.
-- Cải thiện hẹn tắt nguồn sau Deep Sleep và khôi phục đồng hồ khi thức máy.
-- Từ 1.5.5, ghi chú OTA hiển thị tiếng Anh khi giao diện chọn English và bản cập nhật có bản dịch.
+## English
 
-### English
+- Added dpMetal Core with two-axis auto-hinting and optional four-level antialiasing. New reader configurations default to Core with antialiasing and the Normal page-turn effect. Legacy Bold Monochrome settings migrate to Core.
+- Enabling antialiasing selects Normal. Readers can change the effect afterward.
+- Widened the chapter title slot and moved side groups towards the edges when more than two footer items are enabled.
+- Adopted dpMetal's white-page waveforms for Normal turns and ghosting cleanup, plus its frontlight curve with the warm channel off at 0% warmth.
+- Increased scan prefill to reduce repeated flashes when opening the Library.
+- Fixed a reboot when auto-hinting runs out of memory and a retry failure when joining an unsaved Wi-Fi network.
+- Reduced the firmware image size by removing an unused lock-screen image.
 
-- Improved the reader footer. Chapter titles use available space beside the page count, clock, progress, and battery level.
-- Improved the Full library. Internal storage caches a quick preview and covers for the first two pages.
-- Improved timed shutdown after Deep Sleep and clock recovery on wake.
-- Starting with 1.5.5, OTA shows English release notes when English is selected and a translation is available.
-
-Mã nguồn: `0c2732e5aa68c714854c4fef144f5fdde3f14a5f`.
-
-## dpReader 1.5.4-vn / 1.5.4-love-vn
-
-- Chân trang đọc sách hỗ trợ đồng hồ và phần trăm pin, tự chuyển thanh tiến độ xuống đáy khi cần thêm chỗ. Giữ cỡ chữ khi cập nhật và căn lại vùng đọc khi ẩn thanh trạng thái.
-- Giữ chế độ ngủ qua cập nhật, hỗ trợ Deep Sleep hẹn tắt nguồn và lưu chính sách nguồn ra thẻ nhớ.
-- Chọn Full hoặc Love Book rồi kiểm tra bản OTA mới nhất của nhánh đó. OTA chặn hạ phiên bản. Dịch thêm thông báo OTA sang tiếng Việt và tiếng Anh.
-- Sửa chữ tràn trong hộp thoại chọn phông và hỗ trợ hủy trước khi lưu. Chuyển Điều khiển vào Cá nhân hóa.
-
-Bản sao lưu cài đặt mới dùng định dạng V35. Nếu cần quay về 1.5.3 bằng bộ cài USB, dùng bản sao lưu đã tạo trước khi nâng cấp.
-
-English highlights: customizable reading footer, persistent sleep settings with timed shutdown after Deep Sleep, a simpler OTA flow, and a cancellable system-font dialog.
-
-Mã nguồn: `fb39d2a3071c4b0be298caa038b210acff183f09`.
-
-## dpReader 1.5.3-vn / 1.5.3-love-vn
-
-- Bổ sung bản dịch tiếng Anh cho Cài đặt và thông báo. Tách mục **Nguồn & Khóa Màn Hình**.
-- Dùng hiệu ứng Quick Settings khi mở và đóng pop menu. Đồng bộ kiểu thông báo mở/đóng sách, KoSync, OPDS và đánh thức. Căn lại New Home trên Love Book.
-- Cho chọn Deep Sleep ngay hoặc sau 5/10 phút Light Sleep. Cải thiện phản hồi khi thức và khôi phục phông đọc.
-- Bộ cài USB ưu tiên kết nối với máy đã ở BOOT, có thông báo lỗi kết nối chi tiết.
-
-Bản chính thức giữ P1.4 trong lúc ngủ và giữ tùy chọn dùng nút âm lượng để đánh thức. Tùy chọn tắt nguồn sau 1 phút vẫn là chế độ thử nghiệm. Sau khi tắt nguồn hoàn toàn, cách bật máy phụ thuộc phần cứng.
-
-English highlights: more translated settings and notices, a faster pop menu, wake feedback and font recovery improvements, and improved USB installer diagnostics.
-
-Mã nguồn: `639ce1c9cbabbd4678fb24d16bb1f52885c64547`.
-
-## dpReader 1.5.2-vn / 1.5.2-love-vn
-
-- Thêm New Home và làm mới thanh điều hướng, Tủ sách bìa lớn và trang thống kê đọc.
-- Thêm giao diện Tiếng Việt / English và màn Welcome có logo dpReader khi cài mới.
-- Bổ sung README tiếng Anh và Web Flash song ngữ, có ảnh minh họa ba kiểu Home.
-
-Có hai gói Full và Love Book cho Metalio E‑Ink 4 Plus (ESP32‑S31). Nếu cần quay về 1.5.1, hãy dùng bản sao lưu tạo trước khi nâng cấp. Sao lưu có lựa chọn ngôn ngữ dùng định dạng V33.
-
-English highlights: New Home, a refreshed dock and large-cover library, English firmware UI, first-run language selection, and bilingual Web Flash.
-
-Mã nguồn: `5664b1714be63ed8f59d6ab66ea870fe46db676a`.
-
-## dpReader 1.5.1-vn / 1.5.1-love-vn
-
-- Tối ưu hiệu năng máy, mở và đóng sách nhanh hơn.
-- Tải ảnh bìa nhanh hơn trên Trang chủ và Tủ sách.
-- Tối ưu pin với Deep Sleep và quản lý Wi-Fi, Bluetooth khi ngủ.
-
-Có hai bản Full và Love Book cho Metalio E‑Ink 4 Plus. Hãy chọn cùng bản đang dùng để cập nhật.
-
-Bản sao lưu có mục Yêu thích hoặc Ẩn sách theo định dạng mới cần dpReader 1.5.1 trở lên để khôi phục.
-
-Mã nguồn: `b7046ca8a2b71dfc45c83026e697ac38bd8ab447`.
-
-## dpReader 1.4.8-vn / 1.4.8-love-vn · 2026-11-15
-
-- **Tối ưu giao diện trình đọc sách:** theo kết quả tác giả tự đo, phản hồi nhanh hơn **30%**, thao tác nhẹ nhàng hơn và mức tiêu thụ pin giảm **60%**. Menu dùng cập nhật chênh lệch, giảm lượt vẽ và làm mới dư thừa khi mở/đóng thanh công cụ, cài đặt đọc, phông chữ và mục lục.
-- Thanh công cụ, Cài đặt đọc và Phông chữ mở bằng DU20. Quick Setting mở nhanh, đóng bằng khôi phục vùng bị che để hạn chế nháy toàn màn hình; bảng phủ thanh trạng thái, trải hết chiều ngang và chỉ bo hai góc dưới.
-- Đồng bộ style và nút Quay lại trong các menu đọc sách. Độ đậm chữ có khung xem trước và nút giảm/tăng dạng thẻ; sửa hàng Chụp ảnh màn hình bị nút Quay lại che trong gán phím hệ thống.
-- Thêm shortcut **Chụp ảnh màn hình**, lưu PNG trong thư mục screenshots trên thẻ SD.
-- Kiểu nét chữ giữ Đơn sắc gốc, tách Khử răng cưa với hai công tắc Khử răng cưa/Tương phản chữ và Đen trắng đậm với các ngưỡng **35%, 40%, 45%, 50%, 55%, 60%, 65%**. Tương phản chữ khi bật Khử răng cưa dùng lõi đen từ độ phủ 80%, giữ viền xám; không đổi cách chia trang.
-- Tăng cỡ chữ Xin Chào, Đã đọc …% và Đọc tiếp trên Home của I Love Book và Love Book; giới hạn độ rộng để tránh chồng chữ khi dùng phông rộng.
-- Bỏ đường đánh thức trực tiếp từ Light Sleep bằng nút AI và tùy chọn tương ứng; giữ nút nguồn và các nút âm lượng theo thiết lập. Dọn mã menu cũ và giảm công sao chép bộ đệm Quick Setting.
-
-Mã nguồn: `5e4b0e7a776f222de14aae4c5c8b9449f0ef3160`.
+[Web Flash](https://dephia31.github.io/dpReader31/) · [Web Flash in English](https://dephia31.github.io/dpReader31/?lang=en)
