@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.5.7-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.5.6-love-vn",
+  "notes": "Mở EPUB nhanh hơn, mục lục mở theo từng cấp. Chạm liên kết hoặc chú thích để xem popup, rồi xác nhận để đến đích và có thể quay về trang trước.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "e61b75d8ae3a1ce3fdbf300b061181828ee696f2f98ee0010cf81d2168e6ff89",
+      "md5": "eb8f74897f14efed2aa35ccb2ab59ea6"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "c9826b3b978a1e6f49c94dc14d6b591acd4d082775c93c9d5f5d8e6ea9ceb517",
+      "md5": "bd3b08225a06750a1ed784eda76e246d"
+    }
+  },
+  "clean_image": {
+    "sha256": "221774b47b783bd4888c72f10e423a1e67a96ca009d9bedda5c9d3842805ce42",
+    "md5": "4246c661a2aea38102d1d48beb4f798c"
+  },
+  "size": 4720816,
+  "sha256": "646497d85b94aeb77cb23cab1f92d1ee930e90184b3c367e942bb8667db86995",
+  "md5": "b86af35b13431ad3cdfbf280c66986d0",
+  "notes_en": "Faster EPUB opening and a table of contents that opens one level at a time. Preview in-book links and footnotes, then confirm to go to the target. Return to the previous page when needed."
+}

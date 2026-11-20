@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.5.7-love-vn",
+  "version": "1.5.8-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.5.6-love-vn",
-  "notes": "Mở EPUB nhanh hơn, mục lục mở theo từng cấp. Chạm liên kết hoặc chú thích để xem popup, rồi xác nhận để đến đích và có thể quay về trang trước.",
+  "previous_version": "1.5.7-love-vn",
+  "notes": "Tự căn giữa vùng đọc khi đổi thanh trạng thái hoặc chân trang. Căn chỉnh Thanh Đáy và mở rộng tên chương. Sửa dấu tiếng Việt trong tên sách ở Trang chủ, Mở sách, Tệp và thanh trạng thái.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "c9826b3b978a1e6f49c94dc14d6b591acd4d082775c93c9d5f5d8e6ea9ceb517",
-      "md5": "bd3b08225a06750a1ed784eda76e246d"
+      "sha256": "bb7f4032ca5750888bbd3d53925b5a6437b8557f06cd4abaa70746dac3790892",
+      "md5": "f5a63666112615f4b191da977c5dab1d"
     }
   },
   "clean_image": {
-    "sha256": "221774b47b783bd4888c72f10e423a1e67a96ca009d9bedda5c9d3842805ce42",
-    "md5": "4246c661a2aea38102d1d48beb4f798c"
+    "sha256": "a2648d239edac174203bdd6c191eb1e767540b82376b0e22a3e66b6455718981",
+    "md5": "f2cc0f010b51d4eb5085154330d7d74a"
   },
-  "size": 4720816,
-  "sha256": "646497d85b94aeb77cb23cab1f92d1ee930e90184b3c367e942bb8667db86995",
-  "md5": "b86af35b13431ad3cdfbf280c66986d0",
-  "notes_en": "Faster EPUB opening and a table of contents that opens one level at a time. Preview in-book links and footnotes, then confirm to go to the target. Return to the previous page when needed."
+  "size": 4726816,
+  "sha256": "2deaf1e87d66dff694f76e78c3c1baad8dea487d4013f6592e3345f89ef072af",
+  "md5": "ff43f0b31f1654d2ec92983f6f1819ce",
+  "notes_en": "Vertically centers reading pages as the status bar or footer changes. Improves bottom-bar alignment and chapter title width. Fixes Vietnamese book names in Home, Open book, Files, and the status bar."
 }
