@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.5.8-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.5.7-vn",
+  "notes": "Tự căn giữa vùng đọc khi đổi thanh trạng thái hoặc chân trang. Căn chỉnh Thanh Đáy và mở rộng tên chương. Sửa dấu tiếng Việt trong tên sách ở Trang chủ, Mở sách, Tệp và thanh trạng thái.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "66cb84aab6e93b1faebd8774b29b20867621a91b6ec177104fa2c2fd4924a482",
+      "md5": "fbfcc7941b03c9574c7266e4159c948c"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "2a6b8b9c99ca29c13a48b54e89a9c1dac0750bbee5377006853241dced3632e9",
+      "md5": "5858f37b8e1a0738664fb39088d68b2c"
+    }
+  },
+  "clean_image": {
+    "sha256": "8d8de6fdd947bae7cd9e5ceecdb33f4763424b1f6d69de585f400713ea518a32",
+    "md5": "5a53ab0bb69e830b02bd9bbcc05b782c"
+  },
+  "size": 4798128,
+  "sha256": "131ce431cab23f77e69e7ceb898aba82218128e40af52f98b86bf0726a9ce2f4",
+  "md5": "f7f6ecc88bf432c910959ce5f4287970",
+  "notes_en": "Vertically centers reading pages as the status bar or footer changes. Improves bottom-bar alignment and chapter title width. Fixes Vietnamese book names in Home, Open book, Files, and the status bar."
+}

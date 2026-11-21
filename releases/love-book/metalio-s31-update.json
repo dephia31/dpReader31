@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.5.8-love-vn",
+  "version": "1.5.9-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.5.7-love-vn",
-  "notes": "Tự căn giữa vùng đọc khi đổi thanh trạng thái hoặc chân trang. Căn chỉnh Thanh Đáy và mở rộng tên chương. Sửa dấu tiếng Việt trong tên sách ở Trang chủ, Mở sách, Tệp và thanh trạng thái.",
+  "previous_version": "1.5.8-love-vn",
+  "notes": "KoSync thêm chọn nhanh máy chủ CrossPoint, KOReader Rocks và vreader.cloud, đăng ký tài khoản trên máy và khớp sách theo Binary hoặc Tên tệp.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "bb7f4032ca5750888bbd3d53925b5a6437b8557f06cd4abaa70746dac3790892",
-      "md5": "f5a63666112615f4b191da977c5dab1d"
+      "sha256": "5f293ac3469fe4484be7eb6cdb90e459c141f633c18a4d6b719419d50f62e00b",
+      "md5": "5e38965226aa2a7090068ae41a5fb357"
     }
   },
   "clean_image": {
-    "sha256": "a2648d239edac174203bdd6c191eb1e767540b82376b0e22a3e66b6455718981",
-    "md5": "f2cc0f010b51d4eb5085154330d7d74a"
+    "sha256": "f4fe5d2d99b6f76662a3601cc9c50bc5753cac8bf46c0f93867f14598fafd09e",
+    "md5": "6e19e0cf5b608c0790604e373ebc698a"
   },
-  "size": 4726816,
-  "sha256": "2deaf1e87d66dff694f76e78c3c1baad8dea487d4013f6592e3345f89ef072af",
-  "md5": "ff43f0b31f1654d2ec92983f6f1819ce",
-  "notes_en": "Vertically centers reading pages as the status bar or footer changes. Improves bottom-bar alignment and chapter title width. Fixes Vietnamese book names in Home, Open book, Files, and the status bar."
+  "size": 4729328,
+  "sha256": "4bcba1a925bacfd7591b12d19b9e28a2d931cb0d4b9c407bda3ea325618c2e5c",
+  "md5": "3ecd62cf4c829465e1bd1d83c882ea4a",
+  "notes_en": "KoSync adds CrossPoint, KOReader Rocks, and vreader.cloud presets, on-device account registration, and Binary or File name matching."
 }
