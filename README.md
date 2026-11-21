@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://dephia31.github.io/dpReader31/"><img src="https://img.shields.io/badge/Web%20Flash-C%C3%A0i%20ngay%20tr%C3%AAn%20tr%C3%ACnh%20duy%E1%BB%87t-D52843?style=for-the-badge&amp;logo=googlechrome&amp;logoColor=white" alt="Mở Web Flash để cài dpReader"></a>
-  <a href="https://github.com/dephia31/dpReader31/releases/tag/v1.5.8-vn"><img src="https://img.shields.io/badge/dpReader-1.5.8-222?style=for-the-badge&amp;logo=github" alt="dpReader 1.5.8"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/tag/v1.5.9-vn"><img src="https://img.shields.io/badge/dpReader-1.5.9-222?style=for-the-badge&amp;logo=github" alt="dpReader 1.5.9"></a>
 </p>
 
 **Cài hoặc cập nhật dpReader ngay trên Chrome hoặc Edge.** Kết nối Metalio bằng cáp USB-C có truyền dữ liệu rồi mở Web Flash. Bạn có thể nạp trực tiếp từ trình duyệt.
@@ -13,11 +13,11 @@
 | :---: | :---: | :---: | :---: |
 | Đầy đủ | I Love Book | New Home | Tủ sách |
 
-## dpReader 1.5.8
+## dpReader 1.5.9
 
-Firmware đọc EPUB và TXT dành cho **Metalio E-Ink 4 Plus 4,7 inch** (`metalio4.7`, ESP32-S31, flash 16 MB). Bản 1.5.8 tự căn vùng đọc, cải thiện bố cục chân trang và sửa dấu tiếng Việt trong tên sách.
+Firmware đọc EPUB và TXT dành cho **Metalio E-Ink 4 Plus 4,7 inch** (`metalio4.7`, ESP32-S31, flash 16 MB). Bản 1.5.9 thêm chọn nhanh máy chủ KoSync, đăng ký tài khoản và khớp sách theo Binary hoặc tên tệp.
 
-[Web Flash](https://dephia31.github.io/dpReader31/) · [Tải firmware 1.5.8](https://github.com/dephia31/dpReader31/releases/tag/v1.5.8-vn)
+[Web Flash](https://dephia31.github.io/dpReader31/) · [Tải firmware 1.5.9](https://github.com/dephia31/dpReader31/releases/tag/v1.5.9-vn)
 
 ## Chọn phiên bản và giao diện
 
@@ -43,7 +43,7 @@ Màn **Thống kê đọc sách** hiển thị số phút hôm nay, thời gian 
 3. Chọn **Cập nhật ứng dụng** nếu máy đang chạy dpReader 1.4.2 trở lên với bố cục NVS 256 KiB. Chọn **Nạp toàn phần** khi chuyển từ firmware khác, từ 1.4.1 trở xuống hoặc khi cần cứu máy. Nạp toàn phần xóa bộ nhớ trong và giữ nguyên thẻ microSD.
 4. Kiểm tra phiên bản sau khi máy khởi động lại. Với máy đã dùng bố cục tương thích, có thể cập nhật qua Wi-Fi từ 1.4.3 hoặc dùng gói cập nhật microSD.
 
-[Bộ USB Full](releases/dpReader-metalio47-1.5.8-vn-USB.zip) · [Bộ USB Love Book](releases/love-book/dpReader-metalio47-1.5.8-love-vn-USB.zip) · [Hướng dẫn sao lưu](docs/BACKUP_AND_RESTORE.md)
+[Bộ USB Full](releases/dpReader-metalio47-1.5.9-vn-USB.zip) · [Bộ USB Love Book](releases/love-book/dpReader-metalio47-1.5.9-love-vn-USB.zip) · [Hướng dẫn sao lưu](docs/BACKUP_AND_RESTORE.md)
 
 ## Chép sách và đổi ngôn ngữ
 
