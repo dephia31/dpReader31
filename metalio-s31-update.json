@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "full",
-  "version": "1.5.9-vn",
+  "version": "1.6.0-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.5.8-vn",
-  "notes": "KoSync thêm chọn nhanh máy chủ CrossPoint, KOReader Rocks và vreader.cloud, đăng ký tài khoản trên máy và khớp sách theo Binary hoặc Tên tệp.",
+  "previous_version": "1.5.9-vn",
+  "notes": "Tủ Sách Full có Làm mới và lưu danh sách, bìa vào máy. Đèn trắng 0% ấm lên tới 192 bước PWM. Tối ưu CPU khi chờ đọc, thêm thông báo khôi phục cấu hình và cải thiện thông báo KoSync.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "af562f7f2d8b99dac3eb77cee9dcfdf15f4966435bd11483f79a981e02770ab6",
-      "md5": "232a98806a4421a091b23a5eec0dfb2d"
+      "sha256": "cc12d42c939841fbcccdd193e8e1af1fad22e3797490636fa775ddd1b40c4e52",
+      "md5": "b9877f6ce5315cb209c6818c8397d902"
     }
   },
   "clean_image": {
-    "sha256": "d2588e8b62697720d3d9b9b2cc63aa804a3e96bc2e5b2b554c1cba17b64f2ecd",
-    "md5": "74a2934b77078a29cc3f6eaaf0bab279"
+    "sha256": "2208becaec28917f909963db70ca9f38b51cb9be6e31ab2ab5f7c4a89ccb8fdc",
+    "md5": "2ed5535c5282de7f2d635f5e96747022"
   },
-  "size": 4800480,
-  "sha256": "a48bcb7e4562452534b1c93de762901b90d95f3f5204a865f44614e72eabef8b",
-  "md5": "34ffa184bc4cf51a50cca2f9c6002d70",
-  "notes_en": "KoSync adds CrossPoint, KOReader Rocks, and vreader.cloud presets, on-device account registration, and Binary or File name matching."
+  "size": 4809984,
+  "sha256": "2018e77639ea216eacc46289ce21039cd13582e39ec2b9ec81981e179797ff6b",
+  "md5": "7696960bfa88074ed82ec3a6ff9476ad",
+  "notes_en": "Full adds manual Library Refresh and caches the index and covers. White-only light reaches 192 PWM counts. Reader idle can downclock. New restore and KoSync notices."
 }

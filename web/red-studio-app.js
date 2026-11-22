@@ -46,7 +46,7 @@ function automaticLayoutSelected() {
 function syncInstallationGuide() {
   const automatic = automaticLayoutSelected();
   const version = document.getElementById("release-version")?.value ||
-    (editionSelect?.value === "love-book" ? "1.5.5-love-vn" : "1.5.5-vn");
+    (editionSelect?.value === "love-book" ? "1.6.0-love-vn" : "1.6.0-vn");
   const archivedTransition = /^1\.4\.2(?:-love)?-vn$/.test(version);
   document.getElementById("flash-modes").hidden = archivedTransition;
   document.getElementById("legacy-downloads").hidden = automatic;
@@ -206,7 +206,8 @@ function snapshotReleaseOptions() {
 releaseOptions.set(previousEdition, snapshotReleaseOptions());
 releaseOptions.set("love-book", [
   {value: "", text: t("Mới nhất", "Latest")},
-  {value: "1.5.1-love-vn", text: t("1.5.1-love-vn — bản chính thức trước", "1.5.1-love-vn — previous release")},
+  {value: "1.5.9-love-vn", text: t("1.5.9-love-vn — bản chính thức trước", "1.5.9-love-vn — previous release")},
+  {value: "1.5.1-love-vn", text: "1.5.1-love-vn"},
   {value: "1.5.0-love-vn", text: "1.5.0-love-vn"},
   {value: "1.4.9-love-vn", text: "1.4.9-love-vn"},
   {value: "1.4.8-love-vn", text: "1.4.8-love-vn"},
@@ -221,7 +222,7 @@ function releaseSelectionChanged() {
   syncInstallationGuide();
   resetRiskAgreement();
   const folder = selectedReleaseFolder();
-  document.getElementById("release-tf-download").href = `./${folder}/dpReader_metalio47_firmware.bin`;
+  document.getElementById("release-tf-download").hidden = true;
   document.getElementById("release-usb-download").href = `./${folder}/dpReader_metalio47_full.bin`;
   editionReady = false;
   updateFlashReadiness();
@@ -285,6 +286,7 @@ async function fetchLatestRelease() {
       editionReady = true;
       currentReleaseInfo = data;
       document.getElementById("release-installer-download").href = `./${requestedFolder}/dpReader-metalio47-${data.version}-USB.zip`;
+      document.getElementById("release-tf-download").href = `./${requestedFolder}/dpReader_metalio47_firmware.bin`;
       if (latestVerName) latestVerName.textContent = `v${data.version}`;
       const notes = english && typeof data.notes_en === "string" && data.notes_en.trim()
         ? data.notes_en : data.notes;
@@ -318,10 +320,8 @@ async function fetchLatestRelease() {
       if (latestVerSize) latestVerSize.textContent = "";
       if (latestVerNotes) latestVerNotes.textContent = t("Chưa có gói cho phiên bản đã chọn.", "No package is available for this release.");
     }
-    for (const id of ["release-tf-download", "release-usb-download"]) {
-      const link = document.getElementById(id);
-      link.hidden = !editionReady;
-    }
+    document.getElementById("release-tf-download").hidden = !editionReady || data.usb_only === true;
+    document.getElementById("release-usb-download").hidden = !editionReady || automaticLayoutSelected();
     document.getElementById("release-installer-download").hidden = !editionReady || !automaticLayoutSelected();
     updateFlashReadiness();
   } catch (err) {
