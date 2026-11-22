@@ -54,7 +54,7 @@
   "Dành cho máy đã dùng dpReader 1.4.2 trở lên với NVS 256 KiB. Giữ cài đặt và dữ liệu.": "For dpReader 1.4.2 and later with 256 KiB NVS. Keeps settings and data.",
   "Phiên bản để nạp:": "Version to install:",
   "1.5.5-vn — mới nhất": "1.5.5-vn — latest",
-  "1.5.1-vn — bản chính thức trước": "1.5.1-vn — previous release",
+  "1.5.9-vn — bản chính thức trước": "1.5.9-vn — previous release",
   "Tải ứng dụng cập nhật qua thẻ TF": "Download the microSD update",
   "Tải bản đầy đủ cho USB": "Download the full USB image",
   "Tải bộ cài USB cho máy tính": "Download the desktop USB installer",

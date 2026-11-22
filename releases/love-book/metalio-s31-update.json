@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.5.9-love-vn",
+  "version": "1.6.0-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.5.8-love-vn",
-  "notes": "KoSync thêm chọn nhanh máy chủ CrossPoint, KOReader Rocks và vreader.cloud, đăng ký tài khoản trên máy và khớp sách theo Binary hoặc Tên tệp.",
+  "previous_version": "1.5.9-love-vn",
+  "notes": "Đèn trắng 0% ấm lên tới 192 bước PWM. Tối ưu CPU khi chờ đọc. Có thông báo khôi phục cấu hình và thông báo KoSync mới, chạm bên ngoài để đóng.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "5f293ac3469fe4484be7eb6cdb90e459c141f633c18a4d6b719419d50f62e00b",
-      "md5": "5e38965226aa2a7090068ae41a5fb357"
+      "sha256": "2607eee2fa47a995e5c35f59d9163567868dd1a778fd7d330bba846cc9d922b3",
+      "md5": "b5002d9677b947ccab3d8bb4ae52861d"
     }
   },
   "clean_image": {
-    "sha256": "f4fe5d2d99b6f76662a3601cc9c50bc5753cac8bf46c0f93867f14598fafd09e",
-    "md5": "6e19e0cf5b608c0790604e373ebc698a"
+    "sha256": "dfffa29922932d138808be162c31bfd2577a8e44d306382fc57c0841eda5eb81",
+    "md5": "5d6883733381d8539545f6a49a09e456"
   },
-  "size": 4729328,
-  "sha256": "4bcba1a925bacfd7591b12d19b9e28a2d931cb0d4b9c407bda3ea325618c2e5c",
-  "md5": "3ecd62cf4c829465e1bd1d83c882ea4a",
-  "notes_en": "KoSync adds CrossPoint, KOReader Rocks, and vreader.cloud presets, on-device account registration, and Binary or File name matching."
+  "size": 4734608,
+  "sha256": "df0fc4236164fb80571485da101aff6e8157a59e637e8c30a8b12ad20a508754",
+  "md5": "1d68b0e7c99c0dabd937573d5d302786",
+  "notes_en": "White-only lighting reaches 192 PWM counts. Reader idle can downclock. New settings restore and KoSync notices, with outside-tap dismissal for KoSync."
 }
