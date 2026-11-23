@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.6.2-love-vn",
+  "version": "1.6.3-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.6.1-love-vn",
-  "notes": "Vuốt cạnh trái chỉnh đèn theo 10 nấc và 0%, có thông báo tùy chọn. Màn khóa PNG trong suốt chỉ làm mới vùng thay đổi khi có khung tham chiếu. S31 dùng FreeRTOS 100 Hz và giải phóng ngăn xếp luồng rung khi rảnh.",
+  "previous_version": "1.6.2-love-vn",
+  "notes": "dpMetal Core mới dùng FreeType Light gamma 2,50. Thêm Drop Cap cỡ lớn, nền trắng cho các menu và tô đen mục đang đọc. Thêm công tắc Từ điển, đánh dấu. Tối ưu chuyển sang Deep Sleep. OPDS để trống khi chưa thiết lập.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "b7d4df40d66f11bf80f367a34a8ed56fc13b0aad3c3777b9bb9d0ed2f20ff203",
-      "md5": "08ea1b9d33d373999bc7c63e35628cae"
+      "sha256": "8f7ac02f91fb1cbebd73bc2fe5a6da0ccadb0a91511ac06ba1ea40d5d31b13cb",
+      "md5": "749986e2f553bdc85ff3f327aacc5bd6"
     }
   },
   "clean_image": {
-    "sha256": "4f9a0518da69c4d1e2c77b8e6b5ab95a5a7a586b634a593579433357f8c03438",
-    "md5": "da5a15f4ad5f533e2cfaf56b7c78c0b3"
+    "sha256": "5f4bd0e1401841c8301dc51b48dbc2ef06c84e2218c7ff9005ebb3ab7c761a3e",
+    "md5": "9a3d64d489074f20a5636ef14f152314"
   },
-  "size": 4715808,
-  "sha256": "9b3362e022802152abc274309944cfbfec7c6c0a72613416070a169309cd149a",
-  "md5": "e394cac77066e9eeb5bc151f78584953",
-  "notes_en": "Left-edge swipes set brightness in ten steps plus 0%, with an optional notice. Transparent PNG lock art refreshes the changed region when a valid reference is available. S31 runs at 100 Hz and frees the idle haptic worker stack."
+  "size": 4717744,
+  "sha256": "c17f953b03cd9e5a56f61207d1cb4c32d3e7d0cbc70ea487a55ed668bbde81e7",
+  "md5": "b1fcf24dabfc65fb226df409d21a943e",
+  "notes_en": "dpMetal Core now uses FreeType Light with gamma 2.50. Adds a large drop cap, white menu backgrounds, a highlighted current TOC entry and a Dictionary & notes toggle. Improves the Deep Sleep transition. OPDS starts blank."
 }
