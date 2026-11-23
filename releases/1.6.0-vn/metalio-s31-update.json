@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.6.0-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.5.9-vn",
+  "notes": "Tủ Sách Full có Làm mới và lưu danh sách, bìa vào máy. Đèn trắng 0% ấm lên tới 192 bước PWM. Tối ưu CPU khi chờ đọc, thêm thông báo khôi phục cấu hình và cải thiện thông báo KoSync.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "66cb84aab6e93b1faebd8774b29b20867621a91b6ec177104fa2c2fd4924a482",
+      "md5": "fbfcc7941b03c9574c7266e4159c948c"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "cc12d42c939841fbcccdd193e8e1af1fad22e3797490636fa775ddd1b40c4e52",
+      "md5": "b9877f6ce5315cb209c6818c8397d902"
+    }
+  },
+  "clean_image": {
+    "sha256": "2208becaec28917f909963db70ca9f38b51cb9be6e31ab2ab5f7c4a89ccb8fdc",
+    "md5": "2ed5535c5282de7f2d635f5e96747022"
+  },
+  "size": 4809984,
+  "sha256": "2018e77639ea216eacc46289ce21039cd13582e39ec2b9ec81981e179797ff6b",
+  "md5": "7696960bfa88074ed82ec3a6ff9476ad",
+  "notes_en": "Full adds manual Library Refresh and caches the index and covers. White-only light reaches 192 PWM counts. Reader idle can downclock. New restore and KoSync notices."
+}

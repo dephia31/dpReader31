@@ -1,19 +1,19 @@
 ## Tiếng Việt
 
-- Bản Full lưu danh sách sách, vị trí Tủ Sách và bìa của hai trang đầu cùng một số trang vừa xem trong bộ nhớ máy. Sau lần quét đầu của bản firmware, bấm **Làm mới** cạnh **Lọc** để cập nhật sách hoặc đổi thẻ.
-- Nâng đèn trắng ở độ ấm 0%, tăng trần từ 102 lên 192 bước PWM và nâng các mức thấp, trung bình. Tăng các mức giữa của đèn ấm và đèn pha. Nhật ký chẩn đoán ghi PWM hai kênh.
-- Trang đọc lấy lại xung CPU tối đa trước khi xử lý thao tác và có thể hạ xung lúc chờ. Máy có thể hạ xung trong các lượt chờ đủ điều kiện khi màn hình đã khóa. Bluetooth có thể nghỉ sau 30 giây ngoài Cài đặt khi chưa ghép remote và đã bật hẹn giờ tự tắt.
-- Điều chỉnh cách vẽ nền ở lần vào Trang chủ và Cài đặt. Khung đầu khi mở hoặc tiếp tục đọc dùng bảng tra 1 KiB. Nhật ký ghi các mốc mở sách và vẽ trang đầu để chẩn đoán khởi động lại.
-- Hiện logo dpReader và thông báo theo ngôn ngữ giao diện khi khôi phục cấu hình. Tự về Trang chủ khi hoàn tất.
-- Kết quả KoSync dùng khung thông báo chuẩn và đóng khi hết thời gian hoặc chạm bên ngoài. Căn cung bo của nút Tập tin và Trang chủ theo viền dock.
+- Giảm việc nền trên Trang chủ và trang đọc tĩnh. Khi thẻ và ngắt phím hoạt động bình thường, trang đọc có thể chờ sự kiện tối đa 3 giây. Thao tác chạm và phím được nhận ngay. Firmware giữ lịch đèn và tự khóa theo thời gian cài đặt.
+- Ưu tiên hiển thị trang khi mở sách, nhảy mục lục, chọn phông trên thẻ hoặc lật trang. Sau đó, firmware tải trước các trang gần và chương tiếp theo. Thống kê đọc được ghi theo lô sau khi lật trang, khi rời sách hoặc khóa máy.
+- Thêm **Căn giữa trang cuối chương**, mặc định bật. Khi tắt, trang cuối căn theo mép trên của nội dung trang trước. Khôi phục các mức xám viền nét gốc của dpMetal Core.
+- KoSync chỉ đồng bộ khi người dùng yêu cầu. Ưu tiên OPDS, tải phông, Wi-Fi truyền tệp, USB, sao lưu, khôi phục và cập nhật đã được chọn. Các tác vụ tự mở Wi-Fi đóng kết nối tạm khi xong nếu Wi-Fi không được dùng chung.
+- Kênh đèn ấm mặc định tắt khi cài mới. Người dùng có thể bật lại trong **Đèn nền & Rung**. Bỏ đánh thức bằng cách nhấc máy.
+- Bản Full hiển thị danh sách khi làm mới Tủ Sách, rồi tải bìa đang thấy. Giảm kích thước mã ở Cài đặt và quản lý tệp cho cả hai bản.
 
 ## English
 
-- Full saves the library index, position per layout and covers for the first two and some recently viewed pages in internal storage. After the first scan for a firmware version, tap **Refresh** next to **Filter** to pick up books or a different SD card.
-- Increase white-only frontlight output at 0% warmth, raising the peak from 102 to 192 PWM counts and lifting low and medium levels. Raise midrange warm and mixed output. Diagnostic logs include both PWM channels.
-- Let the CPU downclock while waiting in the reader and during eligible awake waits on the lock screen. The reader restores full speed before processing input. Bluetooth can pause after 30 seconds outside Settings when no remote is paired and Bluetooth auto-off is enabled.
-- Adjust the first frame on Home and Settings. Use the 1 KiB lookup for the first reader frame when opening or resuming a book. Log book-open and first-frame milestones to diagnose resets.
-- Show the dpReader logo and a localized restore message when restoring settings. Return to Home after a successful restore.
-- Show KoSync results in the standard notice, with timeout and outside-tap dismissal. Align the rounded Files and Home tabs with the dock.
+- Reduce background work on Home and on settled reading pages. With healthy storage and interrupt-driven keys, a reading page can wait for events for up to 3 seconds. Touch and keys still wake it immediately. Scheduled frontlight changes and auto-lock keep their configured deadlines.
+- Prioritize the destination page when opening a book, jumping through the table of contents, selecting an SD font, or turning a page. Then prefetch nearby pages and the next chapter. Batch reading statistics after page turns and flush when leaving the book or locking the device.
+- Add **Center the last page of a chapter**, enabled by default. Turn it off to align the final page with the previous page’s content. Restore the original dpMetal Core antialiasing tones.
+- Run KoSync on request. Prioritize requested OPDS, font downloads, Wi-Fi file transfer, USB, backup, restore and updates. Tasks close temporary Wi-Fi connections they opened once finished when the connection is no longer shared.
+- Warm light starts off on a fresh install. Users can enable it in **Frontlight & Haptics**. Remove pickup wake.
+- Full shows the refreshed library listing before loading visible covers. Reduce Settings and file-management code size in both editions.
 
 [Web Flash](https://dephia31.github.io/dpReader31/) · [Web Flash in English](https://dephia31.github.io/dpReader31/?lang=en)
