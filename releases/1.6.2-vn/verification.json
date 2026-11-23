@@ -1,0 +1,78 @@
+{
+  "edition": "full",
+  "board": "metalio47",
+  "target": "esp32s31",
+  "chip_id": 32,
+  "project": "Kiikoread_Metalio_S31",
+  "version": "1.6.2-vn",
+  "size": 4786736,
+  "sha256": "f7ecaf34994430b067e2a66809086e17d6d0954aa6c418172a00307d88a2e94f",
+  "partitions": {
+    "otadata": [
+      1,
+      0,
+      53248,
+      8192
+    ],
+    "phy_init": [
+      1,
+      1,
+      61440,
+      4096
+    ],
+    "ota_0": [
+      0,
+      16,
+      65536,
+      5242880
+    ],
+    "ota_1": [
+      0,
+      17,
+      5308416,
+      5242880
+    ],
+    "storage": [
+      1,
+      129,
+      10551296,
+      5898240
+    ],
+    "nvs": [
+      1,
+      2,
+      16449536,
+      262144
+    ],
+    "coredump": [
+      1,
+      3,
+      16711680,
+      65536
+    ]
+  },
+  "bootloader_offset": 8192,
+  "esptool_stub": false,
+  "free_app_bytes": 456144,
+  "firmware_bin": "releases/dpReader_metalio47_firmware.bin",
+  "experimental_pie_pixels": false,
+  "experimental_text_ripple": false,
+  "dpmetal_white": true,
+  "dpplus_frontlight": true,
+  "experimental_reader_panel37": false,
+  "experimental_shelf37": false,
+  "experimental_fast_reader_panels": false,
+  "experimental_network_probe": false,
+  "experimental_sleep_p14": false,
+  "local_transfer_start_test": false,
+  "automatic_backup": true,
+  "automatic_restore": false,
+  "runtime_memory_validation": "not_performed_by_build",
+  "built": true,
+  "device_flashed": false,
+  "published": false,
+  "freertos_tick_hz": 100,
+  "storage_layout": "nvs256-clean",
+  "usb_clean_install_required_from_legacy": true,
+  "source_commit": "c385a359678ca2c90790a06d0b17d24dfd85ddc5"
+}

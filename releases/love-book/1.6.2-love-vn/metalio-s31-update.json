@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.6.2-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.6.1-love-vn",
+  "notes": "Vuốt cạnh trái chỉnh đèn theo 10 nấc và 0%, có thông báo tùy chọn. Màn khóa PNG trong suốt chỉ làm mới vùng thay đổi khi có khung tham chiếu. S31 dùng FreeRTOS 100 Hz và giải phóng ngăn xếp luồng rung khi rảnh.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "03ca30e7338895869dbaca8a04604ce7fad0ab062f0b3fa8e4b47478e81f03d7",
+      "md5": "32a3f1c2cb8eba97e6e9486efabf5a27"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "b7d4df40d66f11bf80f367a34a8ed56fc13b0aad3c3777b9bb9d0ed2f20ff203",
+      "md5": "08ea1b9d33d373999bc7c63e35628cae"
+    }
+  },
+  "clean_image": {
+    "sha256": "4f9a0518da69c4d1e2c77b8e6b5ab95a5a7a586b634a593579433357f8c03438",
+    "md5": "da5a15f4ad5f533e2cfaf56b7c78c0b3"
+  },
+  "size": 4715808,
+  "sha256": "9b3362e022802152abc274309944cfbfec7c6c0a72613416070a169309cd149a",
+  "md5": "e394cac77066e9eeb5bc151f78584953",
+  "notes_en": "Left-edge swipes set brightness in ten steps plus 0%, with an optional notice. Transparent PNG lock art refreshes the changed region when a valid reference is available. S31 runs at 100 Hz and frees the idle haptic worker stack."
+}
