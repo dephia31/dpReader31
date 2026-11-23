@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.6.1-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.6.0-love-vn",
+  "notes": "Giảm tác vụ nền khi đọc và ở Trang chủ. Tải trước trang, ghi thống kê theo lô. Thêm căn trang cuối chương. KoSync theo yêu cầu, bỏ đánh thức khi nhấc máy. Đèn ấm mặc định tắt.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "a9aeb1bcc0f5028143deabdefc418bb61aaad7e8aa62365f28b1adf9f6311f21",
+      "md5": "f28d24f8db092c9e85516c1b7cce6c3d"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "9ec7f84a899f22272c5b61879bfde9d0bca91ca842dd866e6b7e5ad3aec73ff8",
+      "md5": "1e76554ffe2eb6a6490f5bd66963adb4"
+    }
+  },
+  "clean_image": {
+    "sha256": "fd5a8e2c422457243db10b69b2fcbebb39788800703e1d0edb2fa1ba2ea7b4bc",
+    "md5": "cc019eacd4fb7c85963f3eb56729872b"
+  },
+  "size": 4713088,
+  "sha256": "1299a8891e7dbf2a6cda87699acf27a2226b9f9fbad396fc459ddafde763455b",
+  "md5": "c115ec6ca049fa1fb69e71c3c23042a4",
+  "notes_en": "Reduce background work in the reader and on Home. Prefetch pages and batch reading stats. Add last-page alignment. Sync on demand, remove pickup wake, and default warm light off."
+}
