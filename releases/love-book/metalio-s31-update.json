@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.6.0-love-vn",
+  "version": "1.6.1-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,13 +9,13 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.5.9-love-vn",
-  "notes": "Đèn trắng 0% ấm lên tới 192 bước PWM. Tối ưu CPU khi chờ đọc. Có thông báo khôi phục cấu hình và thông báo KoSync mới, chạm bên ngoài để đóng.",
+  "previous_version": "1.6.0-love-vn",
+  "notes": "Giảm tác vụ nền khi đọc và ở Trang chủ. Tải trước trang, ghi thống kê theo lô. Thêm căn trang cuối chương. KoSync theo yêu cầu, bỏ đánh thức khi nhấc máy. Đèn ấm mặc định tắt.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
-      "sha256": "e61b75d8ae3a1ce3fdbf300b061181828ee696f2f98ee0010cf81d2168e6ff89",
-      "md5": "eb8f74897f14efed2aa35ccb2ab59ea6"
+      "sha256": "a9aeb1bcc0f5028143deabdefc418bb61aaad7e8aa62365f28b1adf9f6311f21",
+      "md5": "f28d24f8db092c9e85516c1b7cce6c3d"
     },
     "partitions.bin": {
       "size": 3072,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "2607eee2fa47a995e5c35f59d9163567868dd1a778fd7d330bba846cc9d922b3",
-      "md5": "b5002d9677b947ccab3d8bb4ae52861d"
+      "sha256": "9ec7f84a899f22272c5b61879bfde9d0bca91ca842dd866e6b7e5ad3aec73ff8",
+      "md5": "1e76554ffe2eb6a6490f5bd66963adb4"
     }
   },
   "clean_image": {
-    "sha256": "dfffa29922932d138808be162c31bfd2577a8e44d306382fc57c0841eda5eb81",
-    "md5": "5d6883733381d8539545f6a49a09e456"
+    "sha256": "fd5a8e2c422457243db10b69b2fcbebb39788800703e1d0edb2fa1ba2ea7b4bc",
+    "md5": "cc019eacd4fb7c85963f3eb56729872b"
   },
-  "size": 4734608,
-  "sha256": "df0fc4236164fb80571485da101aff6e8157a59e637e8c30a8b12ad20a508754",
-  "md5": "1d68b0e7c99c0dabd937573d5d302786",
-  "notes_en": "White-only lighting reaches 192 PWM counts. Reader idle can downclock. New settings restore and KoSync notices, with outside-tap dismissal for KoSync."
+  "size": 4713088,
+  "sha256": "1299a8891e7dbf2a6cda87699acf27a2226b9f9fbad396fc459ddafde763455b",
+  "md5": "c115ec6ca049fa1fb69e71c3c23042a4",
+  "notes_en": "Reduce background work in the reader and on Home. Prefetch pages and batch reading stats. Add last-page alignment. Sync on demand, remove pickup wake, and default warm light off."
 }
