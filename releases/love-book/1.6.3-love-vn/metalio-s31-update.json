@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.6.3-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.6.2-love-vn",
+  "notes": "dpMetal Core mới dùng FreeType Light gamma 2,50. Thêm Drop Cap cỡ lớn, nền trắng cho các menu và tô đen mục đang đọc. Thêm công tắc Từ điển, đánh dấu. Tối ưu chuyển sang Deep Sleep. OPDS để trống khi chưa thiết lập.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "03ca30e7338895869dbaca8a04604ce7fad0ab062f0b3fa8e4b47478e81f03d7",
+      "md5": "32a3f1c2cb8eba97e6e9486efabf5a27"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "8f7ac02f91fb1cbebd73bc2fe5a6da0ccadb0a91511ac06ba1ea40d5d31b13cb",
+      "md5": "749986e2f553bdc85ff3f327aacc5bd6"
+    }
+  },
+  "clean_image": {
+    "sha256": "5f4bd0e1401841c8301dc51b48dbc2ef06c84e2218c7ff9005ebb3ab7c761a3e",
+    "md5": "9a3d64d489074f20a5636ef14f152314"
+  },
+  "size": 4717744,
+  "sha256": "c17f953b03cd9e5a56f61207d1cb4c32d3e7d0cbc70ea487a55ed668bbde81e7",
+  "md5": "b1fcf24dabfc65fb226df409d21a943e",
+  "notes_en": "dpMetal Core now uses FreeType Light with gamma 2.50. Adds a large drop cap, white menu backgrounds, a highlighted current TOC entry and a Dictionary & notes toggle. Improves the Deep Sleep transition. OPDS starts blank."
+}
