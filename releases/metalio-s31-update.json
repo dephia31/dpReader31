@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "full",
-  "version": "1.6.3-vn",
+  "version": "1.6.4-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.6.2-vn",
-  "notes": "dpMetal Core mới dùng FreeType Light gamma 2,50. Thêm Drop Cap cỡ lớn, nền trắng cho các menu và tô đen mục đang đọc. Thêm công tắc Từ điển, đánh dấu. Tối ưu chuyển sang Deep Sleep. OPDS để trống khi chưa thiết lập.",
+  "previous_version": "1.6.3-vn",
+  "notes": "Giảm tác vụ nền khi đọc và ở các màn tĩnh. Tối ưu Sleep, chờ thẻ SD, thống kê đọc và sao lưu. Khôi phục cài đặt nhanh hơn. Giữ trần CPU 320 MHz, hạ xuống 80 MHz khi đủ điều kiện.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "ed46712c36b13d9caae8823fea27a254decf1ee69dfe15e147055fca2a1337c7",
-      "md5": "28bd10d5a2555dc627402afc71c1a971"
+      "sha256": "18d4a0bd39064e243595c4f7f779b3e3b763afc67b8cd04f57addb0fc6193151",
+      "md5": "0030fc31e25adad2156f25494cdac489"
     }
   },
   "clean_image": {
-    "sha256": "42a2cdfcab00752ec20765c1936c59636f240c4db9a8a160924d6969e55148e9",
-    "md5": "8de4f51b015d0dcb36db2182496cbdb3"
+    "sha256": "00a14bb337c3bd2e276dc2aad36054d73e70622693b0ffe2c32d9572c5d6c813",
+    "md5": "5bcf36207b20869008c4f05144ba9980"
   },
-  "size": 4788624,
-  "sha256": "221c8d9bc3c7d6b9abb7c0baac54bfeea0363b6faf63a2e067c26a866ea805d4",
-  "md5": "d574c1291278d22d403affc9191664c4",
-  "notes_en": "dpMetal Core now uses FreeType Light with gamma 2.50. Adds a large drop cap, white menu backgrounds, a highlighted current TOC entry and a Dictionary & notes toggle. Improves the Deep Sleep transition. OPDS starts blank."
+  "size": 4793472,
+  "sha256": "397aa1e5108556523c3cdfcffc084dfe63cb7175e2644be9dcdbf5a9d54bc804",
+  "md5": "24babb8578d056b637784cac0575d125",
+  "notes_en": "Reduce background work in the reader and idle screens. Improve sleep, SD retries, reading statistics and backups. Restore settings faster. Keep a 320 MHz CPU ceiling with eligible idle at 80 MHz."
 }
