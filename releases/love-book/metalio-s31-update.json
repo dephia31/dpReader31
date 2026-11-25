@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.6.4-love-vn",
+  "version": "1.6.5-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,13 +9,13 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.6.3-love-vn",
-  "notes": "Giảm tác vụ nền khi đọc và ở các màn tĩnh. Tối ưu Sleep, chờ thẻ SD, thống kê đọc và sao lưu. Khôi phục cài đặt nhanh hơn. Giữ trần CPU 320 MHz, hạ xuống 80 MHz khi đủ điều kiện.",
+  "previous_version": "1.6.4-love-vn",
+  "notes": "Tối ưu pin/ngủ, giữ P1.4 qua Deep Sleep và giảm poll rảnh. Lọc nhiễu chạm FT6336U giữ double-tap, bảo đảm 300ms khởi động. Khôi phục thẳng sách sau tắt hẹn giờ. Đồng nhất hiển thị/tên tệp tiếng Việt toàn hệ thống.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
-      "sha256": "03ca30e7338895869dbaca8a04604ce7fad0ab062f0b3fa8e4b47478e81f03d7",
-      "md5": "32a3f1c2cb8eba97e6e9486efabf5a27"
+      "sha256": "df36cca00c58ca86ca5e974351a1c64edea7c4f58a68ee6a5dab82e7f72eea3c",
+      "md5": "076286100255a4691fd6e1a9377ec48c"
     },
     "partitions.bin": {
       "size": 3072,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "8990afaff00675cc628311a8207dcaec169456e895709ac246a36719571107e7",
-      "md5": "a4fa144dd84ccbcd0115f2a1fb0685f7"
+      "sha256": "c0b25d339c09b2df122410c1424bf3a65d883e68bc99148e282aaaaaeb49bf14",
+      "md5": "00d78c6f748430e216aac6fc478ac119"
     }
   },
   "clean_image": {
-    "sha256": "22addd184077d642338a7bec6da3859562b4b8e92bf822f580521c4fd0de05da",
-    "md5": "1548debf9c18e72142b9608982e5f57a"
+    "sha256": "6782bf4caf54ee877499312b1e066b9643419ee03d9e4efd52d0dc1e89c2e798",
+    "md5": "aea600652bcb7c6c8d5065dab1c9b4ca"
   },
-  "size": 4722352,
-  "sha256": "7f139893251fabdc15e2ead0a1d7f02699c0e45d0edcacf7303ef82eb09c5127",
-  "md5": "69dd4ed31b296ccd5016d9d9c0a1aff0",
-  "notes_en": "Reduce background work in the reader and idle screens. Improve sleep, SD retries, reading statistics and backups. Restore settings faster. Keep a 320 MHz CPU ceiling with eligible idle at 80 MHz."
+  "size": 4766992,
+  "sha256": "f25548dd92306792009e492d3db729d5542507dd37ebdb8c3a43c9280cb97e89",
+  "md5": "8c9ea0f44fa6b2668dfbf86b5cbb5b75",
+  "notes_en": "Optimize sleep/idle power and retain P1.4 across Deep Sleep. Filter FT6336U EMI/bounce while keeping double-tap and 300 ms touch reset. Resume straight into the book after timed off. Normalize Vietnamese book/file names across the UI."
 }
