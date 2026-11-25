@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.6.6-love-vn",
+  "version": "1.6.7-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.6.5-love-vn",
-  "notes": "Sửa Chuyển theo % để nhảy đúng vị trí toàn sách (TXT/EPUB), hỗ trợ kéo ngắn. Sửa chữ số bị xoay sai và dấu tiếng Việt ở chế độ màn hình ngang, căn đều theo khoảng trắng. Tách vuốt chuyển trang và chạm mở sách trong Tủ sách.",
+  "previous_version": "1.6.6-love-vn",
+  "notes": "Giao diện và vùng chạm xoay theo hướng đọc ngang. Thêm mức đèn Lạnh, Ấm, Siêu sáng, hai mức tùy chỉnh và ba vị trí trong Cài đặt nhanh. Vuốt mép chỉnh đèn mượt hơn và lưu khi kết thúc.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "a222b7f34431a129cc87fedc39060189c48a1bbd649954f8c30de9b0eecc92a1",
-      "md5": "b94fa87d5060ba6dffa0d9e3d894c695"
+      "sha256": "2c61579e136f77bab4e5cb4e99fcefcecd2ca9fa85f152d5b8eb3bf064467eaa",
+      "md5": "65f2fdf8069575691a54a3ed9f7c5bac"
     }
   },
   "clean_image": {
-    "sha256": "fb1229fc931fd9a23e193ac24693bceb177f4fda8fffa4b115462af8d4cb3400",
-    "md5": "67fd5278cd1eed29cf53a6ce12c7f793"
+    "sha256": "23f6b5b4426d9709d3da7a2f27c8d96fba83306baeb22fabc4b48e6b250a9d33",
+    "md5": "07ae5b72b719d46a2c6bc69fd6574af2"
   },
-  "size": 4777888,
-  "sha256": "3ea8d8ff5ee7f789a579b8570373652c31329d6cdb6433626799055da9119fdd",
-  "md5": "068630d58aa42e4e1d09634ace834d70",
-  "notes_en": "Fix TOC Jump by % to land at the exact whole-book position (TXT/EPUB) with smoother short drags. Fix misoriented digits and stacked accents in landscape mode with word-space justification. Separate library swipes from accidental book opens."
+  "size": 4804016,
+  "sha256": "d5a92f0285df9ce27fcb1a3457d1831f8147fc80b8b3d715b639d2f72a298ba8",
+  "md5": "4a699b359e1dd8c988d6d20f9bf316cf",
+  "notes_en": "Controls and touch targets rotate in landscape reading. Add Cool, Warm, Super bright, two custom frontlight presets and three configurable Quick Settings slots. Edge swipes adjust smoothly and save on release."
 }
