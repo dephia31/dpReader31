@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.6.5-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.6.4-vn",
+  "notes": "Tối ưu pin/ngủ, giữ P1.4 qua Deep Sleep và giảm poll rảnh. Lọc nhiễu chạm FT6336U giữ double-tap, bảo đảm 300ms khởi động. Khôi phục thẳng sách sau tắt hẹn giờ. Đồng nhất hiển thị/tên tệp tiếng Việt toàn hệ thống.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "0d53e825b475e531779321c41e9a3c3748fd40249100136ba1b37a6d42154a69",
+      "md5": "e8858e55b55e9ec4a4aa30a78eec24dc"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "944b7aeb4eddd8c07ee7849147c454d5c4d78aa4069f5bebe14c6a81fef3e979",
+      "md5": "0d22e0b273605df336e423a867c164f1"
+    }
+  },
+  "clean_image": {
+    "sha256": "76e7419804148a08b638858a705a33ee9ac10dee99fda3f40cd4c5ef985c5103",
+    "md5": "f1d22db02434907d2cd8f0f92fec467b"
+  },
+  "size": 4844816,
+  "sha256": "3ab4e7c731a5b65eceffdcb309e3c36847809916031bdcfd9f8f5a7d1490d6b1",
+  "md5": "17a1e9c5325ec3dc129e89b28b1f4c95",
+  "notes_en": "Optimize sleep/idle power and retain P1.4 across Deep Sleep. Filter FT6336U EMI/bounce while keeping double-tap and 300 ms touch reset. Resume straight into the book after timed off. Normalize Vietnamese book/file names across the UI."
+}
