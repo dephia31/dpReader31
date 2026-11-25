@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.6.6-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.6.5-vn",
+  "notes": "Sửa Chuyển theo % để nhảy đúng vị trí toàn sách (TXT/EPUB), hỗ trợ kéo ngắn. Sửa chữ số bị xoay sai và dấu tiếng Việt ở chế độ màn hình ngang, căn đều theo khoảng trắng. Tách vuốt chuyển trang và chạm mở sách trong Tủ sách.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "0d53e825b475e531779321c41e9a3c3748fd40249100136ba1b37a6d42154a69",
+      "md5": "e8858e55b55e9ec4a4aa30a78eec24dc"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "4631e93bd11cc3a71edee831e25fdc94e7391791a14bc744265a35a20aa9a0cb",
+      "md5": "33e70e9c839824a0ec14cc647286a59a"
+    }
+  },
+  "clean_image": {
+    "sha256": "fecae1f945ad9d2b30512e54dde06ed0145ee4dc9a144ca11114ae0e26093505",
+    "md5": "c29699d8e48a7efefd28c09bf1ae0130"
+  },
+  "size": 4855664,
+  "sha256": "a5327e54c58a874c63efe1d337a61d814182e7ce95a85c5263bdb34db8195edc",
+  "md5": "d460600d217b282d60106edca4ced108",
+  "notes_en": "Fix TOC Jump by % to land at the exact whole-book position (TXT/EPUB) with smoother short drags. Fix misoriented digits and stacked accents in landscape mode with word-space justification. Separate library swipes from accidental book opens."
+}
