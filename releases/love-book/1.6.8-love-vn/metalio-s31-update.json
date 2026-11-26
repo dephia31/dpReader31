@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.6.8-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.6.7-love-vn",
+  "notes": "1.6.8: Cài đặt nhanh 10 nút (Xoay màn hình, Khóa ngay, Lật trang, Rung, Khóa cảm ứng, Đèn nhanh), sửa tên 2 mức đèn tùy chỉnh, dựng chữ 4 mức 22 pha + PIE SIMD kèm tùy chọn dpMetal White, sửa mục lục cha-con, tối ưu tốc độ mở sách/lật trang và pin BLE/Khóa cảm ứng.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "df36cca00c58ca86ca5e974351a1c64edea7c4f58a68ee6a5dab82e7f72eea3c",
+      "md5": "076286100255a4691fd6e1a9377ec48c"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "034d72bd34e5241d82d71b5f294200931df74a7639dd8b38e989328110d3beed",
+      "md5": "cc40d106f2f0f6ed029dcc265b441666"
+    }
+  },
+  "clean_image": {
+    "sha256": "77549088a866c77c143036a586d1b4b7fdd30ddc026c8b92f0bfb93ba4e602fb",
+    "md5": "890016ff2206b5f1b9fd082d07c33241"
+  },
+  "size": 4832752,
+  "sha256": "cde9ca8a4eb63ce6d9d40a7798e480b6ebc8cdb0fd9216ad8e35f2f9f0d01d00",
+  "md5": "766aab9b91f3e8da73b02a10436da943",
+  "notes_en": "1.6.8: 10-button Quick Settings (Rotate, Lock, Page Turn, Haptics, Touch Lock, Light Presets), editable custom light labels, 4-level 22-phase + PIE SIMD text/UI with optional dpMetal White, nested TOC fix, faster book open & turns, and BLE/Touch-Lock battery fixes."
+}
