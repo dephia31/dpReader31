@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "full",
-  "version": "1.6.7-vn",
+  "version": "1.6.8-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.6.6-vn",
-  "notes": "Giao diện và vùng chạm xoay theo hướng đọc ngang. Thêm mức đèn Lạnh, Ấm, Siêu sáng, hai mức tùy chỉnh và ba vị trí trong Cài đặt nhanh. Vuốt mép chỉnh đèn mượt hơn và lưu khi kết thúc.",
+  "previous_version": "1.6.7-vn",
+  "notes": "1.6.8: Cài đặt nhanh 10 nút (Xoay màn hình, Khóa ngay, Lật trang, Rung, Khóa cảm ứng, Đèn nhanh), sửa tên 2 mức đèn tùy chỉnh, dựng chữ 4 mức 22 pha + PIE SIMD kèm tùy chọn dpMetal White, sửa mục lục cha-con, tối ưu tốc độ mở sách/lật trang và pin BLE/Khóa cảm ứng.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "4b784e69a96e22f4e8bbda202ee5c4bef62de5c66ca22c8a909f6411a3db6380",
-      "md5": "2da9c79fe6873e93afb6ac718a5ea7a5"
+      "sha256": "9e0d596cf554aa1ec9694c4ed75e86c52d95f7fae820895d7cd402a74f3820b4",
+      "md5": "d8dab6b3fdf37c1c490851d81958b145"
     }
   },
   "clean_image": {
-    "sha256": "3f8137e0842f76f24f34408d83b764f93a7825ee0e9ede59afca384356750142",
-    "md5": "edc6e3070b2c519a8269af811adcc65f"
+    "sha256": "19fa92cd4fb7b6d6326f17ae6d64d9659a98731be35945e05736ebbbac76010a",
+    "md5": "5cbb46ab3183da42dafc1ac138b98dcd"
   },
-  "size": 4882544,
-  "sha256": "5f8484558ecce57915d71d94a8e09dc8f9714c71bae849a81ced94865076edd1",
-  "md5": "914cef868fc351849a686d40e5157ad0",
-  "notes_en": "Controls and touch targets rotate in landscape reading. Add Cool, Warm, Super bright, two custom frontlight presets and three configurable Quick Settings slots. Edge swipes adjust smoothly and save on release."
+  "size": 4911776,
+  "sha256": "31f5b80cd96297a177f0cd7c11baea6bb3f10d5e00d057cddb449479e50774da",
+  "md5": "ba5ebd28354c0cda9bf5a7c7743ca0fc",
+  "notes_en": "1.6.8: 10-button Quick Settings (Rotate, Lock, Page Turn, Haptics, Touch Lock, Light Presets), editable custom light labels, 4-level 22-phase + PIE SIMD text/UI with optional dpMetal White, nested TOC fix, faster book open & turns, and BLE/Touch-Lock battery fixes."
 }

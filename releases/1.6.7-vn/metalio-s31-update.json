@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "full",
+  "version": "1.6.7-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.6.6-vn",
+  "notes": "Giao diện và vùng chạm xoay theo hướng đọc ngang. Thêm mức đèn Lạnh, Ấm, Siêu sáng, hai mức tùy chỉnh và ba vị trí trong Cài đặt nhanh. Vuốt mép chỉnh đèn mượt hơn và lưu khi kết thúc.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "0d53e825b475e531779321c41e9a3c3748fd40249100136ba1b37a6d42154a69",
+      "md5": "e8858e55b55e9ec4a4aa30a78eec24dc"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "4b784e69a96e22f4e8bbda202ee5c4bef62de5c66ca22c8a909f6411a3db6380",
+      "md5": "2da9c79fe6873e93afb6ac718a5ea7a5"
+    }
+  },
+  "clean_image": {
+    "sha256": "3f8137e0842f76f24f34408d83b764f93a7825ee0e9ede59afca384356750142",
+    "md5": "edc6e3070b2c519a8269af811adcc65f"
+  },
+  "size": 4882544,
+  "sha256": "5f8484558ecce57915d71d94a8e09dc8f9714c71bae849a81ced94865076edd1",
+  "md5": "914cef868fc351849a686d40e5157ad0",
+  "notes_en": "Controls and touch targets rotate in landscape reading. Add Cool, Warm, Super bright, two custom frontlight presets and three configurable Quick Settings slots. Edge swipes adjust smoothly and save on release."
+}
