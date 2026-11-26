@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.6.8-love-vn",
+  "version": "1.6.9-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.6.7-love-vn",
-  "notes": "1.6.8: Cài đặt nhanh 10 nút (Xoay màn hình, Khóa ngay, Lật trang, Rung, Khóa cảm ứng, Đèn nhanh), sửa tên 2 mức đèn tùy chỉnh, dựng chữ 4 mức 22 pha + PIE SIMD kèm tùy chọn dpMetal White, sửa mục lục cha-con, tối ưu tốc độ mở sách/lật trang và pin BLE/Khóa cảm ứng.",
+  "previous_version": "1.6.8-love-vn",
+  "notes": "1.6.9: Ẩn thanh trạng thái Tủ sách/Tệp/Cài đặt, thêm Tùy chỉnh giao diện New Home tự phóng to bìa, đèn sáng sớm an toàn khi thức Sleep/Deep Sleep, nâng sóng chữ 16 mức & GC36 đậm nét, thêm mức đèn tùy chỉnh 3, sửa cỡ chữ Quick Setting, viền đen, USB sleep, BLE/OPDS/KOSync và tối ưu pin.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "034d72bd34e5241d82d71b5f294200931df74a7639dd8b38e989328110d3beed",
-      "md5": "cc40d106f2f0f6ed029dcc265b441666"
+      "sha256": "84e53c4dae72487441cb58e4bae5fb91721fd2fb2b514a6fe6cfb4f94f0806cd",
+      "md5": "2815371eaff31f4d06f7b06bddc3cedf"
     }
   },
   "clean_image": {
-    "sha256": "77549088a866c77c143036a586d1b4b7fdd30ddc026c8b92f0bfb93ba4e602fb",
-    "md5": "890016ff2206b5f1b9fd082d07c33241"
+    "sha256": "81a957404c179ce0df91c0c80a7fec34ea92a4c7c241345b7fa86bfefb1c4808",
+    "md5": "00fe9bfbeb16181efffcc92bd42288e9"
   },
-  "size": 4832752,
-  "sha256": "cde9ca8a4eb63ce6d9d40a7798e480b6ebc8cdb0fd9216ad8e35f2f9f0d01d00",
-  "md5": "766aab9b91f3e8da73b02a10436da943",
-  "notes_en": "1.6.8: 10-button Quick Settings (Rotate, Lock, Page Turn, Haptics, Touch Lock, Light Presets), editable custom light labels, 4-level 22-phase + PIE SIMD text/UI with optional dpMetal White, nested TOC fix, faster book open & turns, and BLE/Touch-Lock battery fixes."
+  "size": 4843520,
+  "sha256": "c3e478f092ba8bbee9bc01550b312d23b1a9b5fa272def2830d7ab0c5daa22a2",
+  "md5": "4908c7898b3f7050a22db6930275ce2f",
+  "notes_en": "1.6.9: Hide status bar on Library/Files/Settings, add New Home layout toggles with auto cover scaling, safe early wake frontlight for Sleep/Deep Sleep, 16-level 22-phase & darker GC36 text, 3rd custom light preset, Quick Settings font/border, USB sleep, BLE/OPDS/KOSync & battery fixes."
 }
