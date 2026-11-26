@@ -1,15 +1,15 @@
-# dpReader 1.6.7 · Metalio 4.7 ESP32-S31
+# dpReader 1.6.8 · Metalio 4.7 ESP32-S31
 
 Full và Love Book · Full and Love Book
 
-- Xoay thanh trạng thái, chân trang, bảng công cụ, các bảng cài đặt đọc và cài đặt nhanh theo hướng màn hình khi đọc ngang. Đồng bộ vùng chạm và vùng làm mới với giao diện đã xoay.
-- Thêm ba mức đèn mặc định (Lạnh, Ấm, Siêu sáng), hai mức tùy chỉnh và ba vị trí có thể chọn trong Cài đặt nhanh. Vuốt mép để chỉnh đèn mượt hơn. Máy lưu mức đèn khi kết thúc cử chỉ.
-- Các mức đèn tùy chỉnh và vị trí nhanh được giữ khi cập nhật firmware. Sau khi cài sạch, cần thiết lập lại các mục này.
+- Mở rộng Cài đặt nhanh lên 10 nút (Xoay màn hình, Khóa ngay, Kiểu lật trang, Rung, Khóa cảm ứng, Đèn nhanh), làm nổi bật 3 mức đèn nhanh và cho phép đổi tên 2 nhãn Tùy chỉnh (hỗ trợ UTF-8).
+- Dùng thuật toán dựng chữ 4 mức 22 pha + Core 1 PIE SIMD cho cả sách và giao diện, kèm tùy chọn `dpMetal White` trong trình đọc.
+- Sửa đánh số mục lục cha-con, tăng tốc mở/đóng sách và lật trang, đồng thời tối ưu pin (tự tắt BLE khi rảnh, giữ idle khi bật Khóa cảm ứng).
 
 **English**
 
-- Rotate the status bar, footer, toolbar, reading panels and Quick Settings to match landscape reading. Touch targets and refresh regions follow the rotated controls.
-- Add three built-in frontlight presets (Cool, Warm, Super bright), two custom presets and three configurable Quick Settings slots. Edge swipes adjust the light smoothly and save on release.
-- Firmware updates keep custom presets and quick slots. Set them up again after a clean install.
+- Expand Quick Settings to 10 buttons (Rotate screen, Instant lock, Page-turn mode, Haptics, Touch lock, Light presets), highlight Quick Light Presets, and support editable UTF-8 custom labels.
+- Use 4-level 22-phase + Core 1 PIE SIMD text and UI rendering, with an optional `dpMetal White` mode in the reader.
+- Fix nested TOC chapter numbering, speed up book open/close and page turns, and optimize battery life (BLE idle auto-off and Touch Lock idle preservation).
 
-Firmware source commit: `fe3ea4143cbffeb0844d9d3f2061bf99cb974d5d`
+Firmware source commit: `04564c6ba75481d7f55637a753b9a51f0ee5367c`
