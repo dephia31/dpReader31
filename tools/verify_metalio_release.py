@@ -55,7 +55,11 @@ def verify(folder=None, edition="full"):
             assert part==dict(size=len(data),sha256=hashlib.sha256(data).hexdigest(),md5=hashlib.md5(data).hexdigest())
     else:
         assert full[0x10000:]==app and full[0x2000]==0xe9 and struct.unpack_from('<H',full,0x200c)[0]==32
-    assert not any(v for k,v in info.items() if k.startswith('experimental_') or k=='local_transfer_start_test')
+    assert info.get('experimental_pie_pixels') is True
+    assert info.get('experimental_text_ripple') is True
+    assert info.get('dpmetal_white') is False
+    allowed_exp = {'experimental_pie_pixels', 'experimental_text_ripple'}
+    assert not any(v for k, v in info.items() if (k.startswith('experimental_') and k not in allowed_exp) or k == 'local_transfer_start_test')
     previous=manifest.get('previous_version')
     if previous:
         assert previous!=version and re.fullmatch(r'\d+\.\d+\.\d+'+('-love-vn' if edition=='love-book' else '-vn'),previous)
