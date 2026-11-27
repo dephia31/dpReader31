@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://dephia31.github.io/dpReader31/?lang=en"><img src="https://img.shields.io/badge/Web%20Flash-Install%20from%20your%20browser-D52843?style=for-the-badge&amp;logo=googlechrome&amp;logoColor=white" alt="Open Web Flash to install dpReader"></a>
-  <a href="https://github.com/dephia31/dpReader31/releases/tag/v1.7.0-vn"><img src="https://img.shields.io/badge/dpReader-1.7.0-222?style=for-the-badge&amp;logo=github" alt="dpReader 1.7.0"></a>
+  <a href="https://github.com/dephia31/dpReader31/releases/tag/v1.7.1-vn"><img src="https://img.shields.io/badge/dpReader-1.7.1-222?style=for-the-badge&amp;logo=github" alt="dpReader 1.7.1"></a>
 </p>
 
 **Install or update dpReader directly in Chrome or Edge.** Connect your Metalio with a USB-C data cable and open Web Flash. No desktop installer is required.
@@ -13,11 +13,11 @@
 | :---: | :---: | :---: | :---: |
 | Full Home | I Love Book | New Home | Library |
 
-## dpReader 1.7.0
+## dpReader 1.7.1
 
-Firmware for reading EPUB and TXT on the **Metalio E-Ink 4 Plus** (`metalio4.7`, 4.7 inches, ESP32-S31, 16 MB flash). Version 1.7.0 fixes the white flash on manual Refresh in `dpMetal Core` (Bold off), fixes title/footer/note string bounds & FATFS cover/font overwrite, saves battery on failed Wi-Fi/font retry, standardizes Settings Back hitboxes, hardens OPDS redirects, resets BLE on disconnect, and completes English UI translations.
+Firmware for reading EPUB and TXT on the **Metalio E-Ink 4 Plus** (`metalio4.7`, 4.7 inches, ESP32-S31, 16 MB flash). Version 1.7.1 adds in-book full-text search (accent-insensitive Vietnamese, instant stop, left-edge swipe back), redesigns the reader header with simultaneous toolbar open/close, aligns Quick Settings edges symmetrically, and fixes wrapped UI text so the last line never renders larger than preceding lines.
 
-[Web Flash in English](https://dephia31.github.io/dpReader31/?lang=en) · [Download firmware 1.7.0](https://github.com/dephia31/dpReader31/releases/tag/v1.7.0-vn)
+[Web Flash in English](https://dephia31.github.io/dpReader31/?lang=en) · [Download firmware 1.7.1](https://github.com/dephia31/dpReader31/releases/tag/v1.7.1-vn)
 
 ## Choose an edition and a Home layout
 
@@ -43,7 +43,7 @@ Adjust fonts, text size, margins, line spacing and page-turn buttons. Use the ta
 3. Choose **Application update** for dpReader 1.4.2 or later with the compatible 256 KiB NVS layout. Choose **Full install** when switching from other firmware, upgrading from 1.4.1 or earlier, or recovering a device. Full installation erases internal storage and preserves the microSD card.
 4. Check the firmware version after restart. Devices with a compatible layout can update over Wi-Fi from 1.4.3 or use the microSD update package.
 
-[Full USB bundle](releases/dpReader-metalio47-1.7.0-vn-USB.zip) · [Love Book USB bundle](releases/love-book/dpReader-metalio47-1.7.0-love-vn-USB.zip) · [Backup guide in Vietnamese](docs/BACKUP_AND_RESTORE.md)
+[Full USB bundle](releases/dpReader-metalio47-1.7.1-vn-USB.zip) · [Love Book USB bundle](releases/love-book/dpReader-metalio47-1.7.1-love-vn-USB.zip) · [Backup guide in Vietnamese](docs/BACKUP_AND_RESTORE.md)
 
 ## Transfer books and change language
 

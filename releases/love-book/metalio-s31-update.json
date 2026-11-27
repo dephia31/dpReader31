@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.7.0-love-vn",
+  "version": "1.7.1-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.6.9-love-vn",
-  "notes": "1.7.0: Sửa nháy trắng khi Làm mới ở dpMetal Core (tắt Bold), khắc phục lỗi biên chuỗi tiêu đề/chân trang & ghi đè bìa/font trên thẻ SD, tối ưu pin khi lỗi WiFi/font, đồng nhất chạm Quay lại Cài đặt, bảo mật chuyển hướng OPDS, đặt lại BLE khi ngắt kết nối và bổ sung dịch tiếng Anh.",
+  "previous_version": "1.7.0-love-vn",
+  "notes": "1.7.1: Thêm tìm kiếm nội dung trong sách (hỗ trợ tiếng Việt không dấu/có dấu, nút Dừng tức thì, vuốt mép trái quay lại); thiết kế lại header & mở/đóng đồng thời thanh công cụ đọc; căn đều Quick Setting và sửa lỗi dòng cuối chữ xuống hàng bị to hơn các dòng trên.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 22448,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "42375d14de1e2db60e11d36ea8e031a607c97285812b74e759ae3638fcc59fe3",
-      "md5": "e1be7991b350bd7db8fdbe116b9f6ade"
+      "sha256": "8de116dab8b201021262a9e1c912ce4f111b9c33427e5109a17c3bc575c86c29",
+      "md5": "991786fb6412567fcda5166ca4298d73"
     }
   },
   "clean_image": {
-    "sha256": "af5844ee8ba6103f4be9cdfe89ae9187d713e719b8a073506a666adaa3be05f7",
-    "md5": "39e16c5707a939cf3cf5358c7178d4b1"
+    "sha256": "e23d787d42e22a3c855207f2504c15350bf3da91057c170f3427e0d1372d36bd",
+    "md5": "954708749f85a072629c9a659e72197f"
   },
-  "size": 4845568,
-  "sha256": "5762f5c9a989dc0ccd29031a3346360853e20a7b0b2cd544355c26fa93874e24",
-  "md5": "28d5976f4da89d89894eb0569915f7a8",
-  "notes_en": "1.7.0: Fix white flash on manual Refresh in dpMetal Core (Bold off), fix title/footer/note string bounds & FATFS cover/font overwrite, save battery on failed Wi-Fi/font retry, standardize Settings Back hitbox, harden OPDS redirects, reset BLE on disconnect, and complete English UI translations."
+  "size": 4875248,
+  "sha256": "21e65303e7769277e7eee4eb31ef00234b1ff8f70c40a1ee1c22a974929619eb",
+  "md5": "34a1ed2b849ac91bb702640e288a7355",
+  "notes_en": "1.7.1: Add in-book full-text search (accent-insensitive Vietnamese, instant stop, left-edge swipe back); redesign reader header with simultaneous toolbar open/close; align Quick Settings edges and fix larger last-line font on wrapped UI text."
 }
