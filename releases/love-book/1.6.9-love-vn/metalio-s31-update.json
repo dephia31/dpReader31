@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.6.9-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.6.8-love-vn",
+  "notes": "1.6.9: Ẩn thanh trạng thái Tủ sách/Tệp/Cài đặt, thêm Tùy chỉnh giao diện New Home tự phóng to bìa, đèn sáng sớm an toàn khi thức Sleep/Deep Sleep, nâng sóng chữ 16 mức & GC36 đậm nét, thêm mức đèn tùy chỉnh 3, sửa cỡ chữ Quick Setting, viền đen, USB sleep, BLE/OPDS/KOSync và tối ưu pin.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "df36cca00c58ca86ca5e974351a1c64edea7c4f58a68ee6a5dab82e7f72eea3c",
+      "md5": "076286100255a4691fd6e1a9377ec48c"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "84e53c4dae72487441cb58e4bae5fb91721fd2fb2b514a6fe6cfb4f94f0806cd",
+      "md5": "2815371eaff31f4d06f7b06bddc3cedf"
+    }
+  },
+  "clean_image": {
+    "sha256": "81a957404c179ce0df91c0c80a7fec34ea92a4c7c241345b7fa86bfefb1c4808",
+    "md5": "00fe9bfbeb16181efffcc92bd42288e9"
+  },
+  "size": 4843520,
+  "sha256": "c3e478f092ba8bbee9bc01550b312d23b1a9b5fa272def2830d7ab0c5daa22a2",
+  "md5": "4908c7898b3f7050a22db6930275ce2f",
+  "notes_en": "1.6.9: Hide status bar on Library/Files/Settings, add New Home layout toggles with auto cover scaling, safe early wake frontlight for Sleep/Deep Sleep, 16-level 22-phase & darker GC36 text, 3rd custom light preset, Quick Settings font/border, USB sleep, BLE/OPDS/KOSync & battery fixes."
+}

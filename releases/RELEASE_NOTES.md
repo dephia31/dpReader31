@@ -1,17 +1,17 @@
-# dpReader 1.6.9 · Metalio 4.7 ESP32-S31
+# dpReader 1.7.0 · Metalio 4.7 ESP32-S31
 
 Full và Love Book · Full and Love Book
 
-- Ẩn thanh trạng thái trên Tủ sách, Tệp và Cài đặt; mở rộng vùng hiển thị, cân đối tab Tủ sách, hạ hàng phân trang (`Tủ sách`, `Tệp`, `OPDS`), chống tràn chữ và làm đậm viền đen khung thẻ.
-- Căn trái lời chào trên New Home và thêm mục **Tùy chỉnh giao diện** (Full & Love Book) cho phép ẩn/hiện tên sách & tác giả, thanh tiến độ, nút Đọc tiếp và tự phóng to bìa sách theo phần trống.
-- Đèn nền sáng sớm an toàn khi thức từ Light Sleep và tăng sáng mềm khi thức từ Deep Sleep; nâng sóng chữ 22 pha lên 16 mức xám, tăng độ đậm GC36 Flash, sửa cắt dấu dòng đầu khi lật trang dọc và không lưu hộp hoàn tác nhảy chương vào cache.
-- Mở rộng 3 mức đèn tùy chỉnh, sửa cỡ chữ Cài đặt nhanh, giữ xung APB USB khi Light Sleep, đọc trực tiếp VBUS bộ sạc khi tắt nguồn hẹn giờ, cho phép hạ xung CPU khi giữ kết nối BLE/mở Quick Setting, và tối ưu BLE/OPDS/KOSync.
+- Sửa lỗi nháy trắng toàn màn hình khi bấm **Làm mới (Refresh)** trong chế độ chữ `dpMetal Core` (tắt `dpMetal Bold`), đưa về lượt quét sạch GC48 trực tiếp không ảnh hưởng mục Sửa màn hình trong Cài đặt.
+- Sửa lỗi đọc/ghi tràn chuỗi trên tiêu đề danh sách sách, chân trang trình đọc, ghi chú cập nhật và `cache_read_text` EPUB; xóa tệp đích trước khi đổi tên ảnh bìa và thông báo giấy phép font trên thẻ SD; dọn báo cáo crash 0 byte để tránh lặp thử lại.
+- Tối ưu tiết kiệm pin và ổn định nền: dừng đánh thức CPU 750 ms khi không cần tải lại font, không giữ xung CPU / chặn BLE khi Wi-Fi truyền tệp lỗi và tự tắt Wi-Fi lỗi khi rời màn Truyền tệp; khôi phục rung nếu tắt nguồn sớm bị hủy; đặt lại trạng thái BLE khi ngắt kết nối; chuyển hướng OPDS cùng nguồn an toàn (chặn hạ cấp HTTPS→HTTP và rò rỉ xác thực).
+- Đồng nhất vùng chạm nút Quay lại trên các trang con của Cài đặt Metalio 4.7 và hoàn thiện bản dịch tiếng Anh cho các màn hình Cài đặt, bàn phím, font trực tuyến và trạng thái đọc xong.
 
 **English**
 
-- Hide the status bar on Library, Files, and Settings; expand usable space, balance Library tabs, lower the pager bar (`Library`, `Files`, `OPDS`), bound menu text, and use crisp black card borders.
-- Left-align the New Home greeting and add **Home customization** (Full & Love Book) toggles for book title/author, reading progress, and Continue button with automatic reflow and proportional cover scaling.
-- Safe early wake frontlight for Light Sleep and soft-start ramp on Deep Sleep wake; upgrade 22-phase text rendering to 16 gray levels, boost GC36 Flash black pulses, fix 4 px top overhang on portrait Normal turns, and keep chapter-jump undo overlays out of page cache.
-- Add a 3rd custom light preset, fix Quick Settings font sizing, retain USJ APB clock during Light Sleep, read charger VBUS directly for timed Deep power-off, allow CPU downclock during idle BLE / Quick Settings, and fix BLE/OPDS/KOSync handling.
+- Fix full-screen white flash on manual Refresh in `dpMetal Core` mode with `dpMetal Bold` off by routing directly to single-pass GC48 refresh without affecting Settings Panel Repair.
+- Fix string/UTF-8 bounds on book list titles, reader footer, update notes, and EPUB `cache_read_text`; unlink FATFS targets before renaming covers and font license notices; clean 0-byte crash reports.
+- Save battery on idle font/failed Wi-Fi transfer retry, restore haptics if early deep poweroff aborts, reset BLE state on disconnect, and harden same-origin OPDS redirects (block HTTPS→HTTP downgrade and auth leakage).
+- Standardize Metalio 4.7 Settings Back hitboxes and complete English translations for Settings, keyboard, online fonts, and finished reading status.
 
-Firmware source commit: `622ee2a8f1b7bb0168905e11179c648294172eb0`
+Firmware source commit: `cbbe3dfb70adec8ef5376a51c10a9cb3aa7b9a55`
