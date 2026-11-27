@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.7.0-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.6.9-love-vn",
+  "notes": "1.7.0: Sửa nháy trắng khi Làm mới ở dpMetal Core (tắt Bold), khắc phục lỗi biên chuỗi tiêu đề/chân trang & ghi đè bìa/font trên thẻ SD, tối ưu pin khi lỗi WiFi/font, đồng nhất chạm Quay lại Cài đặt, bảo mật chuyển hướng OPDS, đặt lại BLE khi ngắt kết nối và bổ sung dịch tiếng Anh.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 22448,
+      "sha256": "df36cca00c58ca86ca5e974351a1c64edea7c4f58a68ee6a5dab82e7f72eea3c",
+      "md5": "076286100255a4691fd6e1a9377ec48c"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "42375d14de1e2db60e11d36ea8e031a607c97285812b74e759ae3638fcc59fe3",
+      "md5": "e1be7991b350bd7db8fdbe116b9f6ade"
+    }
+  },
+  "clean_image": {
+    "sha256": "af5844ee8ba6103f4be9cdfe89ae9187d713e719b8a073506a666adaa3be05f7",
+    "md5": "39e16c5707a939cf3cf5358c7178d4b1"
+  },
+  "size": 4845568,
+  "sha256": "5762f5c9a989dc0ccd29031a3346360853e20a7b0b2cd544355c26fa93874e24",
+  "md5": "28d5976f4da89d89894eb0569915f7a8",
+  "notes_en": "1.7.0: Fix white flash on manual Refresh in dpMetal Core (Bold off), fix title/footer/note string bounds & FATFS cover/font overwrite, save battery on failed Wi-Fi/font retry, standardize Settings Back hitbox, harden OPDS redirects, reset BLE on disconnect, and complete English UI translations."
+}
