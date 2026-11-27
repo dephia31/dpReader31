@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "full",
-  "version": "1.7.1-vn",
+  "version": "1.7.2-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,13 +9,13 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.7.0-vn",
-  "notes": "1.7.1: Thêm tìm kiếm nội dung trong sách (hỗ trợ tiếng Việt không dấu/có dấu, nút Dừng tức thì, vuốt mép trái quay lại); thiết kế lại header & mở/đóng đồng thời thanh công cụ đọc; căn đều Quick Setting và sửa lỗi dòng cuối chữ xuống hàng bị to hơn các dòng trên.",
+  "previous_version": "1.7.1-vn",
+  "notes": "1.7.2: Tối ưu tốc độ phản hồi menu đọc sách, Mục lục, Quick Setting & làm mịn chữ nhãn bằng raster dpMetal Bold; nâng cấp dpMetal Bold đen đều hết nháy; thêm vuốt mép trái quay lại mọi menu đọc, làm to ô Làm mới trang, mặc định Drop Cap lớn & tắt font nhúng.",
   "usb_parts": {
     "bootloader.bin": {
-      "size": 22448,
-      "sha256": "0d53e825b475e531779321c41e9a3c3748fd40249100136ba1b37a6d42154a69",
-      "md5": "e8858e55b55e9ec4a4aa30a78eec24dc"
+      "size": 20976,
+      "sha256": "838522d7f66617780a2b3ae49613e584011f961062e91076b74271d79c2c8f66",
+      "md5": "75ae013a5ea3852e9c1c109505c31f2f"
     },
     "partitions.bin": {
       "size": 3072,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "9f276f70f563437fabafbfce59656765a93d8c2f5a72546f8a213b2cd920c366",
-      "md5": "49ac270fc8792c8cb9e83964cbc45036"
+      "sha256": "513243e8b04b7b44cb6e8180764ab7ea662b64f272b0c9d5e45940ea734ae158",
+      "md5": "ea2bf15a3071bd8e04eceb31c262c2d3"
     }
   },
   "clean_image": {
-    "sha256": "1462facb3cedcf3a68558463fe333076783e1f2dd7b3547511d3684a9a325336",
-    "md5": "73a552efcfeb45e089b1efad6a5f8c0d"
+    "sha256": "84810b3219d92db57cf02cedfb971ef83558ff3a07f139ab6f6ddb9211d6b466",
+    "md5": "0b099ae51712cab8faec0cebd603f77e"
   },
-  "size": 4954960,
-  "sha256": "26c173e73b01634d7108ffcbd2cec91bb8acaf2cc4e884f7544e8d173c2a38fd",
-  "md5": "5c02ffdcc7e9218a427fdec03895ff72",
-  "notes_en": "1.7.1: Add in-book full-text search (accent-insensitive Vietnamese, instant stop, left-edge swipe back); redesign reader header with simultaneous toolbar open/close; align Quick Settings edges and fix larger last-line font on wrapped UI text."
+  "size": 4826512,
+  "sha256": "4b24b461a51aa288a4168a7e61b3cccf2cb16f289a71226eed6ac3c75e2bf177",
+  "md5": "b7f9eaddc17628d4e2b326666a98738f",
+  "notes_en": "1.7.2: Speed up reading menus, TOC & Quick Settings with dpMetal Bold UI labels; upgrade dpMetal Bold for uniform black strokes without dark flash; add left-edge swipe back across all reading menus, larger refresh card, default Large Drop Cap & embedded fonts off."
 }
