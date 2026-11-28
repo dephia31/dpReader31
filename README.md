@@ -15,21 +15,81 @@
 
 ## dpReader 1.7.3
 
-Firmware đọc EPUB và TXT dành cho **Metalio E-Ink 4 Plus 4,7 inch** (`metalio4.7`, ESP32-S31, flash 16 MB). Bản 1.7.3 tối ưu tốc độ phản hồi toàn bộ menu đọc sách, Mục lục và Quick Setting với chữ nhãn `dpMetal Bold` sắc nét, nâng cấp thuật toán chữ `dpMetal Bold` đen đều không nháy đen, tối ưu SRAM và bổ sung vuốt mép trái quay lại mọi menu đọc.
+Firmware đọc EPUB và TXT dành cho **Metalio E-Ink 4 Plus 4,7 inch** (`metalio4.7`, ESP32-S31, flash 16 MB).
+
+<p align="center">
+  <img src="docs/screenshots/showcase/hero.jpg" width="460" alt="dpReader trên Metalio E-Ink 4 Plus">
+</p>
 
 [Web Flash](https://dephia31.github.io/dpReader31/) · [Tải firmware 1.7.3](https://github.com/dephia31/dpReader31/releases/tag/v1.7.3-vn)
 
+### 1. Màn hình khóa mới: Ghép bìa Tủ sách (C1/C3/C4) & Bìa sách đang đọc (B1/B3)
+
+<p align="center">
+  <img src="docs/screenshots/showcase/lock-collage.jpg" width="680" alt="Màn hình khóa Ghép bìa Tủ sách — Mẫu C3 & C4">
+</p>
+
+- **Ghép bìa Tủ sách (bản Full)**: Nâng cấp tốc độ dựng nhanh hơn hẳn, hỗ trợ 3 phong cách **C1** (nghiêng cổ điển), **C3** (tường bìa 3 cột so le 0° + thẻ nổi) và **C4** (nghiêng nhẹ 8°, bóng xám gọn gàng, dải tối bán trong suốt). Chọn tới **48 cuốn sách**, 3 mật độ bìa, sắp xếp theo **Gần đây / Xáo mỗi lần khóa / Ngẫu nhiên cố định**, kèm nút **Xáo lại** chớp phản hồi và đếm `#N`.
+
+<p align="center">
+  <img src="docs/screenshots/showcase/lock-currentbook.jpg" width="680" alt="Màn hình khóa Bìa sách đang đọc — Mẫu B1 & B3">
+</p>
+
+- **Bìa sách đang đọc (Full & Love Book)**: Hiển thị bìa cuốn sách đang đọc, tên chương, thanh tiến độ `%` và chữ ký cá nhân theo 2 kiểu: **B1** (thẻ nổi bo góc) và **B3** (dải thông tin tối bán trong suốt + dải chữ ký đen đặc sát đáy).
+
+### 2. Chữ siêu nét như in giấy: `dpMetal Core`, `dpMetal Bold` & `dpMetal Dark`
+
+<p align="center">
+  <img src="docs/screenshots/showcase/dpmetal-macro.jpg" width="680" alt="Cận cảnh độ nét chữ dpMetal trên màn hình E-Ink">
+</p>
+
+- **Chữ đen sâu, hết bạc màu cuối lượt quét**: Tinh chỉnh các dạng sóng `GC48`, `GC36`, `GL37` và `22 pha` kết hợp tăng tốc **Core 1 RISC-V PIE SIMD**, giữ lực kéo đen sâu ngay cả với nét chữ mảnh.
+- **Chế độ mới `dpMetal Dark` (trong `dpMetal Core`)**: Giữ nguyên nét thanh thoát của `dpMetal Core`, lật trang nhanh 22 pha và làm mới định kỳ bằng `GC48` cho độ tương phản đen đậm hơn rõ rệt.
+- **`dpMetal Bold` & chữ nhãn giao diện sắc mịn**: Nét chữ đen đậm đồng đều ở mọi cỡ chữ, không nháy đen cuối lượt lật trang; toàn bộ menu đọc sách, Mục lục, popup chọn và Quick Setting dùng raster `dpMetal Bold`.
+- **Mặc định tối ưu**: Giữ **`dpMetal Core`** làm mặc định, tự động bật **Chữ cái đầu đoạn lớn (`Lớn · Nhô lên`)** và tắt mặc định **Phông chữ nhúng trong sách**.
+
+### 3. Sóng nước 2 lựa chọn (22 pha & 37 pha), tối ưu SRAM & vuốt mép trái quay lại
+
+<p align="center">
+  <img src="docs/screenshots/showcase/menus.jpg" width="680" alt="Menu đọc sách phản hồi nhanh và chọn hiệu ứng lật trang">
+</p>
+
+- **2 lựa chọn hiệu ứng Sóng nước**: Chọn **Sóng nước nhanh (22 pha)** để ưu tiên tốc độ, hoặc **Sóng nước mượt (37 pha)** để chuyển trang êm dịu mà chữ vẫn đen sâu.
+- **Tối ưu SRAM nội bộ & an toàn nguồn**: Đặt dữ liệu ngắt I2C, cảm ứng, bộ mở rộng I/O và gia tốc kế vào SRAM nội bộ (`CONFIG_I2C_ISR_IRAM_SAFE=y`); tự động lưu tiến độ, đồng bộ thẻ SD và tắt nguồn an toàn khi pin cạn; tắt sạch I/O, rung và xung màn hình khi ngủ sâu.
+- **Menu đọc sách tải nhanh & vuốt mép trái quay lại**: Đóng/mở đồng thời thanh công cụ trên & dưới trong một lượt quét duy nhất; **vuốt phải từ mép trái** để quay lại trong toàn bộ menu đọc sách (dọc & ngang) và Mục lục.
+
+### 4. Quick Setting & Đèn nền sáng dần êm mắt
+
+<p align="center">
+  <img src="docs/screenshots/showcase/quick-settings.jpg" width="460" alt="Quick Setting 10 nút và 3 chế độ đèn nền tùy biến">
+</p>
+
+- Kéo từ cạnh trên để mở **Quick Setting** với **10 nút bật/tắt nhanh**, **3 cấu hình đèn nền** (đổi tên được bằng tiếng Việt UTF-8) và **2 thanh trượt độ sáng / nhiệt màu**.
+- Đèn nền **sáng dần mềm mại (soft-start)** đồng nhất khi thức từ cả **Light Sleep** và **Deep Sleep**.
+
+### 5. Tìm kiếm tiếng Việt trong sách, Mục lục thông minh & Kết nối
+
+<p align="center">
+  <img src="docs/screenshots/showcase/search-toc.jpg" width="680" alt="Tìm kiếm trong sách tiếng Việt và Mục lục">
+</p>
+
+- **Tìm kiếm nội dung trong sách (TXT & EPUB)**: Hỗ trợ tiếng Việt có dấu và không dấu, lưu từ khóa gần đây, nút **Dừng & xem kết quả** tức thì, tìm nhanh từ menu chọn chữ.
+- **Mục lục cha–con & nhảy theo phần trăm (%)**: Hỗ trợ đầy đủ cả hướng dọc và xoay ngang.
+- **Kết nối đa dạng**: **KOSync**, duyệt kho sách **OPDS**, truyền sách qua **Wi-Fi / Hotspot / USB**, và điều khiển **nút lật trang Bluetooth**.
+
 ## Chọn phiên bản và giao diện
 
-- **Full** có Tủ sách dạng bìa, tìm kiếm, sách yêu thích, lịch sử và công cụ quản lý. Home Đầy đủ hiển thị sách đang đọc, tiện ích và sách gần đây.
-- **Love Book** dùng trình chọn tệp để mở sách. I Love Book tập trung vào cuốn đang đọc, với bìa hé mở và tiến độ.
+<p align="center">
+  <img src="docs/screenshots/showcase/editions.jpg" width="760" alt="Ba giao diện trang chủ Full Home, Love Book và New Home">
+</p>
+
+- **Full** có Tủ sách dạng bìa, tìm kiếm, sách yêu thích, lịch sử, công cụ quản lý và màn hình khóa **Ghép bìa Tủ sách**. Home Đầy đủ hiển thị sách đang đọc, tiện ích và sách gần đây.
+- **Love Book** dùng trình chọn tệp để mở sách. I Love Book tập trung vào cuốn đang đọc với bìa hé mở, tiến độ và màn hình khóa **Bìa sách đang đọc**.
 - **New Home** có trên cả hai phiên bản. Chạm **Đọc tiếp** để mở sách hoặc chạm vùng **Hôm nay** để xem thống kê. Chọn tại **Cài đặt → Cá nhân hóa → Giao diện**.
 
 ## Đọc sách và theo dõi tiến độ
 
-Tùy chỉnh phông chữ, cỡ chữ, lề, giãn dòng và phím lật trang. Trình đọc hỗ trợ mục lục, dấu trang, điều khiển lật trang Bluetooth và đồng bộ tiến độ KOSync. Trong bản Full, Tủ sách có thể duyệt theo sách, tác giả hoặc thư mục.
-
-Màn **Thống kê đọc sách** hiển thị số phút hôm nay, thời gian và số ngày đọc trong tháng, tổng thời gian và biểu đồ bảy ngày. Đặt số phút muốn đọc mỗi ngày trong **Mục tiêu đọc**.
+Tùy chỉnh phông chữ, cỡ chữ, lề, giãn dòng và phím lật trang. Màn **Thống kê đọc sách** hiển thị số phút hôm nay, thời gian và số ngày đọc trong tháng, tổng thời gian và biểu đồ bảy ngày. Đặt số phút muốn đọc mỗi ngày trong **Mục tiêu đọc**.
 
 <p align="center">
   <img src="docs/screenshots/interface/reading-statistics.png" width="190" alt="Thống kê đọc sách">
@@ -55,6 +115,6 @@ Màn Welcome cho chọn **Tiếng Việt** hoặc **English** khi cài mới. Đ
 
 ## English overview
 
-dpReader is EPUB and TXT reading firmware for the **Metalio E-Ink 4 Plus (4.7-inch, ESP32-S31)**. Version 1.5.2 adds Vietnamese and English language selection, New Home, reading statistics and a redesigned dock. Choose **Full** for the cover library or **Love Book** for a simpler file-based reading experience.
+dpReader is EPUB and TXT reading firmware for the **Metalio E-Ink 4 Plus (4.7-inch, ESP32-S31)**. Version **1.7.3** adds upgraded Cover-collage (C1/C3/C4, 48-book pool, shuffle feedback) and Current-book cover (B1/B3) lock screens, dual water-ripple page turns (22-phase fast & 37-phase smooth), **`dpMetal Dark`** mode with deeper black text contrast, internal SRAM I2C/touch safety, critical-battery safe shutdown, and unified soft-start frontlight wake. Choose **Full** for the cover library or **Love Book** for a simpler file-based reading experience.
 
 [Read the full English guide](README.en.md) · [Open Web Flash in English](https://dephia31.github.io/dpReader31/?lang=en)
