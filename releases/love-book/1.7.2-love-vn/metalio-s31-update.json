@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "edition": "love-book",
+  "version": "1.7.2-love-vn",
+  "project": "Kiikoread_Metalio_S31",
+  "board": "Metalio-EINK4-Plus-S31",
+  "layout": "metalio-s31-dual-5m-v1",
+  "minimum_base_version": "1.4.2",
+  "usb_only": false,
+  "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
+  "flash_page": "https://dephia31.github.io/dpReader31/",
+  "previous_version": "1.7.1-love-vn",
+  "notes": "1.7.2: Tối ưu tốc độ phản hồi menu đọc sách, Mục lục, Quick Setting & làm mịn chữ nhãn bằng raster dpMetal Bold; nâng cấp dpMetal Bold đen đều hết nháy; thêm vuốt mép trái quay lại mọi menu đọc, làm to ô Làm mới trang, mặc định Drop Cap lớn & tắt font nhúng.",
+  "usb_parts": {
+    "bootloader.bin": {
+      "size": 20976,
+      "sha256": "653370d18f471d38de12c7a041e3ce117e6ba368e0cc9544b6d935f2e4c2cba7",
+      "md5": "a035de193cf02edfc0faa4439224e61c"
+    },
+    "partitions.bin": {
+      "size": 3072,
+      "sha256": "5fb13c31d7bb5501fe7fbe00b34b12adfe1b304be8b3ce87f277efb613281ade",
+      "md5": "94ea2f661d23db44c71445b089ce5279"
+    },
+    "storage-empty.bin": {
+      "size": 5898240,
+      "sha256": "c1d21a7d08013931737cfe21ce818de59860b9ebeb33fac47a24a92e840526b0",
+      "md5": "ffabf71a90db1f057cd0d06892c3f0dc"
+    }
+  },
+  "clean_image": {
+    "sha256": "4979b7ea1b501c9049226e1f46b7d810346be668da76a1e0de71e46c18254a18",
+    "md5": "01610ab8bb2da517a24060c5645385a7"
+  },
+  "size": 4746816,
+  "sha256": "9347335f07e53609045f242fc0e7cb69313c3bb8fe9478dd14d28113cb1c2fb6",
+  "md5": "28b9d4c1b768491338ee78769be657e8",
+  "notes_en": "1.7.2: Speed up reading menus, TOC & Quick Settings with dpMetal Bold UI labels; upgrade dpMetal Bold for uniform black strokes without dark flash; add left-edge swipe back across all reading menus, larger refresh card, default Large Drop Cap & embedded fonts off."
+}
