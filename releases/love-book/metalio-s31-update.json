@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "love-book",
-  "version": "1.7.2-love-vn",
+  "version": "1.7.3-love-vn",
   "project": "Kiikoread_Metalio_S31",
   "board": "Metalio-EINK4-Plus-S31",
   "layout": "metalio-s31-dual-5m-v1",
@@ -9,8 +9,8 @@
   "usb_only": false,
   "url": "https://dephia31.github.io/dpReader31/releases/love-book/dpReader_metalio47_firmware.bin",
   "flash_page": "https://dephia31.github.io/dpReader31/",
-  "previous_version": "1.7.1-love-vn",
-  "notes": "1.7.2: Tối ưu tốc độ phản hồi menu đọc sách, Mục lục, Quick Setting & làm mịn chữ nhãn bằng raster dpMetal Bold; nâng cấp dpMetal Bold đen đều hết nháy; thêm vuốt mép trái quay lại mọi menu đọc, làm to ô Làm mới trang, mặc định Drop Cap lớn & tắt font nhúng.",
+  "previous_version": "1.7.2-love-vn",
+  "notes": "1.7.3: Nâng cấp khóa ghép bìa (C1/C3/C4, 48 bìa, xáo trộn ngẫu nhiên) & thêm khóa Bìa đang đọc (B1/B3); thêm sóng nước mượt 37 pha, dpMetal Dark & tăng độ đen chữ; sửa lỗi I2C SRAM, bảo vệ tắt máy khi pin cạn & tối ưu đèn/ngủ sâu.",
   "usb_parts": {
     "bootloader.bin": {
       "size": 20976,
@@ -24,16 +24,16 @@
     },
     "storage-empty.bin": {
       "size": 5898240,
-      "sha256": "c1d21a7d08013931737cfe21ce818de59860b9ebeb33fac47a24a92e840526b0",
-      "md5": "ffabf71a90db1f057cd0d06892c3f0dc"
+      "sha256": "38e9aa6bb50f33ddf94457155c71d91274bd741de7c1b5c35d5c95d6a70680be",
+      "md5": "e793c696f38f5bd183f854514481d011"
     }
   },
   "clean_image": {
-    "sha256": "4979b7ea1b501c9049226e1f46b7d810346be668da76a1e0de71e46c18254a18",
-    "md5": "01610ab8bb2da517a24060c5645385a7"
+    "sha256": "5ec114a52261dc547450afb215843386ad1a2a717d0b93cf73967bf110751e31",
+    "md5": "386d8857f9af97a989bcacef07378201"
   },
-  "size": 4746816,
-  "sha256": "9347335f07e53609045f242fc0e7cb69313c3bb8fe9478dd14d28113cb1c2fb6",
-  "md5": "28b9d4c1b768491338ee78769be657e8",
-  "notes_en": "1.7.2: Speed up reading menus, TOC & Quick Settings with dpMetal Bold UI labels; upgrade dpMetal Bold for uniform black strokes without dark flash; add left-edge swipe back across all reading menus, larger refresh card, default Large Drop Cap & embedded fonts off."
+  "size": 4765056,
+  "sha256": "d825c49dc36d23b9eeceb7c825b02daf9986f89ccd288b06ee615010357ff050",
+  "md5": "fb193b9e05c37cd321096f3fda2e6908",
+  "notes_en": "1.7.3: Upgraded cover-collage lock screen (C1/C3/C4, 48 books, random shuffle) & new Current book cover lock (B1/B3); add smooth 37-phase ripple, dpMetal Dark & deeper text contrast; fix I2C SRAM safety, low-battery safe shutdown & sleep/frontlight wake."
 }
